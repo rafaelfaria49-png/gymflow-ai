@@ -107,6 +107,8 @@ export interface ActiveExercise {
   repRange?: [number, number];
   targetRPE?: number;
   restSec?: number;
+  // GOAL-08: motivo da sugestão do motor de progressão (texto explicativo honesto)
+  progressionNote?: string;
 }
 
 export interface WorkoutSession {

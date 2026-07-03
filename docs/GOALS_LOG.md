@@ -285,3 +285,49 @@ Programas ganharam estrutura real (`Program → Week → Day → ExerciseSlot`) 
 2. No Planejador, tocar Play na Segunda e depois (cancelando) na Terça → treinos diferentes, com os exercícios exatos de cada Day.
 3. Concluir uma série → o timer de descanso usa o descanso do slot (ex.: 120s composto, 75s isolado, 180s força).
 4. Dia de descanso não tem botão de iniciar treino.
+
+---
+
+## GOAL-08 — Progressão determinística + testes (2026-07-03)
+
+### Resumo
+
+Motor determinístico de progressão de carga/reps (`src/lib/progression.ts`, função pura `suggestNext`) alimentado pelo histórico real de treinos concluídos (persistido desde o GOAL-01), com suíte de testes em vitest e integração nas colunas ANT/SUG do Treino Ativo.
+
+### Regra implementada
+
+1. Sem histórico (ou só séries não concluídas): `pesoKg: null`, `repsAlvo` = piso do repRange, motivo honesto.
+2. Última sessão bateu o TETO do repRange em todas as séries concluídas e RPE ≤ targetRPE (RPE ausente conta como ok, declarado no motivo): subir `incrementKg` e voltar ao piso da faixa.
+3. Abaixo do PISO em 2 sessões consecutivas: deload de 10%.
+4. Caso contrário: manter carga e subir reps (+1 sobre a menor reps concluída, teto = repRange[1]); RPE acima do alvo trava a subida de carga mesmo no teto da faixa.
+5. `progression: 'nenhuma'`: sugestão neutra sem carga.
+6. Toda carga sugerida é arredondada para múltiplos de 0.5 kg; nunca crasha com peso/RPE/histórico ausentes ou malformados.
+
+### Antes / depois (comportamento crítico)
+
+- **Antes:** colunas ANT/SUG do Treino Ativo eram fabricadas (10 kg / 12 kg hardcoded em `startWorkout`), sem relação com o histórico; texto "Sugestão IA: Carga progressiva" sem base real.
+- **Depois:** ANT = maior carga concluída da última sessão real daquele exercício ("—" sem histórico); SUG = saída do motor determinístico ("—" quando não aplicável); séries pré-preenchidas com a sugestão (fallback: última carga → 10 kg); cabeçalho mostra "Progressão recomendada: <motivo>".
+
+### Arquivos criados/alterados
+
+- `src/lib/progression.ts` — **novo**: `suggestNext`, `lastRecordedWeight`, `roundToHalfKg`, tipos `ExerciseSessionHistory`/`HistorySet`/`ProgressionSuggestion`.
+- `src/lib/progression.test.ts` — **novo**: 15 testes (histórico vazio, progressão de peso, RPE alto, deload, 1 sessão ruim, +1 rep, teto da faixa, RPE ausente, peso ausente, histórico malformado, progression nenhuma, arredondamento 0.5 kg, helpers).
+- `package.json` — vitest como devDependency + script `"test": "vitest run"`.
+- `src/providers/GymFlowContext.tsx` — `exerciseHistoryFor` (histórico por exercício a partir do `workoutHistory` persistido) e `startWorkout` integrando o motor nos 3 caminhos (slots, legado, treino livre).
+- `src/types/index.ts` — `ActiveExercise.progressionNote?`.
+- `src/modules/ActiveWorkoutPage.tsx` — ANT/SUG honestos com "—", motivo do motor no cabeçalho, remoção do texto "Sugestão IA".
+
+### Validações executadas
+
+1. `grep -rn "alert(" src/` e `grep -rn "confirm(" src/` — vazios.
+2. `npx vitest run` — 15/15 testes passando.
+3. `npx tsc --noEmit` — sem erros.
+4. `npm run build` — passou (Next 16.2.6, Turbopack).
+5. Histórico antigo compatível: campos de `HistorySet` todos opcionais, nenhuma migração de formato.
+6. Nenhum arquivo de `labs/avatar-lab/`, `docs/avatar-design/` ou `app/poc-3d` alterado.
+
+### Como testar no celular
+
+1. Concluir um treino de programa registrando cargas (ex.: supino 40 kg × 10 reps em todas as séries, RPE ≤ 8).
+2. Iniciar o mesmo Day de novo → ANT mostra 40 kg, SUG mostra 42.5 kg e as séries vêm pré-preenchidas com 42.5 kg × 8 reps, com o motivo no cabeçalho.
+3. Exercício nunca treinado → ANT e SUG mostram "—".

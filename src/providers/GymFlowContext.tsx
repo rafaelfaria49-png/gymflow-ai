@@ -27,6 +27,7 @@ import {
   MOCK_TRAILS
 } from '../mock/data';
 import { loadState, saveState, clearState } from '../lib/storage';
+import { suggestNext, lastRecordedWeight, ExerciseSessionHistory } from '../lib/progression';
 import { useToast } from '../components/ui/Toast';
 
 export const STORAGE_KEY = 'gymflow:state:v1';
@@ -697,6 +698,16 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     addXp(50, 'Configurações de perfil salvas!');
   };
 
+  // GOAL-08: histórico real de um exercício (sessões concluídas, mais recente
+  // primeiro — ordem natural do workoutHistory persistido no GOAL-01).
+  const exerciseHistoryFor = (exerciseId: string): ExerciseSessionHistory[] =>
+    workoutHistory
+      .map((sess): ExerciseSessionHistory | null => {
+        const match = sess.exercises?.find((e) => e.exerciseId === exerciseId);
+        return match ? { date: sess.date, sets: match.sets ?? [] } : null;
+      })
+      .filter((s): s is ExerciseSessionHistory => s !== null);
+
   // Workout state management
   const startWorkout = (programId?: string, customName?: string, programDayId?: string) => {
     let workoutName = customName || 'Treino Personalizado';
@@ -716,13 +727,22 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
             // Fallback seguro: exercício ausente vira "Exercício Desconhecido",
             // sem crashar (mesmo padrão legado).
             const ex = exercises.find((e) => e.id === slot.exerciseId);
+
+            // GOAL-08: ANT = última sessão real; SUG = motor determinístico.
+            // Pré-preenche carga/reps com a sugestão quando ela existe.
+            const history = exerciseHistoryFor(slot.exerciseId);
+            const suggestion = suggestNext(slot, history);
+            const lastW = lastRecordedWeight(history);
+            const targetReps = suggestion.repsAlvo ?? slot.repRange[0];
+            const prefillWeight = suggestion.pesoKg ?? lastW ?? 10;
+
             const sets: WorkoutSet[] = Array.from({ length: slot.series }, (_, sIdx) => ({
               id: `set_${idx}_${sIdx}`,
-              reps: slot.repRange[0], // meta inicial: piso da faixa (progressão sobe até o teto)
-              weight: 10,
+              reps: targetReps,
+              weight: prefillWeight,
               completed: false,
-              suggestedWeight: 12,
-              lastWeight: 10,
+              suggestedWeight: suggestion.pesoKg ?? undefined,
+              lastWeight: lastW ?? undefined,
               rpe: slot.targetRPE
             }));
 
@@ -735,7 +755,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
               notes: '',
               repRange: slot.repRange,
               targetRPE: slot.targetRPE,
-              restSec: slot.restSec
+              restSec: slot.restSec,
+              progressionNote: suggestion.motivo
             };
           });
         } else {
@@ -746,13 +767,15 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
             const setsCount = pe.sets || 3;
             const repString = pe.reps || '10';
             const repsVal = parseInt(repString) || 10;
+            // GOAL-08: ANT real do histórico; sem slot não há sugestão do motor (SUG = —)
+            const lastW = lastRecordedWeight(exerciseHistoryFor(pe.exerciseId));
             const sets: WorkoutSet[] = Array.from({ length: setsCount }, (_, sIdx) => ({
               id: `set_${idx}_${sIdx}`,
               reps: repsVal,
-              weight: 10,
+              weight: lastW ?? 10,
               completed: false,
-              suggestedWeight: 12,
-              lastWeight: 10,
+              suggestedWeight: undefined,
+              lastWeight: lastW ?? undefined,
               rpe: 7
             }));
 
@@ -770,6 +793,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     } else {
       // Treino livre inicializado com 1 exercício padrão
       const defaultEx = exercises[0];
+      // GOAL-08: ANT real do histórico; sem slot não há sugestão do motor (SUG = —)
+      const lastW = lastRecordedWeight(exerciseHistoryFor(defaultEx.id));
       activeExs = [{
         id: `active_ex_0_${Date.now()}`,
         exerciseId: defaultEx.id,
@@ -778,10 +803,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         sets: [{
           id: `set_0_0`,
           reps: 10,
-          weight: 10,
+          weight: lastW ?? 10,
           completed: false,
-          suggestedWeight: 10,
-          lastWeight: 10,
+          suggestedWeight: undefined,
+          lastWeight: lastW ?? undefined,
           rpe: 7
         }],
         notes: ''

@@ -347,8 +347,14 @@ export const ActiveWorkoutPage = () => {
                   {/* GOAL-07: meta real do ExerciseSlot quando o treino vem de um Day de programa */}
                   {ex.repRange
                     ? `${ex.muscleGroup} • Meta: ${ex.repRange[0] === ex.repRange[1] ? ex.repRange[0] : `${ex.repRange[0]}-${ex.repRange[1]}`} reps • RPE ${ex.targetRPE ?? 8}${ex.restSec ? ` • Descanso ${ex.restSec}s` : ''}`
-                    : `${ex.muscleGroup} • Sugestão IA: Carga progressiva`}
+                    : ex.muscleGroup}
                 </span>
+                {/* GOAL-08: motivo honesto do motor determinístico de progressão */}
+                {ex.progressionNote && (
+                  <span className="block text-[9px] text-gym-accent/80 normal-case mt-0.5 leading-snug">
+                    Progressão recomendada: {ex.progressionNote}
+                  </span>
+                )}
               </div>
 
               {/* Ações */}
@@ -423,10 +429,10 @@ export const ActiveWorkoutPage = () => {
                     )}
                   </span>
 
-                  {/* Anterior / Sugerido */}
+                  {/* Anterior (última sessão real) / Sugerido (motor de progressão) — GOAL-08 */}
                   <div className="col-span-2 flex flex-col justify-center text-[9px] text-gym-text-muted leading-tight font-mono">
-                    <span>{set.lastWeight ? `${set.lastWeight} kg` : '-'}</span>
-                    <span className="text-gym-accent/80 font-bold">{set.suggestedWeight ? `${set.suggestedWeight} kg` : '-'}</span>
+                    <span>{set.lastWeight ? `${set.lastWeight} kg` : '—'}</span>
+                    <span className="text-gym-accent/80 font-bold">{set.suggestedWeight ? `${set.suggestedWeight} kg` : '—'}</span>
                   </div>
 
                   {/* Carga */}
