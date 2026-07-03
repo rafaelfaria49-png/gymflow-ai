@@ -640,6 +640,117 @@ export const MOCK_EXERCISES: Exercise[] = [
     substitutions: ['glutes_elevacao_pelvica', 'extra_glutes_coice_quatro_apoios'],
     safetyWarnings: ['Evite pesos excessivos que desestabilizem sua base.'],
     type: 'accessory'
+  },
+
+  // ABDÔMEN (Abs)
+  {
+    id: 'abs_prancha_abdominal',
+    name: 'Prancha Abdominal (Isometria)',
+    thumbnail: '🧘 Prancha Abdominal',
+    muscleGroup: 'abs',
+    secondaryMuscles: ['back', 'shoulders'],
+    equipment: 'Peso Corporal',
+    level: 'beginner',
+    executionSteps: [
+      'Apoie os antebraços e as pontas dos pés no chão, cotovelos alinhados abaixo dos ombros.',
+      'Alinhe o corpo em uma linha reta da cabeça aos calcanhares.',
+      'Contraia o abdômen e os glúteos para travar o quadril.',
+      'Mantenha a posição pelo tempo determinado sem deixar o quadril cair ou subir.',
+      'Respire de forma controlada durante toda a isometria.'
+    ],
+    postureTips: [
+      'Não deixe o quadril subir (formando um "telhado") nem cair (arqueando a lombar).',
+      'Olhe para um ponto fixo no chão para manter o pescoço neutro.'
+    ],
+    breathing: 'Respiração contínua e controlada, sem prender o ar.',
+    commonErrors: ['Deixar o quadril cair, sobrecarregando a lombar.', 'Elevar demais o quadril, tirando a tensão do abdômen.'],
+    errorCorrections: ['Contraia glúteos e abdômen simultaneamente para nivelar o quadril com a linha do corpo.'],
+    variations: ['Prancha com Elevação de Perna', 'Prancha Lateral'],
+    substitutions: ['extra_abs_1', 'extra_abs_13'],
+    safetyWarnings: ['Interrompa se sentir dor lombar aguda.'],
+    type: 'finisher'
+  },
+
+  // CARDIO
+  {
+    id: 'cardio_corrida_esteira',
+    name: 'Corrida na Esteira',
+    thumbnail: '🏃 Corrida Esteira',
+    muscleGroup: 'cardio',
+    secondaryMuscles: ['legs', 'calves'],
+    equipment: 'Esteira',
+    level: 'beginner',
+    executionSteps: [
+      'Ajuste a velocidade inicial em ritmo de caminhada rápida para aquecer.',
+      'Aumente gradualmente a velocidade até o ritmo de corrida definido no treino.',
+      'Mantenha o tronco ereto e o olhar à frente durante a corrida.',
+      'Alterne entre tiros de maior intensidade e recuperação, se o treino for intervalado (HIIT).',
+      'Reduza a velocidade progressivamente nos últimos minutos para desaquecer.'
+    ],
+    postureTips: [
+      'Não se incline para frente segurando o painel da esteira.',
+      'Mantenha passadas curtas e cadência natural para reduzir impacto nas articulações.'
+    ],
+    breathing: 'Respiração ritmada, inspirando e expirando pelo nariz e boca conforme a intensidade.',
+    commonErrors: ['Segurar as laterais da esteira durante a corrida.', 'Aumentar a velocidade bruscamente sem aquecimento.'],
+    errorCorrections: ['Solte as mãos e ajuste a velocidade gradualmente até o ritmo confortável.'],
+    variations: ['Caminhada Inclinada', 'HIIT na Esteira'],
+    substitutions: ['extra_cardio_2', 'extra_cardio_14'],
+    safetyWarnings: ['Use a trava de segurança (clip) presa à roupa em treinos de alta intensidade.'],
+    type: 'finisher'
+  },
+
+  // PERNAS extras (Legs)
+  {
+    id: 'legs_levantamento_terra',
+    name: 'Levantamento Terra Convencional',
+    thumbnail: '🏋️‍♂️ Levantamento Terra',
+    muscleGroup: 'legs',
+    secondaryMuscles: ['back', 'glutes'],
+    equipment: 'Barra e Anilhas',
+    level: 'advanced',
+    executionSteps: [
+      'Posicione os pés na largura do quadril com a barra próxima às canelas.',
+      'Flexione os joelhos e o quadril para segurar a barra com pegada pronada, mantendo a coluna reta.',
+      'Contraia o core e puxe os ombros para trás antes de iniciar o movimento.',
+      'Estenda quadril e joelhos simultaneamente, mantendo a barra colada ao corpo até ficar totalmente em pé.',
+      'Retorne a barra ao chão flexionando o quadril primeiro, seguido pelos joelhos, mantendo a coluna neutra.'
+    ],
+    postureTips: [
+      'Mantenha a barra sempre próxima às pernas durante toda a trajetória.',
+      'A coluna deve permanecer neutra (nem arredondada, nem hiperestendida) do início ao fim.'
+    ],
+    breathing: 'Inspire e trave o core antes de puxar, expire ao final da subida.',
+    commonErrors: ['Arredondar a coluna lombar ao puxar do chão.', 'Afastar a barra do corpo, gerando alavanca desfavorável.'],
+    errorCorrections: ['Reduza a carga até conseguir manter a coluna neutra em todas as repetições.'],
+    variations: ['Levantamento Terra Sumô', 'Levantamento Terra Romeno (Stiff)'],
+    substitutions: ['legs_stiff', 'legs_agachamento_barra'],
+    safetyWarnings: ['Use cinturão de levantamento em cargas elevadas e nunca arredonde a lombar sob carga.'],
+    type: 'main'
+  },
+  {
+    id: 'legs_legpress_45',
+    name: 'Leg Press 45° (Carga Guiada)',
+    thumbnail: '🎢 Leg Press 45 Guiado',
+    muscleGroup: 'legs',
+    secondaryMuscles: ['glutes', 'calves'],
+    equipment: 'Aparelho Leg Press 45°',
+    level: 'beginner',
+    executionSteps: [
+      'Sente-se no aparelho apoiando firmemente costas e quadril no encosto.',
+      'Posicione os pés na plataforma na largura dos ombros, alinhados com os joelhos.',
+      'Destrave as travas laterais e flexione os joelhos controladamente até 90 graus.',
+      'Empurre a plataforma estendendo as pernas sem travar os joelhos no topo.',
+      'Repita o movimento de forma controlada, mantendo o quadril sempre apoiado.'
+    ],
+    postureTips: ['Não descole o quadril do encosto durante a descida.', 'Mantenha os joelhos alinhados com a ponta dos pés.'],
+    breathing: 'Inspire ao descer a plataforma, expire ao empurrar.',
+    commonErrors: ['Descer além do ponto em que o quadril descola do banco.', 'Travar bruscamente os joelhos ao estender.'],
+    errorCorrections: ['Reduza a amplitude até o limite que mantém o quadril apoiado e ajuste a carga.'],
+    variations: ['Leg Press Unilateral', 'Leg Press Pés Altos'],
+    substitutions: ['legs_leg_press', 'legs_agachamento_barra'],
+    safetyWarnings: ['Nunca retire as mãos das travas laterais sem antes travar o aparelho.'],
+    type: 'main'
   }
 ];
 

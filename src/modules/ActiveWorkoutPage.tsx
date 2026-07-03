@@ -67,7 +67,17 @@ export const ActiveWorkoutPage = () => {
     return acc + ex.sets.length;
   }, 0);
 
-  const estimatedCalories = Math.round((workoutDuration / 60) * 6.5 + completedSetsCount * 4);
+  // Estimativa honesta: kcal calculado por série concluída (nunca por tempo decorrido),
+  // para não mostrar gasto calórico com 0 séries feitas. Ver docs/DECISOES.md.
+  const estimatedCalories = activeWorkout.exercises.reduce((acc, ex) => {
+    const completedSets = ex.sets.filter((s) => s.completed).length;
+    if (completedSets === 0) return acc;
+    const meta = exercises.find((e) => e.id === ex.exerciseId);
+    const muscleGroup = meta?.muscleGroup || ex.muscleGroup;
+    const isCompound = !!meta?.secondaryMuscles && meta.secondaryMuscles.length > 0;
+    const kcalPerSet = muscleGroup === 'cardio' ? 5 : isCompound ? 9 : 6;
+    return acc + completedSets * kcalPerSet;
+  }, 0);
   const xpEarned = completedSetsCount * 10;
 
   const nextExercise = activeWorkout.exercises.find((ex) => {
@@ -286,7 +296,7 @@ export const ActiveWorkoutPage = () => {
             <span className="text-sm font-extrabold text-gym-accent mt-0.5 block">{totalVolume} kg</span>
           </div>
           <div className="bg-white/5 border border-white/5 p-3 rounded-2xl">
-            <span className="text-[9px] text-gym-text-muted uppercase font-bold block">Energia Gasta</span>
+            <span className="text-[9px] text-gym-text-muted uppercase font-bold block">Energia Gasta (kcal est.)</span>
             <span className="text-sm font-extrabold text-white mt-0.5 block">{estimatedCalories} kcal</span>
           </div>
           <div className="bg-white/5 border border-white/5 p-3 rounded-2xl">
@@ -393,8 +403,8 @@ export const ActiveWorkoutPage = () => {
 
                   {/* Anterior / Sugerido */}
                   <div className="col-span-2 flex flex-col justify-center text-[9px] text-gym-text-muted leading-tight font-mono">
-                    <span>{set.lastWeight ? `${set.lastWeight}k` : '-'}</span>
-                    <span className="text-gym-accent/80 font-bold">{set.suggestedWeight ? `${set.suggestedWeight}k` : '-'}</span>
+                    <span>{set.lastWeight ? `${set.lastWeight} kg` : '-'}</span>
+                    <span className="text-gym-accent/80 font-bold">{set.suggestedWeight ? `${set.suggestedWeight} kg` : '-'}</span>
                   </div>
 
                   {/* Carga */}

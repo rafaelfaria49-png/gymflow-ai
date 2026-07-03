@@ -40,7 +40,7 @@ export const LoginPage = () => {
         </button>
 
         <div className="text-center mt-8 mb-8">
-          <span className="text-2xl font-black bg-gradient-to-r from-gym-accent to-gym-emerald bg-clip-text text-transparent tracking-tighter">
+          <span className="text-2xl font-black bg-gradient-to-r from-gym-accent to-gym-emerald bg-clip-text text-transparent tracking-tighter pl-0.5">
             GYMFLOW<span className="text-white">AI</span>
           </span>
           <h2 className="text-xl font-bold text-white mt-4">Bem-vindo de volta</h2>
@@ -159,7 +159,7 @@ export const RegisterPage = () => {
         </button>
 
         <div className="text-center mt-8 mb-6">
-          <span className="text-2xl font-black bg-gradient-to-r from-gym-accent to-gym-emerald bg-clip-text text-transparent tracking-tighter">
+          <span className="text-2xl font-black bg-gradient-to-r from-gym-accent to-gym-emerald bg-clip-text text-transparent tracking-tighter pl-0.5">
             GYMFLOW<span className="text-white">AI</span>
           </span>
           <h2 className="text-xl font-bold text-white mt-4">Crie sua conta</h2>

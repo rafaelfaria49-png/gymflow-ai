@@ -34,7 +34,7 @@ export const TopBar = () => {
     <header className="sticky top-0 z-40 w-full glass border-b border-white/5 py-3 px-4 flex items-center justify-between">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => setActiveView('dashboard')}>
-          <span className="text-xl font-extrabold bg-gradient-to-r from-gym-accent to-gym-emerald bg-clip-text text-transparent tracking-tighter">
+          <span className="text-xl font-extrabold bg-gradient-to-r from-gym-accent to-gym-emerald bg-clip-text text-transparent tracking-tighter pl-0.5">
             GYMFLOW<span className="text-white">AI</span>
           </span>
         </div>

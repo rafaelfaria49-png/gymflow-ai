@@ -59,7 +59,7 @@ export const LandingPage = () => {
 
       {/* Header bar */}
       <header className="sticky top-0 z-40 w-full glass border-b border-white/5 py-4 px-6 md:px-12 flex items-center justify-between">
-        <span className="text-2xl font-black bg-gradient-to-r from-gym-accent to-gym-emerald bg-clip-text text-transparent tracking-tighter">
+        <span className="text-2xl font-black bg-gradient-to-r from-gym-accent to-gym-emerald bg-clip-text text-transparent tracking-tighter pl-0.5">
           GYMFLOW<span className="text-white">AI</span>
         </span>
         <div className="flex items-center gap-4">
