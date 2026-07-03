@@ -15,7 +15,10 @@ import {
   Award,
   Zap,
   Activity,
-  Flame
+  Flame,
+  Timer,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 
 export const EvolutionDashboard = () => {
@@ -441,6 +444,63 @@ export const EvolutionDashboard = () => {
                   />
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+
+        {/* TIMER DE DESCANSO (GOAL-06) */}
+        <div className="border-t border-white/5 pt-6">
+          <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5 mb-4">
+            <Timer className="w-3.5 h-3.5 text-gym-accent" />
+            Timer de Descanso
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-[10px] text-gym-text-muted font-bold block">Descanso padrão entre séries (segundos)</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={15}
+                  max={600}
+                  step={15}
+                  value={user?.restTimerDefaultSeconds ?? 90}
+                  onChange={(e) => {
+                    const value = Math.max(15, Math.min(600, Number(e.target.value) || 90));
+                    updateUserProfile({ restTimerDefaultSeconds: value });
+                  }}
+                  className="w-full min-h-[44px] bg-white/5 border border-white/10 text-white rounded-xl px-3 text-sm font-mono text-center focus:border-gym-accent outline-none"
+                />
+                <span className="text-xs text-gym-text-muted font-bold flex-shrink-0">seg</span>
+              </div>
+              <p className="text-[9px] text-gym-text-muted leading-relaxed">
+                Usado sempre que um exercício não tiver um descanso específico configurado.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] text-gym-text-muted font-bold block">Som do timer</label>
+              <button
+                type="button"
+                onClick={() => updateUserProfile({ restTimerSoundEnabled: user?.restTimerSoundEnabled === false })}
+                className={`w-full min-h-[44px] flex items-center justify-center gap-2 rounded-xl text-xs font-bold transition-all border ${
+                  user?.restTimerSoundEnabled !== false
+                    ? 'bg-gym-accent/15 text-gym-accent border-gym-accent/30'
+                    : 'bg-white/5 text-gym-text-muted border-white/10 hover:text-white'
+                }`}
+              >
+                {user?.restTimerSoundEnabled !== false ? (
+                  <>
+                    <Volume2 className="w-4 h-4" /> Som ligado
+                  </>
+                ) : (
+                  <>
+                    <VolumeX className="w-4 h-4" /> Som desligado
+                  </>
+                )}
+              </button>
+              <p className="text-[9px] text-gym-text-muted leading-relaxed">
+                Beep curto ao fim do descanso. A vibração (se o aparelho suportar) continua ativa mesmo com o som desligado.
+              </p>
             </div>
           </div>
         </div>

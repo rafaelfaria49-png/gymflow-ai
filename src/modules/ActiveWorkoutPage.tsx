@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { AvatarDemoPlaceholder } from '../components/AvatarDemoPlaceholder';
 import { Play, Pause, Square, Check, RefreshCw, HelpCircle, Save, Sparkles, Smile, MessageCircle, Clock, Share2, Award, Zap, ChevronRight, Flag } from 'lucide-react';
@@ -18,7 +18,14 @@ export const ActiveWorkoutPage = () => {
     cancelWorkout,
     exercises,
     adaptActiveWorkoutForCrowdedGym,
-    openGlobalPlayer
+    openGlobalPlayer,
+    // Timer de descanso (GOAL-06) — estado vive no GymFlowContext para sobreviver a
+    // refresh e continuar contando mesmo se o usuário sair desta tela.
+    restSecondsRemaining,
+    restTimerTotalSeconds,
+    restTimerLabel,
+    extendRestTimer,
+    skipRestTimer
   } = useGymFlow();
 
   const [rpe, setRpe] = useState(7);
@@ -26,23 +33,6 @@ export const ActiveWorkoutPage = () => {
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [swapIndex, setSwapIndex] = useState<number | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-
-  // Rest Timer State
-  const [restSeconds, setRestSeconds] = useState(0);
-  const [restTotalSeconds, setRestTotalSeconds] = useState(90);
-  const [restActive, setRestActive] = useState(false);
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (restActive && restSeconds > 0) {
-      interval = setInterval(() => {
-        setRestSeconds((s) => s - 1);
-      }, 1000);
-    } else if (restSeconds === 0) {
-      setRestActive(false);
-    }
-    return () => clearInterval(interval);
-  }, [restActive, restSeconds]);
 
   if (!activeWorkout) {
     return (
@@ -129,10 +119,11 @@ export const ActiveWorkoutPage = () => {
       .join(':');
   };
 
-  const handleStartRestTimer = (seconds: number) => {
-    setRestSeconds(seconds);
-    setRestTotalSeconds(seconds);
-    setRestActive(true);
+  // "1:30" (sem zero à esquerda no minuto) — formato pedido para o timer de descanso.
+  const formatRestTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins}:${String(secs).padStart(2, '0')}`;
   };
 
   const openSwapModal = (idx: number) => {
@@ -238,11 +229,13 @@ export const ActiveWorkoutPage = () => {
         </div>
       </div>
 
-      {/* REST TIMER COMPONENT */}
-      {restSeconds > 0 && (
-        <div className="bg-gym-card border border-gym-accent/20 rounded-3xl p-5 flex items-center justify-between shadow-2xl relative overflow-hidden animate-fade-in">
+      {/* REST TIMER (GOAL-06) — versão desktop, sempre visível na página (não fixa).
+          No mobile/tablet o mesmo estado é mostrado dentro da ActionBar fixa abaixo,
+          então este card fica reservado ao desktop para não duplicar a informação. */}
+      {restSecondsRemaining > 0 && (
+        <div className="hidden lg:flex bg-gym-card border border-gym-accent/20 rounded-3xl p-5 items-center justify-between shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 left-0 bottom-0 w-1 bg-gym-accent animate-pulse"></div>
-          
+
           <div className="flex items-center gap-4">
             {/* Circular SVG Ring */}
             <div className="relative w-14 h-14 flex items-center justify-center flex-shrink-0">
@@ -261,28 +254,30 @@ export const ActiveWorkoutPage = () => {
                   className="stroke-gym-accent fill-transparent transition-all duration-1000"
                   strokeWidth="4"
                   strokeDasharray={2 * Math.PI * 24}
-                  strokeDashoffset={2 * Math.PI * 24 * (1 - restSeconds / restTotalSeconds)}
+                  strokeDashoffset={2 * Math.PI * 24 * (1 - restSecondsRemaining / (restTimerTotalSeconds || 1))}
                   strokeLinecap="round"
                 />
               </svg>
-              <span className="absolute text-xs font-mono font-extrabold text-gym-accent">{restSeconds}s</span>
+              <span className="absolute text-xs font-mono font-extrabold text-gym-accent">{formatRestTime(restSecondsRemaining)}</span>
             </div>
 
             <div>
               <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block">Descanso Biomecânico Ativo</span>
-              <p className="text-xs text-gym-text-muted mt-0.5">Oxigenando fibras... Prepare-se para a próxima série.</p>
+              <p className="text-xs text-gym-text-muted mt-0.5">
+                {restTimerLabel ? `Prepare-se para: ${restTimerLabel}` : 'Oxigenando fibras... Prepare-se para a próxima série.'}
+              </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => handleStartRestTimer(restSeconds + 30)}
+              onClick={() => extendRestTimer(30)}
               className="text-[10px] bg-white/5 hover:bg-white/10 px-3 py-2 rounded-xl border border-white/10 font-bold text-white transition-all"
             >
               +30s
             </button>
             <button
-              onClick={() => setRestSeconds(0)}
+              onClick={skipRestTimer}
               className="text-[10px] bg-gym-rose/10 hover:bg-gym-rose/20 text-gym-rose border border-gym-rose/20 px-3 py-2 rounded-xl font-bold transition-all"
             >
               Pular
@@ -470,12 +465,7 @@ export const ActiveWorkoutPage = () => {
                   {/* Checkbox */}
                   <div className="col-span-1 flex justify-center">
                     <button
-                      onClick={() => {
-                        completeWorkoutSet(exIdx, setIdx);
-                        if (!set.completed) {
-                          handleStartRestTimer(90);
-                        }
-                      }}
+                      onClick={() => completeWorkoutSet(exIdx, setIdx)}
                       className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
                         set.completed
                           ? 'bg-gym-accent text-gym-dark'
@@ -548,33 +538,72 @@ export const ActiveWorkoutPage = () => {
 
       {/* ACTIONBAR FIXA (GOAL-04) — substitui o FAB flutuante "Continuar" dentro do
           próprio Treino Ativo. Mobile/tablet apenas (lg:hidden); no desktop o botão
-          "Finalizar" do header acima já cumpre esse papel sem barra fixa nova. */}
+          "Finalizar" do header acima já cumpre esse papel sem barra fixa nova.
+          GOAL-06: quando o timer de descanso está ativo, a barra mostra o descanso
+          (tempo + progresso + +30s/Pular) no lugar de Continuar/Finalizar. */}
       <div
         className="lg:hidden fixed inset-x-0 z-30 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] px-4"
       >
-        <div className="glass border border-white/10 rounded-2xl shadow-2xl px-4 py-3 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block">
-              Série {currentSetNumber} de {totalSetsCount}
-            </span>
-            <span className="text-xs font-bold text-white block truncate max-w-[180px]">
-              {allSetsCompleted ? 'Treino Concluído' : nextExerciseName}
-            </span>
-          </div>
-          <button
-            onClick={allSetsCompleted ? () => setShowFinishModal(true) : handleContinue}
-            className="flex-shrink-0 min-h-[44px] flex items-center gap-1.5 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black uppercase tracking-wider text-xs px-4 py-3 rounded-xl shadow-md shadow-gym-accent/20 transition-all active:scale-95"
-          >
-            {allSetsCompleted ? (
-              <>
-                <Flag className="w-3.5 h-3.5" /> Finalizar
-              </>
-            ) : (
-              <>
-                Continuar <ChevronRight className="w-3.5 h-3.5" />
-              </>
-            )}
-          </button>
+        <div className="glass border border-white/10 rounded-2xl shadow-2xl px-4 py-3">
+          {restSecondsRemaining > 0 ? (
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest truncate">
+                    {restTimerLabel ? `Descanso • ${restTimerLabel}` : 'Descanso'}
+                  </span>
+                  <span className="text-lg font-mono font-black text-white leading-none flex-shrink-0 ml-2">
+                    {formatRestTime(restSecondsRemaining)}
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-gym-accent to-gym-emerald transition-all duration-300"
+                    style={{ width: `${restTimerTotalSeconds ? (restSecondsRemaining / restTimerTotalSeconds) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => extendRestTimer(30)}
+                  className="min-h-[44px] px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold text-white transition-all active:scale-95"
+                >
+                  +30s
+                </button>
+                <button
+                  onClick={skipRestTimer}
+                  className="min-h-[44px] px-3 bg-gym-rose/10 hover:bg-gym-rose/20 text-gym-rose border border-gym-rose/20 rounded-xl text-[10px] font-bold transition-all active:scale-95"
+                >
+                  Pular
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block">
+                  Série {currentSetNumber} de {totalSetsCount}
+                </span>
+                <span className="text-xs font-bold text-white block truncate max-w-[180px]">
+                  {allSetsCompleted ? 'Treino Concluído' : nextExerciseName}
+                </span>
+              </div>
+              <button
+                onClick={allSetsCompleted ? () => setShowFinishModal(true) : handleContinue}
+                className="flex-shrink-0 min-h-[44px] flex items-center gap-1.5 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black uppercase tracking-wider text-xs px-4 py-3 rounded-xl shadow-md shadow-gym-accent/20 transition-all active:scale-95"
+              >
+                {allSetsCompleted ? (
+                  <>
+                    <Flag className="w-3.5 h-3.5" /> Finalizar
+                  </>
+                ) : (
+                  <>
+                    Continuar <ChevronRight className="w-3.5 h-3.5" />
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import {
   UserProfile,
   Exercise,
@@ -37,6 +37,11 @@ interface PersistedState {
   weeklyPlan: WeeklyWorkoutDay[];
   activeWorkout: WorkoutSession | null;
   activeWorkoutStartedAt: number | null;
+  // Timer de descanso (GOAL-06): timestamp de término sobrevive a refresh,
+  // igual ao padrão já usado para activeWorkoutStartedAt.
+  restTimerEndAt: number | null;
+  restTimerTotalSeconds: number | null;
+  restTimerLabel: string | null;
   workoutHistory: WorkoutSession[];
   weightHistory: { date: string; value: number }[];
   measurementsHistory: { date: string; chest: number; waist: number; hips: number; arms: number }[];
@@ -113,6 +118,13 @@ interface GymFlowContextType {
   setWorkoutDuration: React.Dispatch<React.SetStateAction<number>>;
   adaptActiveWorkoutForCrowdedGym: () => void;
 
+  // Timer de descanso (GOAL-06)
+  restSecondsRemaining: number;
+  restTimerTotalSeconds: number | null;
+  restTimerLabel: string | null;
+  extendRestTimer: (deltaSeconds: number) => void;
+  skipRestTimer: () => void;
+
   // Planner
   weeklyPlan: WeeklyWorkoutDay[];
   setWeeklyPlan: React.Dispatch<React.SetStateAction<WeeklyWorkoutDay[]>>;
@@ -172,6 +184,29 @@ interface GymFlowContextType {
 
 const GymFlowContext = createContext<GymFlowContextType | undefined>(undefined);
 
+// Beep curto opcional ao fim do descanso (GOAL-06) — Web Audio API, sem asset novo.
+// Silencioso em qualquer erro (autoplay bloqueado, navegador sem suporte etc.).
+function playBeep() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.value = 880;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.3);
+    oscillator.onended = () => ctx.close().catch(() => {});
+  } catch {
+    /* Web Audio indisponível/bloqueada — ignorar */
+  }
+}
+
 export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const toast = useToast();
   const [activeView, setActiveView] = useState<AppView>('landing');
@@ -192,6 +227,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // Timestamp de início (ms) — fonte da verdade do tempo decorrido; sobrevive a refresh.
   const [activeWorkoutStartedAt, setActiveWorkoutStartedAt] = useState<number | null>(null);
   const [workoutDuration, setWorkoutDuration] = useState<number>(0);
+
+  // Timer de descanso (GOAL-06) — timestamp de término é a fonte da verdade
+  // (mesmo padrão de activeWorkoutStartedAt), o restante é sempre recalculado.
+  const [restTimerEndAt, setRestTimerEndAt] = useState<number | null>(null);
+  const [restTimerTotalSeconds, setRestTimerTotalSeconds] = useState<number | null>(null);
+  const [restTimerLabel, setRestTimerLabel] = useState<string | null>(null);
+  const [restSecondsRemaining, setRestSecondsRemaining] = useState<number>(0);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
   // Evolution & Metrics
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutSession[]>([]);
@@ -248,6 +291,88 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     return () => clearInterval(timer);
   }, [activeWorkout, activeWorkoutStartedAt]);
 
+  // Timer de descanso (GOAL-06) — mesmo padrão do cronômetro do treino: o restante
+  // é sempre recalculado a partir de `restTimerEndAt`, então sobrevive a refresh.
+  useEffect(() => {
+    if (!restTimerEndAt) {
+      setRestSecondsRemaining(0);
+      return;
+    }
+
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((restTimerEndAt - Date.now()) / 1000));
+      setRestSecondsRemaining(remaining);
+      if (remaining === 0) {
+        toast.success('Descanso concluído! Hora da próxima série.');
+        try {
+          navigator.vibrate?.([200, 100, 200]);
+        } catch {
+          /* vibração não suportada — ignorar */
+        }
+        if (user?.restTimerSoundEnabled !== false) {
+          playBeep();
+        }
+        setRestTimerEndAt(null);
+        setRestTimerTotalSeconds(null);
+        setRestTimerLabel(null);
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 250);
+    return () => clearInterval(interval);
+  }, [restTimerEndAt, toast, user?.restTimerSoundEnabled]);
+
+  // Wake Lock (GOAL-06) — tenta manter a tela acesa durante o treino ativo.
+  // Requer HTTPS/localhost em muitos navegadores; sem suporte, falha em silêncio
+  // e o app continua funcionando normalmente (ver docs/DECISOES.md).
+  const hasActiveWorkout = !!activeWorkout;
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
+    let cancelled = false;
+
+    const requestWakeLock = async () => {
+      if (wakeLockRef.current) return;
+      try {
+        const sentinel = await navigator.wakeLock.request('screen');
+        if (cancelled) {
+          sentinel.release?.();
+          return;
+        }
+        wakeLockRef.current = sentinel;
+        sentinel.addEventListener?.('release', () => {
+          wakeLockRef.current = null;
+        });
+      } catch {
+        /* não suportado, negado ou requer HTTPS — fallback silencioso */
+      }
+    };
+
+    const releaseWakeLock = () => {
+      wakeLockRef.current?.release().catch(() => {});
+      wakeLockRef.current = null;
+    };
+
+    if (!hasActiveWorkout) {
+      releaseWakeLock();
+      return;
+    }
+
+    requestWakeLock();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && hasActiveWorkout) {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      releaseWakeLock();
+    };
+  }, [hasActiveWorkout]);
+
   // ===== Persistência local-first (GOAL-01) — envelope versionado, sem backend =====
   // `hydrated` evita que o primeiro render sobrescreva os dados salvos com os defaults.
   const [hydrated, setHydrated] = useState(false);
@@ -267,6 +392,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
             weeklyPlan: legacyPlan ? JSON.parse(legacyPlan) : (parsedUser.weeklyPlan || []),
             activeWorkout: null,
             activeWorkoutStartedAt: null,
+            restTimerEndAt: null,
+            restTimerTotalSeconds: null,
+            restTimerLabel: null,
             workoutHistory: [],
             weightHistory: [],
             measurementsHistory: [],
@@ -309,6 +437,15 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         setWorkoutDuration(Math.max(0, Math.floor((Date.now() - saved.activeWorkoutStartedAt) / 1000)));
       }
 
+      // Timer de descanso sobrevive a refresh (GOAL-06): se o horário de término já
+      // passou enquanto o app estava fechado, não restaura nada — estado coerente
+      // (sem timer "negativo" e sem disparar toast/vibração de um descanso antigo).
+      if (saved.restTimerEndAt && saved.restTimerEndAt > Date.now()) {
+        setRestTimerEndAt(saved.restTimerEndAt);
+        setRestTimerTotalSeconds(saved.restTimerTotalSeconds ?? null);
+        setRestTimerLabel(saved.restTimerLabel ?? null);
+      }
+
       if (saved.user) {
         setActiveView(saved.activeWorkout && saved.activeWorkoutStartedAt ? 'active-workout' : 'dashboard');
       }
@@ -324,6 +461,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       weeklyPlan,
       activeWorkout,
       activeWorkoutStartedAt,
+      restTimerEndAt,
+      restTimerTotalSeconds,
+      restTimerLabel,
       workoutHistory,
       weightHistory,
       measurementsHistory,
@@ -341,6 +481,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     weeklyPlan,
     activeWorkout,
     activeWorkoutStartedAt,
+    restTimerEndAt,
+    restTimerTotalSeconds,
+    restTimerLabel,
     workoutHistory,
     weightHistory,
     measurementsHistory,
@@ -445,6 +588,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     setActiveWorkout(null);
     setActiveWorkoutStartedAt(null);
     setWorkoutDuration(0);
+    setRestTimerEndAt(null);
+    setRestTimerTotalSeconds(null);
+    setRestTimerLabel(null);
     setActiveView('landing');
     clearState(STORAGE_KEY);
   };
@@ -565,7 +711,36 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     updateWorkoutSet(exerciseIndex, setIndex, { completed: isCompleted });
     if (isCompleted) {
       addXp(10, 'Série concluída!');
+
+      // Timer de descanso automático (GOAL-06): não inicia se essa era a última
+      // série pendente do treino inteiro (nada para descansar antes de).
+      const isLastRemainingSet = activeWorkout.exercises.every((ex, exIdx) =>
+        ex.sets.every((s, sIdx) => (exIdx === exerciseIndex && sIdx === setIndex) || s.completed)
+      );
+      if (!isLastRemainingSet) {
+        const targetExercise = activeWorkout.exercises[exerciseIndex];
+        const meta = exercises.find((e) => e.id === targetExercise.exerciseId);
+        const seconds = meta?.restSec ?? user?.restTimerDefaultSeconds ?? 90;
+        setRestTimerEndAt(Date.now() + seconds * 1000);
+        setRestTimerTotalSeconds(seconds);
+        setRestTimerLabel(targetExercise.name);
+      }
     }
+  };
+
+  // Botão "+30s" (GOAL-06): estende o descanso atual mantendo o mesmo comportamento
+  // visual de sempre reiniciar a barra de progresso a partir do novo total.
+  const extendRestTimer = (deltaSeconds: number) => {
+    if (!restTimerEndAt) return;
+    const remaining = Math.max(0, Math.ceil((restTimerEndAt - Date.now()) / 1000)) + deltaSeconds;
+    setRestTimerEndAt(Date.now() + remaining * 1000);
+    setRestTimerTotalSeconds(remaining);
+  };
+
+  const skipRestTimer = () => {
+    setRestTimerEndAt(null);
+    setRestTimerTotalSeconds(null);
+    setRestTimerLabel(null);
   };
 
   const swapExerciseInActiveWorkout = (exerciseIndex: number, newExerciseId: string, reason?: string) => {
@@ -735,6 +910,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     setActiveWorkout(null);
     setActiveWorkoutStartedAt(null);
     setWorkoutDuration(0);
+    setRestTimerEndAt(null);
+    setRestTimerTotalSeconds(null);
+    setRestTimerLabel(null);
     setActiveView('dashboard');
   };
 
@@ -742,6 +920,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     setActiveWorkout(null);
     setActiveWorkoutStartedAt(null);
     setWorkoutDuration(0);
+    setRestTimerEndAt(null);
+    setRestTimerTotalSeconds(null);
+    setRestTimerLabel(null);
     setActiveView('dashboard');
   };
 
@@ -1294,6 +1475,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         workoutDuration,
         setWorkoutDuration,
         adaptActiveWorkoutForCrowdedGym,
+
+        restSecondsRemaining,
+        restTimerTotalSeconds,
+        restTimerLabel,
+        extendRestTimer,
+        skipRestTimer,
 
         weeklyPlan,
         setWeeklyPlan,

@@ -34,6 +34,8 @@ export interface UserProfile {
   points: number;
   weeklyPlan?: WeeklyWorkoutDay[];
   connectedSocials?: string[]; // Ex: ['instagram', 'facebook']
+  restTimerDefaultSeconds?: number; // Descanso padrão entre séries (GOAL-06)
+  restTimerSoundEnabled?: boolean; // Beep ao fim do descanso (GOAL-06)
 }
 
 export interface Exercise {
@@ -54,6 +56,7 @@ export interface Exercise {
   substitutions: string[]; // IDs de exercícios substitutos
   safetyWarnings: string[];
   type?: 'warmup' | 'main' | 'accessory' | 'finisher' | 'stretch';
+  restSec?: number; // Descanso sugerido (segundos) entre séries deste exercício (GOAL-06)
 }
 
 export interface WorkoutSet {

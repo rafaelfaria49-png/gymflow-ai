@@ -202,3 +202,48 @@ Ver `docs/DECISOES.md` (seção GOAL-05).
 ### Confirmação de escopo
 
 Avatar Lab, POC 3D, backend, Supabase, pagamento real, timer de descanso, modelo de programas e motor de progressão não foram tocados. GOAL-06 não foi iniciado.
+
+---
+
+## GOAL-06 — Timer de descanso + Wake Lock (2026-07-03)
+
+### Resumo
+
+Timer de descanso automático: ao marcar uma série como concluída (exceto se for a última série pendente do treino), inicia um descanso (padrão 90s, configurável, ou `restSec` do exercício se definido) que sobrevive a refresh, mostra tempo/progresso/+30s/Pular na ActionBar do GOAL-04 (mobile) ou no card já existente (desktop), e ao terminar dispara toast + vibração + beep opcional. Durante o treino ativo, o app tenta manter a tela acesa via Wake Lock API, com fallback silencioso onde não suportado.
+
+### Arquivos alterados
+
+- `src/types/index.ts` — `UserProfile.restTimerDefaultSeconds?`/`restTimerSoundEnabled?` (configurações); `Exercise.restSec?` (descanso sugerido por exercício).
+- `src/providers/GymFlowContext.tsx` — estado do timer de descanso (`restTimerEndAt`/`restTimerTotalSeconds`/`restTimerLabel`/`restSecondsRemaining`) com hidratação e save no envelope do GOAL-01; `completeWorkoutSet` inicia o timer automaticamente; `extendRestTimer`/`skipRestTimer`; efeito de Wake Lock (`navigator.wakeLock`, re-adquire em `visibilitychange`, libera quando não há treino ativo); helper `playBeep()` via Web Audio API; `logout`/`finishWorkout`/`cancelWorkout` limpam o timer.
+- `src/modules/ActiveWorkoutPage.tsx` — removido o timer local (estado, efeito, `handleStartRestTimer`); card de descanso desktop (`hidden lg:flex`) agora lê do contexto; ActionBar fixa mobile/tablet alterna entre modo "descanso" (tempo, barra de progresso, +30s, Pular) e modo "Série X de Y / Continuar-Finalizar" conforme `restSecondsRemaining`.
+- `src/modules/EvolutionDashboard.tsx` — bloco "Timer de Descanso" na seção de Configurações: input de descanso padrão (segundos) e toggle de som, ambos via `updateUserProfile`.
+
+### Como o timer funciona
+
+Ao concluir uma série (checkbox na tabela), `completeWorkoutSet` verifica se ainda há alguma série pendente no treino inteiro; se sim, calcula a duração (`exercise.restSec` → `user.restTimerDefaultSeconds` → `90`) e grava `restTimerEndAt = Date.now() + duração`. Um efeito no contexto recalcula `restSecondsRemaining` a cada 250ms a partir desse timestamp (nunca por contador decrescente em memória). "+30s" soma 30s ao tempo restante atual; "Pular" zera o timer. Ao chegar a 0: toast de sucesso, `navigator.vibrate` (se suportado) e beep opcional (Web Audio API, respeita a configuração de som).
+
+### Como persiste após refresh
+
+Mesmo padrão do cronômetro do treino (GOAL-01): só o timestamp de término (`restTimerEndAt`) é persistido no envelope `gymflow:state:v1`, não um contador. Ao hidratar, se esse timestamp ainda está no futuro, o timer é restaurado e o tempo restante recalculado corretamente; se já passou (app ficou fechado além da duração do descanso), o timer é simplesmente descartado — sem timer negativo, sem replay de toast/vibração antigos.
+
+### Wake Lock
+
+`navigator.wakeLock.request('screen')` é tentado sempre que há treino ativo, com `try/catch` silencioso (não suportado, negado ou requer HTTPS — comum ao testar via IP local em HTTP no celular; ver `docs/DECISOES.md`). Re-adquirido no evento `visibilitychange` (o navegador libera o wake lock automaticamente ao trocar de aba). Liberado pelo cleanup do próprio `useEffect` quando `activeWorkout` deixa de existir — cobre finalizar, cancelar e logout sem código duplicado.
+
+### Decisões
+
+Ver `docs/DECISOES.md` (seção GOAL-06).
+
+### Validações executadas
+
+1. `grep -rn "alert(" src/` — vazio.
+2. `grep -rn "confirm(" src/` — vazio.
+3. `npx tsc --noEmit` — sem erros.
+4. `npm run build` — passou (Next 16.2.6, Turbopack).
+5. Dev server iniciado, `GET /` retornou 200 sem erros no log.
+6. `npx eslint` nos arquivos alterados — 1 erro novo (`setState` em efeito do timer de descanso), mas reproduz exatamente o mesmo padrão já aceito do cronômetro do treino (`setWorkoutDuration(0)`); registrado em `docs/PENDENCIAS.md`. Nenhum outro problema novo (o cast `any` do Wake Lock foi evitado usando o tipo nativo `WakeLockSentinel`/`navigator.wakeLock` do `lib.dom.d.ts`).
+7. `git status` — nenhum arquivo em `labs/avatar-lab/`, `docs/avatar-design/`, `app/poc-3d` alterado; nenhum GOAL-07 iniciado.
+
+### Confirmação de escopo
+
+Avatar Lab, POC 3D, backend, Supabase, pagamento real, modelo de programas e motor de progressão não foram tocados. GOAL-07 não foi iniciado.
