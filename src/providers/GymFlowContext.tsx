@@ -26,6 +26,25 @@ import {
   MOCK_WEEKLY_TEMPLATES,
   MOCK_TRAILS
 } from '../mock/data';
+import { loadState, saveState, clearState } from '../lib/storage';
+
+export const STORAGE_KEY = 'gymflow:state:v1';
+
+// Estado persistido em localStorage (somente dados de longa duração — nada de UI).
+interface PersistedState {
+  user: UserProfile | null;
+  weeklyPlan: WeeklyWorkoutDay[];
+  activeWorkout: WorkoutSession | null;
+  activeWorkoutStartedAt: number | null;
+  workoutHistory: WorkoutSession[];
+  weightHistory: { date: string; value: number }[];
+  measurementsHistory: { date: string; chest: number; waist: number; hips: number; arms: number }[];
+  nutrition: NutritionLog;
+  achievements: Achievement[];
+  challenges: Challenge[];
+  favoriteExercises: string[];
+  recentlyViewedVideoIds: string[];
+}
 
 export type AppView =
   | 'landing'
@@ -168,6 +187,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
   // Active workout
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
+  // Timestamp de início (ms) — fonte da verdade do tempo decorrido; sobrevive a refresh.
+  const [activeWorkoutStartedAt, setActiveWorkoutStartedAt] = useState<number | null>(null);
   const [workoutDuration, setWorkoutDuration] = useState<number>(0);
 
   // Evolution & Metrics
@@ -211,65 +232,122 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     }
   ]);
 
-  // Handle active workout timer
+  // Handle active workout timer — o tempo decorrido é recalculado a partir do
+  // timestamp de início, então sobrevive a refresh sem "voltar do zero".
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (activeWorkout) {
-      timer = setInterval(() => {
-        setWorkoutDuration((prev) => prev + 1);
-      }, 1000);
+    if (activeWorkout && activeWorkoutStartedAt) {
+      const tick = () => setWorkoutDuration(Math.max(0, Math.floor((Date.now() - activeWorkoutStartedAt) / 1000)));
+      tick();
+      timer = setInterval(tick, 1000);
     } else {
       setWorkoutDuration(0);
     }
     return () => clearInterval(timer);
-  }, [activeWorkout]);
+  }, [activeWorkout, activeWorkoutStartedAt]);
 
-  // ===== Persistência local (mock/localStorage) — sem backend =====
-  // Mantém a sessão no celular ao recarregar o app. `hydrated` evita que o
-  // primeiro render sobrescreva os dados salvos com o estado inicial.
+  // ===== Persistência local-first (GOAL-01) — envelope versionado, sem backend =====
+  // `hydrated` evita que o primeiro render sobrescreva os dados salvos com os defaults.
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    try {
-      const savedUser = window.localStorage.getItem('gymflow_user');
-      const savedPlan = window.localStorage.getItem('gymflow_weeklyPlan');
-      if (savedUser) {
-        const parsedUser: UserProfile = JSON.parse(savedUser);
-        setUser(parsedUser);
-        if (savedPlan) {
-          setWeeklyPlan(JSON.parse(savedPlan));
-        } else if (parsedUser.weeklyPlan) {
-          setWeeklyPlan(parsedUser.weeklyPlan);
+    let saved = loadState<PersistedState>(STORAGE_KEY);
+
+    // Migração das chaves legadas (gymflow_user / gymflow_weeklyPlan) para o novo envelope.
+    if (!saved) {
+      try {
+        const legacyUser = window.localStorage.getItem('gymflow_user');
+        if (legacyUser) {
+          const parsedUser: UserProfile = JSON.parse(legacyUser);
+          const legacyPlan = window.localStorage.getItem('gymflow_weeklyPlan');
+          saved = {
+            user: parsedUser,
+            weeklyPlan: legacyPlan ? JSON.parse(legacyPlan) : (parsedUser.weeklyPlan || []),
+            activeWorkout: null,
+            activeWorkoutStartedAt: null,
+            workoutHistory: [],
+            weightHistory: [],
+            measurementsHistory: [],
+            nutrition: { calories: 0, protein: 0, carbs: 0, fat: 0, water: 0 },
+            achievements: [],
+            challenges: [],
+            favoriteExercises: [],
+            recentlyViewedVideoIds: []
+          };
         }
-        setActiveView('dashboard');
+      } catch {
+        /* legado corrompido — ignorar */
       }
-    } catch (e) {
-      console.warn('Falha ao carregar sessão local do GymFlow:', e);
+    }
+    try {
+      window.localStorage.removeItem('gymflow_user');
+      window.localStorage.removeItem('gymflow_weeklyPlan');
+    } catch {
+      /* ignorar */
+    }
+
+    if (saved) {
+      // Aplica o estado salvo por cima dos defaults, campo a campo, para que
+      // dados parciais/antigos não derrubem o app.
+      if (saved.user) setUser(saved.user);
+      if (Array.isArray(saved.weeklyPlan) && saved.weeklyPlan.length > 0) setWeeklyPlan(saved.weeklyPlan);
+      if (Array.isArray(saved.workoutHistory) && saved.workoutHistory.length > 0) setWorkoutHistory(saved.workoutHistory);
+      if (Array.isArray(saved.weightHistory) && saved.weightHistory.length > 0) setWeightHistory(saved.weightHistory);
+      if (Array.isArray(saved.measurementsHistory) && saved.measurementsHistory.length > 0) setMeasurementsHistory(saved.measurementsHistory);
+      if (saved.nutrition && typeof saved.nutrition === 'object') setNutrition(saved.nutrition);
+      if (Array.isArray(saved.achievements) && saved.achievements.length > 0) setAchievements(saved.achievements);
+      if (Array.isArray(saved.challenges) && saved.challenges.length > 0) setChallenges(saved.challenges);
+      if (Array.isArray(saved.favoriteExercises)) setFavoriteExercises(saved.favoriteExercises);
+      if (Array.isArray(saved.recentlyViewedVideoIds)) setRecentlyViewedVideoIds(saved.recentlyViewedVideoIds);
+
+      // Treino ativo sobrevive a refresh: restaura sessão + timestamp de início.
+      if (saved.activeWorkout && saved.activeWorkoutStartedAt) {
+        setActiveWorkout(saved.activeWorkout);
+        setActiveWorkoutStartedAt(saved.activeWorkoutStartedAt);
+        setWorkoutDuration(Math.max(0, Math.floor((Date.now() - saved.activeWorkoutStartedAt) / 1000)));
+      }
+
+      if (saved.user) {
+        setActiveView(saved.activeWorkout && saved.activeWorkoutStartedAt ? 'active-workout' : 'dashboard');
+      }
     }
     setHydrated(true);
   }, []);
 
+  // Salva com debounce de 500ms sempre que o estado persistível mudar.
   useEffect(() => {
     if (!hydrated) return;
-    try {
-      if (user) {
-        window.localStorage.setItem('gymflow_user', JSON.stringify(user));
-      } else {
-        window.localStorage.removeItem('gymflow_user');
-      }
-    } catch {
-      /* storage indisponível (modo privado) — ignorar */
-    }
-  }, [user, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      window.localStorage.setItem('gymflow_weeklyPlan', JSON.stringify(weeklyPlan));
-    } catch {
-      /* ignorar */
-    }
-  }, [weeklyPlan, hydrated]);
+    const persisted: PersistedState = {
+      user,
+      weeklyPlan,
+      activeWorkout,
+      activeWorkoutStartedAt,
+      workoutHistory,
+      weightHistory,
+      measurementsHistory,
+      nutrition,
+      achievements,
+      challenges,
+      favoriteExercises,
+      recentlyViewedVideoIds
+    };
+    const handle = setTimeout(() => saveState(STORAGE_KEY, persisted), 500);
+    return () => clearTimeout(handle);
+  }, [
+    hydrated,
+    user,
+    weeklyPlan,
+    activeWorkout,
+    activeWorkoutStartedAt,
+    workoutHistory,
+    weightHistory,
+    measurementsHistory,
+    nutrition,
+    achievements,
+    challenges,
+    favoriteExercises,
+    recentlyViewedVideoIds
+  ]);
 
   // XP trigger helper
   const addXp = (amount: number, reason: string) => {
@@ -362,13 +440,11 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const logout = () => {
     setUser(null);
     setWeeklyPlan([]);
+    setActiveWorkout(null);
+    setActiveWorkoutStartedAt(null);
+    setWorkoutDuration(0);
     setActiveView('landing');
-    try {
-      window.localStorage.removeItem('gymflow_user');
-      window.localStorage.removeItem('gymflow_weeklyPlan');
-    } catch {
-      /* ignorar */
-    }
+    clearState(STORAGE_KEY);
   };
 
   const updateUserPremium = (status: 'free' | 'pro' | 'elite') => {
@@ -450,6 +526,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       exercises: activeExs,
       xpEarned: 0
     });
+    setActiveWorkoutStartedAt(Date.now());
     setWorkoutDuration(0);
     setActiveView('active-workout');
   };
@@ -654,12 +731,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     );
 
     setActiveWorkout(null);
+    setActiveWorkoutStartedAt(null);
     setWorkoutDuration(0);
     setActiveView('dashboard');
   };
 
   const cancelWorkout = () => {
     setActiveWorkout(null);
+    setActiveWorkoutStartedAt(null);
     setWorkoutDuration(0);
     setActiveView('dashboard');
   };

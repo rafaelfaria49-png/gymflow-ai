@@ -1,13 +1,24 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useGymFlow } from '../providers/GymFlowContext';
+import { useGymFlow, STORAGE_KEY } from '../providers/GymFlowContext';
+import { clearState } from '../lib/storage';
 import { Exercise } from '../types';
-import { Shield, Plus, Trash2, Users, Dumbbell, Award, Video, TrendingUp, BarChart2 } from 'lucide-react';
+import { Shield, Plus, Trash2, Users, Dumbbell, Award, Video, TrendingUp, BarChart2, HardDrive } from 'lucide-react';
 
 export const AdminPanel = () => {
   const { exercises, addNewExercise, deleteExercise, user } = useGymFlow();
   const [showAddForm, setShowAddForm] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
+
+  const handleResetLocalData = () => {
+    if (!confirmingReset) {
+      setConfirmingReset(true);
+      return;
+    }
+    clearState(STORAGE_KEY);
+    window.location.reload();
+  };
 
   // Form states for new exercise
   const [name, setName] = useState('');
@@ -258,6 +269,28 @@ export const AdminPanel = () => {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* DADOS LOCAIS */}
+      <div className="glass p-5 rounded-3xl border border-white/5 space-y-4">
+        <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+          <HardDrive className="w-4.5 h-4.5 text-gym-rose" />
+          Dados locais
+        </h3>
+        <p className="text-[11px] text-gym-text-muted leading-relaxed">
+          Todo o progresso (perfil, treinos, XP, histórico) fica salvo somente neste aparelho.
+          Zerar os dados apaga tudo e reinicia o app do zero.
+        </p>
+        <button
+          onClick={handleResetLocalData}
+          className={`w-full min-h-[44px] py-3 px-4 rounded-2xl text-xs font-extrabold transition-all ${
+            confirmingReset
+              ? 'bg-gym-rose text-white'
+              : 'bg-gym-rose/15 border border-gym-rose/25 text-gym-rose hover:bg-gym-rose/25'
+          }`}
+        >
+          {confirmingReset ? 'Clique novamente para confirmar' : 'Zerar dados do app'}
+        </button>
       </div>
     </div>
   );

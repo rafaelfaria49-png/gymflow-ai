@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(npm run build*)",
+      "Bash(npm install*)",
+      "Bash(npx vitest*)",
+      "Bash(node *)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(grep*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ]
+  }
+}
