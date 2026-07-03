@@ -121,3 +121,40 @@ Ver `docs/DECISOES.md` (seção GOAL-03).
 ### Confirmação de escopo
 
 Avatar Lab, POC 3D, backend, Supabase, pagamento real, timer de descanso, ActionBar fixa e modelo de programas não foram tocados. GOAL-04 não foi iniciado.
+
+---
+
+## GOAL-04 — ActionBar fixa + fim das sobreposições (2026-07-03)
+
+### Resumo
+
+O FAB global "Continuar" (`BottomNavigation`) cobria conteúdo quando o usuário já estava dentro do próprio Treino Ativo. Ele foi escondido nessa tela e substituído por uma ActionBar fixa própria da página, que mostra a série atual/exercício e um botão "Continuar" que rola suavemente até a próxima série pendente (virando "Finalizar" quando todas as séries estão concluídas). Também corrigido o botão "Ver Técnica", que ficava `absolute` sobre o texto do placeholder de mídia 3D — agora é uma barra de rodapé em fluxo normal, sem overlap.
+
+### Arquivos alterados
+
+- `src/modules/ActiveWorkoutPage.tsx` — nova ActionBar fixa (`lg:hidden`) com "Série X de Y" + nome do exercício + botão Continuar/Finalizar; `handleContinue` com `scrollIntoView` + foco no input de carga; placeholder de mídia refeito em coluna (mídia em cima, botão "Ver Técnica" embaixo, sem `position: absolute`); `id="set-row-{id}"` em cada linha de série; container raiz trocado de `pb-24` para a nova classe `.pb-active-workout`.
+- `src/components/Navigation.tsx` — FAB "Continuar"/"Treinar" agora é condicional (`showFab`), oculto quando `activeView === 'active-workout'` (a ActionBar da própria página assume esse papel ali).
+- `src/app/globals.css` — nova classe `.pb-active-workout` (clearance da ActionBar + bottom nav + safe-area + folga de 16px).
+
+### Como a ActionBar funciona
+
+Fixa no rodapé (`bottom: calc(4.75rem + safe-area)`, mesma constante do FAB que substitui), visível só em mobile/tablet (`lg:hidden`). Mostra à esquerda "Série X de Y" + nome do próximo exercício pendente (ou "Treino Concluído"); à direita um botão que: (a) com séries pendentes, rola suavemente (`scrollIntoView({behavior:'smooth', block:'center'})`) até a primeira série não concluída e foca o input de carga (kg) dela; (b) com todas as séries concluídas, vira "Finalizar" e abre o modal de resumo já existente — sem lógica nova de finalização.
+
+### Decisões
+
+Ver `docs/DECISOES.md` (seção GOAL-04).
+
+### Validações executadas
+
+1. `grep -rn "alert(" src/` — vazio.
+2. `grep -rn "confirm(" src/` — vazio (nenhum voltou).
+3. `npx tsc --noEmit` — sem erros.
+4. `npm run build` — passou (Next 16.2.6, Turbopack).
+5. Dev server iniciado, `GET /` retornou 200 sem erros no log.
+6. `npx eslint` nos arquivos alterados — mesmos 3 erros pré-existentes já registrados em `docs/PENDENCIAS.md` desde o GOAL-02 (`setState` em efeito do timer de descanso, aspas não escapadas no modal de resumo), nenhum novo introduzido.
+7. Varredura de outros floatings (Tarefa 5) documentada em `docs/DECISOES.md` — nenhuma outra sobreposição óbvia encontrada além das duas corrigidas.
+8. `git status` — nenhum arquivo em `labs/avatar-lab/`, `docs/avatar-design/`, `app/poc-3d` alterado; nenhum GOAL-05/GOAL-06 iniciado.
+
+### Confirmação de escopo
+
+Avatar Lab, POC 3D, backend, Supabase, pagamento real, timer de descanso, modelo de programas e motor de progressão não foram tocados. GOAL-05 e GOAL-06 não foram iniciados.

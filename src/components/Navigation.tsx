@@ -155,19 +155,25 @@ export const BottomNavigation = () => {
   ];
 
   const hasActive = !!activeWorkout;
+  // Dentro do próprio Treino Ativo o FAB "Continuar" é substituído pela ActionBar
+  // fixa da página (ver ActiveWorkoutPage.tsx) — evita duas barras fixas competindo
+  // pelo mesmo espaço e cobrindo conteúdo (GOAL-04).
+  const showFab = !(hasActive && activeView === 'active-workout');
 
   return (
     <>
       {/* Botão principal de treino (FAB) — flutua acima da barra, alcançável pelo polegar */}
-      <button
-        onClick={() => setActiveView(hasActive ? 'active-workout' : 'workouts')}
-        className="lg:hidden fixed right-4 z-50 flex items-center gap-1.5 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black uppercase tracking-wider text-xs pl-3.5 pr-4 py-3 rounded-2xl shadow-lg shadow-gym-accent/30 tap-target active:scale-95 transition-all"
-        style={{ bottom: 'calc(4.75rem + env(safe-area-inset-bottom))' }}
-        aria-label={hasActive ? 'Continuar treino' : 'Iniciar treino'}
-      >
-        {hasActive ? <Flame className="w-4 h-4" /> : <Dumbbell className="w-4 h-4" />}
-        {hasActive ? 'Continuar' : 'Treinar'}
-      </button>
+      {showFab && (
+        <button
+          onClick={() => setActiveView(hasActive ? 'active-workout' : 'workouts')}
+          className="lg:hidden fixed right-4 z-50 flex items-center gap-1.5 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black uppercase tracking-wider text-xs pl-3.5 pr-4 py-3 rounded-2xl shadow-lg shadow-gym-accent/30 tap-target active:scale-95 transition-all"
+          style={{ bottom: 'calc(4.75rem + env(safe-area-inset-bottom))' }}
+          aria-label={hasActive ? 'Continuar treino' : 'Iniciar treino'}
+        >
+          {hasActive ? <Flame className="w-4 h-4" /> : <Dumbbell className="w-4 h-4" />}
+          {hasActive ? 'Continuar' : 'Treinar'}
+        </button>
+      )}
 
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-gym-dark/95 backdrop-blur-xl border-t border-white/10 px-1.5 pt-1 pb-safe flex justify-around items-stretch">
         {mobileNavItems.map((item) => {

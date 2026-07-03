@@ -50,6 +50,14 @@ body {
   min-width: 44px;
 }
 
+/* Espaço reservado no rodapé do Treino Ativo (mobile/tablet) para a ActionBar fixa
+   (~5.5rem de altura) + a folga acima da bottom nav (4.75rem, mesma constante do FAB)
+   + safe-area + 1rem de folga visual, para nenhum card/série ficar escondido atrás
+   de elementos fixos (GOAL-04). Em desktop (lg+) a ActionBar não é exibida. */
+.pb-active-workout {
+  padding-bottom: calc(4.75rem + 5.5rem + env(safe-area-inset-bottom) + 1rem);
+}
+
 /* Glassmorphism utility */
 .glass {
   background: rgba(24, 24, 27, 0.7);

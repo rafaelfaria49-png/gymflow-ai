@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { AvatarDemoPlaceholder } from '../components/AvatarDemoPlaceholder';
-import { Play, Pause, Square, Check, RefreshCw, HelpCircle, Save, Sparkles, Smile, MessageCircle, Clock, Share2, Award, Zap } from 'lucide-react';
+import { Play, Pause, Square, Check, RefreshCw, HelpCircle, Save, Sparkles, Smile, MessageCircle, Clock, Share2, Award, Zap, ChevronRight, Flag } from 'lucide-react';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 export const ActiveWorkoutPage = () => {
@@ -179,8 +179,26 @@ export const ActiveWorkoutPage = () => {
     return exercises.filter((e) => e.muscleGroup === currentExGroup && e.id !== activeWorkout.exercises[exIndex]?.exerciseId);
   };
 
+  // ActionBar fixa (GOAL-04): estado da próxima série pendente.
+  const allSetsCompleted = totalSetsCount > 0 && completedSetsCount === totalSetsCount;
+  const currentSetNumber = Math.min(completedSetsCount + 1, totalSetsCount || 1);
+
+  const handleContinue = () => {
+    for (const ex of activeWorkout.exercises) {
+      const incompleteSet = ex.sets.find((s) => !s.completed);
+      if (incompleteSet) {
+        const row = document.getElementById(`set-row-${incompleteSet.id}`);
+        row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const weightInput = row?.querySelector('input[type="number"]') as HTMLInputElement | null;
+        weightInput?.focus();
+        return;
+      }
+    }
+    setShowFinishModal(true);
+  };
+
   return (
-    <div className="space-y-6 pb-24 lg:pb-6 max-w-3xl mx-auto">
+    <div className="space-y-6 pb-active-workout lg:pb-6 max-w-3xl mx-auto">
       {/* HEADER FIXO DE TREINO */}
       <div className="glass border border-white/10 p-5 rounded-3xl flex items-center justify-between shadow-xl">
         <div>
@@ -349,11 +367,14 @@ export const ActiveWorkoutPage = () => {
             </div>
 
             {/* DEMONSTRAÇÃO DO EXERCÍCIO — placeholder honesto (avatar Kai em produção) */}
-            <div className="aspect-[21/9] w-full rounded-2xl overflow-hidden border border-white/5 relative">
-              <AvatarDemoPlaceholder
-                compact
-                title="Demonstração 3D em produção"
-              />
+            {/* Layout em coluna: mídia em cima, botão "Ver Técnica" embaixo, sem overlap (GOAL-04). */}
+            <div className="w-full rounded-2xl overflow-hidden border border-white/5 flex flex-col">
+              <div className="aspect-[21/9] w-full">
+                <AvatarDemoPlaceholder
+                  compact
+                  title="Demonstração 3D em produção"
+                />
+              </div>
               <button
                 onClick={() => {
                   const map: {[key: string]: string} = {
@@ -368,9 +389,9 @@ export const ActiveWorkoutPage = () => {
                   const videoId = map[ex.exerciseId] || 'vid_supino_1';
                   openGlobalPlayer(videoId);
                 }}
-                className="absolute bottom-2.5 right-2.5 bg-black/75 hover:bg-black/90 border border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all z-10 tap-target"
+                className="w-full min-h-[44px] bg-black/40 hover:bg-black/60 border-t border-white/5 text-white hover:text-gym-accent font-black uppercase tracking-wider text-[10px] flex items-center justify-center gap-1.5 transition-all"
               >
-                <Play className="w-2.5 h-2.5 fill-current" /> Ver Técnica
+                <Play className="w-3 h-3 fill-current" /> Ver Técnica
               </button>
             </div>
 
@@ -390,6 +411,7 @@ export const ActiveWorkoutPage = () => {
               {ex.sets.map((set, setIdx) => (
                 <div
                   key={set.id}
+                  id={`set-row-${set.id}`}
                   className={`grid grid-cols-12 items-center text-center p-1 rounded-xl transition-all border gap-1 relative ${
                     set.completed
                       ? 'bg-gym-accent/5 border-gym-accent/20'
@@ -523,6 +545,38 @@ export const ActiveWorkoutPage = () => {
         }}
         onCancel={() => setShowCancelConfirm(false)}
       />
+
+      {/* ACTIONBAR FIXA (GOAL-04) — substitui o FAB flutuante "Continuar" dentro do
+          próprio Treino Ativo. Mobile/tablet apenas (lg:hidden); no desktop o botão
+          "Finalizar" do header acima já cumpre esse papel sem barra fixa nova. */}
+      <div
+        className="lg:hidden fixed inset-x-0 z-30 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] px-4"
+      >
+        <div className="glass border border-white/10 rounded-2xl shadow-2xl px-4 py-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block">
+              Série {currentSetNumber} de {totalSetsCount}
+            </span>
+            <span className="text-xs font-bold text-white block truncate max-w-[180px]">
+              {allSetsCompleted ? 'Treino Concluído' : nextExerciseName}
+            </span>
+          </div>
+          <button
+            onClick={allSetsCompleted ? () => setShowFinishModal(true) : handleContinue}
+            className="flex-shrink-0 min-h-[44px] flex items-center gap-1.5 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black uppercase tracking-wider text-xs px-4 py-3 rounded-xl shadow-md shadow-gym-accent/20 transition-all active:scale-95"
+          >
+            {allSetsCompleted ? (
+              <>
+                <Flag className="w-3.5 h-3.5" /> Finalizar
+              </>
+            ) : (
+              <>
+                Continuar <ChevronRight className="w-3.5 h-3.5" />
+              </>
+            )}
+          </button>
+        </div>
+      </div>
 
       {/* MODAL DE TROCA DE EXERCÍCIO */}
       {showSwapModal && swapIndex !== null && (
