@@ -1,0 +1,63 @@
+{
+  "_instrucoes": "Copie este arquivo para <mesmo-nome-do-glb>.meta.json (ex.: gymflow_male_meshy.meta.json) e preencha. Campos com null = ainda não sei / a medir. O analisador só usa o que estiver preenchido; nada é inventado.",
+
+  "ferramenta": "Meshy AI",
+  "versao_ferramenta": "Meshy 6",
+  "modalidade": "text-to-3D",
+  "plano": "free",
+  "custo": "US$0 (creditos free)",
+  "tempo_geracao": "~2 min",
+  "data_geracao": "2026-06-19",
+
+  "licenca": "CC BY 4.0 (free tier, publico) — NAO usar como asset final de marca",
+  "_licenca_dica": "valores que o analisador reconhece p/ nota comercial: 'Private/owned/cessao' = 10; 'commercial/pro/pago' = 8; 'CC BY/attribution' = 4; 'non-commercial/research' = 1.",
+
+  "entrada": {
+    "tipo": "texto",
+    "prompt_usado": "(colar exatamente o prompt do STANDARD_PROMPT.md usado)",
+    "imagem_referencia": null
+  },
+
+  "visual": {
+    "_obs": "EIXO 2 (30%). PREENCHER SÓ DEPOIS DE OLHAR O MODELO. Notas 0-10. 'geral' vira a nota do macro Visual. rosto e maos sao PORTOES (<6 reprova). Macro Visual <8.5 reprova.",
+    "geral": null,
+    "rosto": null,
+    "maos": null,
+    "pele": null,
+    "roupa": null,
+    "anatomia": null,
+    "uncanny": null,
+    "parece_premium": null
+  },
+
+  "experiencia_humana": {
+    "_obs": "EIXO 3 (20%). Notas 0-10. Macro = média das preenchidas. Macro <8.5 reprova. Pergunta-guia: 'Eu treinaria com esse treinador todos os dias?'",
+    "empatia": null,
+    "_empatia": "transmite simpatia? acessível? daria vontade de acompanhar por meses, ou é só um boneco bonito?",
+    "credibilidade": null,
+    "_credibilidade": "parece que 'essa pessoa entende de treino', ou personagem genérico?",
+    "naturalidade_corporal": null,
+    "_naturalidade_corporal": "corpo humano natural/saudável/atingível, sem músculo exagerado/fisiculturista/estética de palco?",
+    "movimento": null,
+    "_movimento": "SÓ com animação: quadril/joelhos/ombros/cotovelos/mãos/pescoço/coluna parecem humano treinando, não robô. Deixe null se não há animação.",
+    "maos": null,
+    "_maos": "dedos, pegada, posição, deformação, contato com equipamento.",
+    "expressao_facial": null,
+    "_expressao_facial": "olhar/serenidade/confiança/simpatia mesmo em repouso. Nunca morto, nunca assustador.",
+    "premium": null,
+    "_premium": "'parece um app de milhões de dólares' ou 'IA genérica'?",
+    "identificacao": null,
+    "_identificacao": "NÃO atleta olímpico/fisiculturista/modelo. Atlético, saudável, natural, alcançável (M ~12-15% / F ~18-22%, cabelo preso)."
+  },
+
+  "tecnico": {
+    "_obs": "FPS/carregamento só quando medidos no harness de render do lab. Deixe null até lá.",
+    "fpsDesktop": null,
+    "fpsMobile": null,
+    "tempo_carregamento_ms": null
+  },
+
+  "capturas": ["(caminhos dos screenshots em results/<ferramenta>/: frente, 3-4, close rosto, close maos)"],
+  "limitacoes_observadas": "(ex.: maos colapsadas, rosto plastico, roupa generica, sem rig...)",
+  "notas": "(qualquer observação relevante para o ranking)"
+}

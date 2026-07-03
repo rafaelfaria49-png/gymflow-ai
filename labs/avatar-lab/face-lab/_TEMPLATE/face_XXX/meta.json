@@ -1,0 +1,65 @@
+{
+  "_instrucoes": "TEMPLATE de ROSTO. Copie a pasta _TEMPLATE/face_XXX/ para batch-00X/face_NNN/ e preencha. Campos null = ainda nao sei / nao avaliado. NUNCA preencher nota ou marcar present:true sem o asset real na frente. Avaliar SO o rosto (corpo/roupa sao neutros por design). Schema irmao: ../../candidates/_TEMPLATE/candidate_XXX/meta.json.",
+
+  "id": "face_NNN",
+  "ferramenta": null,
+  "versao_ferramenta": null,
+  "modalidade": null,
+  "data_geracao": null,
+  "tempo_geracao": null,
+  "custo": null,
+
+  "entrada": {
+    "tipo": null,
+    "prompt_id": null,
+    "prompt_usado": null,
+    "imagem_referencia": null,
+    "_obs": "prompt_id = direcao usada em ../../PROMPTS_FACE.md (ex.: F08-calmo). prompt_usado = string final (BASE_FACE + delta + NEGATIVE)."
+  },
+
+  "licenca": null,
+  "_licenca_dica": "Se virar asset, precisa permitir uso comercial + embed web. Nesta fase de descoberta de rosto e informativo.",
+
+  "assets": {
+    "_obs": "Marque present:true SOMENTE para arquivos realmente depositados nesta pasta.",
+    "preview_front":   { "file": "preview_front.png",   "present": false },
+    "preview_34":      { "file": "preview_34.png",      "present": false },
+    "preview_closeup": { "file": "preview_closeup.png", "present": false },
+    "face_glb":        { "file": "face.glb",            "present": false }
+  },
+
+  "scores": {
+    "_obs": "Notas humanas 0-10 conforme ../../FACE_SCORE_GUIDE.md. null = nao avaliado. NAO inventar.",
+    "confianca": null,
+    "simpatia": null,
+    "naturalidade": null,
+    "maturidade": null,
+    "profissionalismo": null,
+    "energia": null,
+    "credibilidade": null,
+    "aparencia_premium": null,
+    "treinador": null,
+    "memorabilidade": null,
+    "overall": null
+  },
+
+  "gates": {
+    "_obs": "Portoes eliminatorios. false = falhou (reprova). null = nao medido ainda.",
+    "naturalidade_min_6": null,
+    "identidade_nao_celebridade": null,
+    "loads_in_r3f": null,
+    "license_commercial_web_embed": null
+  },
+
+  "tecnico": {
+    "_obs": "Do ../../tools/analyze-glb.mjs sobre o GLB de cabeca (se houver). INFORMATIVO nesta fase. null ate medir. Nada inventado.",
+    "fileSizeMB": null,
+    "triangles": null,
+    "bones": null
+  },
+
+  "status": "PENDING",
+  "review": "review.md",
+  "limitacoes_observadas": null,
+  "notas": null
+}

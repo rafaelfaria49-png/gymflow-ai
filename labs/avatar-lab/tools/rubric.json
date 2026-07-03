@@ -1,0 +1,91 @@
+{
+  "$schema_note": "Rubrica de pontuação do Avatar Lab. Valores derivados do GYMFLOW_MOTION_ENGINE_SPEC_v01 / E0_ASSET_PRODUCTION_PLAN. Bandas: cada métrica vira nota 0-10 por faixas. Editar AQUI muda o scoring sem tocar no código.",
+  "version": "1.0.0",
+  "budgets": {
+    "triangles": { "ideal": 40000, "ceiling": 60000 },
+    "bones": { "ceiling": 70 },
+    "fileSizeMB": { "ideal": 6, "ceiling": 8 },
+    "textureMaxPx": { "ideal": 2048, "ceiling": 4096 },
+    "fpsDesktop": { "target": 60 },
+    "fpsMobile": { "target": 30 }
+  },
+  "bands": {
+    "triangles": [
+      { "max": 40000, "score": 10 },
+      { "max": 60000, "score": 8 },
+      { "max": 100000, "score": 5 },
+      { "max": 200000, "score": 3 },
+      { "max": null, "score": 1 }
+    ],
+    "bones": [
+      { "max": 70, "score": 10 },
+      { "max": 85, "score": 7 },
+      { "max": 100, "score": 5 },
+      { "max": null, "score": 2 }
+    ],
+    "fileSizeMB": [
+      { "max": 6, "score": 10 },
+      { "max": 8, "score": 8 },
+      { "max": 15, "score": 5 },
+      { "max": 25, "score": 3 },
+      { "max": null, "score": 1 }
+    ],
+    "textureMaxPx": [
+      { "max": 1024, "score": 9 },
+      { "max": 2048, "score": 10 },
+      { "max": 4096, "score": 7 },
+      { "max": 8192, "score": 4 },
+      { "max": null, "score": 2 }
+    ]
+  },
+  "compatibility": {
+    "webSupportedExtensions": [
+      "KHR_draco_mesh_compression",
+      "EXT_meshopt_compression",
+      "KHR_texture_basisu",
+      "KHR_materials_unlit",
+      "KHR_materials_emissive_strength",
+      "KHR_materials_clearcoat",
+      "KHR_materials_sheen",
+      "KHR_materials_transmission",
+      "KHR_materials_volume",
+      "KHR_materials_specular",
+      "KHR_materials_ior",
+      "KHR_materials_iridescence",
+      "KHR_lights_punctual",
+      "KHR_texture_transform",
+      "KHR_mesh_quantization"
+    ],
+    "note": "Estas extensões carregam em three.js/R3F com os loaders padrão (GLTFLoader + DRACOLoader/MeshoptDecoder/KTX2Loader). Qualquer extensão fora desta lista entra como RISCO e derruba a nota de compatibilidade; se estiver em extensionsRequired e não suportada, é PORTÃO ELIMINATÓRIO."
+  },
+  "macroWeights": {
+    "comment": "DECISÃO EM 3 EIXOS (configurável). Default pedido: 50% técnico, 30% visual, 20% experiência humana. O laboratório não escolhe 'o mais bonito', escolhe 'o melhor treinador virtual'.",
+    "tecnico": 0.50,
+    "visual": 0.30,
+    "experiencia_humana": 0.20
+  },
+  "tecnicoComponents": {
+    "comment": "Como os sub-eixos objetivos formam o macro Técnico. Pesos somam 1.0.",
+    "tecnica": 0.35,
+    "performance": 0.30,
+    "compatibilidade": 0.20,
+    "manutencao": 0.15
+  },
+  "humanExperienceCriteria": {
+    "comment": "EIXO 3 — notas humanas 0-10 no sidecar .meta.json -> experiencia_humana{}. Macro = média dos critérios preenchidos. 'movimento' só é avaliável com animação; deixar null até lá.",
+    "keys": ["empatia", "credibilidade", "naturalidade_corporal", "movimento", "maos", "expressao_facial", "premium", "identificacao"]
+  },
+  "gates": {
+    "comment": "Portões eliminatórios. Se qualquer um falha, o asset NÃO entra no ranking. NOVO: precisa vencer nos 3 eixos (cada macro >= 8.5).",
+    "visual_maos_min": 6,
+    "visual_rosto_min": 6,
+    "fps_mobile_min": 30,
+    "fileSizeMB_max": 8,
+    "must_load_r3f": true,
+    "rig_must_conform_single_skeleton": true,
+    "no_unsupported_required_extension": true,
+    "macro_tecnico_min": 8.5,
+    "macro_visual_min": 8.5,
+    "macro_experiencia_humana_min": 8.5
+  }
+}

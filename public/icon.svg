@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#09090b"/>
+  <rect x="40" y="40" width="432" height="432" rx="84" fill="none" stroke="#a3e635" stroke-width="6" opacity="0.25"/>
+  <!-- Dumbbell mark -->
+  <g stroke="#a3e635" stroke-width="34" stroke-linecap="round">
+    <line x1="176" y1="256" x2="336" y2="256"/>
+  </g>
+  <g fill="#a3e635">
+    <rect x="120" y="196" width="40" height="120" rx="14"/>
+    <rect x="352" y="196" width="40" height="120" rx="14"/>
+  </g>
+  <g fill="#10b981">
+    <rect x="92" y="216" width="30" height="80" rx="12"/>
+    <rect x="390" y="216" width="30" height="80" rx="12"/>
+  </g>
+</svg>

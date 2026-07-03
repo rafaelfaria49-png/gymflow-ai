@@ -1,0 +1,69 @@
+{
+  "_instrucoes": "TEMPLATE. Copie a pasta _TEMPLATE/candidate_XXX/ para <ferramenta>/candidate_NNN/ e preencha. Campos null = ainda nao sei / nao avaliado. NUNCA preencher nota ou marcar present:true sem o asset real na frente. Reuso da convencao do lab (ver ../../drop/_TEMPLATE.meta.json).",
+
+  "id": "<ferramenta>_candidate_NNN",
+  "ferramenta": null,
+  "versao_ferramenta": null,
+  "modalidade": null,
+  "candidato": "candidate_NNN",
+  "data_geracao": null,
+  "tempo_geracao": null,
+  "custo": null,
+
+  "entrada": {
+    "tipo": null,
+    "prompt_usado": null,
+    "imagem_referencia": null,
+    "_obs": "Alvo identico para todas as ferramentas: ver ../../results/STANDARD_PROMPT.md + docs/avatar-design/KAI_DNA_v1.md."
+  },
+
+  "licenca": null,
+  "_licenca_dica": "Precisa permitir uso comercial + embed web. Incompativel = portao eliminatorio (ver ../../checklists/APPROVAL_CRITERIA.md).",
+
+  "assets": {
+    "_obs": "Marque present:true SOMENTE para arquivos realmente depositados nesta pasta.",
+    "avatar_glb":     { "file": "avatar.glb",        "present": false },
+    "preview_front":  { "file": "preview_front.png", "present": false },
+    "preview_34":     { "file": "preview_34.png",    "present": false },
+    "preview_face":   { "file": "preview_face.png",  "present": false },
+    "preview_hands":  { "file": "preview_hands.png", "present": false }
+  },
+
+  "scores": {
+    "_obs": "Notas humanas 0-10 conforme ../../candidates/SCORE_GUIDE.md. null = nao avaliado. NAO inventar.",
+    "visual": null,
+    "face": null,
+    "body": null,
+    "hands": null,
+    "skin": null,
+    "hair": null,
+    "clothes": null,
+    "naturalness": null,
+    "trust": null,
+    "fitness_coach": null,
+    "overall": null
+  },
+
+  "gates": {
+    "_obs": "Portoes eliminatorios. false = falhou (reprova). null = nao medido ainda.",
+    "face_min_6": null,
+    "hands_min_6": null,
+    "loads_in_r3f": null,
+    "filesize_max_8mb": null,
+    "license_commercial_web_embed": null
+  },
+
+  "tecnico": {
+    "_obs": "Do analisador/harness (../../tools/analyze-glb.mjs). null ate medir. Nada inventado.",
+    "fileSizeMB": null,
+    "triangles": null,
+    "bones": null,
+    "fpsDesktop": null,
+    "fpsMobile": null
+  },
+
+  "status": "PENDING",
+  "review": "review.md",
+  "limitacoes_observadas": null,
+  "notas": null
+}

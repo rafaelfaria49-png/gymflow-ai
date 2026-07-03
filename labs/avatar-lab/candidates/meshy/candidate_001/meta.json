@@ -1,0 +1,50 @@
+{
+  "_instrucoes": "Slot vazio criado como estrutura. Preencher ao depositar assets reais. Campos null = nao sei / nao avaliado. NUNCA preencher nota ou present:true sem o asset na frente. Schema: ../../_TEMPLATE/candidate_XXX/meta.json.",
+
+  "id": "meshy_candidate_001",
+  "ferramenta": "Meshy AI",
+  "versao_ferramenta": null,
+  "modalidade": "text-to-3D",
+  "candidato": "candidate_001",
+  "data_geracao": null,
+  "tempo_geracao": null,
+  "custo": null,
+
+  "entrada": {
+    "tipo": null,
+    "prompt_usado": null,
+    "imagem_referencia": null,
+    "_obs": "Alvo: ../../results/STANDARD_PROMPT.md + docs/avatar-design/KAI_DNA_v1.md."
+  },
+
+  "licenca": null,
+
+  "assets": {
+    "avatar_glb":     { "file": "avatar.glb",        "present": false },
+    "preview_front":  { "file": "preview_front.png", "present": false },
+    "preview_34":     { "file": "preview_34.png",    "present": false },
+    "preview_face":   { "file": "preview_face.png",  "present": false },
+    "preview_hands":  { "file": "preview_hands.png", "present": false }
+  },
+
+  "scores": {
+    "visual": null, "face": null, "body": null, "hands": null, "skin": null,
+    "hair": null, "clothes": null, "naturalness": null, "trust": null,
+    "fitness_coach": null, "overall": null
+  },
+
+  "gates": {
+    "face_min_6": null, "hands_min_6": null, "loads_in_r3f": null,
+    "filesize_max_8mb": null, "license_commercial_web_embed": null
+  },
+
+  "tecnico": {
+    "fileSizeMB": null, "triangles": null, "bones": null,
+    "fpsDesktop": null, "fpsMobile": null
+  },
+
+  "status": "PENDING",
+  "review": "review.md",
+  "limitacoes_observadas": null,
+  "notas": "Slot inicial — aguardando geracao real no Meshy."
+}
