@@ -1,4 +1,53 @@
-import { WorkoutProgram, WeeklyWorkoutDay } from '../types';
+import { WorkoutProgram, WeeklyWorkoutDay, ExerciseSlot } from '../types';
+
+// ===== GOAL-07: helpers de ExerciseSlot =====
+// Defaults registrados em docs/DECISOES.md:
+//   composto: repRange 6-10, RPE 8, rest 120s, progressão dupla, +2.5kg
+//   isolado:  repRange 10-15, RPE 8, rest 75s, progressão dupla, +1kg
+//   core:     repRange 30-60 (segundos), RPE 7, rest 60s, sem progressão
+//   cardio:   repRange 15-20 (minutos), RPE 7, rest 0, sem progressão
+
+const comp = (exerciseId: string, series = 3, repRange: [number, number] = [6, 10], overrides: Partial<ExerciseSlot> = {}): ExerciseSlot => ({
+  exerciseId,
+  series,
+  repRange,
+  targetRPE: 8,
+  restSec: 120,
+  progression: 'dupla',
+  incrementKg: 2.5,
+  ...overrides
+});
+
+const iso = (exerciseId: string, series = 3, repRange: [number, number] = [10, 15], overrides: Partial<ExerciseSlot> = {}): ExerciseSlot => ({
+  exerciseId,
+  series,
+  repRange,
+  targetRPE: 8,
+  restSec: 75,
+  progression: 'dupla',
+  incrementKg: 1,
+  ...overrides
+});
+
+const core = (exerciseId: string, series = 3, repRange: [number, number] = [30, 60]): ExerciseSlot => ({
+  exerciseId,
+  series,
+  repRange, // segundos de isometria
+  targetRPE: 7,
+  restSec: 60,
+  progression: 'nenhuma',
+  incrementKg: 0
+});
+
+const cardio = (exerciseId: string, series = 1, repRange: [number, number] = [15, 20]): ExerciseSlot => ({
+  exerciseId,
+  series,
+  repRange, // minutos
+  targetRPE: 7,
+  restSec: 0,
+  progression: 'nenhuma',
+  incrementKg: 0
+});
 
 export const MOCK_PROGRAMS: WorkoutProgram[] = [
   // INICIANTE
@@ -17,6 +66,24 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
       { exerciseId: 'back_puxada_pulley', sets: 3, reps: '12-15', type: 'main' },
       { exerciseId: 'legs_cadeira_extensora', sets: 3, reps: '12-15', type: 'accessory' },
       { exerciseId: 'abs_prancha_abdominal', sets: 3, reps: '30s', type: 'finisher' }
+    ],
+    repeatWeeks: true,
+    weeks: [
+      {
+        number: 1,
+        days: [
+          {
+            id: 'prog_beg_1_day_a',
+            name: 'Full Body Adaptação',
+            slots: [
+              iso('chest_peck_deck', 3, [12, 15]),
+              comp('back_puxada_pulley', 3, [12, 15]),
+              iso('legs_cadeira_extensora', 3, [12, 15]),
+              core('abs_prancha_abdominal', 3, [30, 60])
+            ]
+          }
+        ]
+      }
     ]
   },
   {
@@ -34,6 +101,24 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
       { exerciseId: 'chest_supino_reto', sets: 3, reps: '10', type: 'main' },
       { exerciseId: 'back_remada_baixa', sets: 3, reps: '12', type: 'accessory' },
       { exerciseId: 'shoulder_elevecao_lateral', sets: 3, reps: '12', type: 'accessory' }
+    ],
+    repeatWeeks: true,
+    weeks: [
+      {
+        number: 1,
+        days: [
+          {
+            id: 'prog_beg_2_day_a',
+            name: 'Full Body Global',
+            slots: [
+              comp('legs_leg_press', 3, [10, 12]),
+              comp('chest_supino_reto', 3, [8, 10]),
+              comp('back_remada_baixa', 3, [10, 12]),
+              iso('shoulder_elevecao_lateral', 3, [10, 12])
+            ]
+          }
+        ]
+      }
     ]
   },
   {
@@ -51,6 +136,24 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
       { exerciseId: 'back_puxada_pulley', sets: 3, reps: '15', type: 'main' },
       { exerciseId: 'legs_cadeira_extensora', sets: 3, reps: '15', type: 'accessory' },
       { exerciseId: 'legs_mesa_flexora', sets: 3, reps: '15', type: 'accessory' }
+    ],
+    repeatWeeks: true,
+    weeks: [
+      {
+        number: 1,
+        days: [
+          {
+            id: 'prog_beg_3_day_a',
+            name: 'Máquinas Guiadas Completo',
+            slots: [
+              iso('chest_peck_deck', 3, [12, 15]),
+              comp('back_puxada_pulley', 3, [12, 15]),
+              iso('legs_cadeira_extensora', 3, [12, 15]),
+              iso('legs_mesa_flexora', 3, [12, 15])
+            ]
+          }
+        ]
+      }
     ]
   },
   {
@@ -67,6 +170,23 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
       { exerciseId: 'legs_leg_press', sets: 3, reps: '15', type: 'main' },
       { exerciseId: 'chest_peck_deck', sets: 3, reps: '15', type: 'main' },
       { exerciseId: 'cardio_corrida_esteira', sets: 1, reps: '15min HIIT', type: 'finisher' }
+    ],
+    repeatWeeks: true,
+    weeks: [
+      {
+        number: 1,
+        days: [
+          {
+            id: 'prog_beg_4_day_a',
+            name: 'Circuito Emagrecimento',
+            slots: [
+              comp('legs_leg_press', 3, [12, 15], { restSec: 75 }),
+              iso('chest_peck_deck', 3, [12, 15], { restSec: 60 }),
+              cardio('cardio_corrida_esteira', 1, [15, 20])
+            ]
+          }
+        ]
+      }
     ]
   },
   {
@@ -83,6 +203,23 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
       { exerciseId: 'chest_supino_reto', sets: 3, reps: '10', type: 'main' },
       { exerciseId: 'back_remada_baixa', sets: 3, reps: '10', type: 'main' },
       { exerciseId: 'biceps_rosca_direta', sets: 3, reps: '12', type: 'accessory' }
+    ],
+    repeatWeeks: true,
+    weeks: [
+      {
+        number: 1,
+        days: [
+          {
+            id: 'prog_beg_5_day_a',
+            name: 'Base de Massa Full Body',
+            slots: [
+              comp('chest_supino_reto', 3, [8, 10]),
+              comp('back_remada_baixa', 3, [8, 10]),
+              iso('biceps_rosca_direta', 3, [10, 12])
+            ]
+          }
+        ]
+      }
     ]
   },
 
@@ -103,6 +240,40 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
       { exerciseId: 'shoulder_desenvolvimento_haltere', sets: 3, reps: '10', type: 'main' },
       { exerciseId: 'triceps_testa', sets: 3, reps: '10', type: 'accessory' },
       { exerciseId: 'shoulder_elevecao_lateral', sets: 4, reps: '12', type: 'accessory' }
+    ],
+    repeatWeeks: true,
+    weeks: [
+      {
+        number: 1,
+        days: [
+          {
+            id: 'prog_int_1_day_a',
+            name: 'Dia A — Peito Foco',
+            slots: [
+              comp('chest_supino_reto', 4, [8, 10]),
+              comp('chest_supino_inclinado_haltere', 3, [8, 10]),
+              iso('triceps_testa', 3, [10, 12])
+            ]
+          },
+          {
+            id: 'prog_int_1_day_b',
+            name: 'Dia B — Ombros',
+            slots: [
+              comp('shoulder_desenvolvimento_haltere', 3, [8, 10]),
+              iso('shoulder_elevecao_lateral', 4, [10, 12])
+            ]
+          },
+          {
+            id: 'prog_int_1_day_c',
+            name: 'Dia C — Peito + Tríceps Pump',
+            slots: [
+              comp('chest_supino_inclinado_haltere', 3, [8, 10]),
+              iso('triceps_testa', 3, [10, 15]),
+              iso('shoulder_elevecao_lateral', 3, [12, 15])
+            ]
+          }
+        ]
+      }
     ]
   },
   {
@@ -120,6 +291,30 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
       { exerciseId: 'legs_agachamento_barra', sets: 4, reps: '8-10', type: 'main' },
       { exerciseId: 'legs_stiff', sets: 4, reps: '10', type: 'main' },
       { exerciseId: 'glutes_gluteo_cabo', sets: 3, reps: '12', type: 'accessory' }
+    ],
+    repeatWeeks: true,
+    weeks: [
+      {
+        number: 1,
+        days: [
+          {
+            id: 'prog_int_2_day_a',
+            name: 'Dia A — Glúteo Foco',
+            slots: [
+              comp('glutes_elevacao_pelvica', 4, [10, 12]),
+              iso('glutes_gluteo_cabo', 3, [10, 12])
+            ]
+          },
+          {
+            id: 'prog_int_2_day_b',
+            name: 'Dia B — Quadríceps + Posteriores',
+            slots: [
+              comp('legs_agachamento_barra', 4, [8, 10]),
+              comp('legs_stiff', 4, [8, 10])
+            ]
+          }
+        ]
+      }
     ]
   },
   {
@@ -136,6 +331,29 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
       { exerciseId: 'chest_supino_reto', sets: 4, reps: '8-10', type: 'main' },
       { exerciseId: 'back_remada_curvada', sets: 4, reps: '8-10', type: 'main' },
       { exerciseId: 'legs_leg_press', sets: 4, reps: '10-12', type: 'main' }
+    ],
+    repeatWeeks: true,
+    weeks: [
+      {
+        number: 1,
+        days: [
+          {
+            id: 'prog_int_3_day_upper',
+            name: 'Upper — Superiores',
+            slots: [
+              comp('chest_supino_reto', 4, [8, 10]),
+              comp('back_remada_curvada', 4, [8, 10])
+            ]
+          },
+          {
+            id: 'prog_int_3_day_lower',
+            name: 'Lower — Inferiores',
+            slots: [
+              comp('legs_leg_press', 4, [10, 12])
+            ]
+          }
+        ]
+      }
     ]
   },
 
@@ -156,6 +374,37 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
       { exerciseId: 'back_barra_fixa', sets: 4, reps: '10', type: 'main' },
       { exerciseId: 'back_remada_curvada', sets: 4, reps: '8-10', type: 'main' },
       { exerciseId: 'legs_agachamento_barra', sets: 4, reps: '8-10', type: 'main' }
+    ],
+    repeatWeeks: true,
+    weeks: [
+      {
+        number: 1,
+        days: [
+          {
+            id: 'prog_adv_1_day_push',
+            name: 'Push — Empurrar',
+            slots: [
+              comp('chest_supino_reto', 4, [8, 10]),
+              comp('shoulder_desenvolvimento_haltere', 3, [8, 10])
+            ]
+          },
+          {
+            id: 'prog_adv_1_day_pull',
+            name: 'Pull — Puxar',
+            slots: [
+              comp('back_barra_fixa', 4, [6, 10]),
+              comp('back_remada_curvada', 4, [8, 10])
+            ]
+          },
+          {
+            id: 'prog_adv_1_day_legs',
+            name: 'Legs — Pernas',
+            slots: [
+              comp('legs_agachamento_barra', 4, [8, 10])
+            ]
+          }
+        ]
+      }
     ]
   },
   {
@@ -173,6 +422,30 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
       { exerciseId: 'legs_agachamento_barra', sets: 4, reps: '8 (lento)', type: 'main' },
       { exerciseId: 'legs_stiff', sets: 4, reps: '8', type: 'main' },
       { exerciseId: 'glutes_gluteo_cabo', sets: 4, reps: '10 (isometria)', type: 'accessory' }
+    ],
+    repeatWeeks: true,
+    weeks: [
+      {
+        number: 1,
+        days: [
+          {
+            id: 'prog_adv_2_day_a',
+            name: 'Dia A — Glúteo Pesado',
+            slots: [
+              comp('glutes_elevacao_pelvica', 5, [6, 8]),
+              iso('glutes_gluteo_cabo', 4, [8, 10])
+            ]
+          },
+          {
+            id: 'prog_adv_2_day_b',
+            name: 'Dia B — Base de Pernas',
+            slots: [
+              comp('legs_agachamento_barra', 4, [6, 8]),
+              comp('legs_stiff', 4, [6, 8])
+            ]
+          }
+        ]
+      }
     ]
   },
   {
@@ -189,6 +462,29 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
       { exerciseId: 'legs_agachamento_barra', sets: 5, reps: '5', type: 'main' },
       { exerciseId: 'chest_supino_reto', sets: 5, reps: '5', type: 'main' },
       { exerciseId: 'back_remada_curvada', sets: 4, reps: '6-8', type: 'main' }
+    ],
+    repeatWeeks: true,
+    weeks: [
+      {
+        number: 1,
+        days: [
+          {
+            id: 'prog_adv_3_day_squat',
+            name: 'Dia A — Agachamento Pesado',
+            slots: [
+              comp('legs_agachamento_barra', 5, [3, 5], { restSec: 180, progression: 'linear' })
+            ]
+          },
+          {
+            id: 'prog_adv_3_day_bench',
+            name: 'Dia B — Supino + Remada',
+            slots: [
+              comp('chest_supino_reto', 5, [3, 5], { restSec: 180, progression: 'linear' }),
+              comp('back_remada_curvada', 4, [6, 8])
+            ]
+          }
+        ]
+      }
     ]
   },
 
@@ -207,6 +503,35 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
       { exerciseId: 'legs_agachamento_barra', sets: 5, reps: '3', type: 'main' },
       { exerciseId: 'chest_supino_reto', sets: 5, reps: '3', type: 'main' },
       { exerciseId: 'legs_stiff', sets: 4, reps: '5', type: 'main' }
+    ],
+    repeatWeeks: true,
+    weeks: [
+      {
+        number: 1,
+        days: [
+          {
+            id: 'prog_atl_1_day_squat',
+            name: 'Dia A — Agachamento Máximo',
+            slots: [
+              comp('legs_agachamento_barra', 5, [1, 3], { restSec: 180, targetRPE: 9, progression: 'linear' })
+            ]
+          },
+          {
+            id: 'prog_atl_1_day_bench',
+            name: 'Dia B — Supino Máximo',
+            slots: [
+              comp('chest_supino_reto', 5, [1, 3], { restSec: 180, targetRPE: 9, progression: 'linear' })
+            ]
+          },
+          {
+            id: 'prog_atl_1_day_posterior',
+            name: 'Dia C — Cadeia Posterior',
+            slots: [
+              comp('legs_stiff', 4, [3, 5], { restSec: 180, progression: 'linear' })
+            ]
+          }
+        ]
+      }
     ]
   }
 ];

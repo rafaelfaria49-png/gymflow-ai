@@ -14,7 +14,8 @@ import {
   ActiveExercise,
   WorkoutSet,
   WeeklyWorkoutDay,
-  TechniqueTrail
+  TechniqueTrail,
+  ProgramDay
 } from '../types';
 import {
   MOCK_EXERCISES,
@@ -23,7 +24,6 @@ import {
   MOCK_CHALLENGES,
   MOCK_ACHIEVEMENTS,
   MOCK_COMMUNITY,
-  MOCK_WEEKLY_TEMPLATES,
   MOCK_TRAILS
 } from '../mock/data';
 import { loadState, saveState, clearState } from '../lib/storage';
@@ -107,7 +107,7 @@ interface GymFlowContextType {
 
   // Active Workout
   activeWorkout: WorkoutSession | null;
-  startWorkout: (programId?: string, customName?: string) => void;
+  startWorkout: (programId?: string, customName?: string, programDayId?: string) => void;
   updateWorkoutSet: (exerciseIndex: number, setIndex: number, fields: Partial<WorkoutSet>) => void;
   updateExerciseNotes: (exerciseIndex: number, notes: string) => void;
   completeWorkoutSet: (exerciseIndex: number, setIndex: number) => void;
@@ -129,6 +129,7 @@ interface GymFlowContextType {
   weeklyPlan: WeeklyWorkoutDay[];
   setWeeklyPlan: React.Dispatch<React.SetStateAction<WeeklyWorkoutDay[]>>;
   generateWeeklyPlan: (goal: string, level: string, gender: string, frequency: number, duration: number) => void;
+  applyProgramToWeek: (programId: string) => void;
   replanMissedWorkout: () => void;
   markDayTrained: (dayName: string) => void;
 
@@ -183,6 +184,83 @@ interface GymFlowContextType {
 }
 
 const GymFlowContext = createContext<GymFlowContextType | undefined>(undefined);
+
+// ===== GOAL-07: planejador real (Programa → Semana → Dia → Slot) =====
+const DAYS_ORDER = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+
+function activeDaysForFrequency(frequency: number): string[] {
+  if (frequency <= 1) return ['Segunda'];
+  if (frequency === 2) return ['Segunda', 'Quinta'];
+  if (frequency === 3) return ['Segunda', 'Quarta', 'Sexta'];
+  if (frequency === 4) return ['Segunda', 'Terça', 'Quinta', 'Sexta'];
+  if (frequency === 5) return ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
+  if (frequency === 6) return ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  return DAYS_ORDER;
+}
+
+// Estimativa simples: séries × (descanso + ~45s de execução), arredondado a 5 min.
+function estimateDayDuration(day: ProgramDay): number {
+  const totalSec = day.slots.reduce((acc, s) => acc + s.series * (s.restSec + 45), 0);
+  return Math.max(20, Math.round(totalSec / 60 / 5) * 5);
+}
+
+// Distribui os Days reais do programa pelos dias ativos do calendário, em ciclo
+// (A, B, C, A, B...). Dias fora da frequência viram Descanso — sem treino genérico.
+function buildWeekFromProgram(program: WorkoutProgram, frequency: number, allExercises: Exercise[]): WeeklyWorkoutDay[] {
+  const programDays = program.weeks?.[0]?.days ?? [];
+  const activeDays = activeDaysForFrequency(frequency);
+  let cursor = 0;
+  return DAYS_ORDER.map((dayName) => {
+    const isRest = !activeDays.includes(dayName) || programDays.length === 0;
+    if (isRest) {
+      return { dayName, workoutName: 'Descanso', muscleGroups: [], duration: 0, exerciseCount: 0, isRest: true, trained: false };
+    }
+    const progDay = programDays[cursor % programDays.length];
+    cursor++;
+    const muscleGroups = Array.from(
+      new Set(
+        progDay.slots
+          .map((s) => allExercises.find((e) => e.id === s.exerciseId)?.muscleGroup)
+          .filter((mg): mg is Exercise['muscleGroup'] => Boolean(mg))
+      )
+    );
+    return {
+      dayName,
+      workoutName: progDay.name,
+      muscleGroups,
+      duration: estimateDayDuration(progDay),
+      exerciseCount: progDay.slots.length,
+      isRest: false,
+      programId: program.id,
+      programDayId: progDay.id,
+      trained: false
+    };
+  });
+}
+
+const GOAL_KEYWORDS: Record<string, RegExp> = {
+  hypertrophy: /hipertrofia|massa|volume|estética/i,
+  slimming: /emagrec|calóric|defini|queima/i,
+  strength: /força|carga|power/i,
+  conditioning: /condicionamento|global|adapta|estabiliza/i,
+  athlete: /máxima|repetição|atleta/i
+};
+
+// Escolhe o programa real mais adequado ao perfil: nível > objetivo > público-alvo.
+function selectProgramForProfile(programs: WorkoutProgram[], goal: string, level: string, gender: string): WorkoutProgram {
+  const byLevel = programs.filter((p) => p.level === level && (p.weeks?.[0]?.days?.length ?? 0) > 0);
+  const pool = byLevel.length > 0 ? byLevel : programs.filter((p) => (p.weeks?.[0]?.days?.length ?? 0) > 0);
+  const goalRe = GOAL_KEYWORDS[goal];
+  const genderLabel = gender === 'female' ? 'Feminino' : gender === 'male' ? 'Masculino' : 'Unissex';
+  const matchesGoal = (p: WorkoutProgram) => (goalRe ? goalRe.test(`${p.objective} ${p.name} ${p.description}`) : false);
+  const matchesGender = (p: WorkoutProgram) => (p.targetAudience || 'Unissex').includes(genderLabel) || (p.targetAudience || '').includes('Unissex');
+  return (
+    pool.find((p) => matchesGoal(p) && matchesGender(p)) ||
+    pool.find(matchesGoal) ||
+    pool.find(matchesGender) ||
+    pool[0]
+  );
+}
 
 // Beep curto opcional ao fim do descanso (GOAL-06) — Web Audio API, sem asset novo.
 // Silencioso em qualquer erro (autoplay bloqueado, navegador sem suporte etc.).
@@ -518,7 +596,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
   // Auth functions
   const loginDemoUser = () => {
-    const defaultPlan = MOCK_WEEKLY_TEMPLATES[1].days; // Split masculino
+    // GOAL-07: plano demo com Days reais do programa ABC masculino (4x/semana)
+    const demoProgram = MOCK_PROGRAMS.find((p) => p.id === 'prog_int_1') || MOCK_PROGRAMS[0];
+    const defaultPlan = buildWeekFromProgram(demoProgram, 4, MOCK_EXERCISES);
     setUser({
       name: 'Rafael Silveira (Demo)',
       email: 'rafael.demo@gymflow.ai',
@@ -549,7 +629,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const registerUser = (profile: Partial<UserProfile>) => {
-    const defaultPlan = MOCK_WEEKLY_TEMPLATES[profile.gender === 'female' ? 0 : profile.gender === 'male' ? 1 : 2].days;
+    // GOAL-07: plano inicial com Days reais do programa mais adequado ao perfil
+    const initialProgram = selectProgramForProfile(
+      MOCK_PROGRAMS,
+      profile.goal || 'hypertrophy',
+      profile.level || 'beginner',
+      profile.gender || 'neutral'
+    );
+    const defaultPlan = buildWeekFromProgram(initialProgram, profile.frequency || 3, MOCK_EXERCISES);
     const newUser: UserProfile = {
       name: profile.name || 'Novo Usuário',
       email: profile.email || 'user@gymflow.ai',
@@ -611,38 +698,74 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Workout state management
-  const startWorkout = (programId?: string, customName?: string) => {
+  const startWorkout = (programId?: string, customName?: string, programDayId?: string) => {
     let workoutName = customName || 'Treino Personalizado';
     let activeExs: ActiveExercise[] = [];
 
     if (programId) {
       const prog = programs.find((p) => p.id === programId);
       if (prog) {
-        workoutName = prog.name;
-        activeExs = prog.exercises.map((pe, idx) => {
-          const ex = exercises.find((e) => e.id === pe.exerciseId);
-          const setsCount = pe.sets || 3;
-          const repString = pe.reps || '10';
-          const repsVal = parseInt(repString) || 10;
-          const sets: WorkoutSet[] = Array.from({ length: setsCount }, (_, sIdx) => ({
-            id: `set_${idx}_${sIdx}`,
-            reps: repsVal,
-            weight: 10,
-            completed: false,
-            suggestedWeight: 12,
-            lastWeight: 10,
-            rpe: 7
-          }));
+        // GOAL-07: monta o treino a partir dos slots do Day real do programa.
+        // Sem programDayId (chamadas legadas/estado antigo), usa o primeiro Day.
+        const allDays = (prog.weeks ?? []).flatMap((w) => w.days);
+        const programDay = (programDayId ? allDays.find((d) => d.id === programDayId) : undefined) ?? allDays[0];
 
-          return {
-            id: `active_ex_${idx}_${Date.now()}`,
-            exerciseId: pe.exerciseId,
-            name: ex?.name || 'Exercício Desconhecido',
-            muscleGroup: ex?.muscleGroup || 'Corpo Todo',
-            sets,
-            notes: ''
-          };
-        });
+        if (programDay) {
+          workoutName = customName || `${prog.name} — ${programDay.name}`;
+          activeExs = programDay.slots.map((slot, idx) => {
+            // Fallback seguro: exercício ausente vira "Exercício Desconhecido",
+            // sem crashar (mesmo padrão legado).
+            const ex = exercises.find((e) => e.id === slot.exerciseId);
+            const sets: WorkoutSet[] = Array.from({ length: slot.series }, (_, sIdx) => ({
+              id: `set_${idx}_${sIdx}`,
+              reps: slot.repRange[0], // meta inicial: piso da faixa (progressão sobe até o teto)
+              weight: 10,
+              completed: false,
+              suggestedWeight: 12,
+              lastWeight: 10,
+              rpe: slot.targetRPE
+            }));
+
+            return {
+              id: `active_ex_${idx}_${Date.now()}`,
+              exerciseId: slot.exerciseId,
+              name: ex?.name || 'Exercício Desconhecido',
+              muscleGroup: ex?.muscleGroup || 'Corpo Todo',
+              sets,
+              notes: '',
+              repRange: slot.repRange,
+              targetRPE: slot.targetRPE,
+              restSec: slot.restSec
+            };
+          });
+        } else {
+          // Programa sem weeks (legado): mantém o comportamento antigo pela lista achatada.
+          workoutName = prog.name;
+          activeExs = prog.exercises.map((pe, idx) => {
+            const ex = exercises.find((e) => e.id === pe.exerciseId);
+            const setsCount = pe.sets || 3;
+            const repString = pe.reps || '10';
+            const repsVal = parseInt(repString) || 10;
+            const sets: WorkoutSet[] = Array.from({ length: setsCount }, (_, sIdx) => ({
+              id: `set_${idx}_${sIdx}`,
+              reps: repsVal,
+              weight: 10,
+              completed: false,
+              suggestedWeight: 12,
+              lastWeight: 10,
+              rpe: 7
+            }));
+
+            return {
+              id: `active_ex_${idx}_${Date.now()}`,
+              exerciseId: pe.exerciseId,
+              name: ex?.name || 'Exercício Desconhecido',
+              muscleGroup: ex?.muscleGroup || 'Corpo Todo',
+              sets,
+              notes: ''
+            };
+          });
+        }
       }
     } else {
       // Treino livre inicializado com 1 exercício padrão
@@ -720,10 +843,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       if (!isLastRemainingSet) {
         const targetExercise = activeWorkout.exercises[exerciseIndex];
         const meta = exercises.find((e) => e.id === targetExercise.exerciseId);
-        const seconds = meta?.restSec ?? user?.restTimerDefaultSeconds ?? 90;
-        setRestTimerEndAt(Date.now() + seconds * 1000);
-        setRestTimerTotalSeconds(seconds);
-        setRestTimerLabel(targetExercise.name);
+        // GOAL-07: o restSec do ExerciseSlot tem prioridade sobre o restSec do
+        // exercício e sobre o padrão do usuário. restSec 0 (ex.: cardio) = sem timer.
+        const seconds = targetExercise.restSec ?? meta?.restSec ?? user?.restTimerDefaultSeconds ?? 90;
+        if (seconds > 0) {
+          setRestTimerEndAt(Date.now() + seconds * 1000);
+          setRestTimerTotalSeconds(seconds);
+          setRestTimerLabel(targetExercise.name);
+        }
       }
     }
   };
@@ -927,74 +1054,41 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Planner functions
-  const generateWeeklyPlan = (goal: string, level: string, gender: string, frequency: number, duration: number) => {
-    const template = MOCK_WEEKLY_TEMPLATES.find(
-      (t) => t.profile === gender && t.goal === goal
-    ) || MOCK_WEEKLY_TEMPLATES.find((t) => t.profile === gender) || MOCK_WEEKLY_TEMPLATES[2];
-
-    const daysOrder = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
-    
-    // We want to select exactly F days to be active based on frequency
-    let activeDays: string[] = [];
-    if (frequency === 1) {
-      activeDays = ['Segunda'];
-    } else if (frequency === 2) {
-      activeDays = ['Segunda', 'Quinta'];
-    } else if (frequency === 3) {
-      activeDays = ['Segunda', 'Quarta', 'Sexta'];
-    } else if (frequency === 4) {
-      activeDays = ['Segunda', 'Terça', 'Quinta', 'Sexta'];
-    } else if (frequency === 5) {
-      activeDays = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
-    } else if (frequency === 6) {
-      activeDays = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-    } else {
-      activeDays = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+  // GOAL-07: a semana gerada referencia Days reais de um programa (não mais
+  // templates soltos sem exercícios). Cada dia do calendário carrega
+  // programId + programDayId, e abrir o dia inicia exatamente aqueles slots.
+  const generateWeeklyPlan = (goal: string, level: string, gender: string, frequency: number, _duration: number) => {
+    const program = selectProgramForProfile(programs, goal, level, gender);
+    if (!program) {
+      toast.error('Nenhum programa disponível para gerar a semana.');
+      return;
     }
-
-    const adjustedDays = daysOrder.map((dayName) => {
-      const isRest = !activeDays.includes(dayName);
-      const originalDayInfo = template.days.find((d) => d.dayName === dayName);
-      let workoutName = 'Descanso';
-      let muscleGroups: string[] = [];
-      let exerciseCount = 0;
-
-      if (!isRest) {
-        if (originalDayInfo && !originalDayInfo.isRest) {
-          workoutName = originalDayInfo.workoutName;
-          muscleGroups = originalDayInfo.muscleGroups || [];
-          exerciseCount = originalDayInfo.exerciseCount || 4;
-        } else {
-          const unusedTemplateDay = template.days.find((d) => !d.isRest && !activeDays.includes(d.dayName));
-          if (unusedTemplateDay) {
-            workoutName = unusedTemplateDay.workoutName;
-            muscleGroups = unusedTemplateDay.muscleGroups || [];
-            exerciseCount = unusedTemplateDay.exerciseCount || 4;
-          } else {
-            workoutName = 'Treino Geral Estimulação';
-            muscleGroups = ['legs', 'chest', 'back'];
-            exerciseCount = 4;
-          }
-        }
-      }
-
-      return {
-        dayName,
-        workoutName,
-        muscleGroups,
-        duration: isRest ? 0 : duration,
-        exerciseCount: isRest ? 0 : exerciseCount,
-        isRest,
-        programId: (template.days.find(d => d.workoutName === workoutName) as any)?.programId || undefined,
-        trained: false
-      };
-    });
+    const adjustedDays = buildWeekFromProgram(program, frequency, exercises);
 
     setWeeklyPlan(adjustedDays);
     if (user) {
       setUser((prev) => prev ? { ...prev, weeklyPlan: adjustedDays } : null);
     }
-    addXp(150, 'Ficha Semanal gerada pela IA Coach!');
+    addXp(150, `Ficha Semanal gerada pela IA Coach com o programa "${program.name}"!`);
+  };
+
+  // GOAL-07: atribui um programa específico à semana (usado nos Programas de Treino).
+  const applyProgramToWeek = (programId: string) => {
+    const program = programs.find((p) => p.id === programId);
+    if (!program || (program.weeks?.[0]?.days?.length ?? 0) === 0) {
+      toast.error('Programa sem dias estruturados para planejar a semana.');
+      return;
+    }
+    const frequency = user?.frequency ?? program.frequencyDays;
+    const adjustedDays = buildWeekFromProgram(program, frequency, exercises);
+
+    setWeeklyPlan(adjustedDays);
+    if (user) {
+      setUser((prev) => prev ? { ...prev, weeklyPlan: adjustedDays } : null);
+    }
+    addXp(100, `Programa "${program.name}" atribuído à sua semana!`);
+    toast.success(`Semana planejada com "${program.name}". Cada dia abre o treino real daquele dia.`);
+    setActiveView('planner');
   };
 
   const replanMissedWorkout = () => {
@@ -1485,6 +1579,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         weeklyPlan,
         setWeeklyPlan,
         generateWeeklyPlan,
+        applyProgramToWeek,
         replanMissedWorkout,
         markDayTrained,
 

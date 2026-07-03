@@ -344,7 +344,10 @@ export const ActiveWorkoutPage = () => {
                   {ex.name}
                 </h3>
                 <span className="text-[10px] text-gym-text-muted capitalize">
-                  {ex.muscleGroup} • Sugestão IA: Carga progressiva
+                  {/* GOAL-07: meta real do ExerciseSlot quando o treino vem de um Day de programa */}
+                  {ex.repRange
+                    ? `${ex.muscleGroup} • Meta: ${ex.repRange[0] === ex.repRange[1] ? ex.repRange[0] : `${ex.repRange[0]}-${ex.repRange[1]}`} reps • RPE ${ex.targetRPE ?? 8}${ex.restSec ? ` • Descanso ${ex.restSec}s` : ''}`
+                    : `${ex.muscleGroup} • Sugestão IA: Carga progressiva`}
                 </span>
               </div>
 

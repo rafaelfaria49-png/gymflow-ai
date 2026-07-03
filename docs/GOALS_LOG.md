@@ -247,3 +247,41 @@ Ver `docs/DECISOES.md` (seção GOAL-06).
 ### Confirmação de escopo
 
 Avatar Lab, POC 3D, backend, Supabase, pagamento real, modelo de programas e motor de progressão não foram tocados. GOAL-07 não foi iniciado.
+
+---
+
+## GOAL-07 — Programa → Semana → Dia → Slot + Planejador real (2026-07-03)
+
+### Resumo
+
+Programas ganharam estrutura real (`Program → Week → Day → ExerciseSlot`) e o planejador deixou de cair em treino genérico: cada dia planejado referencia um `ProgramDay` real e abre o Treino Ativo com exatamente os slots daquele dia (exercícios, séries, faixa de reps, RPE alvo e descanso corretos).
+
+### Antes / depois (comportamento crítico)
+
+- **Antes:** programas eram uma lista achatada de exercícios; o planejador gerava dias a partir de templates soltos sem `programId`, e tocar num dia abria um treino genérico de 1 exercício ("Treino Livre" disfarçado). O timer de descanso vinha só do `Exercise.restSec` ou do default.
+- **Depois:** `weeks[].days[].slots[]` em todos os 12 programas; semana gerada (IA ou "Planejar Semana" no programa) carrega `programId` + `programDayId` por dia; abrir Segunda ≠ abrir Terça (Days diferentes → treinos diferentes); dia de descanso não tem botão de iniciar; o `restSec` do slot alimenta o timer do GOAL-06 com prioridade máxima.
+
+### Arquivos alterados
+
+- `src/types/index.ts` — novos tipos `ExerciseSlot`, `ProgramDay`, `ProgramWeek`, `ProgressionType`; `WorkoutProgram` ganhou `repeatWeeks`/`weeks`; `WeeklyWorkoutDay.programDayId`; `ActiveExercise` ganhou `repRange`/`targetRPE`/`restSec` opcionais.
+- `src/mock/programs.ts` — helpers `comp/iso/core/cardio` e migração dos 12 programas para `weeks` (IDs e exercícios existentes preservados; nenhum exercício inventado).
+- `src/providers/GymFlowContext.tsx` — `startWorkout(programId, customName, programDayId)` monta o treino pelos slots do Day; `buildWeekFromProgram` + `selectProgramForProfile` + `applyProgramToWeek`; `generateWeeklyPlan` reescrito para usar programas reais; login demo/registro geram plano real; timer de descanso prioriza `restSec` do slot (0 = sem timer).
+- `src/modules/PlannerView.tsx` — Play passa `programDayId`; editar/alternar descanso limpa vínculo com o programa; duplicar preserva `programDayId`.
+- `src/modules/WorkoutsTab.tsx` — modal mostra a divisão real por Days (séries × faixa, descanso, RPE), botão "Iniciar" por Day e botão "Planejar Semana" (applyProgramToWeek).
+- `src/modules/ActiveWorkoutPage.tsx` — cabeçalho do exercício mostra a meta real do slot (faixa de reps, RPE, descanso) quando presente.
+
+### Validações executadas
+
+1. `grep -rn "alert(" src/` e `grep -rn "confirm(" src/` — vazios.
+2. `npx tsc --noEmit` — sem erros.
+3. `npm run build` — passou (Next 16.2.6, Turbopack).
+4. Cross-check automatizado: todos os `exerciseId` usados nos slots existem em `src/mock/exercises.ts`.
+5. Compatibilidade validada por código: plano antigo salvo (sem `programDayId`) abre o primeiro Day quando há `programId`, mantém comportamento anterior sem `programId`, e nunca crasha (campos novos opcionais); persistência GOAL-01, timer GOAL-06, ActionBar GOAL-04 e toasts GOAL-03 não alterados estruturalmente.
+6. Nenhum arquivo de `labs/avatar-lab/`, `docs/avatar-design/` ou `app/poc-3d` alterado.
+
+### Como testar no celular
+
+1. Ir em Programas → abrir um programa intermediário/avançado → ver a divisão por dias → tocar "Planejar Semana".
+2. No Planejador, tocar Play na Segunda e depois (cancelando) na Terça → treinos diferentes, com os exercícios exatos de cada Day.
+3. Concluir uma série → o timer de descanso usa o descanso do slot (ex.: 120s composto, 75s isolado, 180s força).
+4. Dia de descanso não tem botão de iniciar treino.

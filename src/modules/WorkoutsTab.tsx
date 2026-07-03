@@ -6,7 +6,7 @@ import { WorkoutProgram, Exercise } from '../types';
 import { Play, Calendar, Target, Clock, Dumbbell, Award, ChevronRight, X, Sparkles, Plus } from 'lucide-react';
 
 export const WorkoutsTab = () => {
-  const { programs, exercises, startWorkout, user } = useGymFlow();
+  const { programs, exercises, startWorkout, applyProgramToWeek, user } = useGymFlow();
   const [selectedLevel, setSelectedLevel] = useState<'beginner' | 'intermediate' | 'advanced' | 'athlete'>(
     user?.level || 'intermediate'
   );
@@ -15,7 +15,8 @@ export const WorkoutsTab = () => {
   const filteredPrograms = programs.filter((p) => p.level === selectedLevel);
 
   const handleStartProgram = (p: WorkoutProgram) => {
-    startWorkout(p.id, p.name);
+    // Sem customName: o nome vem do Day real (ex.: "ABC Hipertrofia — Dia A — Peito Foco")
+    startWorkout(p.id);
     setSelectedProgram(null);
   };
 
@@ -151,53 +152,69 @@ export const WorkoutsTab = () => {
                 </div>
               </div>
 
-              {/* Lista de Exercícios */}
+              {/* Estrutura real do programa: Dias e Slots (GOAL-07) */}
               <h4 className="text-xs font-bold uppercase tracking-wider text-gym-text-muted mb-3 pl-1">
-                Exercícios Incluídos ({selectedProgram.exercises.length})
+                Divisão de Treinos ({selectedProgram.weeks[0]?.days.length || 0} {(selectedProgram.weeks[0]?.days.length || 0) === 1 ? 'dia' : 'dias'})
               </h4>
 
-              <div className="space-y-2.5">
-                {selectedProgram.exercises.map((pe, idx) => {
-                  const ex = getExerciseDetails(pe.exerciseId);
-                  return (
-                    <div
-                      key={idx}
-                      className="bg-gym-card/50 border border-white/5 p-3.5 rounded-2xl flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center text-lg shadow-inner">
-                          🏋️
-                        </div>
-                        <div>
-                          <h5 className="text-xs font-bold text-white">{ex?.name || 'Exercício Desconhecido'}</h5>
-                          <p className="text-[10px] text-gym-text-muted capitalize">
-                            {ex?.muscleGroup || 'Geral'} • Equipamento: {ex?.equipment || 'Livre'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <span className="text-xs font-extrabold text-gym-accent font-mono">
-                          {pe.sets} séries x {pe.reps}
-                        </span>
-                        <p className="text-[8px] text-gym-text-muted uppercase font-bold mt-0.5">Recomendado</p>
-                      </div>
+              <div className="space-y-4">
+                {(selectedProgram.weeks[0]?.days || []).map((day) => (
+                  <div key={day.id} className="bg-gym-card/50 border border-white/5 rounded-2xl overflow-hidden">
+                    <div className="flex items-center justify-between px-3.5 py-2.5 bg-white/5 border-b border-white/5">
+                      <h5 className="text-xs font-black text-white">{day.name}</h5>
+                      <button
+                        onClick={() => {
+                          startWorkout(selectedProgram.id, undefined, day.id);
+                          setSelectedProgram(null);
+                        }}
+                        className="min-h-[32px] text-[9px] bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1"
+                      >
+                        <Play className="w-3 h-3 fill-gym-dark" /> Iniciar
+                      </button>
                     </div>
-                  );
-                })}
+                    <div className="divide-y divide-white/5">
+                      {day.slots.map((slot, idx) => {
+                        const ex = getExerciseDetails(slot.exerciseId);
+                        return (
+                          <div key={idx} className="p-3 flex items-center justify-between">
+                            <div>
+                              <h6 className="text-xs font-bold text-white">{ex?.name || 'Exercício Desconhecido'}</h6>
+                              <p className="text-[10px] text-gym-text-muted capitalize">
+                                {ex?.muscleGroup || 'Geral'} • Descanso {slot.restSec}s • RPE {slot.targetRPE}
+                              </p>
+                            </div>
+                            <span className="text-xs font-extrabold text-gym-accent font-mono whitespace-nowrap">
+                              {slot.series} x {slot.repRange[0] === slot.repRange[1] ? slot.repRange[0] : `${slot.repRange[0]}-${slot.repRange[1]}`}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Botões */}
-              <div className="flex gap-3 mt-8">
+              <div className="flex flex-col sm:flex-row gap-3 mt-8">
                 <button
                   onClick={() => setSelectedProgram(null)}
-                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold transition-all text-center"
+                  className="flex-1 min-h-[44px] py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold transition-all text-center"
                 >
                   Voltar
                 </button>
                 <button
+                  onClick={() => {
+                    applyProgramToWeek(selectedProgram.id);
+                    setSelectedProgram(null);
+                  }}
+                  className="flex-1 min-h-[44px] py-3 bg-white/5 hover:bg-white/10 border border-gym-accent/30 text-gym-accent rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  Planejar Semana
+                </button>
+                <button
                   onClick={() => handleStartProgram(selectedProgram)}
-                  className="flex-1 py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center justify-center gap-1.5"
+                  className="flex-1 min-h-[44px] py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center justify-center gap-1.5"
                 >
                   Iniciar Treino Agora
                   <Play className="w-3.5 h-3.5 fill-gym-dark" />

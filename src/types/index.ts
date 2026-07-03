@@ -6,7 +6,33 @@ export interface WeeklyWorkoutDay {
   exerciseCount: number;
   isRest: boolean;
   programId?: string;
+  programDayId?: string; // GOAL-07: referência ao ProgramDay real (Programa → Semana → Dia)
   trained?: boolean;
+}
+
+// ===== GOAL-07: Programa → Semana → Dia → Slot =====
+
+export type ProgressionType = 'dupla' | 'linear' | 'nenhuma';
+
+export interface ExerciseSlot {
+  exerciseId: string; // precisa existir em MOCK_EXERCISES
+  series: number;
+  repRange: [number, number]; // [min, max]; cardio usa minutos, core isométrico usa segundos
+  targetRPE: number;
+  restSec: number; // alimenta o timer de descanso (GOAL-06)
+  progression: ProgressionType;
+  incrementKg: number;
+}
+
+export interface ProgramDay {
+  id: string;
+  name: string; // Ex: 'Dia A — Peito Foco'
+  slots: ExerciseSlot[];
+}
+
+export interface ProgramWeek {
+  number: number;
+  days: ProgramDay[];
 }
 
 export interface UserProfile {
@@ -77,6 +103,10 @@ export interface ActiveExercise {
   muscleGroup: string;
   sets: WorkoutSet[];
   notes?: string;
+  // GOAL-07: metadados do ExerciseSlot de origem (opcionais — treinos antigos/livres não têm)
+  repRange?: [number, number];
+  targetRPE?: number;
+  restSec?: number;
 }
 
 export interface WorkoutSession {
@@ -95,13 +125,17 @@ export interface WorkoutProgram {
   id: string;
   name: string;
   durationWeeks: number;
-  frequencyDays: number;
+  frequencyDays: number; // dias por semana (daysPerWeek)
   level: 'beginner' | 'intermediate' | 'advanced' | 'athlete';
   objective: string;
+  // Lista achatada legada — mantida para compatibilidade de exibição (WorkoutsTab)
   exercises: { exerciseId: string; sets: number; reps: string; type?: 'warmup' | 'main' | 'accessory' | 'finisher' | 'stretch' }[];
   description: string;
   targetAudience?: string; // Ex: 'Masculino', 'Feminino', 'Unissex'
   contraindications?: string[];
+  // GOAL-07: estrutura real Programa → Semana → Dia → Slot
+  repeatWeeks: boolean; // true = a(s) semana(s) se repetem até durationWeeks
+  weeks: ProgramWeek[];
 }
 
 export interface VideoLesson {

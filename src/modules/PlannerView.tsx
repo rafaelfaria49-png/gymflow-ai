@@ -54,7 +54,10 @@ export const PlannerView = () => {
           workoutName: isRest ? 'Descanso' : 'Treino Personalizado',
           exerciseCount: isRest ? 0 : 4,
           duration: isRest ? 0 : duration,
-          muscleGroups: isRest ? [] : ['legs', 'chest']
+          muscleGroups: isRest ? [] : ['legs', 'chest'],
+          // GOAL-07: alternar treino/descanso desfaz o vínculo com o Day do programa
+          programId: undefined,
+          programDayId: undefined
         };
       }
       return day;
@@ -111,7 +114,8 @@ export const PlannerView = () => {
             duration: sourceDay.duration,
             exerciseCount: sourceDay.exerciseCount,
             muscleGroups: sourceDay.muscleGroups ? [...sourceDay.muscleGroups] : [],
-            programId: sourceDay.programId
+            programId: sourceDay.programId,
+            programDayId: sourceDay.programDayId
           };
         }
         return day;
@@ -141,7 +145,10 @@ export const PlannerView = () => {
           duration: isRest ? 0 : editDuration,
           isRest,
           muscleGroups: isRest ? [] : editMuscleGroups,
-          exerciseCount: isRest ? 0 : (editMuscleGroups.length > 0 ? editMuscleGroups.length * 2 : 4)
+          exerciseCount: isRest ? 0 : (editMuscleGroups.length > 0 ? editMuscleGroups.length * 2 : 4),
+          // GOAL-07: editar o dia manualmente torna-o customizado (sem Day de programa)
+          programId: undefined,
+          programDayId: undefined
         };
       }
       return day;
@@ -446,7 +453,7 @@ export const PlannerView = () => {
                           {/* Launch active */}
                           {!day.isRest && !day.trained && (
                             <button
-                              onClick={() => startWorkout(day.programId, day.workoutName)}
+                              onClick={() => startWorkout(day.programId, day.workoutName, day.programDayId)}
                               className="p-1.5 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark rounded-lg transition-all flex items-center justify-center"
                               title="Iniciar Treino"
                             >
