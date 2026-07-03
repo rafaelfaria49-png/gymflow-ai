@@ -130,6 +130,21 @@ body {
   animation: toastIn 200ms ease-out;
 }
 
+@keyframes sheetUp {
+  0% {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-sheet-up {
+  animation: sheetUp 220ms ease-out;
+}
+
 /* Hide spin-buttons for input numbers */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {

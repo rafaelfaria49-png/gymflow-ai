@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useGymFlow, AppView } from '../providers/GymFlowContext';
 import {
   LayoutDashboard,
@@ -18,7 +18,8 @@ import {
   Flame,
   Menu,
   ChevronRight,
-  Calendar
+  Calendar,
+  X
 } from 'lucide-react';
 
 export const TopBar = () => {
@@ -140,19 +141,41 @@ export const SideNavigation = () => {
   );
 };
 
+// Views que moram dentro do bottom sheet "Mais" (GOAL-05): telas principais que não
+// cabem nos 4 slots fixos da bottom nav. IA Coach sai da barra principal por decisão
+// do GOAL-05 e volta ao destaque quando virar uma IA real mais forte.
+const MORE_MENU_ITEMS: NavItem[] = [
+  { view: 'ai-coach', label: 'IA Coach', icon: MessageSquare },
+  { view: 'workouts', label: 'Treinos', icon: Dumbbell },
+  { view: 'videos', label: 'Vídeos', icon: Video },
+  { view: 'nutrition', label: 'Nutrição', icon: Utensils },
+  { view: 'community', label: 'Feed', icon: Users },
+  { view: 'premium', label: 'Assinatura', icon: Award },
+  { view: 'admin', label: 'Admin', icon: Shield, adminOnly: true }
+];
+const MORE_MENU_VIEWS: AppView[] = MORE_MENU_ITEMS.map((item) => item.view);
+
 export const BottomNavigation = () => {
   const { activeView, setActiveView, user, activeWorkout } = useGymFlow();
+  const [showMoreSheet, setShowMoreSheet] = useState(false);
 
   if (!user) return null;
 
-  // Acesso rápido pensado para o polegar (ETAPA 2): Hoje, Planejador, Exercícios, IA Coach, Evolução.
+  // Acesso rápido pensado para o polegar: Hoje, Planejar, Exercícios, Evolução + Mais.
   const mobileNavItems: NavItem[] = [
     { view: 'dashboard', label: 'Hoje', icon: LayoutDashboard },
     { view: 'planner', label: 'Planejar', icon: Calendar },
     { view: 'exercises', label: 'Exercícios', icon: BookOpen },
-    { view: 'ai-coach', label: 'IA Coach', icon: MessageSquare },
     { view: 'evolution', label: 'Evolução', icon: TrendingUp },
   ];
+
+  const isMoreActive = MORE_MENU_VIEWS.includes(activeView);
+  const isAdmin = user.email === 'rafael.demo@gymflow.ai'; // Mesma regra do SideNavigation
+
+  const handleSelectMoreItem = (view: AppView) => {
+    setActiveView(view);
+    setShowMoreSheet(false);
+  };
 
   const hasActive = !!activeWorkout;
   // Dentro do próprio Treino Ativo o FAB "Continuar" é substituído pela ActionBar
@@ -194,7 +217,92 @@ export const BottomNavigation = () => {
             </button>
           );
         })}
+
+        {/* Aba "Mais" — abre o bottom sheet com o restante das telas principais */}
+        <button
+          onClick={() => setShowMoreSheet(true)}
+          className={`flex flex-col items-center justify-center flex-1 tap-target py-1.5 rounded-xl transition-all active:scale-95 ${
+            isMoreActive ? 'text-gym-accent' : 'text-gym-text-muted hover:text-white'
+          }`}
+          aria-current={isMoreActive ? 'page' : undefined}
+          aria-haspopup="true"
+          aria-expanded={showMoreSheet}
+        >
+          <Menu className="w-5 h-5 mb-0.5" />
+          <span className="text-[9px] font-bold tracking-tight leading-none">Mais</span>
+        </button>
       </nav>
+
+      <MoreMenuSheet
+        isOpen={showMoreSheet}
+        onClose={() => setShowMoreSheet(false)}
+        activeView={activeView}
+        isAdmin={isAdmin}
+        onSelect={handleSelectMoreItem}
+      />
     </>
+  );
+};
+
+interface MoreMenuSheetProps {
+  isOpen: boolean;
+  onClose: () => void;
+  activeView: AppView;
+  isAdmin: boolean;
+  onSelect: (view: AppView) => void;
+}
+
+const MoreMenuSheet = ({ isOpen, onClose, activeView, isAdmin, onSelect }: MoreMenuSheetProps) => {
+  if (!isOpen) return null;
+
+  const items = MORE_MENU_ITEMS.filter((item) => !item.adminOnly || isAdmin);
+
+  return (
+    <div
+      className="lg:hidden fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Mais opções"
+        className="w-full bg-gym-dark border-t border-white/10 rounded-t-3xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl animate-sheet-up"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-black text-white uppercase tracking-wider">Mais Opções</h2>
+          <button
+            onClick={onClose}
+            className="tap-target flex items-center justify-center text-gym-text-muted hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-all"
+            aria-label="Fechar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {items.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeView === item.view;
+
+            return (
+              <button
+                key={item.view}
+                onClick={() => onSelect(item.view)}
+                className={`flex flex-col items-center justify-center gap-2 min-h-[80px] rounded-2xl border transition-all active:scale-95 ${
+                  isActive
+                    ? 'bg-gym-accent/15 border-gym-accent/30 text-gym-accent'
+                    : 'bg-white/5 border-white/5 text-white hover:bg-white/10'
+                }`}
+              >
+                <Icon className={`w-6 h-6 ${isActive ? 'text-gym-accent' : 'text-gym-text-muted'}`} />
+                <span className="text-xs font-bold">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 };

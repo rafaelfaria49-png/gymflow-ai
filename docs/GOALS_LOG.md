@@ -158,3 +158,47 @@ Ver `docs/DECISOES.md` (seção GOAL-04).
 ### Confirmação de escopo
 
 Avatar Lab, POC 3D, backend, Supabase, pagamento real, timer de descanso, modelo de programas e motor de progressão não foram tocados. GOAL-05 e GOAL-06 não foram iniciados.
+
+---
+
+## GOAL-05 — Menu "Mais" na navegação mobile (2026-07-03)
+
+### Resumo
+
+No mobile, só 5 das 12 telas principais eram alcançáveis (a bottom nav tinha Hoje/Planejar/Exercícios/IA Coach/Evolução; Treinos, Vídeos, Nutrição, Feed, Assinatura e Admin não tinham nenhum caminho de navegação em telas pequenas). A bottom nav foi reduzida a 4 itens fixos + uma aba "Mais" que abre um bottom sheet próprio (grade 2 colunas) com as 6-7 telas restantes, cada uma alcançável em até 2 toques.
+
+### Arquivos alterados
+
+- `src/components/Navigation.tsx` — bottom nav com 4 itens fixos (Hoje/Planejar/Exercícios/Evolução) + aba "Mais"; novo componente `MoreMenuSheet` (bottom sheet com overlay, animação de subida, grade 2 colunas, botão X, fecha ao tocar fora ou ao selecionar um item); `MORE_MENU_ITEMS`/`MORE_MENU_VIEWS` como fonte única de verdade para o conteúdo do sheet e o estado ativo da aba "Mais".
+- `src/app/globals.css` — nova animação `@keyframes sheetUp`/`.animate-sheet-up` para a subida do bottom sheet.
+
+### Itens na bottom nav
+
+Hoje (dashboard), Planejar (planner), Exercícios (exercises), Evolução (evolution), Mais.
+
+### Itens no menu "Mais"
+
+IA Coach, Treinos, Vídeos, Nutrição, Feed (community), Assinatura (premium), Admin (somente se `user.email === 'rafael.demo@gymflow.ai'`, mesma regra já usada na `SideNavigation` do desktop).
+
+### Estado ativo da aba "Mais"
+
+`isMoreActive = MORE_MENU_VIEWS.includes(activeView)` — a aba fica destacada sempre que `activeView` for uma das 7 views que moram no sheet (ai-coach, workouts, videos, nutrition, community, premium, admin), sem precisar listar as views duas vezes graças à constante compartilhada.
+
+### Decisões
+
+Ver `docs/DECISOES.md` (seção GOAL-05).
+
+### Validações executadas
+
+1. `grep -rn "alert(" src/` — vazio.
+2. `grep -rn "confirm(" src/` — vazio.
+3. `npx tsc --noEmit` — sem erros.
+4. `npm run build` — passou (Next 16.2.6, Turbopack).
+5. Dev server iniciado, `GET /` retornou 200 sem erros no log.
+6. `npx eslint src/components/Navigation.tsx` — só o warning pré-existente `'Zap' is defined but never used` restou (o uso do `Menu` no botão "Mais" eliminou o outro warning pré-existente do mesmo arquivo).
+7. Auditoria de views (Tarefa 6) documentada em `docs/DECISOES.md` — todas as 12 views pós-login alcançáveis; nenhuma órfã.
+8. `git status` — nenhum arquivo em `labs/avatar-lab/`, `docs/avatar-design/`, `app/poc-3d` alterado; nenhum GOAL-06 iniciado.
+
+### Confirmação de escopo
+
+Avatar Lab, POC 3D, backend, Supabase, pagamento real, timer de descanso, modelo de programas e motor de progressão não foram tocados. GOAL-06 não foi iniciado.
