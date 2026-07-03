@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, Share2, Eye, EyeOff, Shield, Check, Heart, MessageCircle } from 'lucide-react';
 import { useGymFlow } from '../providers/GymFlowContext';
+import { useToast } from './ui/Toast';
 
 interface ShareData {
   type: 'workout' | 'pr' | 'streak' | 'achievement' | 'evolution';
@@ -22,6 +23,7 @@ interface SocialShareModalProps {
 
 export const SocialShareModal = ({ isOpen, onClose, shareData }: SocialShareModalProps) => {
   const { user } = useGymFlow();
+  const toast = useToast();
   const [privacy, setPrivacy] = useState({
     profilePublic: true,
     hideWeight: false,
@@ -38,7 +40,7 @@ export const SocialShareModal = ({ isOpen, onClose, shareData }: SocialShareModa
     setSharedPlatform(platform);
     setTimeout(() => {
       setSharedPlatform(null);
-      alert(`Compartilhado com sucesso no ${platform}!`);
+      toast.success(`Compartilhado com sucesso no ${platform}!`);
     }, 1500);
   };
 

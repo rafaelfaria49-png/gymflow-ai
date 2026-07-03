@@ -107,6 +107,21 @@ body {
   animation: pulseGlow 3s infinite ease-in-out;
 }
 
+@keyframes toastIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-toast-in {
+  animation: toastIn 200ms ease-out;
+}
+
 /* Hide spin-buttons for input numbers */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {

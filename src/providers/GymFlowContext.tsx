@@ -27,6 +27,7 @@ import {
   MOCK_TRAILS
 } from '../mock/data';
 import { loadState, saveState, clearState } from '../lib/storage';
+import { useToast } from '../components/ui/Toast';
 
 export const STORAGE_KEY = 'gymflow:state:v1';
 
@@ -172,6 +173,7 @@ interface GymFlowContextType {
 const GymFlowContext = createContext<GymFlowContextType | undefined>(undefined);
 
 export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
+  const toast = useToast();
   const [activeView, setActiveView] = useState<AppView>('landing');
   const [user, setUser] = useState<UserProfile | null>(null);
 
@@ -586,7 +588,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     });
     const reasonMsg = reason ? ` devido a ${reason}` : '';
     addXp(20, 'Substituição de exercício executada');
-    alert(`Substituição aplicada sem alterar o objetivo muscular do treino: ${oldName} -> ${newEx.name}${reasonMsg}.`);
+    toast.success(`Substituição aplicada sem alterar o objetivo muscular do treino: ${oldName} -> ${newEx.name}${reasonMsg}.`);
   };
 
   const adaptActiveWorkoutForCrowdedGym = () => {
@@ -621,9 +623,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       });
       addXp(100, 'Treino adaptado: Academia Cheia!');
       unlockAchievement('ach_17');
-      alert(`Academia Lotada: Substituímos ${count} exercícios em aparelhos por pesos livres (halteres/peso corporal) de mesma ativação muscular.`);
+      toast.success(`Academia Lotada: Substituímos ${count} exercícios em aparelhos por pesos livres (halteres/peso corporal) de mesma ativação muscular.`);
     } else {
-      alert('Seu treino já é composto por pesos livres ou não há aparelhos de trilhos mecânicos para adaptar.');
+      toast.info('Seu treino já é composto por pesos livres ou não há aparelhos de trilhos mecânicos para adaptar.');
     }
   };
 
@@ -841,12 +843,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           setUser((prev) => prev ? { ...prev, weeklyPlan: updated } : null);
         }
         addXp(80, 'Semana replanejada pela IA Coach!');
-        alert(`IA Coach Reorganizou: O treino de ${missedWorkout.dayName} foi adiado para ${restDay.dayName} para respeitar a sua recuperação muscular.`);
+        toast.success(`IA Coach Reorganizou: O treino de ${missedWorkout.dayName} foi adiado para ${restDay.dayName} para respeitar a sua recuperação muscular.`);
       } else {
-        alert('Não há dias de descanso disponíveis esta semana para adiar seu treino.');
+        toast.info('Não há dias de descanso disponíveis esta semana para adiar seu treino.');
       }
     } else {
-      alert('Não foi possível identificar o dia atual.');
+      toast.error('Não foi possível identificar o dia atual.');
     }
   };
 

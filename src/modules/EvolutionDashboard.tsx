@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { SocialShareModal } from '../components/SocialShareModal';
+import { useToast } from '../components/ui/Toast';
 import {
   TrendingUp,
   Scale,
@@ -28,6 +29,7 @@ export const EvolutionDashboard = () => {
     workoutHistory,
     achievements
   } = useGymFlow();
+  const toast = useToast();
 
   // Inputs
   const [weightInput, setWeightInput] = useState('');
@@ -51,7 +53,7 @@ export const EvolutionDashboard = () => {
     if (!weightInput) return;
     addWeightLog(Number(weightInput));
     setWeightInput('');
-    alert('Peso registrado com sucesso!');
+    toast.success('Peso registrado com sucesso!');
   };
 
   const handleMeasurementsSubmit = (e: React.FormEvent) => {
@@ -62,13 +64,13 @@ export const EvolutionDashboard = () => {
     setWaistInput('');
     setHipsInput('');
     setArmsInput('');
-    alert('Medidas registradas com sucesso!');
+    toast.success('Medidas registradas com sucesso!');
   };
 
   const handleSimulatePhotoUpload = () => {
     const mockPhoto = 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=400&auto=format&fit=crop';
     setPhotos([mockPhoto, ...photos]);
-    alert('Foto de evolução adicionada!');
+    toast.success('Foto de evolução adicionada!');
   };
 
   const triggerSharePR = (prName: string, prWeight: string) => {
@@ -400,7 +402,7 @@ export const EvolutionDashboard = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      alert(`${platform.name} conectado com sucesso (Simulação Premium).`);
+                      toast.success(`${platform.name} conectado com sucesso (Simulação Premium).`);
                     }}
                     className={`text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-lg transition-all ${
                       platform.connected
@@ -433,7 +435,7 @@ export const EvolutionDashboard = () => {
                     type="checkbox"
                     defaultChecked
                     onChange={() => {
-                      alert('Preferência de privacidade atualizada localmente.');
+                      toast.info('Preferência de privacidade atualizada localmente.');
                     }}
                     className="w-4 h-4 rounded border-white/10 accent-gym-accent bg-gym-dark focus:ring-0 focus:ring-offset-0 cursor-pointer mt-0.5"
                   />

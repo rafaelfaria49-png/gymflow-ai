@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Outfit } from 'next/font/google';
 import './globals.css';
 import { GymFlowProvider } from '../providers/GymFlowContext';
+import { ToastProvider } from '../components/ui/Toast';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -40,9 +41,11 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
       <body className="bg-gym-dark text-white font-sans min-h-full flex flex-col antialiased">
-        <GymFlowProvider>
-          {children}
-        </GymFlowProvider>
+        <ToastProvider>
+          <GymFlowProvider>
+            {children}
+          </GymFlowProvider>
+        </ToastProvider>
       </body>
     </html>
   );

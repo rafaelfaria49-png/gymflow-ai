@@ -3,9 +3,11 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { Award, Check, Sparkles, X, ShieldCheck } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
 
 export const PremiumUpgrade = () => {
   const { user, updateUserPremium } = useGymFlow();
+  const toast = useToast();
   const [upgradingTo, setUpgradingTo] = useState<string | null>(null);
 
   const handleUpgradeSimulate = (status: 'pro' | 'elite') => {
@@ -13,7 +15,7 @@ export const PremiumUpgrade = () => {
     setTimeout(() => {
       updateUserPremium(status);
       setUpgradingTo(null);
-      alert(`Parabéns! Você agora é um assinante GymFlow ${status.toUpperCase()}! 🎉`);
+      toast.success(`Parabéns! Você agora é um assinante GymFlow ${status.toUpperCase()}! 🎉`);
     }, 1500);
   };
 

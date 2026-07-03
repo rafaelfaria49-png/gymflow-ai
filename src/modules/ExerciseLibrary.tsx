@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { Exercise } from '../types';
 import { Search, X, Play, ShieldAlert, Heart, Check, Sparkles, ChevronRight, Zap, Award, Flame, Clock } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
 
 export const ExerciseLibrary = () => {
   const {
@@ -16,6 +17,7 @@ export const ExerciseLibrary = () => {
     recentlyViewedVideoIds,
     user
   } = useGymFlow();
+  const toast = useToast();
 
   const [search, setSearch] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState<string>('all');
@@ -121,7 +123,7 @@ export const ExerciseLibrary = () => {
           { id: `set_${newExIndex}_0`, reps: 10, weight: 10, completed: false, suggestedWeight: 12, lastWeight: 10, rpe: 7 }
         ]
       });
-      alert(`"${ex.name}" adicionado ao seu treino ativo!`);
+      toast.success(`"${ex.name}" adicionado ao seu treino ativo!`);
     } else {
       startWorkout(undefined, `Treino de ${ex.name}`);
     }

@@ -5,17 +5,16 @@ import { useGymFlow, STORAGE_KEY } from '../providers/GymFlowContext';
 import { clearState } from '../lib/storage';
 import { Exercise } from '../types';
 import { Shield, Plus, Trash2, Users, Dumbbell, Award, Video, TrendingUp, BarChart2, HardDrive } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 export const AdminPanel = () => {
   const { exercises, addNewExercise, deleteExercise, user } = useGymFlow();
+  const toast = useToast();
   const [showAddForm, setShowAddForm] = useState(false);
-  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const handleResetLocalData = () => {
-    if (!confirmingReset) {
-      setConfirmingReset(true);
-      return;
-    }
     clearState(STORAGE_KEY);
     window.location.reload();
   };
@@ -31,7 +30,7 @@ export const AdminPanel = () => {
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !steps) {
-      alert('Preencha os campos obrigatórios.');
+      toast.error('Preencha os campos obrigatórios.');
       return;
     }
 
@@ -57,7 +56,7 @@ export const AdminPanel = () => {
     setSteps('');
     setTips('');
     setShowAddForm(false);
-    alert('Exercício criado e publicado com sucesso!');
+    toast.success('Exercício criado e publicado com sucesso!');
   };
 
   // Mock analytics data
@@ -282,16 +281,23 @@ export const AdminPanel = () => {
           Zerar os dados apaga tudo e reinicia o app do zero.
         </p>
         <button
-          onClick={handleResetLocalData}
-          className={`w-full min-h-[44px] py-3 px-4 rounded-2xl text-xs font-extrabold transition-all ${
-            confirmingReset
-              ? 'bg-gym-rose text-white'
-              : 'bg-gym-rose/15 border border-gym-rose/25 text-gym-rose hover:bg-gym-rose/25'
-          }`}
+          onClick={() => setShowResetConfirm(true)}
+          className="w-full min-h-[44px] py-3 px-4 rounded-2xl text-xs font-extrabold bg-gym-rose/15 border border-gym-rose/25 text-gym-rose hover:bg-gym-rose/25 transition-all"
         >
-          {confirmingReset ? 'Clique novamente para confirmar' : 'Zerar dados do app'}
+          Zerar dados do app
         </button>
       </div>
+
+      <ConfirmDialog
+        isOpen={showResetConfirm}
+        variant="destructive"
+        title="Zerar todos os dados do app?"
+        description="Perfil, treinos, XP, histórico e tudo o mais salvo neste aparelho será apagado permanentemente. Essa ação não pode ser desfeita."
+        confirmLabel="Zerar dados"
+        cancelLabel="Cancelar"
+        onConfirm={handleResetLocalData}
+        onCancel={() => setShowResetConfirm(false)}
+      />
     </div>
   );
 };

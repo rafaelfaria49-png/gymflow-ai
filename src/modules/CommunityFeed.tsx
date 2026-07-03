@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { SocialShareModal } from '../components/SocialShareModal';
+import { useToast } from '../components/ui/Toast';
 import {
   Heart,
   MessageCircle,
@@ -19,6 +20,7 @@ import {
 
 export const CommunityFeed = () => {
   const { communityPosts, likePost, commentOnPost, addPost, user } = useGymFlow();
+  const toast = useToast();
   const [newPostText, setNewPostText] = useState('');
   const [commentInputs, setCommentInputs] = useState<{ [postId: string]: string }>({});
   const [activeSubTab, setActiveSubTab] = useState<'feed' | 'ranking' | 'groups'>('feed');
@@ -124,7 +126,7 @@ export const CommunityFeed = () => {
               <div className="flex justify-between items-center pt-2 border-t border-white/5">
                 <button
                   type="button"
-                  onClick={() => alert('Selecione uma imagem mockada (foto adicionada automaticamente)')}
+                  onClick={() => toast.info('Selecione uma imagem mockada (foto adicionada automaticamente)')}
                   className="text-xs text-gym-text-muted hover:text-white flex items-center gap-1.5 font-bold"
                 >
                   <ImageIcon className="w-4 h-4 text-gym-accent" />

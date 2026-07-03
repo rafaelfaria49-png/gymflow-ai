@@ -3,9 +3,11 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { Droplet, Utensils, Zap, Apple, Sparkles, Scale, RefreshCw, Flame } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
 
 export const NutritionPage = () => {
   const { nutrition, logWater, logMacros, user } = useGymFlow();
+  const toast = useToast();
   const [waterInput, setWaterInput] = useState('250');
   const [kcalInput, setKcalInput] = useState('');
   const [protInput, setProtInput] = useState('');
@@ -30,7 +32,7 @@ export const NutritionPage = () => {
     setProtInput('');
     setCarbInput('');
     setFatInput('');
-    alert('Refeição registrada na dieta!');
+    toast.success('Refeição registrada na dieta!');
   };
 
   // Sugestões de Refeições Baseadas no Objetivo

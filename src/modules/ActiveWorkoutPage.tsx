@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { AvatarDemoPlaceholder } from '../components/AvatarDemoPlaceholder';
 import { Play, Pause, Square, Check, RefreshCw, HelpCircle, Save, Sparkles, Smile, MessageCircle, Clock, Share2, Award, Zap } from 'lucide-react';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 export const ActiveWorkoutPage = () => {
   const {
@@ -24,6 +25,7 @@ export const ActiveWorkoutPage = () => {
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [swapIndex, setSwapIndex] = useState<number | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   // Rest Timer State
   const [restSeconds, setRestSeconds] = useState(0);
@@ -501,12 +503,26 @@ export const ActiveWorkoutPage = () => {
       {/* CANCEL BUTTON */}
       <div className="flex justify-center pt-4">
         <button
-          onClick={cancelWorkout}
+          onClick={() => setShowCancelConfirm(true)}
           className="text-xs text-gym-rose hover:underline font-bold px-4 py-2 hover:bg-gym-rose/10 rounded-xl"
         >
           Cancelar Treino Atual
         </button>
       </div>
+
+      <ConfirmDialog
+        isOpen={showCancelConfirm}
+        variant="destructive"
+        title="Cancelar treino atual?"
+        description="Todo o progresso deste treino (séries marcadas, tempo decorrido) será perdido. Essa ação não pode ser desfeita."
+        confirmLabel="Cancelar treino"
+        cancelLabel="Continuar treinando"
+        onConfirm={() => {
+          setShowCancelConfirm(false);
+          cancelWorkout();
+        }}
+        onCancel={() => setShowCancelConfirm(false)}
+      />
 
       {/* MODAL DE TROCA DE EXERCÍCIO */}
       {showSwapModal && swapIndex !== null && (
