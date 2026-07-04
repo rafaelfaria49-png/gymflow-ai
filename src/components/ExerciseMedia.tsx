@@ -67,7 +67,7 @@ export const ExerciseMedia: React.FC<ExerciseMediaProps> = ({
   const activeIndex = current % usable.length;
 
   return (
-    <div className={`relative w-full h-full overflow-hidden bg-white select-none ${className}`}>
+    <div className={`relative w-full h-full overflow-hidden bg-gym-dark select-none ${className}`}>
       {usable.map((src, idx) => (
         // eslint-disable-next-line @next/next/no-img-element
         <img

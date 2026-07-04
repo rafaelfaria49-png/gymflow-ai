@@ -24,9 +24,26 @@ export interface ExerciseSlot {
   incrementKg: number;
 }
 
+// GOAL-10.5: perfis de volume do Construtor de Treino — guias configuráveis,
+// nunca travas (o usuário pode montar qualquer volume real).
+export type VolumeProfile = 'compact' | 'standard' | 'high';
+
 export interface ProgramDay {
   id: string;
   name: string; // Ex: 'Dia A — Peito Foco'
+  slots: ExerciseSlot[];
+  volumeProfile?: VolumeProfile; // GOAL-10.5: opcional — só quando o Day foi pensado para um perfil específico
+}
+
+// GOAL-10.5: rascunho do Construtor de Treino manual — vive em memória (contexto),
+// nunca persistido sozinho (o resultado salvo é sempre um WorkoutProgram em customPrograms).
+export interface WorkoutBuilderDraft {
+  programId?: string; // presente apenas quando edita um customProgram já existente (upsert em vez de criar novo)
+  dayId?: string;
+  name: string;
+  level: UserProfile['level'];
+  volumeProfile: VolumeProfile;
+  targetMinutes: number;
   slots: ExerciseSlot[];
 }
 
@@ -139,6 +156,9 @@ export interface WorkoutProgram {
   // GOAL-07: estrutura real Programa → Semana → Dia → Slot
   repeatWeeks: boolean; // true = a(s) semana(s) se repetem até durationWeeks
   weeks: ProgramWeek[];
+  // GOAL-10.5: treino criado/editado pelo usuário no Construtor de Treino
+  // (nunca um dos MOCK_PROGRAMS — editar um sugerido sempre gera um novo customProgram).
+  isCustom?: boolean;
 }
 
 export interface VideoLesson {

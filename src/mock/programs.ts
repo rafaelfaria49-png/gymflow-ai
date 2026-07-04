@@ -247,12 +247,18 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
         number: 1,
         days: [
           {
+            // GOAL-10.5: reforçado para volume Padrão real (3 exercícios de peito +
+            // 2 de tríceps, 16 séries) — antes tinha só 3 exercícios/10 séries, o que
+            // não batia com a promessa de "5 exercícios" mostrada no card do Dashboard.
             id: 'prog_int_1_day_a',
-            name: 'Dia A — Peito Foco',
+            name: 'Dia A — Peito e Tríceps',
+            volumeProfile: 'standard',
             slots: [
               comp('chest_supino_reto', 4, [8, 10]),
               comp('chest_supino_inclinado_haltere', 3, [8, 10]),
-              iso('triceps_testa', 3, [10, 12])
+              iso('chest_crucifixo_haltere', 3, [10, 12]),
+              iso('triceps_testa', 3, [10, 12]),
+              iso('triceps_polia_corda', 3, [12, 15])
             ]
           },
           {
@@ -264,12 +270,18 @@ export const MOCK_PROGRAMS: WorkoutProgram[] = [
             ]
           },
           {
+            // GOAL-10.5: variante Alto Volume do mesmo foco (4 peito + 3 tríceps, 22 séries).
             id: 'prog_int_1_day_c',
-            name: 'Dia C — Peito + Tríceps Pump',
+            name: 'Dia C — Peito e Tríceps (Alto Volume)',
+            volumeProfile: 'high',
             slots: [
-              comp('chest_supino_inclinado_haltere', 3, [8, 10]),
-              iso('triceps_testa', 3, [10, 15]),
-              iso('shoulder_elevecao_lateral', 3, [12, 15])
+              comp('chest_supino_inclinado_barra', 4, [8, 10]),
+              iso('chest_crossover_polia', 3, [12, 15]),
+              iso('chest_peck_deck', 3, [12, 15]),
+              iso('chest_paralelas', 3, [10, 12]),
+              iso('triceps_polia_barra', 3, [12, 15]),
+              iso('triceps_frances_haltere', 3, [10, 12]),
+              iso('triceps_coice', 3, [12, 15])
             ]
           }
         ]

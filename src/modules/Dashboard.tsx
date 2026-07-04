@@ -16,28 +16,50 @@ import {
   Award,
   Zap,
   RotateCcw,
-  Utensils
+  Utensils,
+  Pencil,
+  Wrench
 } from 'lucide-react';
 
 export const Dashboard = () => {
-  const { user, startWorkout, setActiveView, programs, exercises, nutrition, challenges } = useGymFlow();
+  const { user, startWorkout, setActiveView, programs, nutrition, challenges, weeklyPlan, todayPlan, openWorkoutBuilder } = useGymFlow();
 
   if (!user) return null;
 
-  // Encontrar o treino sugerido de hoje
-  const userLevel = user.level || 'intermediate';
-  const suggestedProgram = programs.find((p) => p.level === userLevel) || programs[0];
+  // GOAL-10.5: treino do dia vem de todayPlan (weeklyPlan real), nunca mais de um
+  // lookup paralelo por nível — exerciseCount/duration já são os valores reais do
+  // ProgramDay (ver buildWeekFromProgram/estimateWorkoutDuration).
+  const hasPlan = weeklyPlan.length > 0;
+  const isRestToday = todayPlan?.isRest ?? false;
+  const hasRealWorkoutToday = !!todayPlan && !todayPlan.isRest && todayPlan.exerciseCount > 0;
 
   const handleStartTodayWorkout = () => {
-    startWorkout(suggestedProgram.id, suggestedProgram.name);
+    if (!todayPlan) return;
+    startWorkout(todayPlan.programId, todayPlan.workoutName, todayPlan.programDayId);
   };
 
-  const handleAdaptTodayWorkout = () => {
-    // Altera o treino por IA e inicia
-    startWorkout(suggestedProgram.id, `${suggestedProgram.name} (IA Adaptado)`);
+  const handleBuildFromScratch = () => {
+    openWorkoutBuilder(undefined, 'dashboard');
   };
 
-  const totalExercises = suggestedProgram.exercises.length;
+  const handleEditTodayWorkout = () => {
+    if (!todayPlan) return;
+    const sourceProgram = programs.find((p) => p.id === todayPlan.programId);
+    const sourceDay = sourceProgram?.weeks?.[0]?.days.find((d) => d.id === todayPlan.programDayId);
+    openWorkoutBuilder(
+      {
+        // Editar um treino sugerido sempre vira um treino NOVO (nunca sobrescreve o original).
+        programId: sourceProgram?.isCustom ? sourceProgram.id : undefined,
+        dayId: sourceProgram?.isCustom ? sourceDay?.id : undefined,
+        name: todayPlan.workoutName,
+        level: user.level,
+        volumeProfile: sourceDay?.volumeProfile ?? 'standard',
+        targetMinutes: todayPlan.duration || user.duration,
+        slots: sourceDay?.slots ?? []
+      },
+      'dashboard'
+    );
+  };
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
@@ -77,44 +99,105 @@ export const Dashboard = () => {
         <div className="lg:col-span-2 space-y-6">
           <div className="glass border border-gym-accent/20 rounded-3xl p-6 relative overflow-hidden">
             <div className="absolute top-0 right-0 bg-gym-accent text-gym-dark text-[9px] font-black uppercase px-3 py-1 rounded-bl-2xl">
-              Sugerido por IA
+              {hasRealWorkoutToday ? 'Treino do Dia' : isRestToday ? 'Descanso' : 'Planejador'}
             </div>
 
             <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block mb-2">Treino do Dia</span>
-            <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">{suggestedProgram.name}</h2>
-            <p className="text-xs text-gym-text-muted mt-1 leading-relaxed max-w-lg">
-              {suggestedProgram.description}
-            </p>
 
-            <div className="flex flex-wrap items-center gap-4 mt-6 text-xs text-gym-text-muted">
-              <span className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 font-bold text-white flex items-center gap-1.5">
-                <Dumbbell className="w-3.5 h-3.5 text-gym-accent" />
-                {totalExercises} Exercícios
-              </span>
-              <span className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 font-bold text-white flex items-center gap-1.5">
-                <Activity className="w-3.5 h-3.5 text-gym-emerald" />
-                ~{user.duration} min
-              </span>
-              <span className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 font-bold text-white uppercase font-mono">
-                {user.level}
-              </span>
-            </div>
+            {!hasPlan && (
+              <>
+                <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">Nenhuma semana planejada ainda</h2>
+                <p className="text-xs text-gym-text-muted mt-1 leading-relaxed max-w-lg">
+                  Monte um treino do zero agora ou vá ao Planejador para gerar sua semana completa com a IA Coach.
+                </p>
+              </>
+            )}
+
+            {hasPlan && isRestToday && (
+              <>
+                <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">Hoje é dia de descanso</h2>
+                <p className="text-xs text-gym-text-muted mt-1 leading-relaxed max-w-lg">
+                  Aproveite para recuperar. Se preferir treinar mesmo assim, monte um treino rápido abaixo.
+                </p>
+              </>
+            )}
+
+            {hasPlan && !isRestToday && todayPlan && (
+              <>
+                <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">{todayPlan.workoutName}</h2>
+                {!hasRealWorkoutToday && (
+                  <p className="text-xs text-gym-text-muted mt-1 leading-relaxed max-w-lg">
+                    Este dia ainda não tem exercícios definidos. Monte o treino para poder começar.
+                  </p>
+                )}
+
+                {hasRealWorkoutToday && (
+                  <div className="flex flex-wrap items-center gap-4 mt-6 text-xs text-gym-text-muted">
+                    <span className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 font-bold text-white flex items-center gap-1.5">
+                      <Dumbbell className="w-3.5 h-3.5 text-gym-accent" />
+                      {todayPlan.exerciseCount} Exercícios
+                    </span>
+                    <span className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 font-bold text-white flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5 text-gym-emerald" />
+                      ~{todayPlan.duration} min
+                    </span>
+                    {todayPlan.muscleGroups.length > 0 && (
+                      <span className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 font-bold text-white uppercase font-mono">
+                        {todayPlan.muscleGroups.join(', ')}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-3 mt-8">
-              <button
-                onClick={handleStartTodayWorkout}
-                className="flex-1 py-4 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-2xl transition-all shadow-lg shadow-gym-accent/15 flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
-              >
-                Começar Treino
-                <ChevronRight className="w-4 h-4 text-gym-dark" />
-              </button>
-              <button
-                onClick={handleAdaptTodayWorkout}
-                className="py-4 px-6 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
-              >
-                <Sparkles className="w-4 h-4 text-gym-accent animate-pulse" />
-                Adaptar com IA
-              </button>
+              {hasRealWorkoutToday ? (
+                <button
+                  onClick={handleStartTodayWorkout}
+                  className="flex-1 py-4 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-2xl transition-all shadow-lg shadow-gym-accent/15 flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
+                >
+                  Começar Treino
+                  <ChevronRight className="w-4 h-4 text-gym-dark" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleBuildFromScratch}
+                  className="flex-1 py-4 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-2xl transition-all shadow-lg shadow-gym-accent/15 flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
+                >
+                  Montar Treino
+                  <Wrench className="w-4 h-4 text-gym-dark" />
+                </button>
+              )}
+
+              {hasRealWorkoutToday && (
+                <>
+                  <button
+                    onClick={handleEditTodayWorkout}
+                    className="py-4 px-6 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
+                  >
+                    <Pencil className="w-4 h-4 text-gym-accent" />
+                    Editar Treino
+                  </button>
+                  <button
+                    onClick={handleBuildFromScratch}
+                    className="py-4 px-6 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
+                  >
+                    <Wrench className="w-4 h-4 text-gym-accent" />
+                    Montar do Zero
+                  </button>
+                </>
+              )}
+
+              {!hasRealWorkoutToday && hasPlan && (
+                <button
+                  onClick={() => setActiveView('planner')}
+                  className="py-4 px-6 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
+                >
+                  <Calendar className="w-4 h-4 text-gym-accent" />
+                  Ver Planejador
+                </button>
+              )}
             </div>
           </div>
 

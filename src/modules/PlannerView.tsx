@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
-import { WeeklyWorkoutDay } from '../types';
-import { Calendar, Sparkles, Play, RotateCcw, Sliders, Clock, Dumbbell, ArrowRight, Move, Copy, Trash, CheckSquare, Square } from 'lucide-react';
+import { WeeklyWorkoutDay, WorkoutProgram, ProgramDay } from '../types';
+import { Calendar, Sparkles, Play, RotateCcw, Sliders, Clock, Move, Copy, Wrench, Pencil, ListChecks, X } from 'lucide-react';
 
 export const PlannerView = () => {
   const {
@@ -13,7 +13,10 @@ export const PlannerView = () => {
     replanMissedWorkout,
     startWorkout,
     setWeeklyPlan,
-    updateUserProfile
+    updateUserProfile,
+    programs,
+    openWorkoutBuilder,
+    assignDayToWeekday
   } = useGymFlow();
 
   const [goal, setGoal] = useState<'hypertrophy' | 'slimming' | 'strength' | 'conditioning' | 'athlete'>(
@@ -32,18 +35,17 @@ export const PlannerView = () => {
   const [movingFromDay, setMovingFromDay] = useState<string | null>(null);
   const [duplicatingFromDay, setDuplicatingFromDay] = useState<string | null>(null);
 
-  // Modal to edit specific day
-  const [editingDay, setEditingDay] = useState<WeeklyWorkoutDay | null>(null);
-  const [editWorkoutName, setEditWorkoutName] = useState('');
-  const [editDuration, setEditDuration] = useState(60);
-  const [editMuscleGroups, setEditMuscleGroups] = useState<string[]>([]);
-  const [editIsRest, setEditIsRest] = useState(false);
+  // GOAL-10.5: "Escolher treino" — dia da semana aguardando escolha de um Day real
+  // (sugerido ou custom) para ser atribuído via assignDayToWeekday.
+  const [choosingForDay, setChoosingForDay] = useState<string | null>(null);
 
   const handleGenerate = () => {
     generateWeeklyPlan(goal, level, gender, frequency, duration);
     updateUserProfile({ goal, level, gender, frequency, duration });
   };
 
+  // GOAL-10.5: alternar para "Treino" não fabrica mais um exerciseCount fictício —
+  // fica honestamente vazio (0 exercícios) até o usuário escolher/criar um treino real.
   const handleToggleRest = (dayName: string) => {
     const updated = weeklyPlan.map((day) => {
       if (day.dayName === dayName) {
@@ -51,10 +53,10 @@ export const PlannerView = () => {
         return {
           ...day,
           isRest,
-          workoutName: isRest ? 'Descanso' : 'Treino Personalizado',
-          exerciseCount: isRest ? 0 : 4,
-          duration: isRest ? 0 : duration,
-          muscleGroups: isRest ? [] : ['legs', 'chest'],
+          workoutName: isRest ? 'Descanso' : 'Sem treino definido',
+          exerciseCount: 0,
+          duration: 0,
+          muscleGroups: [],
           // GOAL-07: alternar treino/descanso desfaz o vínculo com o Day do programa
           programId: undefined,
           programDayId: undefined
@@ -64,6 +66,35 @@ export const PlannerView = () => {
     });
     setWeeklyPlan(updated);
     updateUserProfile({ weeklyPlan: updated });
+  };
+
+  const handleCreateFromScratch = () => {
+    openWorkoutBuilder(undefined, 'planner');
+  };
+
+  // GOAL-10.5: "Editar dia" abre o Construtor com os slots reais do Day (quando há
+  // um programa vinculado) — nunca mais o modal antigo que fabricava exerciseCount.
+  const handleEditDay = (day: WeeklyWorkoutDay) => {
+    const sourceProgram = programs.find((p) => p.id === day.programId);
+    const sourceDay = sourceProgram?.weeks?.[0]?.days.find((d) => d.id === day.programDayId);
+    openWorkoutBuilder(
+      {
+        programId: sourceProgram?.isCustom ? sourceProgram.id : undefined,
+        dayId: sourceProgram?.isCustom ? sourceDay?.id : undefined,
+        name: day.isRest ? 'Meu Treino' : day.workoutName,
+        level: user?.level ?? 'intermediate',
+        volumeProfile: sourceDay?.volumeProfile ?? 'standard',
+        targetMinutes: day.duration || user?.duration || 60,
+        slots: sourceDay?.slots ?? []
+      },
+      'planner'
+    );
+  };
+
+  const handleChooseProgramDay = (program: WorkoutProgram, day: ProgramDay) => {
+    if (!choosingForDay) return;
+    assignDayToWeekday(choosingForDay, program, day);
+    setChoosingForDay(null);
   };
 
   const handleStartMove = (dayName: string) => {
@@ -126,65 +157,6 @@ export const PlannerView = () => {
     setDuplicatingFromDay(null);
   };
 
-  const handleEditDayOpen = (day: WeeklyWorkoutDay) => {
-    setEditingDay(day);
-    setEditWorkoutName(day.workoutName === 'Descanso' ? 'Novo Treino' : day.workoutName);
-    setEditDuration(day.duration || 60);
-    setEditMuscleGroups(day.muscleGroups || []);
-    setEditIsRest(day.isRest);
-  };
-
-  const handleEditDaySave = () => {
-    if (!editingDay) return;
-    const updated = weeklyPlan.map((day) => {
-      if (day.dayName === editingDay.dayName) {
-        const isRest = editIsRest || editWorkoutName.toLowerCase() === 'descanso' || editWorkoutName.trim() === '';
-        return {
-          ...day,
-          workoutName: isRest ? 'Descanso' : editWorkoutName,
-          duration: isRest ? 0 : editDuration,
-          isRest,
-          muscleGroups: isRest ? [] : editMuscleGroups,
-          exerciseCount: isRest ? 0 : (editMuscleGroups.length > 0 ? editMuscleGroups.length * 2 : 4),
-          // GOAL-07: editar o dia manualmente torna-o customizado (sem Day de programa)
-          programId: undefined,
-          programDayId: undefined
-        };
-      }
-      return day;
-    });
-    setWeeklyPlan(updated);
-    updateUserProfile({ weeklyPlan: updated });
-    setEditingDay(null);
-  };
-
-  const handleToggleMuscleGroup = (mg: string) => {
-    setEditMuscleGroups((prev) =>
-      prev.includes(mg) ? prev.filter((item) => item !== mg) : [...prev, mg]
-    );
-  };
-
-  const templates = [
-    { name: 'Push Day (Peito/Ombro/Tríceps)', duration: 60, muscles: ['chest', 'shoulders', 'triceps'] },
-    { name: 'Pull Day (Costas/Bíceps)', duration: 60, muscles: ['back', 'biceps'] },
-    { name: 'Leg Day (Membros Inferiores)', duration: 65, muscles: ['legs', 'calves'] },
-    { name: 'Glúteos e Pernas (Feminino Pro)', duration: 70, muscles: ['legs', 'glutes'] },
-    { name: 'Superior Completo (Upper Body)', duration: 55, muscles: ['chest', 'back', 'shoulders'] },
-    { name: 'Cardio HIIT e Abdômen', duration: 40, muscles: ['cardio', 'abs'] }
-  ];
-
-  const availableMuscleGroups = [
-    { id: 'chest', label: 'Peito' },
-    { id: 'back', label: 'Costas' },
-    { id: 'shoulders', label: 'Ombros' },
-    { id: 'biceps', label: 'Bíceps' },
-    { id: 'triceps', label: 'Tríceps' },
-    { id: 'legs', label: 'Pernas' },
-    { id: 'glutes', label: 'Glúteos' },
-    { id: 'abs', label: 'Abdômen' },
-    { id: 'cardio', label: 'Cardio' },
-    { id: 'mobility', label: 'Mobilidade' }
-  ];
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
@@ -197,13 +169,22 @@ export const PlannerView = () => {
           </p>
         </div>
 
-        <button
-          onClick={replanMissedWorkout}
-          className="bg-gym-card hover:bg-white/5 border border-gym-rose/30 hover:border-gym-rose/50 text-gym-rose font-bold px-4 py-2.5 rounded-xl transition-all text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-gym-rose/5"
-        >
-          <RotateCcw className="w-4 h-4" />
-          Perdi o Treino de Hoje
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleCreateFromScratch}
+            className="bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold px-4 py-2.5 rounded-xl transition-all text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-gym-accent/15"
+          >
+            <Wrench className="w-4 h-4" />
+            Criar Treino
+          </button>
+          <button
+            onClick={replanMissedWorkout}
+            className="bg-gym-card hover:bg-white/5 border border-gym-rose/30 hover:border-gym-rose/50 text-gym-rose font-bold px-4 py-2.5 rounded-xl transition-all text-xs flex items-center gap-1.5 cursor-pointer shadow-md shadow-gym-rose/5"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Perdi o Treino de Hoje
+          </button>
+        </div>
       </div>
 
       {/* SWAP WARNING BANNER */}
@@ -442,16 +423,32 @@ export const PlannerView = () => {
                             {day.isRest ? 'Descanso' : 'Treino'}
                           </button>
 
-                          {/* Edit content */}
-                          <button
-                            onClick={() => handleEditDayOpen(day)}
-                            className="text-[9px] font-bold px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded border border-white/10 text-white"
-                          >
-                            Editar
-                          </button>
+                          {!day.isRest && (
+                            <>
+                              {/* Escolher um treino real (sugerido ou custom) para este dia */}
+                              <button
+                                onClick={() => setChoosingForDay(day.dayName)}
+                                className="text-[9px] font-bold px-2.5 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-white flex items-center gap-1"
+                                title="Escolher treino"
+                              >
+                                <ListChecks className="w-3 h-3 text-gym-accent" />
+                                Escolher
+                              </button>
 
-                          {/* Launch active */}
-                          {!day.isRest && !day.trained && (
+                              {/* Editar dia no Construtor — sempre com os slots reais, nunca fabricados */}
+                              <button
+                                onClick={() => handleEditDay(day)}
+                                className="text-[9px] font-bold px-2.5 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-white flex items-center gap-1"
+                                title="Editar dia"
+                              >
+                                <Pencil className="w-3 h-3 text-gym-accent" />
+                                Editar
+                              </button>
+                            </>
+                          )}
+
+                          {/* Launch active — só quando o dia tem exercícios reais de verdade */}
+                          {!day.isRest && !day.trained && day.exerciseCount > 0 && (
                             <button
                               onClick={() => startWorkout(day.programId, day.workoutName, day.programDayId)}
                               className="p-1.5 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark rounded-lg transition-all flex items-center justify-center"
@@ -459,6 +456,12 @@ export const PlannerView = () => {
                             >
                               <Play className="w-3 h-3 fill-gym-dark" />
                             </button>
+                          )}
+
+                          {!day.isRest && !day.trained && day.exerciseCount === 0 && (
+                            <span className="text-[9px] font-bold text-gym-text-muted bg-white/5 px-2 py-1 rounded-full">
+                              Sem treino
+                            </span>
                           )}
 
                           {day.trained && (
@@ -477,132 +480,60 @@ export const PlannerView = () => {
         </div>
       </div>
 
-      {/* EDIT MODAL */}
-      {editingDay && (
+      {/* ESCOLHER TREINO MODAL — lista os Days reais (sugeridos + Meus Treinos) para
+          atribuir a este dia via assignDayToWeekday; nunca fabrica exerciseCount. */}
+      {choosingForDay && (
         <div
           className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setEditingDay(null)}
+          onClick={() => setChoosingForDay(null)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-gym-dark border border-white/10 rounded-3xl w-full max-w-md p-6 space-y-6 max-h-[90vh] overflow-y-auto"
+            className="bg-gym-dark border border-white/10 rounded-3xl w-full max-w-lg p-6 space-y-4 max-h-[85vh] overflow-y-auto"
           >
-            <h3 className="text-sm font-bold text-gym-accent uppercase tracking-wider">Configurar {editingDay.dayName}</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-gym-accent uppercase tracking-wider">
+                Escolher treino para {choosingForDay}
+              </h3>
+              <button
+                onClick={() => setChoosingForDay(null)}
+                className="p-2 text-gym-text-muted hover:text-white bg-white/5 rounded-lg tap-target"
+                aria-label="Fechar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-            <div className="space-y-4">
-              {/* Type toggle inside modal */}
-              <div className="flex bg-gym-dark/50 p-1 rounded-xl border border-white/5 gap-1 text-[10px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setEditIsRest(false)}
-                  className={`flex-1 py-1.5 rounded transition-all ${
-                    !editIsRest ? 'bg-gym-accent text-gym-dark font-black' : 'text-gym-text-muted hover:text-white'
-                  }`}
-                >
-                  Dia de Treino
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditIsRest(true)}
-                  className={`flex-1 py-1.5 rounded transition-all ${
-                    editIsRest ? 'bg-gym-accent text-gym-dark font-black' : 'text-gym-text-muted hover:text-white'
-                  }`}
-                >
-                  Dia de Descanso
-                </button>
-              </div>
-
-              {!editIsRest && (
-                <>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-gym-text-muted mb-1">Nome da Sessão</label>
-                    <input
-                      type="text"
-                      value={editWorkoutName}
-                      onChange={(e) => setEditWorkoutName(e.target.value)}
-                      className="w-full bg-gym-dark border border-white/10 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-gym-accent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-gym-text-muted mb-1">Duração (minutos)</label>
-                    <input
-                      type="number"
-                      value={editDuration}
-                      onChange={(e) => setEditDuration(Number(e.target.value))}
-                      className="w-full bg-gym-dark border border-white/10 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-gym-accent"
-                    />
-                  </div>
-
-                  {/* Muscle Groups Checkboxes */}
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-bold uppercase text-gym-text-muted">Músculos Alvo</label>
-                    <div className="grid grid-cols-2 gap-2 max-h-[110px] overflow-y-auto pr-1">
-                      {availableMuscleGroups.map((mg) => {
-                        const checked = editMuscleGroups.includes(mg.id);
-                        return (
-                          <button
-                            key={mg.id}
-                            type="button"
-                            onClick={() => handleToggleMuscleGroup(mg.id)}
-                            className={`p-2 border text-left rounded-xl text-[10px] font-bold transition-all flex items-center justify-between ${
-                              checked 
-                                ? 'bg-gym-accent/10 border-gym-accent text-gym-accent' 
-                                : 'bg-white/5 border-white/5 text-gym-text-muted hover:text-white'
-                            }`}
-                          >
-                            <span>{mg.label}</span>
-                            {checked ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* TEMPLATES LIST */}
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-bold uppercase text-gym-text-muted">Copiar Modelo da IA</label>
-                    <div className="grid grid-cols-2 gap-1.5 max-h-[90px] overflow-y-auto pr-1">
-                      {templates.map((temp) => (
+            {programs.filter((p) => (p.weeks?.[0]?.days?.length ?? 0) > 0).length === 0 ? (
+              <p className="text-xs text-gym-text-muted text-center py-8">
+                Nenhum programa com dias estruturados disponível ainda.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {programs
+                  .filter((p) => (p.weeks?.[0]?.days?.length ?? 0) > 0)
+                  .map((program) => (
+                    <div key={program.id} className="space-y-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-gym-text-muted flex items-center gap-1.5">
+                        {program.name}
+                        {program.isCustom && (
+                          <span className="text-[8px] bg-gym-accent/15 text-gym-accent px-1.5 py-0.5 rounded-full">Meu treino</span>
+                        )}
+                      </span>
+                      {(program.weeks[0]?.days || []).map((day) => (
                         <button
-                          key={temp.name}
-                          type="button"
-                          onClick={() => {
-                            setEditWorkoutName(temp.name);
-                            setEditDuration(temp.duration);
-                            setEditMuscleGroups(temp.muscles);
-                          }}
-                          className="p-2 text-left bg-white/5 hover:bg-gym-accent/15 border border-white/5 rounded-xl text-[10px] text-white hover:text-gym-accent transition-all font-semibold"
+                          key={day.id}
+                          onClick={() => handleChooseProgramDay(program, day)}
+                          className="w-full text-left bg-white/5 hover:bg-gym-accent/10 border border-white/5 hover:border-gym-accent/30 rounded-xl p-3 flex items-center justify-between transition-all min-h-[44px]"
                         >
-                          {temp.name.split(' (')[0]}
+                          <span className="text-xs font-bold text-white">{day.name}</span>
+                          <span className="text-[10px] text-gym-text-muted">{day.slots.length} exercícios</span>
                         </button>
                       ))}
                     </div>
-                  </div>
-                </>
-              )}
-
-              {editIsRest && (
-                <div className="py-6 text-center text-xs text-gym-text-muted">
-                  Este dia será considerado Descanso no cronograma semanal.
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-2 mt-6">
-              <button
-                onClick={() => setEditingDay(null)}
-                className="flex-1 py-2.5 bg-white/5 rounded-xl text-xs font-bold"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleEditDaySave}
-                className="flex-1 py-2.5 bg-gym-accent text-gym-dark font-extrabold rounded-xl text-xs"
-              >
-                Salvar
-              </button>
-            </div>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
       )}

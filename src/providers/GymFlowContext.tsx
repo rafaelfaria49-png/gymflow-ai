@@ -15,7 +15,8 @@ import {
   WorkoutSet,
   WeeklyWorkoutDay,
   TechniqueTrail,
-  ProgramDay
+  ProgramDay,
+  WorkoutBuilderDraft
 } from '../types';
 import {
   MOCK_EXERCISES,
@@ -28,6 +29,7 @@ import {
 } from '../mock/data';
 import { loadState, saveState, clearState } from '../lib/storage';
 import { suggestNext, lastRecordedWeight, ExerciseSessionHistory } from '../lib/progression';
+import { estimateWorkoutDuration, muscleGroupsForSlots } from '../lib/workoutDuration';
 import { useToast } from '../components/ui/Toast';
 
 export const STORAGE_KEY = 'gymflow:state:v1';
@@ -36,6 +38,8 @@ export const STORAGE_KEY = 'gymflow:state:v1';
 interface PersistedState {
   user: UserProfile | null;
   weeklyPlan: WeeklyWorkoutDay[];
+  // GOAL-10.5: treinos criados/editados no Construtor de Treino manual.
+  customPrograms: WorkoutProgram[];
   activeWorkout: WorkoutSession | null;
   activeWorkoutStartedAt: number | null;
   // Timer de descanso (GOAL-06): timestamp de término sobrevive a refresh,
@@ -70,7 +74,8 @@ export type AppView =
   | 'nutrition'
   | 'premium'
   | 'admin'
-  | 'planner';
+  | 'planner'
+  | 'workout-builder';
 
 export interface ChatActionCard {
   label: string;
@@ -106,9 +111,15 @@ interface GymFlowContextType {
   addNewExercise: (exercise: Exercise) => void;
   deleteExercise: (id: string) => void;
 
+  // Construtor de Treino manual (GOAL-10.5)
+  saveCustomProgram: (program: WorkoutProgram) => void;
+  builderDraft: WorkoutBuilderDraft | null;
+  builderReturnView: AppView;
+  openWorkoutBuilder: (draft?: WorkoutBuilderDraft, returnView?: AppView) => void;
+
   // Active Workout
   activeWorkout: WorkoutSession | null;
-  startWorkout: (programId?: string, customName?: string, programDayId?: string) => void;
+  startWorkout: (programId?: string, customName?: string, programDayId?: string, explicitDay?: ProgramDay) => void;
   updateWorkoutSet: (exerciseIndex: number, setIndex: number, fields: Partial<WorkoutSet>) => void;
   updateExerciseNotes: (exerciseIndex: number, notes: string) => void;
   completeWorkoutSet: (exerciseIndex: number, setIndex: number) => void;
@@ -129,8 +140,12 @@ interface GymFlowContextType {
   // Planner
   weeklyPlan: WeeklyWorkoutDay[];
   setWeeklyPlan: React.Dispatch<React.SetStateAction<WeeklyWorkoutDay[]>>;
+  // GOAL-10.5: dia de hoje já resolvido a partir de weeklyPlan — fonte única de
+  // verdade para o card do Dashboard (nunca mais um lookup paralelo de programa).
+  todayPlan: WeeklyWorkoutDay | null;
   generateWeeklyPlan: (goal: string, level: string, gender: string, frequency: number, duration: number) => void;
   applyProgramToWeek: (programId: string) => void;
+  assignDayToWeekday: (dayName: string, program: WorkoutProgram, day: ProgramDay) => void;
   replanMissedWorkout: () => void;
   markDayTrained: (dayName: string) => void;
 
@@ -199,14 +214,11 @@ function activeDaysForFrequency(frequency: number): string[] {
   return DAYS_ORDER;
 }
 
-// Estimativa simples: séries × (descanso + ~45s de execução), arredondado a 5 min.
-function estimateDayDuration(day: ProgramDay): number {
-  const totalSec = day.slots.reduce((acc, s) => acc + s.series * (s.restSec + 45), 0);
-  return Math.max(20, Math.round(totalSec / 60 / 5) * 5);
-}
-
 // Distribui os Days reais do programa pelos dias ativos do calendário, em ciclo
 // (A, B, C, A, B...). Dias fora da frequência viram Descanso — sem treino genérico.
+// GOAL-10.5: duration/exerciseCount/muscleGroups vêm de estimateWorkoutDuration/
+// muscleGroupsForSlots (src/lib/workoutDuration.ts) — a mesma dupla de funções
+// usada pelo Construtor de Treino, então o card nunca mais diverge do treino real.
 function buildWeekFromProgram(program: WorkoutProgram, frequency: number, allExercises: Exercise[]): WeeklyWorkoutDay[] {
   const programDays = program.weeks?.[0]?.days ?? [];
   const activeDays = activeDaysForFrequency(frequency);
@@ -218,25 +230,31 @@ function buildWeekFromProgram(program: WorkoutProgram, frequency: number, allExe
     }
     const progDay = programDays[cursor % programDays.length];
     cursor++;
-    const muscleGroups = Array.from(
-      new Set(
-        progDay.slots
-          .map((s) => allExercises.find((e) => e.id === s.exerciseId)?.muscleGroup)
-          .filter((mg): mg is Exercise['muscleGroup'] => Boolean(mg))
-      )
-    );
+    const estimate = estimateWorkoutDuration(progDay.slots);
     return {
       dayName,
       workoutName: progDay.name,
-      muscleGroups,
-      duration: estimateDayDuration(progDay),
-      exerciseCount: progDay.slots.length,
+      muscleGroups: muscleGroupsForSlots(progDay.slots, allExercises),
+      duration: estimate.minutes,
+      exerciseCount: estimate.exerciseCount,
       isRest: false,
       programId: program.id,
       programDayId: progDay.id,
       trained: false
     };
   });
+}
+
+// GOAL-10.5: extraído de finishWorkout/replanMissedWorkout (estavam duplicando a
+// mesma normalização de dia da semana) para ter uma única implementação.
+function getTodayDayName(): string {
+  const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long' });
+  const todayNormalized = today.split('-')[0].trim().toLowerCase();
+  const daysMap: { [key: string]: string } = {
+    'segunda': 'Segunda', 'terça': 'Terça', 'quarta': 'Quarta', 'quinta': 'Quinta',
+    'sexta': 'Sexta', 'sábado': 'Sábado', 'domingo': 'Domingo'
+  };
+  return daysMap[todayNormalized] || 'Segunda';
 }
 
 const GOAL_KEYWORDS: Record<string, RegExp> = {
@@ -300,6 +318,22 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(MOCK_COMMUNITY);
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyWorkoutDay[]>([]);
   const trails = MOCK_TRAILS;
+
+  // GOAL-10.5: treinos criados/editados no Construtor de Treino manual (persistidos
+  // em customPrograms). allPrograms mescla com MOCK_PROGRAMS para que startWorkout,
+  // applyProgramToWeek e as telas de Treinos/Planejador não precisem de lógica paralela.
+  const [customPrograms, setCustomPrograms] = useState<WorkoutProgram[]>([]);
+  const allPrograms = [...programs, ...customPrograms];
+
+  // Rascunho aberto no Construtor — não persistido (o que é salvo vira um
+  // WorkoutProgram em customPrograms via saveCustomProgram).
+  const [builderDraft, setBuilderDraft] = useState<WorkoutBuilderDraft | null>(null);
+  const [builderReturnView, setBuilderReturnView] = useState<AppView>('planner');
+
+  // GOAL-10.5: treino de hoje resolvido a partir do weeklyPlan real — fonte única
+  // de verdade do card "Treino do Dia" no Dashboard (nunca mais um lookup paralelo).
+  const todayDayName = getTodayDayName();
+  const todayPlan = weeklyPlan.find((d) => d.dayName === todayDayName) ?? null;
 
   // Active workout
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
@@ -481,7 +515,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
             achievements: [],
             challenges: [],
             favoriteExercises: [],
-            recentlyViewedVideoIds: []
+            recentlyViewedVideoIds: [],
+            customPrograms: []
           };
         }
       } catch {
@@ -508,6 +543,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       if (Array.isArray(saved.challenges) && saved.challenges.length > 0) setChallenges(saved.challenges);
       if (Array.isArray(saved.favoriteExercises)) setFavoriteExercises(saved.favoriteExercises);
       if (Array.isArray(saved.recentlyViewedVideoIds)) setRecentlyViewedVideoIds(saved.recentlyViewedVideoIds);
+      if (Array.isArray(saved.customPrograms)) setCustomPrograms(saved.customPrograms);
 
       // Treino ativo sobrevive a refresh: restaura sessão + timestamp de início.
       if (saved.activeWorkout && saved.activeWorkoutStartedAt) {
@@ -538,6 +574,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     const persisted: PersistedState = {
       user,
       weeklyPlan,
+      customPrograms,
       activeWorkout,
       activeWorkoutStartedAt,
       restTimerEndAt,
@@ -558,6 +595,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     hydrated,
     user,
     weeklyPlan,
+    customPrograms,
     activeWorkout,
     activeWorkoutStartedAt,
     restTimerEndAt,
@@ -709,20 +747,23 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       .filter((s): s is ExerciseSessionHistory => s !== null);
 
   // Workout state management
-  const startWorkout = (programId?: string, customName?: string, programDayId?: string) => {
+  const startWorkout = (programId?: string, customName?: string, programDayId?: string, explicitDay?: ProgramDay) => {
     let workoutName = customName || 'Treino Personalizado';
     let activeExs: ActiveExercise[] = [];
 
-    if (programId) {
-      const prog = programs.find((p) => p.id === programId);
-      if (prog) {
+    if (programId || explicitDay) {
+      // GOAL-10.5: explicitDay permite iniciar um Day recém-criado/salvo no
+      // Construtor sem depender do setState de customPrograms já ter propagado
+      // (evita a corrida "salvei agora mesmo, mas allPrograms ainda está desatualizado").
+      const prog = programId ? allPrograms.find((p) => p.id === programId) : undefined;
+      if (prog || explicitDay) {
         // GOAL-07: monta o treino a partir dos slots do Day real do programa.
         // Sem programDayId (chamadas legadas/estado antigo), usa o primeiro Day.
-        const allDays = (prog.weeks ?? []).flatMap((w) => w.days);
-        const programDay = (programDayId ? allDays.find((d) => d.id === programDayId) : undefined) ?? allDays[0];
+        const allDays = prog ? (prog.weeks ?? []).flatMap((w) => w.days) : [];
+        const programDay = explicitDay ?? (programDayId ? allDays.find((d) => d.id === programDayId) : undefined) ?? allDays[0];
 
         if (programDay) {
-          workoutName = customName || `${prog.name} — ${programDay.name}`;
+          workoutName = customName || (prog ? `${prog.name} — ${programDay.name}` : programDay.name);
           activeExs = programDay.slots.map((slot, idx) => {
             // Fallback seguro: exercício ausente vira "Exercício Desconhecido",
             // sem crashar (mesmo padrão legado).
@@ -759,7 +800,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
               progressionNote: suggestion.motivo
             };
           });
-        } else {
+        } else if (prog) {
           // Programa sem weeks (legado): mantém o comportamento antigo pela lista achatada.
           workoutName = prog.name;
           activeExs = prog.exercises.map((pe, idx) => {
@@ -1005,14 +1046,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     addXp(finalXp, `Treino Concluído! +${caloriesBurned} kcal gastas`);
 
     // Marcar no planejador semanal que treinou hoje
-    const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long' });
-    const todayNormalized = today.split('-')[0].trim().toLowerCase();
-    const daysMap: {[key: string]: string} = {
-      'segunda': 'Segunda', 'terça': 'Terça', 'quarta': 'Quarta', 'quinta': 'Quinta',
-      'sexta': 'Sexta', 'sábado': 'Sábado', 'domingo': 'Domingo'
-    };
-    const dayName = daysMap[todayNormalized] || 'Segunda';
-    markDayTrained(dayName);
+    markDayTrained(getTodayDayName());
 
     // Atualiza o streak do usuário
     const todayStr = new Date().toISOString().split('T')[0];
@@ -1099,7 +1133,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
   // GOAL-07: atribui um programa específico à semana (usado nos Programas de Treino).
   const applyProgramToWeek = (programId: string) => {
-    const program = programs.find((p) => p.id === programId);
+    const program = allPrograms.find((p) => p.id === programId);
     if (!program || (program.weeks?.[0]?.days?.length ?? 0) === 0) {
       toast.error('Programa sem dias estruturados para planejar a semana.');
       return;
@@ -1116,16 +1150,54 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     setActiveView('planner');
   };
 
+  // GOAL-10.5: atribui UM Day real (de qualquer programa, sugerido ou custom) a um
+  // dia específico da semana — diferente de applyProgramToWeek, não regenera os
+  // outros dias. Usado pelo botão "Escolher treino" do Planejador.
+  const assignDayToWeekday = (dayName: string, program: WorkoutProgram, day: ProgramDay) => {
+    const estimate = estimateWorkoutDuration(day.slots);
+    const updated = weeklyPlan.map((d) =>
+      d.dayName === dayName
+        ? {
+            ...d,
+            workoutName: day.name,
+            muscleGroups: muscleGroupsForSlots(day.slots, exercises),
+            duration: estimate.minutes,
+            exerciseCount: estimate.exerciseCount,
+            isRest: false,
+            programId: program.id,
+            programDayId: day.id,
+            trained: false
+          }
+        : d
+    );
+    setWeeklyPlan(updated);
+    if (user) {
+      setUser((prev) => (prev ? { ...prev, weeklyPlan: updated } : null));
+    }
+    toast.success(`"${day.name}" planejado para ${dayName}.`);
+  };
+
+  // GOAL-10.5: cria ou atualiza (upsert por id) um treino do Construtor manual.
+  const saveCustomProgram = (program: WorkoutProgram) => {
+    setCustomPrograms((prev) => {
+      const idx = prev.findIndex((p) => p.id === program.id);
+      if (idx === -1) return [...prev, program];
+      const updated = [...prev];
+      updated[idx] = program;
+      return updated;
+    });
+  };
+
+  const openWorkoutBuilder = (draft?: WorkoutBuilderDraft, returnView: AppView = 'planner') => {
+    setBuilderDraft(draft ?? null);
+    setBuilderReturnView(returnView);
+    setActiveView('workout-builder');
+  };
+
   const replanMissedWorkout = () => {
     if (weeklyPlan.length === 0) return;
 
-    const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long' });
-    const todayNormalized = today.split('-')[0].trim().toLowerCase();
-    const daysMap: {[key: string]: string} = {
-      'segunda': 'Segunda', 'terça': 'Terça', 'quarta': 'Quarta', 'quinta': 'Quinta',
-      'sexta': 'Sexta', 'sábado': 'Sábado', 'domingo': 'Domingo'
-    };
-    const curDayName = daysMap[todayNormalized] || 'Segunda';
+    const curDayName = getTodayDayName();
     const targetDayIdx = weeklyPlan.findIndex(d => d.dayName === curDayName);
 
     if (targetDayIdx !== -1) {
@@ -1579,9 +1651,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         updateUserProfile,
 
         exercises,
-        programs,
+        programs: allPrograms,
         addNewExercise,
         deleteExercise,
+
+        saveCustomProgram,
+        builderDraft,
+        builderReturnView,
+        openWorkoutBuilder,
 
         activeWorkout,
         startWorkout,
@@ -1603,8 +1680,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
         weeklyPlan,
         setWeeklyPlan,
+        todayPlan,
         generateWeeklyPlan,
         applyProgramToWeek,
+        assignDayToWeekday,
         replanMissedWorkout,
         markDayTrained,
 

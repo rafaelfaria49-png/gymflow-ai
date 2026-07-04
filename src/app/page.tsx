@@ -22,6 +22,7 @@ import { NutritionPage } from '../modules/NutritionPage';
 import { PremiumUpgrade } from '../modules/PremiumUpgrade';
 import { AdminPanel } from '../modules/AdminPanel';
 import { PlannerView } from '../modules/PlannerView';
+import { WorkoutBuilder } from '../modules/WorkoutBuilder';
 
 // Import Global Components
 import { GlobalVideoPlayer } from '../components/GlobalVideoPlayer';
@@ -71,6 +72,8 @@ export default function Home() {
         return <AdminPanel />;
       case 'planner':
         return <PlannerView />;
+      case 'workout-builder':
+        return <WorkoutBuilder />;
       case 'dashboard':
       default:
         return <Dashboard />;

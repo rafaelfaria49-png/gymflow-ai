@@ -2,21 +2,45 @@
 
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
-import { WorkoutProgram, Exercise } from '../types';
-import { Play, Calendar, Target, Clock, Dumbbell, Award, ChevronRight, X, Sparkles, Plus } from 'lucide-react';
+import { WorkoutProgram, Exercise, ProgramDay } from '../types';
+import { Play, Calendar, Target, Clock, Dumbbell, Award, ChevronRight, X, Sparkles, Plus, Wrench, Pencil } from 'lucide-react';
+import { estimateWorkoutDuration } from '../lib/workoutDuration';
 
 export const WorkoutsTab = () => {
-  const { programs, exercises, startWorkout, applyProgramToWeek, user } = useGymFlow();
+  const { programs, exercises, startWorkout, applyProgramToWeek, user, openWorkoutBuilder } = useGymFlow();
   const [selectedLevel, setSelectedLevel] = useState<'beginner' | 'intermediate' | 'advanced' | 'athlete'>(
     user?.level || 'intermediate'
   );
+  const [libraryTab, setLibraryTab] = useState<'suggested' | 'mine'>('suggested');
   const [selectedProgram, setSelectedProgram] = useState<WorkoutProgram | null>(null);
 
-  const filteredPrograms = programs.filter((p) => p.level === selectedLevel);
+  const suggestedPrograms = programs.filter((p) => !p.isCustom);
+  const myPrograms = programs.filter((p) => p.isCustom);
+  const filteredPrograms = libraryTab === 'suggested' ? suggestedPrograms.filter((p) => p.level === selectedLevel) : myPrograms;
 
   const handleStartProgram = (p: WorkoutProgram) => {
     // Sem customName: o nome vem do Day real (ex.: "ABC Hipertrofia — Dia A — Peito Foco")
     startWorkout(p.id);
+    setSelectedProgram(null);
+  };
+
+  const handleCreateWorkout = () => {
+    openWorkoutBuilder(undefined, 'workouts');
+  };
+
+  const handleEditProgramDay = (program: WorkoutProgram, day: ProgramDay) => {
+    openWorkoutBuilder(
+      {
+        programId: program.id,
+        dayId: day.id,
+        name: day.name,
+        level: program.level,
+        volumeProfile: day.volumeProfile ?? 'standard',
+        targetMinutes: estimateWorkoutDuration(day.slots).minutes,
+        slots: day.slots
+      },
+      'workouts'
+    );
     setSelectedProgram(null);
   };
 
@@ -35,30 +59,35 @@ export const WorkoutsTab = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => startWorkout(undefined, 'Treino Livre')}
-          className="bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold px-5 py-3 rounded-2xl transition-all shadow-md shadow-gym-accent/15 flex items-center justify-center gap-1.5 text-xs uppercase tracking-wider"
-        >
-          <Plus className="w-4 h-4 text-gym-dark stroke-[3px]" />
-          Treino Rápido Livre
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleCreateWorkout}
+            className="bg-white/5 hover:bg-white/10 border border-gym-accent/30 text-gym-accent font-extrabold px-5 py-3 rounded-2xl transition-all flex items-center justify-center gap-1.5 text-xs uppercase tracking-wider"
+          >
+            <Wrench className="w-4 h-4" />
+            Criar Treino
+          </button>
+          <button
+            onClick={() => startWorkout(undefined, 'Treino Livre')}
+            className="bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold px-5 py-3 rounded-2xl transition-all shadow-md shadow-gym-accent/15 flex items-center justify-center gap-1.5 text-xs uppercase tracking-wider"
+          >
+            <Plus className="w-4 h-4 text-gym-dark stroke-[3px]" />
+            Treino Rápido Livre
+          </button>
+        </div>
       </div>
 
-      {/* TABS DE NÍVEIS */}
-      <div className="flex bg-gym-card p-1 rounded-2xl border border-white/5 overflow-x-auto whitespace-nowrap">
+      {/* TABS: SUGERIDOS x MEUS TREINOS */}
+      <div className="flex bg-gym-card p-1 rounded-2xl border border-white/5">
         {[
-          { id: 'beginner', label: '🟢 Iniciante' },
-          { id: 'intermediate', label: '🟡 Intermediário' },
-          { id: 'advanced', label: '🔴 Avançado' },
-          { id: 'athlete', label: '⚡ Atleta' }
+          { id: 'suggested', label: 'Programas Sugeridos' },
+          { id: 'mine', label: `Meus Treinos${myPrograms.length > 0 ? ` (${myPrograms.length})` : ''}` }
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setSelectedLevel(tab.id as any)}
+            onClick={() => setLibraryTab(tab.id as 'suggested' | 'mine')}
             className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all ${
-              selectedLevel === tab.id
-                ? 'bg-white/10 text-white shadow'
-                : 'text-gym-text-muted hover:text-white'
+              libraryTab === tab.id ? 'bg-white/10 text-white shadow' : 'text-gym-text-muted hover:text-white'
             }`}
           >
             {tab.label}
@@ -66,7 +95,40 @@ export const WorkoutsTab = () => {
         ))}
       </div>
 
+      {/* TABS DE NÍVEIS — só faz sentido para a biblioteca sugerida */}
+      {libraryTab === 'suggested' && (
+        <div className="flex bg-gym-card p-1 rounded-2xl border border-white/5 overflow-x-auto whitespace-nowrap">
+          {[
+            { id: 'beginner', label: '🟢 Iniciante' },
+            { id: 'intermediate', label: '🟡 Intermediário' },
+            { id: 'advanced', label: '🔴 Avançado' },
+            { id: 'athlete', label: '⚡ Atleta' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setSelectedLevel(tab.id as any)}
+              className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all ${
+                selectedLevel === tab.id
+                  ? 'bg-white/10 text-white shadow'
+                  : 'text-gym-text-muted hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* PROGRAMAS LIST */}
+      {libraryTab === 'mine' && filteredPrograms.length === 0 ? (
+        <div className="glass p-12 text-center rounded-3xl border border-white/5 space-y-3 flex flex-col items-center">
+          <Wrench className="w-12 h-12 text-gym-text-muted opacity-40" />
+          <h3 className="text-base font-bold text-white">Nenhum treino seu ainda</h3>
+          <p className="text-xs text-gym-text-muted max-w-sm">
+            Toque em &quot;Criar Treino&quot; para montar seu primeiro treino do zero.
+          </p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredPrograms.map((prog) => (
           <div
@@ -75,12 +137,20 @@ export const WorkoutsTab = () => {
           >
             <div>
               <div className="flex justify-between items-start mb-3">
-                <span className="text-[10px] font-black uppercase bg-white/5 border border-white/10 text-gym-text-muted px-2.5 py-1 rounded-full">
-                  {prog.durationWeeks} semanas
-                </span>
+                {prog.isCustom ? (
+                  <span className="text-[10px] font-black uppercase bg-gym-accent/15 border border-gym-accent/20 text-gym-accent px-2.5 py-1 rounded-full">
+                    Meu treino
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-black uppercase bg-white/5 border border-white/10 text-gym-text-muted px-2.5 py-1 rounded-full">
+                    {prog.durationWeeks} semanas
+                  </span>
+                )}
                 <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" />
-                  {prog.frequencyDays}x por semana
+                  {prog.isCustom
+                    ? `${estimateWorkoutDuration(prog.weeks[0]?.days[0]?.slots ?? []).exerciseCount} exercícios`
+                    : `${prog.frequencyDays}x por semana`}
                 </span>
               </div>
 
@@ -110,6 +180,7 @@ export const WorkoutsTab = () => {
           </div>
         ))}
       </div>
+      )}
 
       {/* DETALHES DO PROGRAMA MODAL */}
       {selectedProgram && (
@@ -160,17 +231,27 @@ export const WorkoutsTab = () => {
               <div className="space-y-4">
                 {(selectedProgram.weeks[0]?.days || []).map((day) => (
                   <div key={day.id} className="bg-gym-card/50 border border-white/5 rounded-2xl overflow-hidden">
-                    <div className="flex items-center justify-between px-3.5 py-2.5 bg-white/5 border-b border-white/5">
-                      <h5 className="text-xs font-black text-white">{day.name}</h5>
-                      <button
-                        onClick={() => {
-                          startWorkout(selectedProgram.id, undefined, day.id);
-                          setSelectedProgram(null);
-                        }}
-                        className="min-h-[32px] text-[9px] bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1"
-                      >
-                        <Play className="w-3 h-3 fill-gym-dark" /> Iniciar
-                      </button>
+                    <div className="flex items-center justify-between px-3.5 py-2.5 bg-white/5 border-b border-white/5 gap-2">
+                      <h5 className="text-xs font-black text-white truncate">{day.name}</h5>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {selectedProgram.isCustom && (
+                          <button
+                            onClick={() => handleEditProgramDay(selectedProgram, day)}
+                            className="min-h-[32px] text-[9px] bg-white/5 hover:bg-white/10 border border-white/10 text-white font-extrabold px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1"
+                          >
+                            <Pencil className="w-3 h-3 text-gym-accent" /> Editar
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            startWorkout(selectedProgram.id, undefined, day.id);
+                            setSelectedProgram(null);
+                          }}
+                          className="min-h-[32px] text-[9px] bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1"
+                        >
+                          <Play className="w-3 h-3 fill-gym-dark" /> Iniciar
+                        </button>
+                      </div>
                     </div>
                     <div className="divide-y divide-white/5">
                       {day.slots.map((slot, idx) => {
