@@ -373,4 +373,34 @@ Substituição dos 68 exercícios placeholder gerados por loop por uma bibliotec
 5. `npm run build` — passou (Next 16.2.6, Turbopack).
 6. Nenhum arquivo de `labs/avatar-lab/`, `docs/avatar-design/`, `app/poc-3d`, GLBs ou pipeline do Kai alterado.
 
-**GOAL-10 não foi iniciado.**
+## GOAL-10 — PWA completo (2026-07-04)
+
+App agora é instalável ("Adicionar à tela inicial") em modo standalone, com ícones reais (192/512 + maskable + apple-touch-icon) e um service worker manual (sem `next-pwa`) cacheando os estáticos do build e a biblioteca de exercícios, com fallback offline para a shell.
+
+### Antes / depois
+
+- **Antes:** `app/manifest.ts` já existia com nome/cores/display corretos, mas os únicos ícones declarados eram o `icon.svg` (marca "haltere") e o `favicon.ico` — nenhum PNG 192/512/maskable, nenhum `apple-touch-icon` explícito, e nenhum service worker (app só funcionava 100% online).
+- **Depois:** 5 PNGs gerados por script (`icon-192`, `icon-512`, `maskable-192`, `maskable-512`, `apple-touch-icon`) com um monograma "G" vetorial (verde-lima sobre fundo escuro); manifest referenciando os 4 primeiros; `layout.tsx` com `<link rel="apple-touch-icon">` via `metadata.icons.apple`; `public/sw.js` registrado somente em produção, cache-first para estáticos/ícones/exercícios e network-first com fallback de shell para navegação.
+
+### Arquivos criados/alterados
+
+- `scripts/generate-icons.mjs` — **novo**: desenha o monograma G em SVG (sem fonte/arquivo externo) e rasteriza via `sharp` para os 5 PNGs em `public/icons/`. Reexecutável (`node scripts/generate-icons.mjs`).
+- `public/icons/icon-192.png`, `icon-512.png`, `maskable-192.png`, `maskable-512.png`, `apple-touch-icon.png` — **novos**.
+- `src/app/manifest.ts` — `icons` substituído pelos 4 PNGs novos (`any` 192/512 + `maskable` 192/512); demais campos (name, short_name, display, orientation, start_url, description, cores, categories) mantidos como já estavam.
+- `src/app/layout.tsx` — adicionado `metadata.icons.apple` apontando para `/icons/apple-touch-icon.png`; `metadata`/`viewport` (theme-color, appleWebApp, colorScheme) mantidos como já estavam.
+- `src/components/ServiceWorkerRegister.tsx` — **novo**: client component minúsculo, registra `/sw.js` só quando `process.env.NODE_ENV === 'production'`; montado em `layout.tsx` ao lado do `ToastProvider`.
+- `public/sw.js` — **novo**: cache `gymflow-v1`; cache-first para `/_next/static/`, `/icons/` e `/assets/exercises/`; network-first com fallback para cache e depois para a shell (`/`) em navegações; `activate` apaga qualquer cache com nome diferente de `gymflow-v1`.
+- `package.json` — `sharp` adicionado como devDependency (só usada pelo script de geração de ícones, não entra no bundle do app).
+- `docs/DECISOES.md`, `docs/GOALS_LOG.md` — este registro.
+
+### Validações executadas
+
+1. `npm run build` — passou (Next 16.2.6, Turbopack); rotas geradas incluem `○ /manifest.webmanifest`.
+2. `npm run start` + checagem HTTP real do HTML servido: exatamente um `<link rel="manifest" href="/manifest.webmanifest">`, um `<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">`, `<meta name="theme-color" content="#09090b">` e as meta tags `apple-mobile-web-app-*`; os 5 PNGs e `/sw.js` respondem HTTP 200; `/manifest.webmanifest` contém os 4 ícones novos com `sizes`/`purpose` corretos.
+3. Confirmado por grep no bundle de produção (`.next/static/chunks/`) que a chamada `navigator.serviceWorker.register('/sw.js')` está presente no client build (o guard de `NODE_ENV` é resolvido em tempo de build pelo Next, então só o build de produção a inclui).
+4. `npx tsc --noEmit` — sem erros.
+5. `npx vitest run` — 22/22 (inalterado; nenhum teste novo era esperado para infraestrutura de PWA).
+6. `grep -rn "alert(" src/` e `grep -rn "confirm(" src/` — ambos vazios.
+7. Nenhum arquivo de `labs/avatar-lab/`, `docs/avatar-design/`, `app/poc-3d`, GLBs, pipeline do Kai, backend, Supabase ou pagamento alterado; biblioteca de exercícios e motor de progressão intocados.
+
+**GOAL-11 não foi iniciado.**

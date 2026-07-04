@@ -3,6 +3,7 @@ import { Outfit } from 'next/font/google';
 import './globals.css';
 import { GymFlowProvider } from '../providers/GymFlowContext';
 import { ToastProvider } from '../components/ui/Toast';
+import { ServiceWorkerRegister } from '../components/ServiceWorkerRegister';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -17,6 +18,9 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'GymFlow AI',
+  },
+  icons: {
+    apple: '/icons/apple-touch-icon.png',
   },
 };
 
@@ -41,6 +45,7 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
       <body className="bg-gym-dark text-white font-sans min-h-full flex flex-col antialiased">
+        <ServiceWorkerRegister />
         <ToastProvider>
           <GymFlowProvider>
             {children}

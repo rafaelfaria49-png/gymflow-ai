@@ -2,6 +2,15 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-10 (2026-07-04)
+
+- `app/manifest.ts` e `metadata`/`viewport` em `layout.tsx` já existiam parcialmente (nome, short_name, display standalone, orientation, cores, appleWebApp básico) de trabalho anterior ao GOAL-10 formalizar-se — completados aditivamente (novos ícones no manifest, `metadata.icons.apple` no layout) em vez de recriados do zero, preservando os campos já corretos.
+- Novo ícone "monograma G" (verde-lima sobre fundo escuro, vetorial, sem fonte/arquivo externo) gerado exclusivamente para o set instalável do PWA (`public/icons/*`); o `public/icon.svg` (marca "haltere") existente foi mantido intacto e sem uso no manifest — não estava referenciado em nenhum lugar de `src/`, então não há regressão em removê-lo do array `icons`, e as duas marcas podem coexistir.
+- `metadata.manifest` NÃO foi adicionado em `layout.tsx`: o file convention `app/manifest.ts` já injeta `<link rel="manifest" href="/manifest.webmanifest">` automaticamente (confirmado lendo o HTML servido por `npm run start`); declarar o campo também geraria uma tag duplicada.
+- Ícones "any" (`icon-192/512.png`) mantêm transparência real fora do retângulo arredondado (mesmo padrão do `public/icon.svg`); já os "maskable" e o `apple-touch-icon.png` são opacos e full-bleed (fundo pintado até a borda, sem cantos arredondados próprios), pois a plataforma aplica sua própria máscara/arredondamento — misturar os dois estilos no mesmo arquivo causaria recorte inconsistente.
+- Service worker cobre literalmente os 3 prefixos pedidos (`/_next/static`, `/icons`, `/assets/exercises`) em cache-first + navegação em network-first; nenhuma outra rota (fontes, `/assets/avatars`, `/assets/animations`, etc.) recebe estratégia de cache própria, por não estar no escopo pedido — evita cache obsoleto de algo que o GOAL não pediu para cachear.
+- `self.skipWaiting()` + `self.clients.claim()` incluídos no service worker: coerente com o pedido explícito de cache versionado (`gymflow-v1`) e limpeza de versões antigas no `activate` — sem isso, um SW novo instalado ficaria "esperando" e a limpeza de cache só valeria depois de todas as abas fecharem.
+
 ## GOAL-01 (2026-07-03)
 
 - Hidratação: efeito único no mount do GymFlowContext carrega `gymflow:state:v1` e aplica campo a campo por cima dos defaults (arrays só se não-vazios), com flag `hydrated` bloqueando o save debounced até a carga terminar — evita que o primeiro render sobrescreva dados salvos e evita crash com estado parcial/antigo.
