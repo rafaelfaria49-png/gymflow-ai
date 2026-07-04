@@ -6,11 +6,13 @@ import { Exercise, ExerciseSlot, ProgressionType, ProgramDay, UserProfile, Volum
 import { VOLUME_PROFILES, defaultTargetMinutes } from '../lib/volumeProfiles';
 import { estimateWorkoutDuration, muscleGroupsForSlots, buildDurationWarning } from '../lib/workoutDuration';
 import { useToast } from '../components/ui/Toast';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
   ChevronLeft,
   Plus,
   Search,
   X,
+  Check,
   ArrowUp,
   ArrowDown,
   Copy,
@@ -55,7 +57,8 @@ export const WorkoutBuilder = () => {
     saveCustomProgram,
     startWorkout,
     weeklyPlan,
-    assignDayToWeekday
+    assignDayToWeekday,
+    setWorkoutsTab
   } = useGymFlow();
   const toast = useToast();
 
@@ -90,6 +93,19 @@ export const WorkoutBuilder = () => {
   const [search, setSearch] = useState('');
   const [muscleFilter, setMuscleFilter] = useState('all');
 
+  // GOAL-10.6: "Salvar e Planejar" só revela a seção de dias da semana depois de
+  // salvar — antes ficava sempre visível, o que confundia com o botão "Iniciar Agora".
+  const [weekdayPickerVisible, setWeekdayPickerVisible] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  // GOAL-10.6: evita perda silenciosa de mudanças não salvas ao cancelar/voltar —
+  // compara o estado atual com o último snapshot salvo (ou o rascunho inicial).
+  const initialSnapshotRef = useRef(JSON.stringify({ name: builderDraft?.name ?? 'Meu Treino', slots: builderDraft?.slots ?? [] }));
+  const isDirty = () => JSON.stringify({ name, slots }) !== initialSnapshotRef.current;
+  const markSaved = () => {
+    initialSnapshotRef.current = JSON.stringify({ name, slots });
+  };
+
   const derivedMuscleGroups = useMemo(() => muscleGroupsForSlots(slots, exercises), [slots, exercises]);
   const estimate = useMemo(() => estimateWorkoutDuration(slots), [slots]);
   const warning = buildDurationWarning(estimate.minutes, targetMinutes);
@@ -120,9 +136,14 @@ export const WorkoutBuilder = () => {
       incrementKg: isIsolated ? 1 : 2.5
     };
     setSlots((prev) => [...prev, newSlot]);
-    setPickerOpen(false);
+    // GOAL-10.6: modal fica aberto para adicionar vários exercícios em sequência —
+    // fechar era o principal atrito reportado para montar treinos de 7+ exercícios.
     toast.success(`"${ex.name}" adicionado ao treino.`);
   };
+
+  // GOAL-10.6: quantas vezes este exercício já está no treino — usado só para
+  // avisar claramente ("Adicionar novamente"), nunca para bloquear a duplicata.
+  const countInSlots = (exId: string) => slots.filter((s) => s.exerciseId === exId).length;
 
   const updateSlot = (idx: number, fields: Partial<ExerciseSlot>) => {
     setSlots((prev) => prev.map((s, i) => (i === idx ? { ...s, ...fields } : s)));
@@ -177,6 +198,18 @@ export const WorkoutBuilder = () => {
 
   const handleCancel = () => setActiveView(builderReturnView);
 
+  // GOAL-10.6: evita descartar em silêncio — só pergunta se há algo que ainda não
+  // foi salvo (comparado contra o último snapshot salvo/inicial).
+  const handleCancelClick = () => {
+    if (isDirty()) {
+      setShowDiscardConfirm(true);
+    } else {
+      handleCancel();
+    }
+  };
+
+  // GOAL-10.6: "Salvar" sempre volta para a aba Treinos já em "Meus Treinos" —
+  // o usuário precisa ver imediatamente que o treino foi salvo (Tarefa 3).
   const handleSaveOnly = () => {
     if (slots.length === 0) {
       toast.error('Adicione pelo menos 1 exercício antes de salvar.');
@@ -184,8 +217,10 @@ export const WorkoutBuilder = () => {
     }
     const { program } = buildProgramFromDraft();
     saveCustomProgram(program);
+    markSaved();
+    setWorkoutsTab('mine');
     toast.success(`"${program.name}" salvo em Meus Treinos.`);
-    setActiveView(builderReturnView);
+    setActiveView('workouts');
   };
 
   const handleStartNow = () => {
@@ -195,8 +230,23 @@ export const WorkoutBuilder = () => {
     }
     const { program, day } = buildProgramFromDraft();
     saveCustomProgram(program);
+    markSaved();
     // explicitDay evita depender do setState de customPrograms já ter propagado.
     startWorkout(program.id, program.name, day.id, day);
+  };
+
+  // GOAL-10.6: "Salvar e Planejar" salva imediatamente e revela a seção de dias da
+  // semana (antes ficava sempre visível, confundindo com "Iniciar Agora").
+  const handleSaveAndPlan = () => {
+    if (slots.length === 0) {
+      toast.error('Adicione pelo menos 1 exercício antes de planejar.');
+      return;
+    }
+    const { program } = buildProgramFromDraft();
+    saveCustomProgram(program);
+    markSaved();
+    toast.success(`"${program.name}" salvo — escolha um dia da semana abaixo.`);
+    setWeekdayPickerVisible(true);
   };
 
   const handlePlanToWeekday = (dayName: string) => {
@@ -206,15 +256,21 @@ export const WorkoutBuilder = () => {
     }
     const { program, day } = buildProgramFromDraft();
     saveCustomProgram(program);
+    markSaved();
     assignDayToWeekday(dayName, program, day);
-    setActiveView(builderReturnView);
+    setActiveView('planner');
+  };
+
+  const handleFinishWithoutPlanning = () => {
+    setWorkoutsTab('mine');
+    setActiveView('workouts');
   };
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6 max-w-3xl mx-auto">
       <div className="flex items-center gap-3">
         <button
-          onClick={handleCancel}
+          onClick={handleCancelClick}
           className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white tap-target"
           aria-label="Voltar"
         >
@@ -474,34 +530,40 @@ export const WorkoutBuilder = () => {
         )}
       </div>
 
-      {/* PLANEJAR NA SEMANA */}
-      {weeklyPlan.length > 0 && (
-        <div className="glass p-5 rounded-3xl border border-white/5 space-y-3">
+      {/* PLANEJAR NA SEMANA — só aparece depois de "Salvar e Planejar" (Tarefa 4) */}
+      {weekdayPickerVisible && (
+        <div className="glass p-5 rounded-3xl border border-gym-accent/20 space-y-3">
           <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-            <Calendar className="w-4 h-4 text-gym-accent" /> Planejar na semana (opcional)
+            <Calendar className="w-4 h-4 text-gym-accent" /> Treino salvo — escolha um dia da semana
           </h3>
-          <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
-            {weeklyPlan.map((d) => (
-              <button
-                key={d.dayName}
-                onClick={() => handlePlanToWeekday(d.dayName)}
-                className="min-h-[44px] bg-white/5 hover:bg-gym-accent/15 hover:text-gym-accent border border-white/10 rounded-xl text-[10px] font-bold text-white transition-all"
-              >
-                {d.dayName.slice(0, 3)}
-              </button>
-            ))}
-          </div>
+          {weeklyPlan.length > 0 ? (
+            <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
+              {weeklyPlan.map((d) => (
+                <button
+                  key={d.dayName}
+                  onClick={() => handlePlanToWeekday(d.dayName)}
+                  className="min-h-[44px] bg-white/5 hover:bg-gym-accent/15 hover:text-gym-accent border border-white/10 rounded-xl text-[10px] font-bold text-white transition-all"
+                >
+                  {d.dayName.slice(0, 3)}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gym-text-muted">
+              Gere uma semana no Planejador primeiro para poder escolher um dia — o treino já está salvo em Meus Treinos.
+            </p>
+          )}
+          <button
+            onClick={handleFinishWithoutPlanning}
+            className="text-[10px] font-bold text-gym-text-muted hover:text-white underline"
+          >
+            Concluir sem planejar
+          </button>
         </div>
       )}
 
       {/* AÇÕES FINAIS */}
-      <div className="flex flex-col sm:flex-row gap-3 pb-4">
-        <button
-          onClick={handleStartNow}
-          className="flex-1 min-h-[44px] py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-gym-accent/15"
-        >
-          <Play className="w-4 h-4" /> Iniciar Agora
-        </button>
+      <div className="flex flex-col sm:flex-row flex-wrap gap-3 pb-4">
         <button
           onClick={handleSaveOnly}
           className="flex-1 min-h-[44px] py-3 bg-white/5 hover:bg-white/10 border border-gym-accent/30 text-gym-accent font-extrabold rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2"
@@ -509,12 +571,38 @@ export const WorkoutBuilder = () => {
           <Save className="w-4 h-4" /> Salvar
         </button>
         <button
-          onClick={handleCancel}
+          onClick={handleSaveAndPlan}
+          className="flex-1 min-h-[44px] py-3 bg-white/5 hover:bg-white/10 border border-gym-accent/30 text-gym-accent font-extrabold rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+        >
+          <Calendar className="w-4 h-4" /> Salvar e Planejar
+        </button>
+        <button
+          onClick={handleStartNow}
+          className="flex-1 min-h-[44px] py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-gym-accent/15"
+        >
+          <Play className="w-4 h-4" /> Iniciar Agora
+        </button>
+        <button
+          onClick={handleCancelClick}
           className="min-h-[44px] py-3 px-6 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold rounded-xl text-xs"
         >
           Cancelar
         </button>
       </div>
+
+      <ConfirmDialog
+        isOpen={showDiscardConfirm}
+        variant="destructive"
+        title="Descartar treino sem salvar?"
+        description={`Você tem ${slots.length} exercício(s) e/ou alterações que ainda não foram salvos. Se sair agora, esse progresso será perdido.`}
+        confirmLabel="Descartar"
+        cancelLabel="Continuar editando"
+        onConfirm={() => {
+          setShowDiscardConfirm(false);
+          handleCancel();
+        }}
+        onCancel={() => setShowDiscardConfirm(false)}
+      />
 
       {/* MODAL: BIBLIOTECA DE EXERCÍCIOS */}
       {pickerOpen && (
@@ -565,22 +653,49 @@ export const WorkoutBuilder = () => {
               {filteredPickerExercises.length === 0 ? (
                 <p className="text-xs text-gym-text-muted text-center py-8">Nenhum exercício encontrado.</p>
               ) : (
-                filteredPickerExercises.map((ex) => (
-                  <button
-                    key={ex.id}
-                    onClick={() => handleAddExercise(ex)}
-                    className="w-full text-left bg-white/5 hover:bg-gym-accent/10 border border-white/5 hover:border-gym-accent/30 rounded-xl p-3 flex items-center justify-between transition-all min-h-[44px]"
-                  >
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-bold text-white truncate">{ex.name}</h4>
-                      <p className="text-[10px] text-gym-text-muted capitalize mt-0.5">
-                        {ex.muscleGroup} • {ex.equipment}
-                      </p>
-                    </div>
-                    <Plus className="w-4 h-4 text-gym-accent flex-shrink-0 ml-2" />
-                  </button>
-                ))
+                filteredPickerExercises.map((ex) => {
+                  const countInWorkout = countInSlots(ex.id);
+                  return (
+                    <button
+                      key={ex.id}
+                      onClick={() => handleAddExercise(ex)}
+                      className={`w-full text-left border rounded-xl p-3 flex items-center justify-between transition-all min-h-[44px] ${
+                        countInWorkout > 0
+                          ? 'bg-gym-accent/5 border-gym-accent/20 hover:border-gym-accent/40'
+                          : 'bg-white/5 border-white/5 hover:bg-gym-accent/10 hover:border-gym-accent/30'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-xs font-bold text-white truncate">{ex.name}</h4>
+                          {countInWorkout > 0 && (
+                            <span className="flex-shrink-0 text-[8px] font-black uppercase bg-gym-accent/15 text-gym-accent px-1.5 py-0.5 rounded-full">
+                              No treino ×{countInWorkout}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gym-text-muted capitalize mt-0.5">
+                          {ex.muscleGroup} • {ex.equipment}
+                        </p>
+                      </div>
+                      <span className="flex-shrink-0 ml-2 flex items-center gap-1.5">
+                        {countInWorkout > 0 && (
+                          <span className="text-[9px] text-gym-accent font-bold whitespace-nowrap hidden sm:inline">Adicionar novamente</span>
+                        )}
+                        <Plus className="w-4 h-4 text-gym-accent" />
+                      </span>
+                    </button>
+                  );
+                })
               )}
+            </div>
+            <div className="p-3 border-t border-white/5 flex-shrink-0">
+              <button
+                onClick={() => setPickerOpen(false)}
+                className="w-full min-h-[44px] bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+              >
+                <Check className="w-4 h-4" /> Concluir ({slots.length} {slots.length === 1 ? 'exercício' : 'exercícios'})
+              </button>
             </div>
           </div>
         </div>

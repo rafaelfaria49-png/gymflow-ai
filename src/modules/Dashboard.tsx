@@ -18,11 +18,23 @@ import {
   RotateCcw,
   Utensils,
   Pencil,
-  Wrench
+  Wrench,
+  ListChecks
 } from 'lucide-react';
 
 export const Dashboard = () => {
-  const { user, startWorkout, setActiveView, programs, nutrition, challenges, weeklyPlan, todayPlan, openWorkoutBuilder } = useGymFlow();
+  const {
+    user,
+    startWorkout,
+    setActiveView,
+    programs,
+    nutrition,
+    challenges,
+    weeklyPlan,
+    todayPlan,
+    openWorkoutBuilder,
+    openProgramChooserForDay
+  } = useGymFlow();
 
   if (!user) return null;
 
@@ -32,6 +44,10 @@ export const Dashboard = () => {
   const hasPlan = weeklyPlan.length > 0;
   const isRestToday = todayPlan?.isRest ?? false;
   const hasRealWorkoutToday = !!todayPlan && !todayPlan.isRest && todayPlan.exerciseCount > 0;
+  // GOAL-10.6: cobre tanto "hoje é descanso" quanto "hoje é treino mas sem exercícios
+  // definidos" — em ambos os casos o usuário precisa de um caminho claro, nunca de
+  // um treino inventado automaticamente.
+  const needsWorkoutChoice = hasPlan && !hasRealWorkoutToday;
 
   const handleStartTodayWorkout = () => {
     if (!todayPlan) return;
@@ -40,6 +56,11 @@ export const Dashboard = () => {
 
   const handleBuildFromScratch = () => {
     openWorkoutBuilder(undefined, 'dashboard');
+  };
+
+  const handleChooseForToday = () => {
+    if (!todayPlan) return;
+    openProgramChooserForDay(todayPlan.dayName);
   };
 
   const handleEditTodayWorkout = () => {
@@ -99,7 +120,7 @@ export const Dashboard = () => {
         <div className="lg:col-span-2 space-y-6">
           <div className="glass border border-gym-accent/20 rounded-3xl p-6 relative overflow-hidden">
             <div className="absolute top-0 right-0 bg-gym-accent text-gym-dark text-[9px] font-black uppercase px-3 py-1 rounded-bl-2xl">
-              {hasRealWorkoutToday ? 'Treino do Dia' : isRestToday ? 'Descanso' : 'Planejador'}
+              {hasRealWorkoutToday ? 'Treino do Dia' : isRestToday ? 'Descanso' : hasPlan ? 'Sem Treino' : 'Planejador'}
             </div>
 
             <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block mb-2">Treino do Dia</span>
@@ -117,7 +138,7 @@ export const Dashboard = () => {
               <>
                 <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">Hoje é dia de descanso</h2>
                 <p className="text-xs text-gym-text-muted mt-1 leading-relaxed max-w-lg">
-                  Aproveite para recuperar. Se preferir treinar mesmo assim, monte um treino rápido abaixo.
+                  Hoje está como descanso no seu planejamento. Se preferir treinar mesmo assim, escolha um treino existente ou monte um agora — nunca vamos inventar um treino sozinhos.
                 </p>
               </>
             )}
@@ -127,7 +148,7 @@ export const Dashboard = () => {
                 <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">{todayPlan.workoutName}</h2>
                 {!hasRealWorkoutToday && (
                   <p className="text-xs text-gym-text-muted mt-1 leading-relaxed max-w-lg">
-                    Este dia ainda não tem exercícios definidos. Monte o treino para poder começar.
+                    Este dia ainda não tem um treino definido no seu planejamento. Escolha um treino existente ou monte um agora.
                   </p>
                 )}
 
@@ -151,8 +172,10 @@ export const Dashboard = () => {
               </>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-3 mt-8">
-              {hasRealWorkoutToday ? (
+            <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-8">
+              {/* GOAL-10.6: 3 blocos mutuamente exclusivos — o usuário nunca fica sem
+                  um caminho claro para treinar hoje, e nunca inventamos um treino. */}
+              {hasRealWorkoutToday && (
                 <button
                   onClick={handleStartTodayWorkout}
                   className="flex-1 py-4 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-2xl transition-all shadow-lg shadow-gym-accent/15 flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
@@ -160,7 +183,19 @@ export const Dashboard = () => {
                   Começar Treino
                   <ChevronRight className="w-4 h-4 text-gym-dark" />
                 </button>
-              ) : (
+              )}
+
+              {needsWorkoutChoice && (
+                <button
+                  onClick={handleChooseForToday}
+                  className="flex-1 py-4 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-2xl transition-all shadow-lg shadow-gym-accent/15 flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
+                >
+                  <ListChecks className="w-4 h-4 text-gym-dark" />
+                  Escolher Treino para Hoje
+                </button>
+              )}
+
+              {!hasPlan && (
                 <button
                   onClick={handleBuildFromScratch}
                   className="flex-1 py-4 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-2xl transition-all shadow-lg shadow-gym-accent/15 flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
@@ -189,7 +224,26 @@ export const Dashboard = () => {
                 </>
               )}
 
-              {!hasRealWorkoutToday && hasPlan && (
+              {needsWorkoutChoice && (
+                <>
+                  <button
+                    onClick={handleBuildFromScratch}
+                    className="py-4 px-6 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
+                  >
+                    <Wrench className="w-4 h-4 text-gym-accent" />
+                    Montar Treino
+                  </button>
+                  <button
+                    onClick={() => setActiveView('planner')}
+                    className="py-4 px-6 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
+                  >
+                    <Calendar className="w-4 h-4 text-gym-accent" />
+                    Ver Planejador
+                  </button>
+                </>
+              )}
+
+              {!hasPlan && (
                 <button
                   onClick={() => setActiveView('planner')}
                   className="py-4 px-6 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"

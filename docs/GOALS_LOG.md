@@ -453,4 +453,45 @@ O Planejador já fazia certo (usava `weeklyPlan[].programDayId`); só o Dashboar
 8. Não foi possível testar a UI interativa num navegador real (sem ferramenta de browser headless neste ambiente) — validação da lógica de UI feita por revisão de código linha a linha, alinhando cada tela ao mesmo `ProgramDay`/`todayPlan` usado por `startWorkout`.
 9. Nenhum arquivo de `labs/avatar-lab/`, `docs/avatar-design/`, `app/poc-3d`, GLBs, pipeline do Kai, backend, Supabase, Prisma, pagamento real, service worker ou PWA foi alterado.
 
+## GOAL-10.6 — QA UX do Construtor de Treino (2026-07-04)
+
+### Resumo
+
+Ajustes de usabilidade a partir dos atritos encontrados na revisão de código do GOAL-10.5 (teste manual em navegador ainda não foi possível neste ambiente — sem ferramenta headless): Dashboard sempre oferece um caminho claro para treinar mesmo em dia de descanso; modal de adicionar exercício no Construtor não fecha mais a cada clique; salvar um treino leva direto para "Meus Treinos" com o item recém-criado destacado; e as ações finais do Construtor ficaram em 3 botões claros (Salvar / Salvar e Planejar / Iniciar Agora), com aviso antes de descartar mudanças não salvas.
+
+### Antes / depois
+
+- **Antes:** em dia de descanso (ou dia sem treino definido) o Dashboard só oferecia "Montar Treino" e "Ver Planejador" — nenhum caminho para reaproveitar um treino já existente. O modal de adicionar exercício fechava a cada exercício adicionado. Salvar um treino custom voltava para a aba Treinos na sub-aba "Programas Sugeridos" (o treino salvo ficava escondido em "Meus Treinos", no fim da lista). O Construtor tinha só "Iniciar Agora"/"Salvar", e a seção de planejar a semana ficava sempre visível mesmo sem ter sido pedida.
+- **Depois:** Dashboard sem treino real hoje oferece "Escolher Treino para Hoje" (reaproveita o seletor do Planejador), "Montar Treino" e "Ver Planejador" — nunca inventa um treino sozinho. O modal de exercícios permanece aberto entre adições, com toast de confirmação e um botão "Concluir" explícito; exercícios já adicionados mostram "No treino ×N" e "Adicionar novamente" em vez de duplicar silenciosamente. "Salvar" sempre leva para Treinos → Meus Treinos com o item recém-criado destacado (anel verde-lima) e listado primeiro. "Salvar e Planejar" salva e só então revela a escolha de dia da semana; "Cancelar"/voltar avisa via `ConfirmDialog` (não `confirm()` nativo) se há mudanças não salvas.
+
+### Arquivos alterados
+
+- `src/providers/GymFlowContext.tsx` — novo estado compartilhado: `workoutsTab` (aba Programas Sugeridos/Meus Treinos, antes local do `WorkoutsTab`), `chooserDayName` + `openProgramChooserForDay` (o mesmo seletor "Escolher treino" do Planejador, agora acionável também pelo Dashboard), `lastSavedProgramId` (setado dentro de `saveCustomProgram`).
+- `src/modules/Dashboard.tsx` — botão "Escolher Treino para Hoje" quando não há treino real hoje (descanso ou dia vazio); textos honestos ("Hoje está como descanso no seu planejamento...").
+- `src/modules/PlannerView.tsx` — "Escolher treino" migrado para o estado compartilhado (`chooserDayName`) em vez de estado local, sem mudar o comportamento existente.
+- `src/modules/WorkoutBuilder.tsx` — modal de exercícios não fecha mais ao adicionar; badge de duplicata; botão "Concluir" no rodapé do modal; ações finais reorganizadas em "Salvar" / "Salvar e Planejar" / "Iniciar Agora"; seção de dias da semana só aparece após "Salvar e Planejar"; `ConfirmDialog` ao cancelar com mudanças não salvas (comparação via snapshot, sem `confirm()` nativo).
+- `src/modules/WorkoutsTab.tsx` — aba (`workoutsTab`) migrada para o contexto; "Meus Treinos" ordena o treino recém-salvo primeiro e o destaca com badge "Recém-criado" + anel visual.
+- `docs/DECISOES.md`, `docs/GOALS_LOG.md` — este registro.
+
+### Checklist de QA manual (curto)
+
+- [ ] Criar treino com 7 exercícios (4 peito + 3 tríceps).
+- [ ] Adicionar vários exercícios em sequência sem o modal fechar sozinho.
+- [ ] Salvar — cai direto em Treinos → Meus Treinos, com o treino destacado.
+- [ ] Confirmar que o treino aparece em "Meus Treinos".
+- [ ] Planejar esse treino em segunda-feira (via "Salvar e Planejar" ou Planejador → Escolher).
+- [ ] Iniciar o treino salvo.
+- [ ] Confirmar que o Treino Ativo abre exatamente os 7 exercícios.
+- [ ] No Dashboard, em dia de descanso, confirmar que "Escolher Treino para Hoje" e "Montar Treino" aparecem (nunca um treino inventado).
+
+### Validações executadas
+
+1. `grep -rn "alert(" src/` e `grep -rn "confirm(" src/` — ambos vazios (o aviso de descarte usa `ConfirmDialog`, não `confirm()` nativo).
+2. `npx vitest run` — 22/22 (inalterado).
+3. `npx tsc --noEmit` — sem erros.
+4. `npm run build` — passou (Next 16.2.6, Turbopack).
+5. `git status` conferido: nenhum arquivo de `labs/avatar-lab/`, `docs/avatar-design/`, `app/poc-3d`, GLBs, pipeline do Kai, backend, Supabase, Prisma, pagamento real, service worker ou PWA tocado.
+6. Sem regressão na persistência (`customPrograms`/`weeklyPlan` continuam no mesmo envelope do GOAL-01), no timer de descanso, no motor de progressão (GOAL-08) nem no PWA (GOAL-10) — nenhum desses arquivos foi alterado neste GOAL.
+7. Novamente não foi possível clicar na UI num navegador real neste ambiente (sem ferramenta headless) — validação por revisão de código, `tsc` e `build`.
+
 **GOAL-11 não foi iniciado.**

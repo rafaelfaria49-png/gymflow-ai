@@ -7,16 +7,32 @@ import { Play, Calendar, Target, Clock, Dumbbell, Award, ChevronRight, X, Sparkl
 import { estimateWorkoutDuration } from '../lib/workoutDuration';
 
 export const WorkoutsTab = () => {
-  const { programs, exercises, startWorkout, applyProgramToWeek, user, openWorkoutBuilder } = useGymFlow();
+  const {
+    programs,
+    exercises,
+    startWorkout,
+    applyProgramToWeek,
+    user,
+    openWorkoutBuilder,
+    workoutsTab,
+    setWorkoutsTab,
+    lastSavedProgramId
+  } = useGymFlow();
   const [selectedLevel, setSelectedLevel] = useState<'beginner' | 'intermediate' | 'advanced' | 'athlete'>(
     user?.level || 'intermediate'
   );
-  const [libraryTab, setLibraryTab] = useState<'suggested' | 'mine'>('suggested');
   const [selectedProgram, setSelectedProgram] = useState<WorkoutProgram | null>(null);
 
   const suggestedPrograms = programs.filter((p) => !p.isCustom);
-  const myPrograms = programs.filter((p) => p.isCustom);
-  const filteredPrograms = libraryTab === 'suggested' ? suggestedPrograms.filter((p) => p.level === selectedLevel) : myPrograms;
+  // GOAL-10.6: o treino recém-salvo aparece primeiro em "Meus Treinos" (Tarefa 3).
+  const myPrograms = programs
+    .filter((p) => p.isCustom)
+    .sort((a, b) => {
+      if (a.id === lastSavedProgramId) return -1;
+      if (b.id === lastSavedProgramId) return 1;
+      return 0;
+    });
+  const filteredPrograms = workoutsTab === 'suggested' ? suggestedPrograms.filter((p) => p.level === selectedLevel) : myPrograms;
 
   const handleStartProgram = (p: WorkoutProgram) => {
     // Sem customName: o nome vem do Day real (ex.: "ABC Hipertrofia — Dia A — Peito Foco")
@@ -85,9 +101,9 @@ export const WorkoutsTab = () => {
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setLibraryTab(tab.id as 'suggested' | 'mine')}
+            onClick={() => setWorkoutsTab(tab.id as 'suggested' | 'mine')}
             className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all ${
-              libraryTab === tab.id ? 'bg-white/10 text-white shadow' : 'text-gym-text-muted hover:text-white'
+              workoutsTab === tab.id ? 'bg-white/10 text-white shadow' : 'text-gym-text-muted hover:text-white'
             }`}
           >
             {tab.label}
@@ -96,7 +112,7 @@ export const WorkoutsTab = () => {
       </div>
 
       {/* TABS DE NÍVEIS — só faz sentido para a biblioteca sugerida */}
-      {libraryTab === 'suggested' && (
+      {workoutsTab === 'suggested' && (
         <div className="flex bg-gym-card p-1 rounded-2xl border border-white/5 overflow-x-auto whitespace-nowrap">
           {[
             { id: 'beginner', label: '🟢 Iniciante' },
@@ -120,7 +136,7 @@ export const WorkoutsTab = () => {
       )}
 
       {/* PROGRAMAS LIST */}
-      {libraryTab === 'mine' && filteredPrograms.length === 0 ? (
+      {workoutsTab === 'mine' && filteredPrograms.length === 0 ? (
         <div className="glass p-12 text-center rounded-3xl border border-white/5 space-y-3 flex flex-col items-center">
           <Wrench className="w-12 h-12 text-gym-text-muted opacity-40" />
           <h3 className="text-base font-bold text-white">Nenhum treino seu ainda</h3>
@@ -130,16 +146,20 @@ export const WorkoutsTab = () => {
         </div>
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredPrograms.map((prog) => (
+        {filteredPrograms.map((prog) => {
+          const isRecentlySaved = prog.isCustom && prog.id === lastSavedProgramId;
+          return (
           <div
             key={prog.id}
-            className="glass hover:border-gym-accent/20 rounded-3xl p-5 flex flex-col justify-between transition-all duration-300 relative group"
+            className={`glass hover:border-gym-accent/20 rounded-3xl p-5 flex flex-col justify-between transition-all duration-300 relative group ${
+              isRecentlySaved ? 'ring-2 ring-gym-accent shadow-lg shadow-gym-accent/20' : ''
+            }`}
           >
             <div>
               <div className="flex justify-between items-start mb-3">
                 {prog.isCustom ? (
                   <span className="text-[10px] font-black uppercase bg-gym-accent/15 border border-gym-accent/20 text-gym-accent px-2.5 py-1 rounded-full">
-                    Meu treino
+                    {isRecentlySaved ? 'Recém-criado' : 'Meu treino'}
                   </span>
                 ) : (
                   <span className="text-[10px] font-black uppercase bg-white/5 border border-white/10 text-gym-text-muted px-2.5 py-1 rounded-full">
@@ -178,7 +198,8 @@ export const WorkoutsTab = () => {
               </button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       )}
 

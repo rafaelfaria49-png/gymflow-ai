@@ -113,9 +113,18 @@ interface GymFlowContextType {
 
   // Construtor de Treino manual (GOAL-10.5)
   saveCustomProgram: (program: WorkoutProgram) => void;
+  lastSavedProgramId: string | null;
   builderDraft: WorkoutBuilderDraft | null;
   builderReturnView: AppView;
   openWorkoutBuilder: (draft?: WorkoutBuilderDraft, returnView?: AppView) => void;
+
+  // GOAL-10.6: aba ativa de Treinos (Programas Sugeridos x Meus Treinos) e "Escolher
+  // treino" — movidos para o contexto para que o Dashboard também consiga acioná-los.
+  workoutsTab: 'suggested' | 'mine';
+  setWorkoutsTab: React.Dispatch<React.SetStateAction<'suggested' | 'mine'>>;
+  chooserDayName: string | null;
+  setChooserDayName: React.Dispatch<React.SetStateAction<string | null>>;
+  openProgramChooserForDay: (dayName: string) => void;
 
   // Active Workout
   activeWorkout: WorkoutSession | null;
@@ -329,6 +338,15 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // WorkoutProgram em customPrograms via saveCustomProgram).
   const [builderDraft, setBuilderDraft] = useState<WorkoutBuilderDraft | null>(null);
   const [builderReturnView, setBuilderReturnView] = useState<AppView>('planner');
+  // GOAL-10.5: id do último customProgram salvo — usado pela aba Treinos para
+  // destacar/posicionar o treino recém-criado em "Meus Treinos" (GOAL-10.6).
+  const [lastSavedProgramId, setLastSavedProgramId] = useState<string | null>(null);
+
+  // GOAL-10.6: aba de Treinos e "Escolher treino" viraram estado do contexto (antes
+  // eram locais de WorkoutsTab/PlannerView) para o Dashboard poder acionar o mesmo
+  // fluxo existente ("Escolher treino para hoje") sem duplicar a lógica do seletor.
+  const [workoutsTab, setWorkoutsTab] = useState<'suggested' | 'mine'>('suggested');
+  const [chooserDayName, setChooserDayName] = useState<string | null>(null);
 
   // GOAL-10.5: treino de hoje resolvido a partir do weeklyPlan real — fonte única
   // de verdade do card "Treino do Dia" no Dashboard (nunca mais um lookup paralelo).
@@ -1186,12 +1204,21 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       updated[idx] = program;
       return updated;
     });
+    // GOAL-10.6: guarda qual foi o último salvo para "Meus Treinos" destacar/posicionar.
+    setLastSavedProgramId(program.id);
   };
 
   const openWorkoutBuilder = (draft?: WorkoutBuilderDraft, returnView: AppView = 'planner') => {
     setBuilderDraft(draft ?? null);
     setBuilderReturnView(returnView);
     setActiveView('workout-builder');
+  };
+
+  // GOAL-10.6: "Escolher treino para hoje" (Dashboard) reaproveita o mesmo seletor
+  // já usado no Planejador — só navega para lá e diz qual dia deve abrir o modal.
+  const openProgramChooserForDay = (dayName: string) => {
+    setChooserDayName(dayName);
+    setActiveView('planner');
   };
 
   const replanMissedWorkout = () => {
@@ -1656,9 +1683,16 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         deleteExercise,
 
         saveCustomProgram,
+        lastSavedProgramId,
         builderDraft,
         builderReturnView,
         openWorkoutBuilder,
+
+        workoutsTab,
+        setWorkoutsTab,
+        chooserDayName,
+        setChooserDayName,
+        openProgramChooserForDay,
 
         activeWorkout,
         startWorkout,

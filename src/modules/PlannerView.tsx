@@ -16,7 +16,9 @@ export const PlannerView = () => {
     updateUserProfile,
     programs,
     openWorkoutBuilder,
-    assignDayToWeekday
+    assignDayToWeekday,
+    chooserDayName,
+    setChooserDayName
   } = useGymFlow();
 
   const [goal, setGoal] = useState<'hypertrophy' | 'slimming' | 'strength' | 'conditioning' | 'athlete'>(
@@ -34,10 +36,6 @@ export const PlannerView = () => {
   // Swapping and duplicating states
   const [movingFromDay, setMovingFromDay] = useState<string | null>(null);
   const [duplicatingFromDay, setDuplicatingFromDay] = useState<string | null>(null);
-
-  // GOAL-10.5: "Escolher treino" — dia da semana aguardando escolha de um Day real
-  // (sugerido ou custom) para ser atribuído via assignDayToWeekday.
-  const [choosingForDay, setChoosingForDay] = useState<string | null>(null);
 
   const handleGenerate = () => {
     generateWeeklyPlan(goal, level, gender, frequency, duration);
@@ -92,9 +90,9 @@ export const PlannerView = () => {
   };
 
   const handleChooseProgramDay = (program: WorkoutProgram, day: ProgramDay) => {
-    if (!choosingForDay) return;
-    assignDayToWeekday(choosingForDay, program, day);
-    setChoosingForDay(null);
+    if (!chooserDayName) return;
+    assignDayToWeekday(chooserDayName, program, day);
+    setChooserDayName(null);
   };
 
   const handleStartMove = (dayName: string) => {
@@ -427,7 +425,7 @@ export const PlannerView = () => {
                             <>
                               {/* Escolher um treino real (sugerido ou custom) para este dia */}
                               <button
-                                onClick={() => setChoosingForDay(day.dayName)}
+                                onClick={() => setChooserDayName(day.dayName)}
                                 className="text-[9px] font-bold px-2.5 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-white flex items-center gap-1"
                                 title="Escolher treino"
                               >
@@ -482,10 +480,10 @@ export const PlannerView = () => {
 
       {/* ESCOLHER TREINO MODAL — lista os Days reais (sugeridos + Meus Treinos) para
           atribuir a este dia via assignDayToWeekday; nunca fabrica exerciseCount. */}
-      {choosingForDay && (
+      {chooserDayName && (
         <div
           className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setChoosingForDay(null)}
+          onClick={() => setChooserDayName(null)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -493,10 +491,10 @@ export const PlannerView = () => {
           >
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-gym-accent uppercase tracking-wider">
-                Escolher treino para {choosingForDay}
+                Escolher treino para {chooserDayName}
               </h3>
               <button
-                onClick={() => setChoosingForDay(null)}
+                onClick={() => setChooserDayName(null)}
                 className="p-2 text-gym-text-muted hover:text-white bg-white/5 rounded-lg tap-target"
                 aria-label="Fechar"
               >

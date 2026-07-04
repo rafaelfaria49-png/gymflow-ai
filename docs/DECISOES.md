@@ -2,6 +2,14 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-10.6 (2026-07-04)
+
+- **"Salvar" sempre navega para `workouts` (aba Treinos), ignorando `builderReturnView`:** a Tarefa 3 pede explicitamente que salvar mostre "Meus Treinos" imediatamente, então esse botão específico tem destino fixo — diferente de "Cancelar" (que respeita de onde o usuário veio, via `builderReturnView`, pois nada foi necessariamente concluído).
+- **Clicar num dia da semana (após "Salvar e Planejar") navega para `planner`, não para `builderReturnView`:** o resultado da ação é visível no Planejador (o dia escolhido agora mostra o treino), então é lá que faz sentido aterrissar — mesmo padrão já usado por `openProgramChooserForDay` (Dashboard → Planejador).
+- **`workoutsTab` e `chooserDayName` viraram estado do `GymFlowContext`** (antes locais de `WorkoutsTab`/`PlannerView`) para o Dashboard conseguir acionar "Escolher treino para hoje" reaproveitando o mesmo seletor já existente no Planejador, sem duplicar a modal/lógica de escolha em dois lugares.
+- **Detecção de "mudança não salva" no Construtor é um snapshot JSON simples** (`nome` + `slots` no momento do último save/abertura), comparado a cada clique em Cancelar — suficiente para o tamanho do estado (poucos exercícios) sem precisar de uma biblioteca de diff ou de rastrear cada campo individualmente.
+- **"Concluir sem planejar" foi adicionado à seção revelada por "Salvar e Planejar"** para o usuário poder sair dali sem escolher um dia (o treino já está salvo nesse ponto) — evita prender o usuário numa tela que só oferece "escolha um dia" depois que ele já mudou de ideia.
+
 ## GOAL-10.5 (2026-07-04)
 
 - **Causa raiz do bug "5 exercícios no card → 3 no treino ativo":** eram DUAS divergências independentes da mesma fonte de verdade (`ProgramDay.slots`), não uma. (1) `Dashboard.tsx` calculava `totalExercises = suggestedProgram.exercises.length` a partir da lista achatada legada (`WorkoutProgram.exercises`, comentada no próprio `types/index.ts` como "mantida para compatibilidade de exibição") — para `prog_int_1` essa lista tem 5 itens, mas nenhum `ProgramDay` real precisa ter esse mesmo tamanho. (2) O botão "Começar Treino" chamava `startWorkout(suggestedProgram.id, suggestedProgram.name)` **sem `programDayId`**; `GymFlowContext.startWorkout` então caía no fallback `allDays[0]` (o primeiro Day do programa) — para `prog_int_1` isso é "Dia A — Peito Foco", com apenas 3 slots (Supino Reto, Supino Inclinado, Tríceps Testa), batendo exatamente com o sintoma relatado. O Planejador (`PlannerView`) já fazia o certo (usa `weeklyPlan[].programDayId` construído por `buildWeekFromProgram` a partir de `progDay.slots.length`); o Dashboard era a única tela com uma leitura paralela e desalinhada.
