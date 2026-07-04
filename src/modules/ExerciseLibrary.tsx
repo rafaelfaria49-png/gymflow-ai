@@ -5,6 +5,7 @@ import { useGymFlow } from '../providers/GymFlowContext';
 import { Exercise } from '../types';
 import { Search, X, Play, ShieldAlert, Heart, Check, Sparkles, ChevronRight, Zap, Award, Flame, Clock } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
+import { ExerciseMedia } from '../components/ExerciseMedia';
 
 export const ExerciseLibrary = () => {
   const {
@@ -257,8 +258,8 @@ export const ExerciseLibrary = () => {
                 </button>
 
                 <div>
-                  <div className="aspect-video w-full bg-gym-dark/50 border border-white/10 rounded-2xl mb-3 flex items-center justify-center text-xl font-bold group-hover:border-gym-accent/20 transition-all select-none">
-                    {ex.thumbnail}
+                  <div className="aspect-video w-full bg-gym-dark/50 border border-white/10 rounded-2xl mb-3 overflow-hidden group-hover:border-gym-accent/20 transition-all select-none">
+                    <ExerciseMedia images={ex.images} name={ex.name} emoji={ex.thumbnail.split(' ')[0]} compact />
                   </div>
                   <h3 className="text-xs font-bold text-white tracking-tight group-hover:text-gym-accent transition-all line-clamp-1">
                     {ex.name}
@@ -331,17 +332,20 @@ export const ExerciseLibrary = () => {
               {/* ESQUERDA: Video Player cover and muscles details */}
               <div className="space-y-4">
                 <div className="relative aspect-video w-full bg-black rounded-2xl overflow-hidden border border-white/15 shadow-inner group">
-                  <div className="w-full h-full flex flex-col items-center justify-center relative select-none bg-gradient-to-br from-gym-card to-zinc-950">
-                    <span className="text-4xl">{selectedExercise.thumbnail}</span>
-                    <span className="text-[10px] text-gym-text-muted font-mono mt-2 uppercase">Demonstração 3D em produção</span>
-                    <button
-                      onClick={() => handleOpenVideo(selectedExercise.id)}
-                      className="absolute inset-0 bg-black/40 hover:bg-black/50 flex items-center justify-center text-white transition-all"
-                      title="Abrir guia técnico"
-                    >
-                      <Play className="w-12 h-12 text-gym-accent fill-gym-accent group-hover:scale-110 transition-all drop-shadow-[0_0_10px_rgba(163,230,53,0.4)]" />
-                    </button>
-                  </div>
+                  <ExerciseMedia
+                    images={selectedExercise.images}
+                    name={selectedExercise.name}
+                    emoji={selectedExercise.thumbnail.split(' ')[0]}
+                    crossfade
+                    showBadge
+                  />
+                  <button
+                    onClick={() => handleOpenVideo(selectedExercise.id)}
+                    className="absolute inset-0 bg-black/20 hover:bg-black/40 flex items-center justify-center text-white transition-all"
+                    title="Abrir guia técnico"
+                  >
+                    <Play className="w-12 h-12 text-gym-accent fill-gym-accent group-hover:scale-110 transition-all drop-shadow-[0_0_10px_rgba(163,230,53,0.4)]" />
+                  </button>
                 </div>
 
                 <div className="bg-white/5 border border-white/5 p-4 rounded-2xl space-y-2">

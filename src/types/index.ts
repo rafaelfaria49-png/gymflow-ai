@@ -83,6 +83,7 @@ export interface Exercise {
   safetyWarnings: string[];
   type?: 'warmup' | 'main' | 'accessory' | 'finisher' | 'stretch';
   restSec?: number; // Descanso sugerido (segundos) entre séries deste exercício (GOAL-06)
+  images?: string[]; // GOAL-09: caminhos locais (/assets/exercises/<id>/N.jpg); vazio p/ exercícios criados no Admin
 }
 
 export interface WorkoutSet {

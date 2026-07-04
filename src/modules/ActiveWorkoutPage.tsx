@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
-import { AvatarDemoPlaceholder } from '../components/AvatarDemoPlaceholder';
+import { ExerciseMedia } from '../components/ExerciseMedia';
 import { Play, Pause, Square, Check, RefreshCw, HelpCircle, Save, Sparkles, Smile, MessageCircle, Clock, Share2, Award, Zap, ChevronRight, Flag } from 'lucide-react';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
@@ -370,13 +370,17 @@ export const ActiveWorkoutPage = () => {
               </div>
             </div>
 
-            {/* DEMONSTRAÇÃO DO EXERCÍCIO — placeholder honesto (avatar Kai em produção) */}
+            {/* DEMONSTRAÇÃO DO EXERCÍCIO — fotos reais (GOAL-09) com crossfade; fallback honesto
+                (avatar Kai/Motion Engine seguem em produção — selo "Demonstração 3D em breve"). */}
             {/* Layout em coluna: mídia em cima, botão "Ver Técnica" embaixo, sem overlap (GOAL-04). */}
             <div className="w-full rounded-2xl overflow-hidden border border-white/5 flex flex-col">
-              <div className="aspect-[21/9] w-full">
-                <AvatarDemoPlaceholder
+              <div className="aspect-[21/9] w-full relative">
+                <ExerciseMedia
+                  images={exercises.find((e) => e.id === ex.exerciseId)?.images}
+                  name={ex.name}
+                  crossfade
+                  showBadge
                   compact
-                  title="Demonstração 3D em produção"
                 />
               </div>
               <button

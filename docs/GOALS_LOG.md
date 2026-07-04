@@ -331,3 +331,46 @@ Motor determinístico de progressão de carga/reps (`src/lib/progression.ts`, fu
 1. Concluir um treino de programa registrando cargas (ex.: supino 40 kg × 10 reps em todas as séries, RPE ≤ 8).
 2. Iniciar o mesmo Day de novo → ANT mostra 40 kg, SUG mostra 42.5 kg e as séries vêm pré-preenchidas com 42.5 kg × 8 reps, com o motivo no cabeçalho.
 3. Exercício nunca treinado → ANT e SUG mostram "—".
+
+---
+
+## GOAL-09 — Biblioteca real de exercícios (2026-07-03)
+
+Substituição dos 68 exercícios placeholder gerados por loop por uma biblioteca real de 125 exercícios curados do dataset público free-exercise-db, com instruções PT-BR de qualidade personal, 250 imagens locais e compatibilidade total com os programas.
+
+### Antes / depois
+
+- **Antes:** 29 exercícios reais + loop `for` gerando 68 placeholders "Exercício Extra CHEST #12 (Polia)" com instruções genéricas e substitutos `extra_*` fictícios; nenhuma imagem.
+- **Depois:** 125 exercícios reais (97 a mais que os 28 "reais + placeholders" úteis), todos com 4-6 passos de execução, postura, respiração, erros comuns + correções, variações, substitutos válidos e alertas de segurança; 2 fotos locais por exercício exibidas na biblioteca, no modal de técnica e no treino ativo.
+
+### Números
+
+- Exercícios: 29 reais (+68 placeholders) → **125 reais** (placeholders: **0**).
+- Imagens locais baixadas: **250** (125 × 2) em `public/assets/exercises/<id>/{0,1}.jpg`.
+- Grupos cobertos: chest 15, back 17, shoulders 12, biceps 11, triceps 10, legs 23, glutes 6, calves 5, abs 10, cardio 7, functional 4, mobility 5.
+
+### Arquivos criados/alterados
+
+- `scripts/import-exercises.mjs` — **novo**: importador reexecutável (dataset + fallback de URL, download atômico de imagens, modo `--check`); aborta com erro claro sem corromper arquivos se a rede falhar.
+- `public/assets/exercises/**` — **novo**: 250 imagens locais.
+- `src/mock/exercises.ts` — regenerado: `BASE_EXERCISES` (29 originais preservados, IDs intactos) + `EXPANSION_EXERCISES` (96 novos autorados em PT-BR); loop gerador removido; `withLocalImages` injeta `images` locais.
+- `src/types/index.ts` — `Exercise.images?: string[]`.
+- `src/components/ExerciseMedia.tsx` — **novo**: fotos com crossfade (3s), selo "Demonstração 3D em breve", fallback honesto no `AvatarDemoPlaceholder`.
+- `src/modules/ExerciseLibrary.tsx` — card com foto real (fallback honesto) e modal de técnica com crossfade + selo, mantendo checklist/erros/correções/dica.
+- `src/modules/ActiveWorkoutPage.tsx` — box "Demonstração 3D em produção" agora mostra as fotos do exercício com crossfade + selo; sem fingir avatar final.
+- `src/mock/exercises.test.ts` — **novo**: cross-check automatizado (≥120 exercícios, IDs únicos, campos obrigatórios, imagem local existente em disco, substitutions e slots de programas apontando para IDs existentes, zero placeholders).
+
+### Compatibilidade com programas
+
+- Todos os 20 `exerciseId` usados por `MOCK_PROGRAMS` (slots das weeks + lista legada) pertencem aos 29 originais preservados — nenhum alias necessário. Garantido por teste automatizado, não por inspeção manual.
+
+### Validações executadas
+
+1. `grep -rn "Exercício Extra" src/` — vazio; `grep -rn -i "placeholder" src/mock/exercises.ts` — vazio; `grep -rn "alert(" src/` e `confirm(` — vazios (apenas ConfirmDialog próprio).
+2. `node scripts/import-exercises.mjs --check` — 125/125 existem no dataset com imagens.
+3. `npx vitest run` — 22/22 (16 do motor de progressão GOAL-08 intactos + 6 novos).
+4. `npx tsc --noEmit` — sem erros.
+5. `npm run build` — passou (Next 16.2.6, Turbopack).
+6. Nenhum arquivo de `labs/avatar-lab/`, `docs/avatar-design/`, `app/poc-3d`, GLBs ou pipeline do Kai alterado.
+
+**GOAL-10 não foi iniciado.**
