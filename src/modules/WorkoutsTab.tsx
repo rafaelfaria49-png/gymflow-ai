@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { WorkoutProgram, Exercise, ProgramDay } from '../types';
-import { Play, Calendar, Target, Clock, Dumbbell, Award, ChevronRight, X, Sparkles, Plus, Wrench, Pencil } from 'lucide-react';
+import { Play, Calendar, Target, Clock, ChevronRight, X, Plus, Wrench, Pencil } from 'lucide-react';
 import { estimateWorkoutDuration } from '../lib/workoutDuration';
 
 export const WorkoutsTab = () => {
@@ -139,10 +139,17 @@ export const WorkoutsTab = () => {
       {workoutsTab === 'mine' && filteredPrograms.length === 0 ? (
         <div className="glass p-12 text-center rounded-3xl border border-white/5 space-y-3 flex flex-col items-center">
           <Wrench className="w-12 h-12 text-gym-text-muted opacity-40" />
-          <h3 className="text-base font-bold text-white">Nenhum treino seu ainda</h3>
+          <h3 className="text-base font-bold text-white">Monte seu primeiro treino</h3>
           <p className="text-xs text-gym-text-muted max-w-sm">
-            Toque em &quot;Criar Treino&quot; para montar seu primeiro treino do zero.
+            Escolha os exercícios, séries e descansos do seu jeito — tudo salvo no aparelho.
           </p>
+          <button
+            onClick={handleCreateWorkout}
+            className="min-h-[44px] px-6 bg-gym-accent hover:bg-gym-accent-hover active:scale-[0.98] text-gym-dark font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center gap-1.5"
+          >
+            <Wrench className="w-4 h-4" />
+            Criar treino
+          </button>
         </div>
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

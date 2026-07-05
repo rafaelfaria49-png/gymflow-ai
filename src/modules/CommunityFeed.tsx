@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { SocialShareModal } from '../components/SocialShareModal';
 import { useToast } from '../components/ui/Toast';
@@ -9,12 +9,9 @@ import {
   MessageCircle,
   Share2,
   Send,
-  Plus,
   Award,
   Flame,
-  TrendingUp,
   Image as ImageIcon,
-  CheckCircle,
   Users
 } from 'lucide-react';
 
@@ -23,7 +20,8 @@ export const CommunityFeed = () => {
   const toast = useToast();
   const [newPostText, setNewPostText] = useState('');
   const [commentInputs, setCommentInputs] = useState<{ [postId: string]: string }>({});
-  const [activeSubTab, setActiveSubTab] = useState<'feed' | 'ranking' | 'groups'>('feed');
+  const [activeSubTab, setActiveSubTab] = useState<'feed' | 'ranking'>('feed');
+  const composerRef = useRef<HTMLTextAreaElement>(null);
 
   // Sharing state
   const [shareModalOpen, setShareModalOpen] = useState(false);
@@ -85,13 +83,13 @@ export const CommunityFeed = () => {
 
         {/* SUBTABS */}
         <div className="flex bg-gym-card p-1 rounded-2xl border border-white/5 gap-1 self-start sm:self-auto">
-          {[
+          {([
             { id: 'feed', label: 'Feed Social' },
             { id: 'ranking', label: 'Ranking Semanal' }
-          ].map((sub) => (
+          ] as const).map((sub) => (
             <button
               key={sub.id}
-              onClick={() => setActiveSubTab(sub.id as any)}
+              onClick={() => setActiveSubTab(sub.id)}
               className={`py-2 px-4 rounded-xl text-xs font-bold transition-all ${
                 activeSubTab === sub.id
                   ? 'bg-white/10 text-white'
@@ -115,6 +113,7 @@ export const CommunityFeed = () => {
                   {user?.name.charAt(0) || 'U'}
                 </div>
                 <textarea
+                  ref={composerRef}
                   placeholder="Compartilhe seus resultados de hoje... #NoPainNoGain"
                   value={newPostText}
                   onChange={(e) => setNewPostText(e.target.value)}
@@ -143,7 +142,23 @@ export const CommunityFeed = () => {
               </div>
             </form>
 
-            {/* LISTAGEM DE POSTS */}
+            {/* LISTAGEM DE POSTS — empty state com CTA (GOAL-11) */}
+            {communityPosts.length === 0 && (
+              <div className="glass p-12 text-center rounded-3xl border border-white/5 space-y-3 flex flex-col items-center">
+                <Users className="w-12 h-12 text-gym-text-muted opacity-40" />
+                <h3 className="text-base font-bold text-white">A comunidade ainda está vazia</h3>
+                <p className="text-xs text-gym-text-muted max-w-sm">
+                  Seja o primeiro a compartilhar um treino, um recorde ou uma conquista.
+                </p>
+                <button
+                  onClick={() => composerRef.current?.focus()}
+                  className="min-h-[44px] px-6 bg-gym-accent hover:bg-gym-accent-hover active:scale-[0.98] text-gym-dark font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center gap-1.5"
+                >
+                  <Send className="w-4 h-4" />
+                  Criar publicação
+                </button>
+              </div>
+            )}
             <div className="space-y-6">
               {communityPosts.map((post) => (
                 <div key={post.id} className="glass p-5 rounded-3xl border border-white/5 space-y-4">
@@ -161,8 +176,9 @@ export const CommunityFeed = () => {
 
                     <button
                       onClick={() => triggerShareWorkoutPost(post.content)}
-                      className="p-1.5 text-gym-text-muted hover:text-gym-accent hover:bg-white/5 rounded-lg transition-all"
+                      className="w-11 h-11 -m-2 flex items-center justify-center text-gym-text-muted hover:text-gym-accent hover:bg-white/5 rounded-lg transition-all active:scale-95"
                       title="Compartilhar Card"
+                      aria-label="Compartilhar publicação"
                     >
                       <Share2 className="w-3.5 h-3.5" />
                     </button>
@@ -223,7 +239,8 @@ export const CommunityFeed = () => {
                     />
                     <button
                       onClick={() => handleCommentSubmit(post.id)}
-                      className="bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/20 text-gym-text-muted hover:text-gym-accent p-2 rounded-xl transition-all"
+                      className="tap-target flex items-center justify-center bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/20 text-gym-text-muted hover:text-gym-accent rounded-xl transition-all active:scale-95"
+                      aria-label="Enviar comentário"
                     >
                       <Send className="w-3.5 h-3.5" />
                     </button>

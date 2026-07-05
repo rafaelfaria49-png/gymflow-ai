@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { ExerciseMedia } from '../components/ExerciseMedia';
-import { Play, Pause, Square, Check, RefreshCw, HelpCircle, Save, Sparkles, Smile, MessageCircle, Clock, Share2, Award, Zap, ChevronRight, Flag } from 'lucide-react';
+import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, Flag, X } from 'lucide-react';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 export const ActiveWorkoutPage = () => {
@@ -25,7 +25,8 @@ export const ActiveWorkoutPage = () => {
     restTimerTotalSeconds,
     restTimerLabel,
     extendRestTimer,
-    skipRestTimer
+    skipRestTimer,
+    setActiveView
   } = useGymFlow();
 
   const [rpe, setRpe] = useState(7);
@@ -42,6 +43,13 @@ export const ActiveWorkoutPage = () => {
         <p className="text-xs text-gym-text-muted max-w-xs">
           Vá até a aba de treinos para iniciar um programa ou comece um treino livre rápido.
         </p>
+        <button
+          onClick={() => setActiveView('workouts')}
+          className="min-h-[44px] px-6 bg-gym-accent hover:bg-gym-accent-hover active:scale-[0.98] text-gym-dark font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center gap-1.5"
+        >
+          <Play className="w-4 h-4 fill-gym-dark" />
+          Escolher treino
+        </button>
       </div>
     );
   }
@@ -361,7 +369,7 @@ export const ActiveWorkoutPage = () => {
               <div className="flex gap-2">
                 <button
                   onClick={() => openSwapModal(exIdx)}
-                  className="text-[10px] bg-white/5 hover:bg-white/10 border border-white/5 text-gym-text-muted hover:text-white px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-all"
+                  className="min-h-[44px] text-[10px] bg-white/5 hover:bg-white/10 border border-white/5 text-gym-text-muted hover:text-white px-3 rounded-lg flex items-center gap-1 transition-all active:scale-95"
                   title="Trocar Exercício"
                 >
                   <RefreshCw className="w-3.5 h-3.5 text-gym-accent" />
@@ -374,13 +382,16 @@ export const ActiveWorkoutPage = () => {
                 (avatar Kai/Motion Engine seguem em produção — selo "Demonstração 3D em breve"). */}
             {/* Layout em coluna: mídia em cima, botão "Ver Técnica" embaixo, sem overlap (GOAL-04). */}
             <div className="w-full rounded-2xl overflow-hidden border border-white/5 flex flex-col">
-              <div className="aspect-[21/9] w-full relative">
+              {/* GOAL-11: 16:9 + cover — as fotos 3:2 preenchem o quadro sem as faixas
+                  laterais/brancas do antigo 21:9 com contain (corte vertical leve e seguro). */}
+              <div className="aspect-video w-full relative">
                 <ExerciseMedia
                   images={exercises.find((e) => e.id === ex.exerciseId)?.images}
                   name={ex.name}
                   crossfade
                   showBadge
                   compact
+                  fit="cover"
                 />
               </div>
               <button
@@ -445,8 +456,9 @@ export const ActiveWorkoutPage = () => {
                       type="number"
                       value={set.weight}
                       disabled={set.completed}
+                      aria-label={`Carga da série ${setIdx + 1} (kg)`}
                       onChange={(e) => updateWorkoutSet(exIdx, setIdx, { weight: Number(e.target.value) })}
-                      className="w-full bg-gym-dark/60 border border-white/10 text-white rounded-lg py-1.5 text-center text-xs font-mono focus:border-gym-accent outline-none"
+                      className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
                     />
                   </div>
 
@@ -456,8 +468,9 @@ export const ActiveWorkoutPage = () => {
                       type="number"
                       value={set.reps}
                       disabled={set.completed}
+                      aria-label={`Repetições da série ${setIdx + 1}`}
                       onChange={(e) => updateWorkoutSet(exIdx, setIdx, { reps: Number(e.target.value) })}
-                      className="w-full bg-gym-dark/60 border border-white/10 text-white rounded-lg py-1.5 text-center text-xs font-mono focus:border-gym-accent outline-none"
+                      className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
                     />
                   </div>
 
@@ -470,22 +483,29 @@ export const ActiveWorkoutPage = () => {
                       value={set.rpe || ''}
                       placeholder="8"
                       disabled={set.completed}
+                      aria-label={`RPE da série ${setIdx + 1}`}
                       onChange={(e) => updateWorkoutSet(exIdx, setIdx, { rpe: Number(e.target.value) })}
-                      className="w-full bg-gym-dark/60 border border-white/10 text-white rounded-lg py-1.5 text-center text-xs font-mono focus:border-gym-accent outline-none"
+                      className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
                     />
                   </div>
 
-                  {/* Checkbox */}
+                  {/* Checkbox — área clicável de 44px (margem negativa não desloca o
+                      layout), visual de 24px (GOAL-11) */}
                   <div className="col-span-1 flex justify-center">
                     <button
                       onClick={() => completeWorkoutSet(exIdx, setIdx)}
-                      className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
-                        set.completed
-                          ? 'bg-gym-accent text-gym-dark'
-                          : 'bg-white/10 border border-white/15 text-transparent hover:border-gym-accent'
-                      }`}
+                      aria-label={set.completed ? `Desmarcar série ${setIdx + 1}` : `Concluir série ${setIdx + 1}`}
+                      className="w-11 h-11 -m-2.5 flex items-center justify-center group/check"
                     >
-                      <Check className="w-3.5 h-3.5 stroke-[3px]" />
+                      <span
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all group-active/check:scale-90 ${
+                          set.completed
+                            ? 'bg-gym-accent text-gym-dark'
+                            : 'bg-white/10 border border-white/15 text-transparent group-hover/check:border-gym-accent'
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[3px]" />
+                      </span>
                     </button>
                   </div>
                 </div>
@@ -510,13 +530,13 @@ export const ActiveWorkoutPage = () => {
             <div className="flex gap-2 justify-end pt-1">
               <button
                 onClick={() => handleRemoveSet(exIdx)}
-                className="text-[10px] text-gym-rose hover:bg-gym-rose/10 px-3 py-1.5 rounded-lg border border-transparent hover:border-gym-rose/20 transition-all font-semibold"
+                className="min-h-[44px] text-[10px] text-gym-rose hover:bg-gym-rose/10 px-3 rounded-lg border border-transparent hover:border-gym-rose/20 transition-all font-semibold active:scale-95"
               >
                 - Remover Série
               </button>
               <button
                 onClick={() => handleAddSet(exIdx)}
-                className="text-[10px] text-gym-accent hover:bg-gym-accent/10 px-3 py-1.5 rounded-lg border border-transparent hover:border-gym-accent/20 transition-all font-semibold"
+                className="min-h-[44px] text-[10px] text-gym-accent hover:bg-gym-accent/10 px-3 rounded-lg border border-transparent hover:border-gym-accent/20 transition-all font-semibold active:scale-95"
               >
                 + Adicionar Série
               </button>
@@ -626,7 +646,8 @@ export const ActiveWorkoutPage = () => {
           <div className="bg-gym-dark border border-white/10 rounded-3xl w-full max-w-md p-6 relative max-h-[80vh] overflow-y-auto">
             <button
               onClick={() => setShowSwapModal(false)}
-              className="absolute top-4 right-4 text-gym-text-muted hover:text-white p-2 rounded-lg bg-white/5"
+              className="absolute top-4 right-4 text-gym-text-muted hover:text-white rounded-lg bg-white/5 tap-target flex items-center justify-center"
+              aria-label="Fechar"
             >
               <X className="w-5 h-5" />
             </button>
@@ -782,21 +803,5 @@ const DumbbellIllustration = ({ className }: { className?: string }) => (
     <path d="M21 10v4" />
     <rect x="6.5" y="4" width="3" height="16" rx="1" />
     <rect x="14.5" y="4" width="3" height="16" rx="1" />
-  </svg>
-);
-
-const X = ({ className }: { className?: string }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
-    <path d="M18 6 6 18" />
-    <path d="m6 6 12 12" />
   </svg>
 );

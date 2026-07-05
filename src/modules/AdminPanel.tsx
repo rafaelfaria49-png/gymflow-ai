@@ -4,12 +4,12 @@ import React, { useState } from 'react';
 import { useGymFlow, STORAGE_KEY } from '../providers/GymFlowContext';
 import { clearState } from '../lib/storage';
 import { Exercise } from '../types';
-import { Shield, Plus, Trash2, Users, Dumbbell, Award, Video, TrendingUp, BarChart2, HardDrive } from 'lucide-react';
+import { Shield, Plus, Trash2, Users, Dumbbell, Award, BarChart2, HardDrive } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 export const AdminPanel = () => {
-  const { exercises, addNewExercise, deleteExercise, user } = useGymFlow();
+  const { exercises, addNewExercise, deleteExercise } = useGymFlow();
   const toast = useToast();
   const [showAddForm, setShowAddForm] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);

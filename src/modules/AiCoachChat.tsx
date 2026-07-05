@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useGymFlow, ChatActionCard } from '../providers/GymFlowContext';
-import { Send, Sparkles, User, Brain, Dumbbell, Trash2, ArrowRight, Play } from 'lucide-react';
+import { Send, Sparkles, Brain, Dumbbell, Trash2, ArrowRight, Play } from 'lucide-react';
 import { IaCoachHologram } from '../components/IaCoachHologram';
 
 export const AiCoachChat = () => {
@@ -49,7 +49,7 @@ export const AiCoachChat = () => {
         setActiveView('active-workout');
         break;
       case 'generate-week':
-        generateWeeklyPlan('hypertrophy', 'intermediate', 'neutral', 4, 60);
+        generateWeeklyPlan('hypertrophy', 'intermediate', 'neutral', 4);
         setActiveView('planner');
         break;
       case 'replan-missed':

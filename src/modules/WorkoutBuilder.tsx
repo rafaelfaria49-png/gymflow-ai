@@ -397,8 +397,19 @@ export const WorkoutBuilder = () => {
         </div>
 
         {slots.length === 0 ? (
-          <div className="glass p-8 text-center rounded-3xl border border-white/5">
-            <p className="text-xs text-gym-text-muted">Nenhum exercício ainda. Toque em &quot;Adicionar Exercício&quot; para começar.</p>
+          <div className="glass p-8 text-center rounded-3xl border border-white/5 space-y-3 flex flex-col items-center">
+            <Dumbbell className="w-10 h-10 text-gym-text-muted opacity-40" />
+            <h4 className="text-sm font-bold text-white">Nenhum exercício ainda</h4>
+            <p className="text-xs text-gym-text-muted max-w-sm">
+              Adicione o primeiro exercício para começar a montar seu treino.
+            </p>
+            <button
+              onClick={() => setPickerOpen(true)}
+              className="min-h-[44px] px-6 bg-gym-accent hover:bg-gym-accent-hover active:scale-[0.98] text-gym-dark font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              Adicionar Exercício
+            </button>
           </div>
         ) : (
           <div className="space-y-3">
@@ -454,7 +465,7 @@ export const WorkoutBuilder = () => {
                         min={1}
                         value={slot.series}
                         onChange={(e) => updateSlot(idx, { series: Math.max(1, Number(e.target.value)) })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white outline-none focus:border-gym-accent"
+                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                       />
                     </label>
                     <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
@@ -464,7 +475,7 @@ export const WorkoutBuilder = () => {
                         min={1}
                         value={slot.repRange[0]}
                         onChange={(e) => updateSlot(idx, { repRange: [Number(e.target.value), slot.repRange[1]] })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white outline-none focus:border-gym-accent"
+                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                       />
                     </label>
                     <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
@@ -474,7 +485,7 @@ export const WorkoutBuilder = () => {
                         min={1}
                         value={slot.repRange[1]}
                         onChange={(e) => updateSlot(idx, { repRange: [slot.repRange[0], Number(e.target.value)] })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white outline-none focus:border-gym-accent"
+                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                       />
                     </label>
                     <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
@@ -485,7 +496,7 @@ export const WorkoutBuilder = () => {
                         max={10}
                         value={slot.targetRPE}
                         onChange={(e) => updateSlot(idx, { targetRPE: Number(e.target.value) })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white outline-none focus:border-gym-accent"
+                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                       />
                     </label>
                     <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
@@ -496,7 +507,7 @@ export const WorkoutBuilder = () => {
                         step={5}
                         value={slot.restSec}
                         onChange={(e) => updateSlot(idx, { restSec: Math.max(0, Number(e.target.value)) })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white outline-none focus:border-gym-accent"
+                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                       />
                     </label>
                     <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
@@ -504,7 +515,7 @@ export const WorkoutBuilder = () => {
                       <select
                         value={slot.progression}
                         onChange={(e) => updateSlot(idx, { progression: e.target.value as ProgressionType })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white outline-none focus:border-gym-accent"
+                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                       >
                         <option value="dupla">Dupla progressão</option>
                         <option value="linear">Linear</option>
@@ -519,7 +530,7 @@ export const WorkoutBuilder = () => {
                         step={0.5}
                         value={slot.incrementKg}
                         onChange={(e) => updateSlot(idx, { incrementKg: Math.max(0, Number(e.target.value)) })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg py-1.5 px-2 text-xs text-white outline-none focus:border-gym-accent"
+                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                       />
                     </label>
                   </div>

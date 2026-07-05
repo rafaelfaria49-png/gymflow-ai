@@ -13,7 +13,6 @@ import {
   Utensils,
   Shield,
   Award,
-  Zap,
   LogOut,
   Flame,
   Menu,

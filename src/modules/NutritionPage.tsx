@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
-import { Droplet, Utensils, Zap, Apple, Sparkles, Scale, RefreshCw, Flame } from 'lucide-react';
+import { Droplet, Utensils, Apple, GlassWater } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 
 export const NutritionPage = () => {
@@ -88,6 +88,30 @@ export const NutritionPage = () => {
           Acompanhe o consumo diário de água, calorias e macronutrientes recomendados.
         </p>
       </div>
+
+      {/* EMPTY STATE COM CTA (GOAL-11) — nada registrado hoje ainda */}
+      {nutrition.water === 0 && nutrition.calories === 0 && (
+        <div className="glass border border-gym-accent/20 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-gym-accent/15 border border-gym-accent/20 flex items-center justify-center flex-shrink-0">
+              <GlassWater className="w-5 h-5 text-gym-accent" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Comece registrando sua hidratação</h3>
+              <p className="text-xs text-gym-text-muted mt-0.5">
+                Nada registrado hoje — um copo de água já inicia seu diário.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => handleWaterLog(250)}
+            className="min-h-[44px] px-5 bg-gym-accent hover:bg-gym-accent-hover active:scale-[0.98] text-gym-dark font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center justify-center gap-1.5 flex-shrink-0"
+          >
+            <Droplet className="w-4 h-4" />
+            +250ml agora
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* COLUNA ESQUERDA: DIÁRIO DE HIDRATAÇÃO */}

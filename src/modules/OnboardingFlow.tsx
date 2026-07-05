@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useGymFlow, AppView } from '../providers/GymFlowContext';
-import { ArrowLeft, ArrowRight, Sparkles, BrainCircuit, Dumbbell, ShieldAlert, Award, Play } from 'lucide-react';
+import { useGymFlow } from '../providers/GymFlowContext';
+import { ArrowLeft, ArrowRight, BrainCircuit, ShieldAlert, Award, Play } from 'lucide-react';
 
 export const OnboardingFlow = () => {
-  const { registerUser, setActiveView } = useGymFlow();
+  const { registerUser } = useGymFlow();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('Analisando seu perfil...');

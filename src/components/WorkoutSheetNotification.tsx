@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
-import { Play, PlayCircle, Maximize2, Sparkles } from 'lucide-react';
+import { Play, Maximize2, Sparkles } from 'lucide-react';
 
 export const WorkoutSheetNotification = () => {
   const { activeWorkout, workoutDuration, activeView, setActiveView } = useGymFlow();

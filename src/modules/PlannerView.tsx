@@ -38,7 +38,7 @@ export const PlannerView = () => {
   const [duplicatingFromDay, setDuplicatingFromDay] = useState<string | null>(null);
 
   const handleGenerate = () => {
-    generateWeeklyPlan(goal, level, gender, frequency, duration);
+    generateWeeklyPlan(goal, level, gender, frequency);
     updateUserProfile({ goal, level, gender, frequency, duration });
   };
 
@@ -201,7 +201,7 @@ export const PlannerView = () => {
               setMovingFromDay(null);
               setDuplicatingFromDay(null);
             }}
-            className="text-[9px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded border border-white/10 font-bold"
+            className="min-h-[44px] text-[9px] bg-white/5 hover:bg-white/10 px-3 rounded-lg border border-white/10 font-bold active:scale-95 transition-transform"
           >
             Cancelar Ação
           </button>
@@ -321,8 +321,15 @@ export const PlannerView = () => {
               <Calendar className="w-16 h-16 text-gym-text-muted opacity-40 animate-pulse" />
               <h3 className="text-base font-bold text-white">Nenhuma planilha semanal ativa</h3>
               <p className="text-xs text-gym-text-muted max-w-sm">
-                Selecione seu perfil e metas nos parâmetros ao lado e clique em **Gerar Semana com IA** para montar sua divisão de treinos personalizada.
+                Ajuste seu perfil e metas nos parâmetros e gere sua divisão de treinos personalizada em um toque.
               </p>
+              <button
+                onClick={handleGenerate}
+                className="min-h-[44px] px-6 bg-gym-accent hover:bg-gym-accent-hover active:scale-[0.98] text-gym-dark font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center gap-1.5"
+              >
+                <Sparkles className="w-4 h-4 fill-gym-dark text-gym-dark" />
+                Gerar Semana com IA
+              </button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -372,7 +379,7 @@ export const PlannerView = () => {
                       {isTargetForSwap && (
                         <button
                           onClick={() => handleExecuteMove(day.dayName)}
-                          className="text-[9px] bg-gym-accent text-gym-dark font-extrabold px-3 py-1.5 rounded-lg animate-pulse uppercase tracking-wider"
+                          className="min-h-[44px] text-[9px] bg-gym-accent text-gym-dark font-extrabold px-3 rounded-lg animate-pulse uppercase tracking-wider active:scale-95 transition-transform"
                         >
                           Trocar Aqui
                         </button>
@@ -382,7 +389,7 @@ export const PlannerView = () => {
                       {isTargetForCopy && (
                         <button
                           onClick={() => handleExecuteDuplicate(day.dayName)}
-                          className="text-[9px] bg-gym-accent text-gym-dark font-extrabold px-3 py-1.5 rounded-lg animate-pulse uppercase tracking-wider"
+                          className="min-h-[44px] text-[9px] bg-gym-accent text-gym-dark font-extrabold px-3 rounded-lg animate-pulse uppercase tracking-wider active:scale-95 transition-transform"
                         >
                           Colar Aqui
                         </button>
@@ -394,25 +401,27 @@ export const PlannerView = () => {
                           {/* Swap trigger */}
                           <button
                             onClick={() => handleStartMove(day.dayName)}
-                            className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/5 text-gym-text-muted hover:text-white"
+                            className="tap-target flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg border border-white/5 text-gym-text-muted hover:text-white active:scale-95 transition-all"
                             title="Mover/Trocar Dia"
+                            aria-label="Mover ou trocar dia"
                           >
-                            <Move className="w-3 h-3" />
+                            <Move className="w-3.5 h-3.5" />
                           </button>
 
                           {/* Copy trigger */}
                           <button
                             onClick={() => handleStartDuplicate(day.dayName)}
-                            className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/5 text-gym-text-muted hover:text-white"
+                            className="tap-target flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg border border-white/5 text-gym-text-muted hover:text-white active:scale-95 transition-all"
                             title="Duplicar Treino"
+                            aria-label="Duplicar treino"
                           >
-                            <Copy className="w-3 h-3" />
+                            <Copy className="w-3.5 h-3.5" />
                           </button>
 
                           {/* Toggle rest status */}
                           <button
                             onClick={() => handleToggleRest(day.dayName)}
-                            className={`text-[9px] font-bold px-2 py-1 rounded transition-all border ${
+                            className={`min-h-[44px] text-[9px] font-bold px-2.5 rounded-lg transition-all border ${
                               day.isRest
                                 ? 'bg-gym-accent/15 border-gym-accent/20 text-gym-accent font-black'
                                 : 'bg-white/5 border-white/15 text-gym-text-muted hover:text-white'
@@ -426,7 +435,7 @@ export const PlannerView = () => {
                               {/* Escolher um treino real (sugerido ou custom) para este dia */}
                               <button
                                 onClick={() => setChooserDayName(day.dayName)}
-                                className="text-[9px] font-bold px-2.5 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-white flex items-center gap-1"
+                                className="min-h-[44px] text-[9px] font-bold px-2.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-white flex items-center gap-1 active:scale-95 transition-all"
                                 title="Escolher treino"
                               >
                                 <ListChecks className="w-3 h-3 text-gym-accent" />
@@ -436,7 +445,7 @@ export const PlannerView = () => {
                               {/* Editar dia no Construtor — sempre com os slots reais, nunca fabricados */}
                               <button
                                 onClick={() => handleEditDay(day)}
-                                className="text-[9px] font-bold px-2.5 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-white flex items-center gap-1"
+                                className="min-h-[44px] text-[9px] font-bold px-2.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-white flex items-center gap-1 active:scale-95 transition-all"
                                 title="Editar dia"
                               >
                                 <Pencil className="w-3 h-3 text-gym-accent" />
@@ -449,10 +458,11 @@ export const PlannerView = () => {
                           {!day.isRest && !day.trained && day.exerciseCount > 0 && (
                             <button
                               onClick={() => startWorkout(day.programId, day.workoutName, day.programDayId)}
-                              className="p-1.5 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark rounded-lg transition-all flex items-center justify-center"
+                              className="tap-target bg-gym-accent hover:bg-gym-accent-hover text-gym-dark rounded-lg transition-all flex items-center justify-center active:scale-95 shadow-md shadow-gym-accent/15"
                               title="Iniciar Treino"
+                              aria-label="Iniciar treino"
                             >
-                              <Play className="w-3 h-3 fill-gym-dark" />
+                              <Play className="w-3.5 h-3.5 fill-gym-dark" />
                             </button>
                           )}
 

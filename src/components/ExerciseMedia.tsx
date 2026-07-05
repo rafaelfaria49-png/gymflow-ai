@@ -17,6 +17,12 @@ interface ExerciseMediaProps {
   showBadge?: boolean;
   /** Versão reduzida do fallback para cards pequenos. */
   compact?: boolean;
+  /**
+   * GOAL-11: 'cover' preenche o container cortando as bordas (as fotos são 3:2 com
+   * o atleta centralizado — corte leve e seguro em containers 16:9); 'contain'
+   * preserva a foto inteira com letterbox (usar quando a fidelidade importa).
+   */
+  fit?: 'cover' | 'contain';
   className?: string;
 }
 
@@ -35,9 +41,11 @@ export const ExerciseMedia: React.FC<ExerciseMediaProps> = ({
   crossfade = false,
   showBadge = false,
   compact = false,
+  fit = 'contain',
   className = '',
 }) => {
   const [failedSrcs, setFailedSrcs] = useState<string[]>([]);
+  const [loadedSrcs, setLoadedSrcs] = useState<string[]>([]);
   const [current, setCurrent] = useState(0);
 
   const usable = useMemo(
@@ -65,9 +73,11 @@ export const ExerciseMedia: React.FC<ExerciseMediaProps> = ({
   }
 
   const activeIndex = current % usable.length;
+  // Skeleton simples (GOAL-11): pulso discreto até a primeira foto carregar.
+  const anyLoaded = usable.some((src) => loadedSrcs.includes(src));
 
   return (
-    <div className={`relative w-full h-full overflow-hidden bg-gym-dark select-none ${className}`}>
+    <div className={`relative w-full h-full overflow-hidden bg-gym-dark select-none ${anyLoaded ? '' : 'animate-pulse bg-white/5'} ${className}`}>
       {usable.map((src, idx) => (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -75,8 +85,9 @@ export const ExerciseMedia: React.FC<ExerciseMediaProps> = ({
           src={src}
           alt={idx === 0 ? `Execução de ${name}` : `Execução de ${name} (pose ${idx + 1})`}
           loading="lazy"
+          onLoad={() => setLoadedSrcs((prev) => (prev.includes(src) ? prev : [...prev, src]))}
           onError={() => setFailedSrcs((prev) => (prev.includes(src) ? prev : [...prev, src]))}
-          className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-700 ${
+          className={`absolute inset-0 w-full h-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} transition-opacity duration-700 ${
             idx === activeIndex ? 'opacity-100' : 'opacity-0'
           }`}
         />

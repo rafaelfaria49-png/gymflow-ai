@@ -494,4 +494,53 @@ Ajustes de usabilidade a partir dos atritos encontrados na revisão de código d
 6. Sem regressão na persistência (`customPrograms`/`weeklyPlan` continuam no mesmo envelope do GOAL-01), no timer de descanso, no motor de progressão (GOAL-08) nem no PWA (GOAL-10) — nenhum desses arquivos foi alterado neste GOAL.
 7. Novamente não foi possível clicar na UI num navegador real neste ambiente (sem ferramenta headless) — validação por revisão de código, `tsc` e `build`.
 
-**GOAL-11 não foi iniciado.**
+## GOAL-11 — Polimento premium final + limpeza + relatório (2026-07-05)
+
+### Resumo
+
+Fechamento do Lote 1: código morto removido com validação por grep/eslint, ErrorBoundary global por view, empty states com CTA em 8 telas, auditoria de toque/microinterações/acessibilidade (alvos ≥44px, vibração de 10ms ao concluir série, focus visível, transição de view de 150ms), fotos de exercício sem faixas (cover 16:9 nos cards/Treino Ativo, 3:2 na ficha técnica, skeleton no loading) e relatório final do lote em `docs/RELATORIO_FINAL_GOALS.md`.
+
+### Código morto removido
+
+- `src/components/BiomechanicalVisualizer.tsx` — 1249 linhas, zero imports (só comentários no stack 3D intocável).
+- `MOCK_WEEKLY_TEMPLATES` (`mock/programs.ts` + reexport em `mock/data.ts`) — pendência do GOAL-10.5 quitada.
+- Sub-aba `'groups'` órfã do CommunityFeed (union estreitado, cast `as any` removido).
+- Parâmetro morto `_duration` de `generateWeeklyPlan` (tipo público + 2 call sites).
+- ~50 imports mortos em 18 arquivos + variáveis não usadas (`setPrograms`, `registerUser`, `achievements`, `user` etc.) — eslint `no-unused-vars` = 0 em `src/`.
+- Helper local `X` svg do ActiveWorkoutPage substituído pelo `X` do lucide.
+
+### ErrorBoundary (novo `src/components/ErrorBoundary.tsx`)
+
+Class component com `getDerivedStateFromError`/`componentDidCatch` (sempre loga no console; em dev mostra `error.message` no fallback). Fallback dark + verde-lima: "Algo deu errado", descrição curta, "Recarregar app" e "Voltar ao painel" (quando `onGoHome` fornecido). Integrado em `page.tsx` em 2 pontos: switch pré-login e em volta do `renderLoggedInView()` DENTRO do shell — crash de uma view mantém TopBar/side/bottom nav vivos. `resetKey={activeView}` limpa o erro ao navegar.
+
+### Empty states com CTA (padrão: ícone lucide + título + 1 frase + 1 CTA ≥44px)
+
+Evolução/histórico ("Finalize seu primeiro treino" → Começar treino), Meus Treinos ("Monte seu primeiro treino" → Criar treino), Feed ("A comunidade ainda está vazia" → Criar publicação, foca o composer), Nutrição ("Comece registrando sua hidratação" → +250ml agora), Planejador (→ Gerar Semana com IA, texto com `**markdown**` quebrado corrigido), Biblioteca por aba (Favoritos → Explorar exercícios; Recentes → Explorar; busca vazia → Limpar filtros), Treino Ativo sem treino (→ Escolher treino), Construtor sem exercícios (→ Adicionar Exercício).
+
+### Toque, microinterações e acessibilidade
+
+- Checkbox OK das séries: hit area 44×44 (`w-11 h-11 -m-2.5`, visual 24px preservado) + `aria-label` por série — medido 44×44 no navegador.
+- Inputs de carga/reps/RPE das séries e os 7 inputs de slot do Construtor: min-h 44px + aria-labels.
+- Vibração de 10ms em `completeWorkoutSet` (guarda `'vibrate' in navigator`).
+- `:focus-visible` global (outline verde-lima, não dispara em toque).
+- Transição de view ~150ms (`.animate-view-in` + `key={activeView}` no wrapper do switch).
+- Alvos pequenos promovidos a ≥44px: Trocar/±Série (Treino Ativo), Mover/Copiar/Descanso/Escolher/Editar/Play e Trocar/Colar Aqui (Planejador), X de modais (`tap-target`), coração de favorito, Ver técnica (span→button), envio de comentário, compartilhar post/PR, adicionar foto, fechar toast (44px via margem negativa).
+- `active:scale` states nos botões auditados; aria-labels em botões icon-only.
+
+### Visual premium
+
+- `ExerciseMedia` ganhou prop `fit`: cards da biblioteca e mídia do Treino Ativo (21:9→16:9) usam `cover` (fotos 3:2, corte leve seguro — fim das faixas); ficha técnica usa container 3:2 com `contain` (fidelidade sem letterbox). Análise real: 121/125 fotos são 850×567.
+- Skeleton pulse no container da foto até a primeira imagem carregar.
+- CTAs primários unificados (bg-gym-accent, rounded-2xl, uppercase tracking-wider, sombra accent).
+
+### Validações executadas
+
+1. `npx vitest run` — 22/22.
+2. `npx tsc --noEmit` — sem erros.
+3. `npm run build` — passou (Next 16.2.6, Turbopack).
+4. `grep alert(`/`confirm(`/`"Exercício Extra"`/`"Sugestão IA"` em `src/` — todos vazios; `BiomechanicalVisualizer` só em comentários do stack 3D; "placeholder" só em contextos legítimos (registrado em DECISOES.md).
+5. eslint `no-unused-vars` em `src/` — 0 ocorrências.
+6. Verificação em navegador real (dev server): login demo, biblioteca com fotos cover carregadas, empty state de Favoritos com CTA funcionando (volta para a grade de 125), treino livre iniciado, checkbox de série medido 44×44px, input de carga 44px, série concluída com toast; zero erros de console.
+7. `git status` — nenhum arquivo de `labs/avatar-lab/`, `docs/avatar-design/`, `app/poc-3d`, GLBs, pipeline do Kai, backend, Supabase, Prisma ou pagamento tocado. Lote 2 não iniciado.
+
+**Lote 1 encerrado. Relatório consolidado em `docs/RELATORIO_FINAL_GOALS.md`.**

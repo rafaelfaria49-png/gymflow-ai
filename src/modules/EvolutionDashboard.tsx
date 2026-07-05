@@ -5,7 +5,6 @@ import { useGymFlow } from '../providers/GymFlowContext';
 import { SocialShareModal } from '../components/SocialShareModal';
 import { useToast } from '../components/ui/Toast';
 import {
-  TrendingUp,
   Scale,
   Ruler,
   Image as ImageIcon,
@@ -14,11 +13,11 @@ import {
   Calendar,
   Award,
   Zap,
-  Activity,
-  Flame,
   Timer,
   Volume2,
-  VolumeX
+  VolumeX,
+  Dumbbell,
+  Play
 } from 'lucide-react';
 
 export const EvolutionDashboard = () => {
@@ -30,7 +29,7 @@ export const EvolutionDashboard = () => {
     measurementsHistory,
     addMeasurementLog,
     workoutHistory,
-    achievements
+    setActiveView
   } = useGymFlow();
   const toast = useToast();
 
@@ -263,8 +262,9 @@ export const EvolutionDashboard = () => {
                     <span className="text-sm font-extrabold text-gym-accent font-mono">{pr.weight}</span>
                     <button
                       onClick={() => triggerSharePR(pr.exercise, pr.weight)}
-                      className="p-1.5 text-gym-text-muted hover:text-gym-accent hover:bg-white/5 rounded-lg transition-all"
+                      className="w-11 h-11 -m-2 flex items-center justify-center text-gym-text-muted hover:text-gym-accent hover:bg-white/5 rounded-lg transition-all active:scale-95"
                       title="Compartilhar PR"
+                      aria-label="Compartilhar recorde"
                     >
                       <Share2 className="w-3.5 h-3.5" />
                     </button>
@@ -282,7 +282,20 @@ export const EvolutionDashboard = () => {
             </h3>
             <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
               {workoutHistory.length === 0 ? (
-                <p className="text-xs text-gym-text-muted text-center py-4">Nenhum treino concluído ainda nesta semana.</p>
+                <div className="text-center py-6 space-y-3 flex flex-col items-center">
+                  <Dumbbell className="w-10 h-10 text-gym-text-muted opacity-40" />
+                  <h4 className="text-sm font-bold text-white">Finalize seu primeiro treino</h4>
+                  <p className="text-xs text-gym-text-muted max-w-[240px]">
+                    Seu histórico de sessões, duração e calorias aparece aqui.
+                  </p>
+                  <button
+                    onClick={() => setActiveView('workouts')}
+                    className="min-h-[44px] px-5 bg-gym-accent hover:bg-gym-accent-hover active:scale-[0.98] text-gym-dark font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center gap-1.5"
+                  >
+                    <Play className="w-4 h-4 fill-gym-dark" />
+                    Começar treino
+                  </button>
+                </div>
               ) : (
                 workoutHistory.map((sess, idx) => (
                   <div
@@ -315,8 +328,9 @@ export const EvolutionDashboard = () => {
               </h3>
               <button
                 onClick={handleSimulatePhotoUpload}
-                className="p-1 bg-gym-accent/15 hover:bg-gym-accent/25 border border-gym-accent/30 text-gym-accent rounded-lg transition-all"
+                className="tap-target flex items-center justify-center bg-gym-accent/15 hover:bg-gym-accent/25 border border-gym-accent/30 text-gym-accent rounded-lg transition-all active:scale-95"
                 title="Adicionar Foto"
+                aria-label="Adicionar foto de evolução"
               >
                 <Plus className="w-4 h-4" />
               </button>

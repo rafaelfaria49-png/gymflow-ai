@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { Exercise } from '../types';
-import { Search, X, Play, ShieldAlert, Heart, Check, Sparkles, ChevronRight, Zap, Award, Flame, Clock } from 'lucide-react';
+import { Search, X, Play, ShieldAlert, Heart, Sparkles, ChevronRight, Clock, BookOpen } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { ExerciseMedia } from '../components/ExerciseMedia';
 
@@ -229,10 +229,58 @@ export const ExerciseLibrary = () => {
         ))}
       </div>
 
-      {/* LIST GRID */}
+      {/* LIST GRID — empty states com CTA por aba (GOAL-11) */}
       {finalExercises.length === 0 ? (
-        <div className="glass p-12 text-center rounded-3xl border border-white/5">
-          <p className="text-sm text-gym-text-muted">Nenhum exercício encontrado nesta categoria.</p>
+        <div className="glass p-12 text-center rounded-3xl border border-white/5 space-y-3 flex flex-col items-center">
+          {currentLibraryTab === 'favorites' ? (
+            <>
+              <Heart className="w-12 h-12 text-gym-text-muted opacity-40" />
+              <h3 className="text-base font-bold text-white">Nenhum favorito ainda</h3>
+              <p className="text-xs text-gym-text-muted max-w-sm">
+                Toque no coração de um exercício para salvá-lo aqui e montar sua coleção.
+              </p>
+              <button
+                onClick={() => setCurrentLibraryTab('all')}
+                className="min-h-[44px] px-6 bg-gym-accent hover:bg-gym-accent-hover active:scale-[0.98] text-gym-dark font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center gap-1.5"
+              >
+                <BookOpen className="w-4 h-4" />
+                Explorar exercícios
+              </button>
+            </>
+          ) : currentLibraryTab === 'recent' ? (
+            <>
+              <Clock className="w-12 h-12 text-gym-text-muted opacity-40" />
+              <h3 className="text-base font-bold text-white">Nada visto recentemente</h3>
+              <p className="text-xs text-gym-text-muted max-w-sm">
+                Os guias técnicos que você abrir aparecem aqui para revisão rápida.
+              </p>
+              <button
+                onClick={() => setCurrentLibraryTab('all')}
+                className="min-h-[44px] px-6 bg-gym-accent hover:bg-gym-accent-hover active:scale-[0.98] text-gym-dark font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center gap-1.5"
+              >
+                <BookOpen className="w-4 h-4" />
+                Explorar exercícios
+              </button>
+            </>
+          ) : (
+            <>
+              <Search className="w-12 h-12 text-gym-text-muted opacity-40" />
+              <h3 className="text-base font-bold text-white">Nenhum exercício encontrado</h3>
+              <p className="text-xs text-gym-text-muted max-w-sm">
+                Nenhum resultado para esta combinação de busca e filtros.
+              </p>
+              <button
+                onClick={() => {
+                  setSearch('');
+                  setSelectedMuscle('all');
+                }}
+                className="min-h-[44px] px-6 bg-white/5 hover:bg-white/10 active:scale-[0.98] border border-gym-accent/30 text-gym-accent font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all flex items-center gap-1.5"
+              >
+                <X className="w-4 h-4" />
+                Limpar filtros
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -250,16 +298,18 @@ export const ExerciseLibrary = () => {
                     e.stopPropagation();
                     toggleFavoriteExercise(ex.id);
                   }}
-                  className="absolute top-6 right-6 z-10 p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white transition-all border border-white/10"
+                  aria-label={isFav ? `Remover ${ex.name} dos favoritos` : `Favoritar ${ex.name}`}
+                  className="absolute top-5 right-5 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 active:scale-90 text-white transition-all border border-white/10"
                 >
                   <Heart
-                    className={`w-3.5 h-3.5 ${isFav ? 'text-gym-rose fill-gym-rose' : 'text-white'}`}
+                    className={`w-4 h-4 ${isFav ? 'text-gym-rose fill-gym-rose' : 'text-white'}`}
                   />
                 </button>
 
                 <div>
                   <div className="aspect-video w-full bg-gym-dark/50 border border-white/10 rounded-2xl mb-3 overflow-hidden group-hover:border-gym-accent/20 transition-all select-none">
-                    <ExerciseMedia images={ex.images} name={ex.name} emoji={ex.thumbnail.split(' ')[0]} compact />
+                    {/* GOAL-11: cover elimina as faixas laterais/brancas nos cards (fotos 3:2) */}
+                    <ExerciseMedia images={ex.images} name={ex.name} emoji={ex.thumbnail.split(' ')[0]} compact fit="cover" />
                   </div>
                   <h3 className="text-xs font-bold text-white tracking-tight group-hover:text-gym-accent transition-all line-clamp-1">
                     {ex.name}
@@ -273,15 +323,15 @@ export const ExerciseLibrary = () => {
                   <span className="text-[9px] font-black uppercase text-gym-text-muted bg-white/5 px-2 py-0.5 rounded">
                     {ex.level === 'beginner' ? 'Iniciante' : ex.level === 'intermediate' ? 'Intermediário' : 'Avançado'}
                   </span>
-                  <span
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleOpenVideo(ex.id);
                     }}
-                    className="text-[10px] text-gym-accent font-bold group-hover:underline flex items-center gap-0.5"
+                    className="text-[10px] text-gym-accent font-bold group-hover:underline flex items-center gap-0.5 p-2.5 -m-2.5 active:scale-95 transition-transform"
                   >
                     Ver técnica <ChevronRight className="w-3.5 h-3.5" />
-                  </span>
+                  </button>
                 </div>
               </div>
             );
@@ -303,7 +353,8 @@ export const ExerciseLibrary = () => {
             {/* Top Close */}
             <button
               onClick={() => setSelectedExercise(null)}
-              className="absolute top-4 right-4 text-gym-text-muted hover:text-white p-2 rounded-lg bg-white/5"
+              className="absolute top-4 right-4 text-gym-text-muted hover:text-white rounded-lg bg-white/5 tap-target flex items-center justify-center"
+              aria-label="Fechar"
             >
               <X className="w-5 h-5" />
             </button>
@@ -331,7 +382,8 @@ export const ExerciseLibrary = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* ESQUERDA: Video Player cover and muscles details */}
               <div className="space-y-4">
-                <div className="relative aspect-video w-full bg-black rounded-2xl overflow-hidden border border-white/15 shadow-inner group">
+                {/* GOAL-11: 3:2 casa com a proporção real das fotos — ficha técnica sem letterbox */}
+                <div className="relative aspect-[3/2] w-full bg-black rounded-2xl overflow-hidden border border-white/15 shadow-inner group">
                   <ExerciseMedia
                     images={selectedExercise.images}
                     name={selectedExercise.name}

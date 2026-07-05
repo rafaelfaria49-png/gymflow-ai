@@ -50,6 +50,14 @@ body {
   min-width: 44px;
 }
 
+/* Foco visível consistente para navegação por teclado (GOAL-11) —
+   :focus-visible não dispara em toque/clique, então não suja o uso mobile. */
+:focus-visible {
+  outline: 2px solid var(--color-gym-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* Espaço reservado no rodapé do Treino Ativo (mobile/tablet) para a ActionBar fixa
    (~5.5rem de altura) + a folga acima da bottom nav (4.75rem, mesma constante do FAB)
    + safe-area + 1rem de folga visual, para nenhum card/série ficar escondido atrás
@@ -143,6 +151,23 @@ body {
 
 .animate-sheet-up {
   animation: sheetUp 220ms ease-out;
+}
+
+/* Transição suave entre views (~150ms, GOAL-11) — aplicada no wrapper do switch
+   de views com key={activeView}, sem tocar nos componentes individuais. */
+@keyframes viewIn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-view-in {
+  animation: viewIn 150ms ease-out;
 }
 
 /* Hide spin-buttons for input numbers */

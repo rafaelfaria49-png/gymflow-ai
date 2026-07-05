@@ -5,6 +5,7 @@ import { useGymFlow } from '../providers/GymFlowContext';
 import { TopBar, SideNavigation, BottomNavigation } from '../components/Navigation';
 import { WorkoutSheetNotification } from '../components/WorkoutSheetNotification';
 import { XPBadgeNotification } from '../components/XPBadgeNotification';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 // Import Views
 import { LandingPage } from '../modules/LandingPage';
@@ -28,23 +29,30 @@ import { WorkoutBuilder } from '../modules/WorkoutBuilder';
 import { GlobalVideoPlayer } from '../components/GlobalVideoPlayer';
 
 export default function Home() {
-  const { activeView, user } = useGymFlow();
+  const { activeView, user, setActiveView } = useGymFlow();
 
   // Se o usuário não estiver logado, mostramos telas de entrada / onboarding
   if (!user) {
-    switch (activeView) {
-      case 'login':
-        return <LoginPage />;
-      case 'register':
-        return <RegisterPage />;
-      case 'recovery':
-        return <RecoveryPage />;
-      case 'onboarding':
-        return <OnboardingFlow />;
-      case 'landing':
-      default:
-        return <LandingPage />;
-    }
+    const renderLoggedOutView = () => {
+      switch (activeView) {
+        case 'login':
+          return <LoginPage />;
+        case 'register':
+          return <RegisterPage />;
+        case 'recovery':
+          return <RecoveryPage />;
+        case 'onboarding':
+          return <OnboardingFlow />;
+        case 'landing':
+        default:
+          return <LandingPage />;
+      }
+    };
+    return (
+      <ErrorBoundary resetKey={activeView}>
+        {renderLoggedOutView()}
+      </ErrorBoundary>
+    );
   }
 
   // Se o usuário estiver logado, renderizamos o shell do aplicativo principal
@@ -93,7 +101,13 @@ export default function Home() {
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full transition-all duration-300">
           {/* Espaço extra no mobile p/ a bottom nav + safe-area + FAB de treino não cobrirem conteúdo */}
           <div className="pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-0">
-            {renderLoggedInView()}
+            {/* GOAL-11: erro em uma view não derruba o shell — TopBar/nav continuam vivos */}
+            <ErrorBoundary resetKey={activeView} onGoHome={() => setActiveView('dashboard')}>
+              {/* key={activeView} reinicia a animação de entrada a cada troca de tela */}
+              <div key={activeView} className="animate-view-in">
+                {renderLoggedInView()}
+              </div>
+            </ErrorBoundary>
           </div>
         </main>
       </div>

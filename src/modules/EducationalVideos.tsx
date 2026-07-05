@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { VideoLesson } from '../types';
-import { Play, Check, Award, Clock, ArrowRight, User } from 'lucide-react';
+import { Play, Award, ArrowRight, User } from 'lucide-react';
 
 export const EducationalVideos = () => {
   const { videos, trails, openGlobalPlayer } = useGymFlow();

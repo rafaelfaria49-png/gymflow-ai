@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
-import { Dumbbell, Shield, Zap, Target, Star, ChevronRight, Sparkles, TrendingUp, Heart } from 'lucide-react';
+import { Shield, Zap, Target, ChevronRight, Sparkles, TrendingUp } from 'lucide-react';
 
 export const LandingPage = () => {
   const { loginDemoUser, setActiveView } = useGymFlow();

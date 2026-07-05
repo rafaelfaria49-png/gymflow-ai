@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Share2, Eye, EyeOff, Shield, Check, Heart, MessageCircle } from 'lucide-react';
+import { X, Share2, Eye, EyeOff, Shield, Check } from 'lucide-react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { useToast } from './ui/Toast';
 

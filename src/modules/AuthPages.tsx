@@ -128,7 +128,7 @@ export const LoginPage = () => {
 };
 
 export const RegisterPage = () => {
-  const { registerUser, loginDemoUser, setActiveView } = useGymFlow();
+  const { loginDemoUser, setActiveView } = useGymFlow();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

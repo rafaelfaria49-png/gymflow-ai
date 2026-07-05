@@ -152,7 +152,7 @@ interface GymFlowContextType {
   // GOAL-10.5: dia de hoje já resolvido a partir de weeklyPlan — fonte única de
   // verdade para o card do Dashboard (nunca mais um lookup paralelo de programa).
   todayPlan: WeeklyWorkoutDay | null;
-  generateWeeklyPlan: (goal: string, level: string, gender: string, frequency: number, duration: number) => void;
+  generateWeeklyPlan: (goal: string, level: string, gender: string, frequency: number) => void;
   applyProgramToWeek: (programId: string) => void;
   assignDayToWeekday: (dayName: string, program: WorkoutProgram, day: ProgramDay) => void;
   replanMissedWorkout: () => void;
@@ -320,7 +320,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
   // Lists
   const [exercises, setExercises] = useState<Exercise[]>(MOCK_EXERCISES);
-  const [programs, setPrograms] = useState<WorkoutProgram[]>(MOCK_PROGRAMS);
+  const [programs] = useState<WorkoutProgram[]>(MOCK_PROGRAMS);
   const [videos, setVideos] = useState<VideoLesson[]>(MOCK_VIDEOS);
   const [challenges, setChallenges] = useState<Challenge[]>(MOCK_CHALLENGES);
   const [achievements, setAchievements] = useState<Achievement[]>(MOCK_ACHIEVEMENTS);
@@ -917,6 +917,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     const isCompleted = !activeWorkout.exercises[exerciseIndex].sets[setIndex].completed;
     updateWorkoutSet(exerciseIndex, setIndex, { completed: isCompleted });
     if (isCompleted) {
+      // Feedback tátil curto ao concluir série (GOAL-11) — com guarda de suporte.
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(10);
+      }
       addXp(10, 'Série concluída!');
 
       // Timer de descanso automático (GOAL-06): não inicia se essa era a última
@@ -1134,7 +1138,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // GOAL-07: a semana gerada referencia Days reais de um programa (não mais
   // templates soltos sem exercícios). Cada dia do calendário carrega
   // programId + programDayId, e abrir o dia inicia exatamente aqueles slots.
-  const generateWeeklyPlan = (goal: string, level: string, gender: string, frequency: number, _duration: number) => {
+  const generateWeeklyPlan = (goal: string, level: string, gender: string, frequency: number) => {
     const program = selectProgramForProfile(programs, goal, level, gender);
     if (!program) {
       toast.error('Nenhum programa disponível para gerar a semana.');

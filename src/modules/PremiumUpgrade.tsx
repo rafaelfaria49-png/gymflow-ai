@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
-import { Award, Check, Sparkles, X, ShieldCheck } from 'lucide-react';
+import { Sparkles, ShieldCheck } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 
 export const PremiumUpgrade = () => {

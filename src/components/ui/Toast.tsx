@@ -112,7 +112,7 @@ const ToastViewport = ({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: 
             <p className="flex-1 text-xs font-semibold text-white leading-snug">{t.message}</p>
             <button
               onClick={() => onDismiss(t.id)}
-              className="flex-shrink-0 text-gym-text-muted hover:text-white p-1 -m-1 rounded-lg"
+              className="flex-shrink-0 text-gym-text-muted hover:text-white w-11 h-11 -m-3 flex items-center justify-center rounded-lg"
               aria-label="Fechar notificação"
             >
               <X className="w-3.5 h-3.5" />
