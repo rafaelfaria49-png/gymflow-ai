@@ -1,0 +1,49 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.7.2'
+        classpath 'com.google.gms:google-services:4.4.2'
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+apply from: "variables.gradle"
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+// GOAL-12: alinhar todos os módulos ao JDK 17 instalado nesta máquina.
+// O Capacitor 7 declara sourceCompatibility/targetCompatibility 21, mas seu
+// código Java NÃO usa recursos exclusivos do Java 21 (verificado: sem sequenced
+// collections, virtual threads, record/switch patterns). Forçar 17 permite
+// compilar o APK com o JDK 17 já instalado, sem precisar de um JDK 21.
+// Fica aqui (e não no capacitor.build.gradle) porque `cap sync` NÃO regenera
+// android/build.gradle. Remover este bloco quando a máquina tiver um JDK 21.
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android {
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_17
+                    targetCompatibility JavaVersion.VERSION_17
+                }
+            }
+        }
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

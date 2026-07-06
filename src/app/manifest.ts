@@ -1,5 +1,10 @@
 import type { MetadataRoute } from 'next';
 
+// GOAL-12: o manifest é 100% estático (constantes). Sob `output: export` o Next
+// exige declarar isso explicitamente, senão a rota /manifest.webmanifest quebra
+// o export. Inofensivo para o build web (já era estático).
+export const dynamic = 'force-static';
+
 // PWA manifest (App Router file convention — Next 16).
 // Permite "Adicionar à tela inicial" no celular para teste em modo standalone.
 export default function manifest(): MetadataRoute.Manifest {

@@ -32,6 +32,12 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
   themeColor: '#09090b',
   colorScheme: 'dark',
+  // GOAL-12: no app empacotado (Capacitor, BUILD_TARGET=mobile) travamos o zoom
+  // para dar sensação de app nativo. No build web mantemos o pinch-zoom por
+  // acessibilidade — por isso é condicional ao alvo de build.
+  ...(process.env.BUILD_TARGET === 'mobile'
+    ? { maximumScale: 1, userScalable: false }
+    : {}),
 };
 
 export default function RootLayout({

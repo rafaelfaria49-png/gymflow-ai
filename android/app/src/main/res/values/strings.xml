@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">GymFlow AI</string>
+    <string name="title_activity_main">GymFlow AI</string>
+    <string name="package_name">com.gymflowai.app</string>
+    <string name="custom_url_scheme">com.gymflowai.app</string>
+</resources>

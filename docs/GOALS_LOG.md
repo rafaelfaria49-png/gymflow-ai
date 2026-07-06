@@ -544,3 +544,70 @@ Evolução/histórico ("Finalize seu primeiro treino" → Começar treino), Meus
 7. `git status` — nenhum arquivo de `labs/avatar-lab/`, `docs/avatar-design/`, `app/poc-3d`, GLBs, pipeline do Kai, backend, Supabase, Prisma ou pagamento tocado. Lote 2 não iniciado.
 
 **Lote 1 encerrado. Relatório consolidado em `docs/RELATORIO_FINAL_GOALS.md`.**
+
+---
+
+## GOAL-12 — App Android local com Capacitor (2026-07-06)
+
+### Resumo
+
+O GymFlow AI agora pode ser empacotado como **APK Android de debug** e instalado no celular como aplicativo (tela cheia, assets locais, localStorage), sem abrir URL no navegador. O app já era uma SPA 100% client-side, então bastou ligar o **export estático** do Next (`output: "export"` → pasta `out/`) num alvo de build separado e envolvê-lo num **WebView do Capacitor**. Backend, Supabase, pagamento, Avatar Lab, POC 3D e GLBs não foram tocados. **APK gerado com sucesso.**
+
+### Auditoria de static export (Parte 1)
+
+Viável sem refatorar o app: `page.tsx` e `poc-3d` são `'use client'`; **zero** API routes, server actions, `cookies()`/`headers()` ou `next/image`; `localStorage` já guardado por `typeof window`. Único ajuste necessário: a rota de metadata `/manifest.webmanifest` exigiu `export const dynamic = 'force-static'` sob `output: export` (registrado em DECISOES/PENDENCIAS). Os 261 assets de `public/` (250 fotos de exercícios + 5 ícones + sw.js) entram no `out/` automaticamente.
+
+### Estratégia de build (Parte 2) — não quebra o build web
+
+`output: "export"` só liga quando `BUILD_TARGET=mobile` (script `build:mobile`); `next build`/`next start` continuam com o comportamento padrão do Next. A trava de zoom no `viewport` também é condicional a esse alvo (app nativo trava zoom; web mantém pinch-zoom por acessibilidade).
+
+### Arquivos criados
+
+- `capacitor.config.ts` — `appId com.gymflowai.app`, `appName "GymFlow AI"`, `webDir out`; `androidScheme https` (contexto seguro p/ SW + localStorage persistente), `backgroundColor #09090b` (sem flash branco), `webContentsDebuggingEnabled true`.
+- `scripts/build-mobile.mjs` — wrapper Node cross-platform que roda `next build` com `BUILD_TARGET=mobile` (evita `cross-env`).
+- `scripts/android-build.mjs` — wrapper Node que roda `gradlew assembleDebug` (caminho absoluto do wrapper; cross-platform).
+- `docs/ANDROID_BUILD.md` — guia curto (build mobile, abrir Studio, gerar/instalar/atualizar APK, limitações, APK×PWA×Play Store).
+- `android/**` — projeto nativo gerado pelo Capacitor (`npx cap add android`).
+
+### Arquivos alterados
+
+- `next.config.ts` — `output: "export"` + `images.unoptimized` condicionais a `BUILD_TARGET=mobile` (via `mobileConfig` espalhado).
+- `src/app/manifest.ts` — `export const dynamic = 'force-static'` (necessário para o export; inofensivo ao web).
+- `src/app/layout.tsx` — `viewport` ganha `maximumScale: 1, userScalable: false` **só** quando `BUILD_TARGET=mobile`.
+- `package.json` — scripts `build:mobile`, `cap:sync`, `android:open`, `android:build`; deps `@capacitor/core`/`@capacitor/android` + devDep `@capacitor/cli`.
+- `android/build.gradle` — override de `compileOptions` para `VERSION_17` em todos os subprojetos (ver nota de toolchain abaixo).
+- `android/local.properties` — `sdk.dir` local (gitignored pelo Capacitor).
+
+### Capacitor 7 + JDK 17 (nota de toolchain)
+
+A máquina tem **JDK 17** e Android SDK com **platform android-35 + build-tools 35.0.0** (nenhum JDK 21). O Capacitor 8 (e o 7.6) declaram `sourceCompatibility 21`, quebrando o build com "invalid source release: 21". Como o código Java do Capacitor **não usa recursos exclusivos do Java 21** (verificado: sem sequenced collections, virtual threads, record/switch patterns), a solução foi fixar Capacitor **7.6.7** (compileSdk 35 = casa com o SDK instalado) e forçar `compileOptions` para 17 em `android/build.gradle` (arquivo que o `cap sync` não regenera). Android converte o bytecode para DEX, então 17 vs 21 não afeta o runtime. Remover o override quando houver JDK 21.
+
+### Como gerar e instalar (resumo — detalhe em `docs/ANDROID_BUILD.md`)
+
+```bash
+npm run cap:sync        # build:mobile (gera out/) + cap sync android
+npm run android:build   # APK -> android/app/build/outputs/apk/debug/app-debug.apk
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+`npm run android:open` abre o projeto no Android Studio (que traz seu próprio JBR 21, dispensando o override em quem usar a IDE).
+
+### APK gerado
+
+- `android/app/build/outputs/apk/debug/app-debug.apk` — **~21 MB**.
+- `aapt dump badging`: package `com.gymflowai.app`, label **GymFlow AI**, versionCode 1 / versionName 1.0, minSdk 23, targetSdk/compileSdk 35.
+
+### Validações executadas
+
+1. `npm run build:mobile` — export estático OK; `out/` com `index.html`, `manifest.webmanifest`, `sw.js`, `poc-3d.html`, `404.html`, 250 fotos de exercícios e os 5 ícones (~19 MB).
+2. `npx cap add android` + `npx cap sync android` — projeto nativo criado e assets copiados sem erro.
+3. `npm run android:build` — **BUILD SUCCESSFUL** (Gradle 8.x, AGP 8.7.2, JDK 17); APK de debug gerado.
+4. `npm run build` (web normal) — passou; segue com output padrão do Next (sem `export`), provando que o alvo mobile não quebrou o build web.
+5. `npx tsc --noEmit` — sem erros (inclui `capacitor.config.ts`).
+6. `npx vitest run` — 22/22 (inalterado).
+7. `grep -rn "alert(" src/` e `grep -rn "confirm(" src/` — ambos vazios.
+8. `git status` — nenhum arquivo de `labs/avatar-lab/`, `docs/avatar-design/`, `src/app/poc-3d`, GLBs, pipeline do Kai, backend, Supabase, Prisma, Stripe/pagamento ou autenticação real tocado. Lote 2 não iniciado.
+
+### Limitações conhecidas
+
+APK de debug (não assinado p/ release); sem backend (tudo local, não sincroniza entre aparelhos); o service worker é redundante dentro do WebView (mas não atrapalha); é preciso `cap:sync` a cada mudança de código web. Detalhes em `docs/ANDROID_BUILD.md` e `docs/PENDENCIAS.md`.
