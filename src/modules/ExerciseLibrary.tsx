@@ -3,9 +3,11 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { Exercise } from '../types';
-import { Search, X, Play, ShieldAlert, Heart, Sparkles, ChevronRight, Clock, BookOpen } from 'lucide-react';
+import { Search, X, ShieldAlert, Heart, Sparkles, ChevronRight, Clock, BookOpen } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { ExerciseMedia } from '../components/ExerciseMedia';
+import { TechniqueSequencePlayer } from '../components/TechniqueSequencePlayer';
+import { getExerciseIdForTechniqueVideoId, getTechniqueVideoIdForExerciseId } from '../lib/exerciseTechniqueMap';
 
 export const ExerciseLibrary = () => {
   const {
@@ -41,35 +43,6 @@ export const ExerciseLibrary = () => {
     { id: 'functional', label: 'Funcional' }
   ];
 
-  // Helper map from exercise ID to mock technical video lesson ID
-  const mapExerciseToVideoId = (exId: string): string => {
-    const map: { [key: string]: string } = {
-      'chest_supino_reto': 'vid_supino_1',
-      'legs_agachamento_barra': 'vid_agachamento_1',
-      'back_remada_curvada': 'vid_remada_1',
-      'legs_levantamento_terra': 'vid_terra_1',
-      'glutes_elevacao_pelvica': 'extra_vid_technique_2',
-      'legs_legpress_45': 'extra_vid_machines_1',
-      'legs_stiff': 'vid_terra_2'
-    };
-    return map[exId] || 'vid_supino_1';
-  };
-
-  // Helper to map video IDs back to exercise IDs for Recently Viewed tab
-  const mapVideoToExerciseId = (vidId: string): string => {
-    const map: { [key: string]: string } = {
-      'vid_supino_1': 'chest_supino_reto',
-      'vid_agachamento_1': 'legs_agachamento_barra',
-      'vid_agachamento_2': 'legs_agachamento_barra',
-      'vid_remada_1': 'back_remada_curvada',
-      'vid_terra_1': 'legs_levantamento_terra',
-      'extra_vid_technique_2': 'glutes_elevacao_pelvica',
-      'extra_vid_machines_1': 'legs_legpress_45',
-      'vid_terra_2': 'legs_stiff'
-    };
-    return map[vidId] || 'chest_supino_reto';
-  };
-
   const getTabFilteredExercises = () => {
     let base = exercises;
     
@@ -99,7 +72,9 @@ export const ExerciseLibrary = () => {
         'biceps_rosca_direta'
       ].includes(ex.id));
     } else if (currentLibraryTab === 'recent') {
-      const recentExIds = recentlyViewedVideoIds.map(vidId => mapVideoToExerciseId(vidId));
+      const recentExIds = recentlyViewedVideoIds
+        .map((vidId) => getExerciseIdForTechniqueVideoId(vidId))
+        .filter((id): id is string => id !== null);
       base = exercises.filter(ex => recentExIds.includes(ex.id));
     }
 
@@ -132,7 +107,7 @@ export const ExerciseLibrary = () => {
   };
 
   const handleOpenVideo = (exId: string) => {
-    const videoId = mapExerciseToVideoId(exId);
+    const videoId = getTechniqueVideoIdForExerciseId(exId);
     openGlobalPlayer(videoId);
   };
 
@@ -380,24 +355,14 @@ export const ExerciseLibrary = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* ESQUERDA: Video Player cover and muscles details */}
+              {/* ESQUERDA: sequência técnica e detalhes musculares */}
               <div className="space-y-4">
-                {/* GOAL-11: 3:2 casa com a proporção real das fotos — ficha técnica sem letterbox */}
-                <div className="relative aspect-[3/2] w-full bg-black rounded-2xl overflow-hidden border border-white/15 shadow-inner group">
-                  <ExerciseMedia
-                    images={selectedExercise.images}
-                    name={selectedExercise.name}
+                <div className="w-full rounded-2xl overflow-hidden border border-white/15 shadow-inner">
+                  <TechniqueSequencePlayer
+                    exercise={selectedExercise}
                     emoji={selectedExercise.thumbnail.split(' ')[0]}
-                    crossfade
-                    showBadge
+                    fit="contain"
                   />
-                  <button
-                    onClick={() => handleOpenVideo(selectedExercise.id)}
-                    className="absolute inset-0 bg-black/20 hover:bg-black/40 flex items-center justify-center text-white transition-all"
-                    title="Abrir guia técnico"
-                  >
-                    <Play className="w-12 h-12 text-gym-accent fill-gym-accent group-hover:scale-110 transition-all drop-shadow-[0_0_10px_rgba(163,230,53,0.4)]" />
-                  </button>
                 </div>
 
                 <div className="bg-white/5 border border-white/5 p-4 rounded-2xl space-y-2">

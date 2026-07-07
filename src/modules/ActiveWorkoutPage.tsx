@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
-import { ExerciseMedia } from '../components/ExerciseMedia';
+import { TechniqueSequencePlayer } from '../components/TechniqueSequencePlayer';
 import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, Flag, X } from 'lucide-react';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { getTechniqueVideoIdForExerciseId } from '../lib/exerciseTechniqueMap';
 
 export const ActiveWorkoutPage = () => {
   const {
@@ -378,35 +379,18 @@ export const ActiveWorkoutPage = () => {
               </div>
             </div>
 
-            {/* DEMONSTRAÇÃO DO EXERCÍCIO — fotos reais (GOAL-09) com crossfade; fallback honesto
-                (avatar Kai/Motion Engine seguem em produção — selo "Demonstração 3D em breve"). */}
-            {/* Layout em coluna: mídia em cima, botão "Ver Técnica" embaixo, sem overlap (GOAL-04). */}
+            {/* DEMONSTRAÇÃO DO EXERCÍCIO — sequência visual provisória (GOAL-13);
+                fallback honesto quando ainda não houver imagens suficientes. */}
             <div className="w-full rounded-2xl overflow-hidden border border-white/5 flex flex-col">
-              {/* GOAL-11: 16:9 + cover — as fotos 3:2 preenchem o quadro sem as faixas
-                  laterais/brancas do antigo 21:9 com contain (corte vertical leve e seguro). */}
-              <div className="aspect-video w-full relative">
-                <ExerciseMedia
-                  images={exercises.find((e) => e.id === ex.exerciseId)?.images}
-                  name={ex.name}
-                  crossfade
-                  showBadge
-                  compact
-                  fit="cover"
-                />
-              </div>
+              <TechniqueSequencePlayer
+                exercise={exercises.find((e) => e.id === ex.exerciseId)}
+                name={ex.name}
+                compact
+                fit="cover"
+              />
               <button
                 onClick={() => {
-                  const map: {[key: string]: string} = {
-                    'chest_supino_reto': 'vid_supino_1',
-                    'legs_agachamento_barra': 'vid_agachamento_1',
-                    'back_remada_curvada': 'vid_remada_1',
-                    'legs_levantamento_terra': 'vid_terra_1',
-                    'glutes_elevacao_pelvica': 'extra_vid_technique_2',
-                    'legs_legpress_45': 'extra_vid_machines_1',
-                    'legs_stiff': 'vid_terra_2'
-                  };
-                  const videoId = map[ex.exerciseId] || 'vid_supino_1';
-                  openGlobalPlayer(videoId);
+                  openGlobalPlayer(getTechniqueVideoIdForExerciseId(ex.exerciseId));
                 }}
                 className="w-full min-h-[44px] bg-black/40 hover:bg-black/60 border-t border-white/5 text-white hover:text-gym-accent font-black uppercase tracking-wider text-[10px] flex items-center justify-center gap-1.5 transition-all"
               >

@@ -611,3 +611,49 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ### Limitações conhecidas
 
 APK de debug (não assinado p/ release); sem backend (tudo local, não sincroniza entre aparelhos); o service worker é redundante dentro do WebView (mas não atrapalha); é preciso `cap:sync` a cada mudança de código web. Detalhes em `docs/ANDROID_BUILD.md` e `docs/PENDENCIAS.md`.
+
+---
+
+## GOAL-13 — Player de técnica por sequência de imagens (2026-07-07)
+
+### Resumo
+
+Criado suporte completo para sequência visual de técnica por exercício. O app agora entende `techniqueFrames?: TechniqueFrame[]`, usa sequências reais quando houver 3+ frames e gera etapas automáticas a partir de `images[]` enquanto a biblioteca ainda tem, em geral, 2 fotos por exercício. O fallback honesto foi mantido: sem imagem ou imagem quebrada cai em `AvatarDemoPlaceholder`, com texto claro de "Demonstração 3D em breve".
+
+### Arquivos criados
+
+- `src/lib/techniqueFrames.ts` — `getTechniqueFrames(exercise)` com fallback seguro, labels automáticos e cues a partir de instruções/dicas/correções existentes.
+- `src/lib/techniqueFrames.test.ts` — testes de `techniqueFrames`, 2 imagens, 5 imagens, sem imagens e dados incompletos.
+- `src/lib/exerciseTechniqueMap.ts` — mapa compartilhado exercício ↔ guia técnico, removendo duplicação em telas.
+- `src/components/TechniqueSequencePlayer.tsx` — player com autoplay, play/pause, anterior/próxima, repetir, contador, indicadores, dicas por etapa e fallback honesto.
+- `docs/TECHNIQUE_IMAGE_SEQUENCE_PLAN.md` — plano curto de pastas, nomes e 25 exercícios prioritários.
+- `docs/TECHNIQUE_IMAGE_PROMPTS.md` — prompt-base e prompts futuros para 10 exercícios, sem gerar imagens.
+
+### Arquivos alterados
+
+- `src/types/index.ts` — novo `TechniqueFrame` e `Exercise.techniqueFrames?`.
+- `src/modules/ExerciseLibrary.tsx` — ficha técnica agora mostra `TechniqueSequencePlayer`; botão "Ver técnica" usa mapa compartilhado.
+- `src/modules/ActiveWorkoutPage.tsx` — box visual do treino ativo trocado de crossfade para sequência curta com controles.
+- `src/components/GlobalVideoPlayer.tsx` — player global resolve o exercício associado ao guia e mostra a sequência antes do checklist.
+- `docs/GOALS_LOG.md` — este registro.
+
+### Como funciona o fallback
+
+- `techniqueFrames` com 3+ etapas: usa as etapas ordenadas por `order`.
+- Sem `techniqueFrames`: gera frames a partir de `images[]`.
+- Com 2 imagens: labels "Posição inicial" e "Execução / posição final".
+- Com 5 imagens: usa o padrão completo de início, meio, contração/final e retorno controlado.
+- Sem imagem: retorna um frame seguro e o player mostra o placeholder honesto, sem fingir vídeo/avatar.
+
+### Validações executadas
+
+1. `npx vitest run` — 27/27 testes passaram.
+2. `npx tsc --noEmit` — sem erros.
+3. `npm run build` — passou (foi necessário liberar rede para o Next buscar a fonte Google `Outfit`).
+4. `npm run build:mobile` — passou (mesma liberação de rede para a fonte).
+5. `rg -n "alert\(|confirm\(" src` — sem ocorrências.
+6. `git status`/diff conferidos — nenhum arquivo de `labs/avatar-lab/`, `docs/avatar-design/`, `src/app/poc-3d`, Motion Engine, GLBs, backend, Supabase, Prisma, Stripe/pagamento, autenticação real ou service worker foi tocado.
+
+### Confirmação de escopo
+
+Nenhuma imagem real nova foi gerada, baixada ou importada. Nenhum vídeo foi criado. Backend, pagamento, Avatar Lab, Motion Engine, GLBs e Capacitor Android nativo não foram alterados.

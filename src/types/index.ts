@@ -24,6 +24,13 @@ export interface ExerciseSlot {
   incrementKg: number;
 }
 
+export interface TechniqueFrame {
+  image: string;
+  label: string;
+  cue: string;
+  order: number;
+}
+
 // GOAL-10.5: perfis de volume do Construtor de Treino — guias configuráveis,
 // nunca travas (o usuário pode montar qualquer volume real).
 export type VolumeProfile = 'compact' | 'standard' | 'high';
@@ -101,6 +108,7 @@ export interface Exercise {
   type?: 'warmup' | 'main' | 'accessory' | 'finisher' | 'stretch';
   restSec?: number; // Descanso sugerido (segundos) entre séries deste exercício (GOAL-06)
   images?: string[]; // GOAL-09: caminhos locais (/assets/exercises/<id>/N.jpg); vazio p/ exercícios criados no Admin
+  techniqueFrames?: TechniqueFrame[]; // GOAL-13: sequência visual técnica; mantém images[] como fallback compatível
 }
 
 export interface WorkoutSet {

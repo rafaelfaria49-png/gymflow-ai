@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { AvatarDemoPlaceholder } from './AvatarDemoPlaceholder';
 import { Play, Check, ShieldAlert, Award, Clock, ArrowLeft, User, Flame, Maximize2, Minimize2, X, Brain, Dumbbell, Sparkles } from 'lucide-react';
+import { TechniqueSequencePlayer } from './TechniqueSequencePlayer';
+import { getExerciseIdForTechniqueVideoId } from '../lib/exerciseTechniqueMap';
 
 export const GlobalVideoPlayer = () => {
   const {
@@ -11,6 +13,7 @@ export const GlobalVideoPlayer = () => {
     globalPlayerOpen,
     closeGlobalPlayer,
     videos,
+    exercises,
     markVideoLearned,
     openGlobalPlayer,
     startWorkout,
@@ -21,6 +24,8 @@ export const GlobalVideoPlayer = () => {
 
   // Find the selected video lesson
   const video = videos.find((v) => v.id === activeVideoLessonId);
+  const relatedExerciseId = activeVideoLessonId ? getExerciseIdForTechniqueVideoId(activeVideoLessonId) : null;
+  const relatedExercise = relatedExerciseId ? exercises.find((ex) => ex.id === relatedExerciseId) : null;
 
   // Reset tab on video change
   useEffect(() => {
@@ -117,22 +122,32 @@ export const GlobalVideoPlayer = () => {
           {/* LADO ESQUERDO: Demonstração + descrições */}
           <div className={`${isCinemaMode ? 'lg:col-span-8' : 'lg:col-span-7'} space-y-4`}>
 
-            {/* DEMONSTRAÇÃO — placeholder honesto (avatar Kai em produção) */}
-            <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-white/10 shadow-inner">
-              <AvatarDemoPlaceholder
-                emoji={video.thumbnail}
-                title="Demonstração 3D em produção"
-                subtitle="A demonstração animada do Kai será integrada quando a Motion Engine for aprovada."
-              />
+            {/* DEMONSTRAÇÃO — sequência visual provisória quando há exercício associado. */}
+            <div className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-inner">
+              {relatedExercise ? (
+                <TechniqueSequencePlayer
+                  exercise={relatedExercise}
+                  emoji={relatedExercise.thumbnail.split(' ')[0]}
+                  fit="contain"
+                />
+              ) : (
+                <div className="aspect-video w-full">
+                  <AvatarDemoPlaceholder
+                    emoji={video.thumbnail.split(' ')[0]}
+                    title="Demonstração 3D em breve"
+                    subtitle="A demonstração animada do Kai será integrada quando a Motion Engine for aprovada."
+                  />
+                </div>
+              )}
             </div>
 
             {/* Banner de honestidade (ETAPA 12) */}
             <div className="flex items-start gap-2.5 bg-gym-accent/5 border border-gym-accent/15 rounded-2xl p-3">
               <Sparkles className="w-4 h-4 text-gym-accent mt-0.5 flex-shrink-0" />
               <p className="text-[11px] text-gym-text-muted leading-relaxed">
-                <span className="text-white font-bold">Demonstração visual provisória.</span> O avatar Kai e a
-                Motion Engine seguem em produção no Avatar Lab. Por enquanto, o guia técnico abaixo
-                (passo a passo, erros e dicas) já é totalmente funcional para o seu treino.
+                <span className="text-white font-bold">Sequência visual provisória.</span> Demonstração 3D em breve:
+                o avatar Kai e a Motion Engine seguem em produção no Avatar Lab. Use como referência técnica, não
+                substitui orientação profissional.
               </p>
             </div>
 
