@@ -657,3 +657,43 @@ Criado suporte completo para sequência visual de técnica por exercício. O app
 ### Confirmação de escopo
 
 Nenhuma imagem real nova foi gerada, baixada ou importada. Nenhum vídeo foi criado. Backend, pagamento, Avatar Lab, Motion Engine, GLBs e Capacitor Android nativo não foram alterados.
+
+---
+
+## GOAL-14 — Lote inicial de imagens reais de técnica (2026-07-07)
+
+### Resumo
+
+Produzido o primeiro lote real de sequências visuais para o `TechniqueSequencePlayer`: 10 exercícios prioritários, 5 JPGs por exercício, total de 50 imagens em `public/assets/exercises/<exerciseId>/sequence/`. O app agora resolve esses frames pelo `getTechniqueFrames()` antes do fallback antigo de `images[]`; exercícios fora do lote continuam com o comportamento do GOAL-13.
+
+### Exercícios cobertos
+
+- `chest_supino_reto`
+- `chest_supino_inclinado_haltere`
+- `back_puxada_pulley`
+- `back_remada_baixa`
+- `biceps_rosca_direta`
+- `triceps_polia_corda`
+- `legs_agachamento_barra`
+- `legs_legpress_45`
+- `shoulder_desenvolvimento_haltere`
+- `shoulder_elevecao_lateral`
+
+### Arquivos criados
+
+- `public/assets/exercises/*/sequence/step-01.jpg` a `step-05.jpg` para os 10 exercícios do lote.
+- `docs/TECHNIQUE_IMAGE_BATCH_001.md` — resumo do lote, equivalências de IDs, padrão de arquivos e candidatos ao lote 2.
+
+### Arquivos alterados
+
+- `src/lib/techniqueFrames.ts` — mapa do lote 001 com caminhos reais, labels e cues por etapa.
+- `src/lib/techniqueFrames.test.ts` — teste garante 5 frames por exercício e existência física dos JPGs.
+- `docs/GOALS_LOG.md` — este registro.
+
+### Integração
+
+`getTechniqueFrames()` mantém a prioridade para `techniqueFrames` explícitos, depois aplica o lote 001 quando o `exercise.id` é coberto, e só então usa o fallback por `images[]` ou placeholder honesto. Biblioteca, Treino Ativo e GlobalVideoPlayer usam o mesmo helper, então recebem os 5 frames reais sem nova integração de tela.
+
+### Confirmação de escopo
+
+Nenhum vídeo foi gerado. Backend, Supabase, Prisma, pagamento/Stripe, autenticação real, Avatar Lab, Motion Engine, GLBs, POC 3D, Android nativo e lote 2 não foram alterados.

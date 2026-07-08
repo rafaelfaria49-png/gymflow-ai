@@ -1,5 +1,8 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { getTechniqueFrames } from './techniqueFrames';
+import { MOCK_EXERCISES } from '../mock/exercises';
+import { getTechniqueFrames, TECHNIQUE_BATCH_001_EXERCISE_IDS } from './techniqueFrames';
 
 describe('getTechniqueFrames', () => {
   it('usa techniqueFrames quando há 3 ou mais etapas', () => {
@@ -56,5 +59,28 @@ describe('getTechniqueFrames', () => {
   it('não crasha com dados incompletos', () => {
     expect(() => getTechniqueFrames(null)).not.toThrow();
     expect(getTechniqueFrames({ images: ['', '  '] })).toHaveLength(1);
+  });
+
+  it('cobre o lote 001 com 5 frames reais por exercício', () => {
+    const exercisesById = new Map(MOCK_EXERCISES.map((exercise) => [exercise.id, exercise]));
+
+    for (const exerciseId of TECHNIQUE_BATCH_001_EXERCISE_IDS) {
+      const exercise = exercisesById.get(exerciseId);
+      expect(exercise, `${exerciseId} deve existir no mock`).toBeDefined();
+
+      const frames = getTechniqueFrames(exercise);
+      expect(frames, `${exerciseId} deve ter 5 frames`).toHaveLength(5);
+
+      frames.forEach((frame, index) => {
+        const expectedImage = `/assets/exercises/${exerciseId}/sequence/step-${String(index + 1).padStart(2, '0')}.jpg`;
+        const publicPath = join(process.cwd(), 'public', expectedImage.slice(1));
+
+        expect(frame.image).toBe(expectedImage);
+        expect(frame.order).toBe(index + 1);
+        expect(frame.label).toBeTruthy();
+        expect(frame.cue.length).toBeGreaterThan(30);
+        expect(existsSync(publicPath), publicPath).toBe(true);
+      });
+    }
   });
 });
