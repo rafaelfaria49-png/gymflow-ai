@@ -109,6 +109,7 @@ export interface Exercise {
   restSec?: number; // Descanso sugerido (segundos) entre séries deste exercício (GOAL-06)
   images?: string[]; // GOAL-09: caminhos locais (/assets/exercises/<id>/N.jpg); vazio p/ exercícios criados no Admin
   techniqueFrames?: TechniqueFrame[]; // GOAL-13: sequência visual técnica; mantém images[] como fallback compatível
+  searchTerms?: string[]; // GOAL-15: apelidos/termos de academia p/ a busca achar o exercício (ex.: "pulley", "puxada alta")
 }
 
 export interface WorkoutSet {

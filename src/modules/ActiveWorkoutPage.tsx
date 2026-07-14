@@ -3,8 +3,10 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { TechniqueSequencePlayer } from '../components/TechniqueSequencePlayer';
-import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, Flag, X } from 'lucide-react';
+import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, Flag, X, Plus, Trash2, Search } from 'lucide-react';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { NumericInput } from '../components/ui/NumericInput';
+import { matchesExerciseSearch } from '../lib/exerciseSearch';
 import { getTechniqueVideoIdForExerciseId } from '../lib/exerciseTechniqueMap';
 
 export const ActiveWorkoutPage = () => {
@@ -14,6 +16,10 @@ export const ActiveWorkoutPage = () => {
     updateWorkoutSet,
     updateExerciseNotes,
     completeWorkoutSet,
+    addSetToActiveExercise,
+    removeSetFromActiveExercise,
+    addExerciseToActiveWorkout,
+    removeExerciseFromActiveWorkout,
     swapExerciseInActiveWorkout,
     finishWorkout,
     cancelWorkout,
@@ -35,6 +41,8 @@ export const ActiveWorkoutPage = () => {
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [swapIndex, setSwapIndex] = useState<number | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addSearch, setAddSearch] = useState('');
 
   if (!activeWorkout) {
     return (
@@ -148,29 +156,15 @@ export const ActiveWorkoutPage = () => {
     }
   };
 
-  const handleAddSet = (exIndex: number) => {
-    const updatedExercises = [...activeWorkout.exercises];
-    const targetEx = updatedExercises[exIndex];
-    const newSetIndex = targetEx.sets.length;
-    const lastSet = targetEx.sets[targetEx.sets.length - 1];
+  // GOAL-15: adicionar exercício ao Treino Ativo pela busca (persiste de verdade,
+  // via addExerciseToActiveWorkout no contexto — antes a biblioteca mutava o array
+  // sem setState e a alteração não salvava).
+  const addExerciseCandidates = exercises.filter((ex) => matchesExerciseSearch(ex, addSearch)).slice(0, 40);
 
-    const newSet = {
-      id: `set_${exIndex}_${newSetIndex}_${Date.now()}`,
-      reps: lastSet ? lastSet.reps : 10,
-      weight: lastSet ? lastSet.weight : 10,
-      completed: false
-    };
-
-    // Usando a estrutura direta no state
-    targetEx.sets.push(newSet);
-    updateWorkoutSet(exIndex, newSetIndex, newSet);
-  };
-
-  const handleRemoveSet = (exIndex: number) => {
-    const targetEx = activeWorkout.exercises[exIndex];
-    if (targetEx.sets.length <= 1) return;
-    targetEx.sets.pop();
-    updateWorkoutSet(exIndex, 0, {}); // Trigger force re-render
+  const handleAddExercise = (exId: string) => {
+    addExerciseToActiveWorkout(exId);
+    setShowAddModal(false);
+    setAddSearch('');
   };
 
   // Filtrar substitutos recomendados baseado no mesmo grupo muscular
@@ -189,7 +183,8 @@ export const ActiveWorkoutPage = () => {
       if (incompleteSet) {
         const row = document.getElementById(`set-row-${incompleteSet.id}`);
         row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        const weightInput = row?.querySelector('input[type="number"]') as HTMLInputElement | null;
+        // O campo de carga é o primeiro input da linha (NumericInput = type="text").
+        const weightInput = row?.querySelector('input') as HTMLInputElement | null;
         weightInput?.focus();
         return;
       }
@@ -376,6 +371,16 @@ export const ActiveWorkoutPage = () => {
                   <RefreshCw className="w-3.5 h-3.5 text-gym-accent" />
                   Trocar
                 </button>
+                {activeWorkout.exercises.length > 1 && (
+                  <button
+                    onClick={() => removeExerciseFromActiveWorkout(exIdx)}
+                    className="min-h-[44px] w-11 text-gym-rose bg-gym-rose/10 hover:bg-gym-rose/20 border border-gym-rose/20 rounded-lg flex items-center justify-center transition-all active:scale-95"
+                    title="Remover exercício do treino"
+                    aria-label={`Remover ${ex.name} do treino`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -434,41 +439,42 @@ export const ActiveWorkoutPage = () => {
                     <span className="text-gym-accent/80 font-bold">{set.suggestedWeight ? `${set.suggestedWeight} kg` : '—'}</span>
                   </div>
 
-                  {/* Carga */}
+                  {/* Carga — NumericInput (GOAL-15): apaga tudo e digita sem virar 0.20/080 */}
                   <div className="col-span-3 px-0.5">
-                    <input
-                      type="number"
+                    <NumericInput
                       value={set.weight}
+                      allowDecimal
+                      min={0}
                       disabled={set.completed}
                       aria-label={`Carga da série ${setIdx + 1} (kg)`}
-                      onChange={(e) => updateWorkoutSet(exIdx, setIdx, { weight: Number(e.target.value) })}
+                      onCommit={(v) => updateWorkoutSet(exIdx, setIdx, { weight: v ?? 0 })}
                       className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
                     />
                   </div>
 
                   {/* Reps */}
                   <div className="col-span-2 px-0.5">
-                    <input
-                      type="number"
+                    <NumericInput
                       value={set.reps}
+                      min={0}
                       disabled={set.completed}
                       aria-label={`Repetições da série ${setIdx + 1}`}
-                      onChange={(e) => updateWorkoutSet(exIdx, setIdx, { reps: Number(e.target.value) })}
+                      onCommit={(v) => updateWorkoutSet(exIdx, setIdx, { reps: v ?? 0 })}
                       className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
                     />
                   </div>
 
-                  {/* RPE */}
+                  {/* RPE (opcional — vazio volta ao placeholder) */}
                   <div className="col-span-2 px-0.5">
-                    <input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={set.rpe || ''}
+                    <NumericInput
+                      value={set.rpe ?? null}
+                      min={1}
+                      max={10}
+                      emptyBehavior="null"
                       placeholder="8"
                       disabled={set.completed}
                       aria-label={`RPE da série ${setIdx + 1}`}
-                      onChange={(e) => updateWorkoutSet(exIdx, setIdx, { rpe: Number(e.target.value) })}
+                      onCommit={(v) => updateWorkoutSet(exIdx, setIdx, { rpe: v ?? undefined })}
                       className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
                     />
                   </div>
@@ -513,13 +519,13 @@ export const ActiveWorkoutPage = () => {
             {/* AÇÕES DE TABELA */}
             <div className="flex gap-2 justify-end pt-1">
               <button
-                onClick={() => handleRemoveSet(exIdx)}
+                onClick={() => removeSetFromActiveExercise(exIdx)}
                 className="min-h-[44px] text-[10px] text-gym-rose hover:bg-gym-rose/10 px-3 rounded-lg border border-transparent hover:border-gym-rose/20 transition-all font-semibold active:scale-95"
               >
                 - Remover Série
               </button>
               <button
-                onClick={() => handleAddSet(exIdx)}
+                onClick={() => addSetToActiveExercise(exIdx)}
                 className="min-h-[44px] text-[10px] text-gym-accent hover:bg-gym-accent/10 px-3 rounded-lg border border-transparent hover:border-gym-accent/20 transition-all font-semibold active:scale-95"
               >
                 + Adicionar Série
@@ -528,6 +534,15 @@ export const ActiveWorkoutPage = () => {
           </div>
         ))}
       </div>
+
+      {/* ADICIONAR EXERCÍCIO AO TREINO ATIVO (GOAL-15) */}
+      <button
+        onClick={() => setShowAddModal(true)}
+        className="w-full min-h-[52px] border-2 border-dashed border-white/15 hover:border-gym-accent/40 text-gym-text-muted hover:text-gym-accent rounded-3xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider transition-all active:scale-[0.99]"
+      >
+        <Plus className="w-4 h-4" />
+        Adicionar Exercício
+      </button>
 
       {/* CANCEL BUTTON */}
       <div className="flex justify-center pt-4">
@@ -656,6 +671,61 @@ export const ActiveWorkoutPage = () => {
                       <p className="text-[9px] text-gym-text-muted uppercase font-bold mt-0.5">{subEx.equipment}</p>
                     </div>
                     <span className="text-[10px] text-gym-accent font-bold uppercase">Substituir</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ADICIONAR EXERCÍCIO (GOAL-15) — busca com aliases/sem acento */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-gym-dark border border-white/10 rounded-3xl w-full max-w-md p-6 relative max-h-[85vh] flex flex-col">
+            <button
+              onClick={() => {
+                setShowAddModal(false);
+                setAddSearch('');
+              }}
+              className="absolute top-4 right-4 text-gym-text-muted hover:text-white rounded-lg bg-white/5 tap-target flex items-center justify-center"
+              aria-label="Fechar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-sm font-bold text-gym-accent uppercase tracking-wider mb-1">Adicionar ao treino</h3>
+            <h2 className="text-base font-bold text-white mb-3">Escolha um exercício</h2>
+
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gym-text-muted" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Buscar (ex: tríceps polia, remada baixa)..."
+                value={addSearch}
+                onChange={(e) => setAddSearch(e.target.value)}
+                className="w-full bg-gym-card border border-white/10 focus:border-gym-accent rounded-2xl py-3 pl-10 pr-4 text-sm text-white placeholder-gym-text-muted outline-none transition-all"
+              />
+            </div>
+
+            <div className="space-y-2 overflow-y-auto flex-1 -mr-2 pr-2">
+              {addExerciseCandidates.length === 0 ? (
+                <p className="text-xs text-gym-text-muted text-center py-6">
+                  Nenhum exercício encontrado para “{addSearch}”.
+                </p>
+              ) : (
+                addExerciseCandidates.map((ex) => (
+                  <button
+                    key={ex.id}
+                    onClick={() => handleAddExercise(ex.id)}
+                    className="w-full text-left bg-gym-card/50 border border-white/5 hover:border-gym-accent/30 p-3 rounded-2xl flex items-center justify-between transition-all active:scale-[0.99]"
+                  >
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-bold text-white truncate">{ex.name}</h4>
+                      <p className="text-[9px] text-gym-text-muted uppercase font-bold mt-0.5 truncate">{ex.equipment}</p>
+                    </div>
+                    <Plus className="w-4 h-4 text-gym-accent flex-shrink-0 ml-2" />
                   </button>
                 ))
               )}

@@ -77,6 +77,17 @@ export type AppView =
   | 'planner'
   | 'workout-builder';
 
+// GOAL-15: notificação de XP com id/kind/count para permitir limitar, consolidar,
+// auto-dismissar e fechar manualmente (antes era só { text, xp } empilhado sem fim).
+export interface XpNotification {
+  id: number;
+  kind: 'xp' | 'levelup';
+  text: string; // texto base do evento (ex.: "Série concluída!")
+  xp: number; // XP acumulado — somado quando eventos iguais são consolidados
+  count: number; // nº de eventos consolidados neste card
+  createdAt: number; // reinicia a cada consolidação (renova o tempo de auto-dismiss)
+}
+
 export interface ChatActionCard {
   label: string;
   actionType: 'start-workout' | 'generate-week' | 'swap-exercise' | 'watch-video' | 'replan-missed' | 'crowded-gym';
@@ -132,6 +143,11 @@ interface GymFlowContextType {
   updateWorkoutSet: (exerciseIndex: number, setIndex: number, fields: Partial<WorkoutSet>) => void;
   updateExerciseNotes: (exerciseIndex: number, notes: string) => void;
   completeWorkoutSet: (exerciseIndex: number, setIndex: number) => void;
+  // GOAL-15: edições do Treino Ativo (imutáveis → persistem e sobrevivem a refresh)
+  addSetToActiveExercise: (exerciseIndex: number) => void;
+  removeSetFromActiveExercise: (exerciseIndex: number) => void;
+  addExerciseToActiveWorkout: (exerciseId: string) => void;
+  removeExerciseFromActiveWorkout: (exerciseIndex: number) => void;
   swapExerciseInActiveWorkout: (exerciseIndex: number, newExerciseId: string, reason?: string) => void;
   finishWorkout: (rpe: number) => void;
   cancelWorkout: () => void;
@@ -181,7 +197,8 @@ interface GymFlowContextType {
   challenges: Challenge[];
   achievements: Achievement[];
   unlockAchievement: (id: string) => void;
-  xpNotifications: { text: string; xp: number }[];
+  xpNotifications: XpNotification[];
+  dismissXpNotification: (id: number) => void;
   clearXpNotifications: () => void;
 
   // Global Player
@@ -209,6 +226,11 @@ interface GymFlowContextType {
 }
 
 const GymFlowContext = createContext<GymFlowContextType | undefined>(undefined);
+
+// GOAL-15: teto de notificações de XP visíveis ao mesmo tempo (mobile) + janela
+// de consolidação de eventos repetidos (ex.: marcar várias séries em sequência).
+const MAX_XP_NOTIFICATIONS = 2;
+const XP_CONSOLIDATE_WINDOW_MS = 5000;
 
 // ===== GOAL-07: planejador real (Programa → Semana → Dia → Slot) =====
 const DAYS_ORDER = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
@@ -390,7 +412,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   });
 
   // Achievements, XP notifications
-  const [xpNotifications, setXpNotifications] = useState<{ text: string; xp: number }[]>([]);
+  const [xpNotifications, setXpNotifications] = useState<XpNotification[]>([]);
+  const xpNotifIdRef = useRef(0);
 
   // Global Player state
   const [activeVideoLessonId, setActiveVideoLessonId] = useState<string | null>(null);
@@ -629,6 +652,31 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     recentlyViewedVideoIds
   ]);
 
+  // GOAL-15: empilha uma notificação de XP com limite e consolidação.
+  // Eventos de XP repetidos e recentes (mesmo texto, ex.: "Série concluída!")
+  // são agrupados num único card ("4 séries concluídas · +40 XP") em vez de
+  // renderizar 4 cards gigantes. Level up nunca consolida (comemoração distinta).
+  const pushXpNotification = (kind: XpNotification['kind'], text: string, xp: number) => {
+    setXpNotifications((prev) => {
+      const now = Date.now();
+      if (kind === 'xp' && prev.length > 0) {
+        const last = prev[prev.length - 1];
+        if (last.kind === 'xp' && last.text === text && now - last.createdAt < XP_CONSOLIDATE_WINDOW_MS) {
+          const merged: XpNotification = {
+            ...last,
+            xp: last.xp + xp,
+            count: last.count + 1,
+            createdAt: now // renova o auto-dismiss enquanto o usuário segue marcando
+          };
+          return [...prev.slice(0, -1), merged];
+        }
+      }
+      const next: XpNotification = { id: ++xpNotifIdRef.current, kind, text, xp, count: 1, createdAt: now };
+      // No máximo MAX_XP_NOTIFICATIONS visíveis — descarta os mais antigos.
+      return [...prev, next].slice(-MAX_XP_NOTIFICATIONS);
+    });
+  };
+
   // XP trigger helper
   const addXp = (amount: number, reason: string) => {
     if (!user) return;
@@ -638,7 +686,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       const currentLevelIndex = Math.floor(prev.xp / 1000);
       const newLevelIndex = Math.floor(newXp / 1000);
       if (newLevelIndex > currentLevelIndex) {
-        setXpNotifications((n) => [...n, { text: `🔥 PARABÉNS! Subiu para o Nível ${newLevelIndex + 1}!`, xp: amount }]);
+        pushXpNotification('levelup', `🔥 PARABÉNS! Subiu para o Nível ${newLevelIndex + 1}!`, amount);
       }
       return {
         ...prev,
@@ -646,9 +694,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         points: prev.points + amount
       };
     });
-    setXpNotifications((n) => [...n, { text: reason, xp: amount }]);
+    pushXpNotification('xp', reason, amount);
   };
 
+  const dismissXpNotification = (id: number) => setXpNotifications((prev) => prev.filter((n) => n.id !== id));
   const clearXpNotifications = () => setXpNotifications([]);
 
   // Auth functions
@@ -886,16 +935,90 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     setActiveView('active-workout');
   };
 
+  // GOAL-15: atualização 100% imutável (updater funcional) — cada edição gera um
+  // novo objeto activeWorkout, disparando o efeito de persistência (sobrevive a
+  // refresh). Antes o array de séries era mutado no lugar em vários pontos.
   const updateWorkoutSet = (exerciseIndex: number, setIndex: number, fields: Partial<WorkoutSet>) => {
-    if (!activeWorkout) return;
-    const updatedExercises = [...activeWorkout.exercises];
-    updatedExercises[exerciseIndex].sets[setIndex] = {
-      ...updatedExercises[exerciseIndex].sets[setIndex],
-      ...fields
-    };
-    setActiveWorkout({
-      ...activeWorkout,
-      exercises: updatedExercises
+    setActiveWorkout((prev) => {
+      if (!prev) return prev;
+      const exercises = prev.exercises.map((ex, i) =>
+        i === exerciseIndex
+          ? { ...ex, sets: ex.sets.map((s, j) => (j === setIndex ? { ...s, ...fields } : s)) }
+          : ex
+      );
+      return { ...prev, exercises };
+    });
+  };
+
+  // GOAL-15: séries e exercícios do Treino Ativo agora são editados de forma
+  // imutável e centralizada aqui — antes ActiveWorkoutPage/ExerciseLibrary
+  // mutavam o array em memória e algumas mudanças (ex.: adicionar exercício pela
+  // biblioteca) não chamavam setActiveWorkout, então não salvavam nem apareciam.
+  const addSetToActiveExercise = (exerciseIndex: number) => {
+    setActiveWorkout((prev) => {
+      if (!prev) return prev;
+      const exercises = prev.exercises.map((ex, i) => {
+        if (i !== exerciseIndex) return ex;
+        const lastSet = ex.sets[ex.sets.length - 1];
+        const newSet: WorkoutSet = {
+          id: `set_${i}_${ex.sets.length}_${Date.now()}`,
+          reps: lastSet ? lastSet.reps : 10,
+          weight: lastSet ? lastSet.weight : 0,
+          completed: false,
+          rpe: lastSet?.rpe,
+          suggestedWeight: lastSet?.suggestedWeight,
+          lastWeight: lastSet?.lastWeight
+        };
+        return { ...ex, sets: [...ex.sets, newSet] };
+      });
+      return { ...prev, exercises };
+    });
+  };
+
+  const removeSetFromActiveExercise = (exerciseIndex: number) => {
+    setActiveWorkout((prev) => {
+      if (!prev) return prev;
+      const exercises = prev.exercises.map((ex, i) =>
+        i === exerciseIndex && ex.sets.length > 1 ? { ...ex, sets: ex.sets.slice(0, -1) } : ex
+      );
+      return { ...prev, exercises };
+    });
+  };
+
+  const addExerciseToActiveWorkout = (exerciseId: string) => {
+    const meta = exercises.find((e) => e.id === exerciseId);
+    if (!meta) return;
+    // ANT real do histórico (GOAL-08) para pré-preencher a carga do novo exercício.
+    const lastW = lastRecordedWeight(exerciseHistoryFor(exerciseId));
+    const stamp = Date.now();
+    setActiveWorkout((prev) => {
+      if (!prev) return prev;
+      const idx = prev.exercises.length;
+      const sets: WorkoutSet[] = Array.from({ length: 3 }, (_, sIdx) => ({
+        id: `set_${idx}_${sIdx}_${stamp}`,
+        reps: 10,
+        weight: lastW ?? 0,
+        completed: false,
+        lastWeight: lastW ?? undefined
+      }));
+      const newExercise: ActiveExercise = {
+        id: `active_ex_${idx}_${stamp}`,
+        exerciseId,
+        name: meta.name,
+        muscleGroup: meta.muscleGroup,
+        sets,
+        notes: ''
+      };
+      return { ...prev, exercises: [...prev.exercises, newExercise] };
+    });
+    toast.success(`"${meta.name}" adicionado ao treino ativo.`);
+  };
+
+  const removeExerciseFromActiveWorkout = (exerciseIndex: number) => {
+    setActiveWorkout((prev) => {
+      // Mantém pelo menos 1 exercício no treino ativo.
+      if (!prev || prev.exercises.length <= 1) return prev;
+      return { ...prev, exercises: prev.exercises.filter((_, i) => i !== exerciseIndex) };
     });
   };
 
@@ -1703,6 +1826,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         updateWorkoutSet,
         updateExerciseNotes,
         completeWorkoutSet,
+        addSetToActiveExercise,
+        removeSetFromActiveExercise,
+        addExerciseToActiveWorkout,
+        removeExerciseFromActiveWorkout,
         swapExerciseInActiveWorkout,
         finishWorkout,
         cancelWorkout,
@@ -1745,6 +1872,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         achievements,
         unlockAchievement,
         xpNotifications,
+        dismissXpNotification,
         clearXpNotifications,
 
         activeVideoLessonId,

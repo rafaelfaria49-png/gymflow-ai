@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { Exercise } from '../types';
 import { Search, X, ShieldAlert, Heart, Sparkles, ChevronRight, Clock, BookOpen } from 'lucide-react';
-import { useToast } from '../components/ui/Toast';
+import { matchesExerciseSearch } from '../lib/exerciseSearch';
 import { ExerciseMedia } from '../components/ExerciseMedia';
 import { TechniqueSequencePlayer } from '../components/TechniqueSequencePlayer';
 import { getExerciseIdForTechniqueVideoId, getTechniqueVideoIdForExerciseId } from '../lib/exerciseTechniqueMap';
@@ -18,9 +18,9 @@ export const ExerciseLibrary = () => {
     toggleFavoriteExercise,
     openGlobalPlayer,
     recentlyViewedVideoIds,
+    addExerciseToActiveWorkout,
     user
   } = useGymFlow();
-  const toast = useToast();
 
   const [search, setSearch] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState<string>('all');
@@ -79,7 +79,7 @@ export const ExerciseLibrary = () => {
     }
 
     return base.filter((ex) => {
-      const matchesSearch = ex.name.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = matchesExerciseSearch(ex, search);
       const matchesMuscle = selectedMuscle === 'all' || ex.muscleGroup === selectedMuscle;
       return matchesSearch && matchesMuscle;
     });
@@ -89,17 +89,10 @@ export const ExerciseLibrary = () => {
 
   const handleAddToWorkout = (ex: Exercise) => {
     if (activeWorkout) {
-      const newExIndex = activeWorkout.exercises.length;
-      activeWorkout.exercises.push({
-        id: `active_ex_${newExIndex}_${Date.now()}`,
-        exerciseId: ex.id,
-        name: ex.name,
-        muscleGroup: ex.muscleGroup,
-        sets: [
-          { id: `set_${newExIndex}_0`, reps: 10, weight: 10, completed: false, suggestedWeight: 12, lastWeight: 10, rpe: 7 }
-        ]
-      });
-      toast.success(`"${ex.name}" adicionado ao seu treino ativo!`);
+      // GOAL-15: usa o método imutável do contexto (com toast) — antes esta função
+      // fazia activeWorkout.exercises.push(...) SEM setState, então o exercício não
+      // era salvo/persistido e às vezes nem aparecia. Era a causa do bug relatado.
+      addExerciseToActiveWorkout(ex.id);
     } else {
       startWorkout(undefined, `Treino de ${ex.name}`);
     }

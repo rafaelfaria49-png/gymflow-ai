@@ -41,10 +41,18 @@ describe('biblioteca de exercícios (GOAL-09)', () => {
     }
   });
 
-  it('todo exercício tem pelo menos 1 imagem local existente em public/', () => {
+  it('exercícios curados têm imagem local existente; novos sem foto usam fallback honesto', () => {
+    // GOAL-15: exercícios adicionados sem foto real (images: []) renderizam o
+    // fallback honesto (AvatarDemoPlaceholder). Lista fixada para travar o escopo
+    // e evitar regressão silenciosa quando o próximo lote de fotos chegar.
+    const pending = MOCK_EXERCISES.filter((ex) => !ex.images || ex.images.length === 0)
+      .map((ex) => ex.id)
+      .sort();
+    expect(pending).toEqual(['triceps_maquina']);
+
     for (const ex of MOCK_EXERCISES) {
-      expect(ex.images && ex.images.length, `${ex.id}: sem images`).toBeGreaterThanOrEqual(1);
-      const first = ex.images![0];
+      if (!ex.images || ex.images.length === 0) continue; // aguardando foto (fallback honesto)
+      const first = ex.images[0];
       expect(first, ex.id).toMatch(/^\/assets\/exercises\//);
       expect(existsSync(path.join(PUBLIC_DIR, first)), `${ex.id}: imagem ausente em ${first}`).toBe(true);
     }

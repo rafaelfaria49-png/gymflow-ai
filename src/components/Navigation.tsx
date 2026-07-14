@@ -31,7 +31,13 @@ export const TopBar = () => {
   const xpProgressPercent = (xpInCurrentLevel / 1000) * 100;
 
   return (
-    <header className="sticky top-0 z-40 w-full glass border-b border-white/5 py-3 px-4 flex items-center justify-between">
+    // GOAL-15: paddingTop reserva a safe-area do topo (status bar do Android/notch).
+    // No web env(safe-area-inset-top)=0, então fica só o py-3 de sempre; no APK o
+    // fundo glass preenche a status bar e o logo GYMFLOWAI não fica mais cortado.
+    <header
+      className="sticky top-0 z-40 w-full glass border-b border-white/5 pb-3 px-4 flex items-center justify-between"
+      style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
+    >
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => setActiveView('dashboard')}>
           <span className="text-xl font-extrabold bg-gradient-to-r from-gym-accent to-gym-emerald bg-clip-text text-transparent tracking-tighter pl-0.5">

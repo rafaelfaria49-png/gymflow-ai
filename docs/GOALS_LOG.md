@@ -697,3 +697,65 @@ Produzido o primeiro lote real de sequências visuais para o `TechniqueSequenceP
 ### Confirmação de escopo
 
 Nenhum vídeo foi gerado. Backend, Supabase, Prisma, pagamento/Stripe, autenticação real, Avatar Lab, Motion Engine, GLBs, POC 3D, Android nativo e lote 2 não foram alterados.
+
+---
+
+## GOAL-15 — QA real do Treino Ativo (2026-07-14)
+
+### Resumo
+
+Correção dos bugs reais encontrados no uso do APK Android: (1) notificações de XP empilhando e cobrindo a tela; (2) edições do Treino Ativo (adicionar exercício) que não salvavam; (3) campos numéricos virando `080`/`012`/`0.20`; (4) exercícios tradicionais de academia difíceis de achar na busca; (5) topo do app cortado pela status bar.
+
+### Causa raiz de cada bug
+
+1. **Notificações de XP:** `XPBadgeNotification` renderizava TODAS as notificações do array sem limite e um único timer de 4s reiniciava a cada novo evento. Marcar 4 séries = 4+ cards gigantes presos no topo.
+2. **Edição não salva:** `ExerciseLibrary.handleAddToWorkout` fazia `activeWorkout.exercises.push(...)` **sem `setActiveWorkout`** — mutava o array em memória, então não re-renderizava nem disparava o efeito de persistência. `handleAddSet`/`handleRemoveSet` do Treino Ativo também mutavam antes de salvar.
+3. **Inputs numéricos:** `onChange={... Number(e.target.value)}` com `<input type="number">` — o comportamento de zero à esquerda do WebView + a reconciliação do React geravam `080`/`0.20`.
+4. **Busca:** `ex.name.toLowerCase().includes(query)` — sensível a acento (`triceps` não achava `Tríceps`) e sem apelidos (`pulley`, `puxada alta`, `remada baixa`).
+5. **Status bar:** o `<header>` sticky não reservava `env(safe-area-inset-top)`; com `viewport-fit=cover` no APK o conteúdo desenha atrás da status bar.
+
+### Antes / depois (comportamento crítico)
+
+- **Notificações:** antes empilhavam sem fim e cobriam os campos → agora no máximo 2 visíveis, eventos repetidos consolidados (`3 séries concluídas · +30 XP`), auto-dismiss (4s / level up 6s), botão X e swipe horizontal, posicionadas abaixo da TopBar respeitando a safe-area.
+- **Inputs:** antes `apagar 10 e digitar 20` virava `0.20` e `80` aparecia `080` → agora aceita vazio durante a edição, remove zero à esquerda, aceita vírgula/ponto, converte só no blur.
+- **Edição do treino:** antes adicionar exercício pela biblioteca não salvava → agora persiste em `gymflow:state:v1` e sobrevive a refresh (verificado no navegador).
+- **Busca:** antes `triceps pulley` não achava nada → agora acha os 5 exercícios de tríceps na polia (sem acento, por apelido).
+- **Status bar:** antes o logo GYMFLOWAI encostava/cortava no topo do APK → agora o header reserva a safe-area (no web `env()=0`, sem regressão).
+
+### Arquivos alterados
+
+- `src/lib/numericInput.ts` + `.test.ts` — **novos**: `normalizeNumericInput`/`parseNumericInput`.
+- `src/components/ui/NumericInput.tsx` — **novo**: input controlado com string de rascunho, commit no blur (`type="text"` + `inputMode`).
+- `src/lib/exerciseSearch.ts` + `.test.ts` — **novos**: `normalizeText` (sem acento) + `matchesExerciseSearch` (tokens/apelidos/stopwords).
+- `src/providers/GymFlowContext.tsx` — `XpNotification` (id/kind/count), `pushXpNotification` (limite + consolidação), `dismissXpNotification`; `updateWorkoutSet` reescrito imutável; novos `addSetToActiveExercise`/`removeSetFromActiveExercise`/`addExerciseToActiveWorkout`/`removeExerciseFromActiveWorkout`.
+- `src/components/XPBadgeNotification.tsx` — reescrito: cap 2, auto-dismiss por card, X + swipe, texto consolidado.
+- `src/modules/ActiveWorkoutPage.tsx` — `NumericInput` na carga/reps/RPE; ações de série/exercício via contexto; botão + modal "Adicionar Exercício" (busca com apelidos); botão remover exercício.
+- `src/modules/ExerciseLibrary.tsx` — busca por `matchesExerciseSearch`; `handleAddToWorkout` usa `addExerciseToActiveWorkout` (fim do bug de mutação).
+- `src/modules/WorkoutBuilder.tsx` — `NumericInput` nos campos (séries, reps, RPE, descanso, incremento, tempo alvo).
+- `src/mock/exercises.ts` — novo `triceps_maquina` (Extensão de Tríceps na Máquina, `images: []` = fallback honesto); mapa `SEARCH_TERMS` de apelidos aplicado no build.
+- `src/mock/exercises.test.ts` — teste de imagem aceita exercícios sem foto (lista fixada em `['triceps_maquina']`).
+- `src/types/index.ts` — `Exercise.searchTerms?`.
+- `src/components/Navigation.tsx`, `src/modules/LandingPage.tsx` — `paddingTop: calc(... + env(safe-area-inset-top))` no header.
+
+### Exercícios: aliases criados + 1 novo
+
+- **Novo:** `triceps_maquina` — "Extensão de Tríceps na Máquina" (sem foto ainda; fallback honesto).
+- **Aliases** (busca): tríceps polia → `pulley`; `triceps_coice` → `kickback`; `back_remada_maquina` → `remada articulada`/`remada sentada`; `back_remada_baixa` → `remada baixa`/`low row`; `back_puxada_pulley`/`_supinada`/`_fechada`/`_triangulo` → `puxada alta`/`pulldown`. Os demais citados (francês, testa, serrote, curvada, pulldown braço reto) já eram achados por nome após a busca ficar sem acento.
+
+### Validações executadas
+
+1. `npx vitest run` — 56 testes, 5 arquivos, todos passam (inclui `numericInput`, `exerciseSearch`, `exercises` atualizado).
+2. `npx tsc --noEmit` — sem erros.
+3. `npm run build` (web) — sucesso.
+4. `npm run build:mobile` (export estático) — sucesso.
+5. `npm run cap:sync` — assets copiados para `android/` (APK pronto para regerar).
+6. `rg -n "alert\(|confirm\("` em `src` — nenhuma ocorrência.
+7. **Verificação no navegador** (dev server): `080`→`80`, campo vazio não vira 0, `2,5`→`2.5`; 3 séries seguidas → um card "3 séries concluídas +30 XP" com botão fechar; busca `triceps pulley` → 5 resultados; exercício adicionado persiste no `localStorage` e sobrevive ao refresh; zero erros no console.
+
+### APK
+
+`npm run cap:sync` sincronizou os assets web atualizados para o projeto Android. Nenhum arquivo nativo (`android/`) foi editado — o fix de safe-area é 100% CSS —, então o build nativo é idêntico ao do GOAL-12. A regeneração do APK instalável é `npm run android:build` (Gradle). O efeito da safe-area no APK não foi validado em dispositivo real neste ambiente.
+
+### Confirmação de escopo
+
+Nenhuma imagem ou vídeo novo foi gerado. Backend, Supabase, Prisma, pagamento/Stripe, LGPD, autenticação real, Avatar Lab, Motion Engine, GLBs, POC 3D e lote 2 de imagens não foram tocados. Único ajuste "mobile" foi CSS de safe-area (sem plugin novo, sem editar `android/`).

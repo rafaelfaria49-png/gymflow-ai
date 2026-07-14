@@ -7,6 +7,7 @@ import { VOLUME_PROFILES, defaultTargetMinutes } from '../lib/volumeProfiles';
 import { estimateWorkoutDuration, muscleGroupsForSlots, buildDurationWarning } from '../lib/workoutDuration';
 import { useToast } from '../components/ui/Toast';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { NumericInput } from '../components/ui/NumericInput';
 import {
   ChevronLeft,
   Plus,
@@ -310,11 +311,10 @@ export const WorkoutBuilder = () => {
           </div>
           <div>
             <label className="block text-[10px] font-bold uppercase text-gym-text-muted mb-1.5">Tempo alvo (min)</label>
-            <input
-              type="number"
+            <NumericInput
               min={10}
               value={targetMinutes}
-              onChange={(e) => setTargetMinutes(Math.max(10, Number(e.target.value)))}
+              onCommit={(v) => setTargetMinutes(v ?? 10)}
               className="w-full bg-gym-dark border border-white/10 rounded-xl py-2.5 px-3 text-xs text-white outline-none focus:border-gym-accent"
             />
           </div>
@@ -460,53 +460,47 @@ export const WorkoutBuilder = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
                       Séries
-                      <input
-                        type="number"
+                      <NumericInput
                         min={1}
                         value={slot.series}
-                        onChange={(e) => updateSlot(idx, { series: Math.max(1, Number(e.target.value)) })}
+                        onCommit={(v) => updateSlot(idx, { series: v ?? 1 })}
                         className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                       />
                     </label>
                     <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
                       Reps mín.
-                      <input
-                        type="number"
+                      <NumericInput
                         min={1}
                         value={slot.repRange[0]}
-                        onChange={(e) => updateSlot(idx, { repRange: [Number(e.target.value), slot.repRange[1]] })}
+                        onCommit={(v) => updateSlot(idx, { repRange: [v ?? 1, slot.repRange[1]] })}
                         className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                       />
                     </label>
                     <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
                       Reps máx.
-                      <input
-                        type="number"
+                      <NumericInput
                         min={1}
                         value={slot.repRange[1]}
-                        onChange={(e) => updateSlot(idx, { repRange: [slot.repRange[0], Number(e.target.value)] })}
+                        onCommit={(v) => updateSlot(idx, { repRange: [slot.repRange[0], v ?? 1] })}
                         className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                       />
                     </label>
                     <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
                       RPE alvo
-                      <input
-                        type="number"
+                      <NumericInput
                         min={1}
                         max={10}
                         value={slot.targetRPE}
-                        onChange={(e) => updateSlot(idx, { targetRPE: Number(e.target.value) })}
+                        onCommit={(v) => updateSlot(idx, { targetRPE: v ?? 1 })}
                         className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                       />
                     </label>
                     <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
                       Descanso (s)
-                      <input
-                        type="number"
+                      <NumericInput
                         min={0}
-                        step={5}
                         value={slot.restSec}
-                        onChange={(e) => updateSlot(idx, { restSec: Math.max(0, Number(e.target.value)) })}
+                        onCommit={(v) => updateSlot(idx, { restSec: v ?? 0 })}
                         className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                       />
                     </label>
@@ -524,12 +518,11 @@ export const WorkoutBuilder = () => {
                     </label>
                     <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
                       Incremento (kg)
-                      <input
-                        type="number"
+                      <NumericInput
                         min={0}
-                        step={0.5}
+                        allowDecimal
                         value={slot.incrementKg}
-                        onChange={(e) => updateSlot(idx, { incrementKg: Math.max(0, Number(e.target.value)) })}
+                        onCommit={(v) => updateSlot(idx, { incrementKg: v ?? 0 })}
                         className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                       />
                     </label>

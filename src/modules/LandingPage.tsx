@@ -57,8 +57,11 @@ export const LandingPage = () => {
       <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-gym-accent/10 rounded-full blur-[140px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-gym-emerald/10 rounded-full blur-[140px] pointer-events-none"></div>
 
-      {/* Header bar */}
-      <header className="sticky top-0 z-40 w-full glass border-b border-white/5 py-4 px-6 md:px-12 flex items-center justify-between">
+      {/* Header bar — GOAL-15: reserva a safe-area do topo (status bar no APK) */}
+      <header
+        className="sticky top-0 z-40 w-full glass border-b border-white/5 pb-4 px-6 md:px-12 flex items-center justify-between"
+        style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}
+      >
         <span className="text-2xl font-black bg-gradient-to-r from-gym-accent to-gym-emerald bg-clip-text text-transparent tracking-tighter pl-0.5">
           GYMFLOW<span className="text-white">AI</span>
         </span>

@@ -3261,6 +3261,36 @@ const EXPANSION_EXERCISES: Exercise[] = [
     substitutions: ['mobility_alongamento_quadriceps', 'mobility_gato_coluna'],
     safetyWarnings: ['Use um colchonete sob o joelho apoiado.'],
     type: 'stretch'
+  },
+  // ===== GOAL-15: exercício tradicional de academia que faltava na biblioteca =====
+  {
+    id: 'triceps_maquina',
+    name: 'Extensão de Tríceps na Máquina',
+    thumbnail: '🎛️ Tríceps Máquina',
+    muscleGroup: 'triceps',
+    equipment: 'Máquina de Tríceps',
+    level: 'beginner',
+    // GOAL-15: ainda sem foto real — images vazio força o fallback honesto
+    // (AvatarDemoPlaceholder / "Demonstração 3D em breve"), sem inventar imagem.
+    images: [],
+    executionSteps: [
+      'Ajuste o assento para que os cotovelos fiquem alinhados ao eixo de rotação da máquina.',
+      'Apoie os antebraços (ou segure as pegadas) conforme o modelo do aparelho.',
+      'Mantenha o tronco encostado e os ombros estáveis contra o apoio.',
+      'Estenda os cotovelos empurrando a alavanca até quase a extensão total.',
+      'Retorne de forma controlada, sem deixar a pilha de peso bater no final.'
+    ],
+    postureTips: [
+      'Cotovelos alinhados ao pivô da máquina evitam sobrecarregar o ombro.',
+      'O movimento é só de extensão do cotovelo — não use impulso do tronco.'
+    ],
+    breathing: 'Expire ao estender os cotovelos, inspire ao retornar.',
+    commonErrors: ['Descolar as costas do apoio para empurrar mais carga.', 'Travar os cotovelos bruscamente na extensão.'],
+    errorCorrections: ['Reduza a carga e mantenha as costas apoiadas do início ao fim.', 'Pare a extensão pouco antes do bloqueio articular.'],
+    variations: ['Tríceps na Polia com Barra Reta', 'Tríceps Corda'],
+    substitutions: ['triceps_polia_barra', 'triceps_polia_corda', 'triceps_frances_haltere'],
+    safetyWarnings: ['Ajuste o assento e a carga antes de iniciar para proteger os cotovelos.'],
+    type: 'accessory'
   }
 ];
 
@@ -3274,4 +3304,32 @@ const withLocalImages = (exercise: Exercise): Exercise => ({
   ]
 });
 
-export const MOCK_EXERCISES: Exercise[] = [...BASE_EXERCISES, ...EXPANSION_EXERCISES].map(withLocalImages);
+// GOAL-15: apelidos/termos de academia por id — aplicados no build para a busca
+// achar os exercícios tradicionais pelos nomes comuns (sem editar cada objeto).
+// A maioria dos citados no GOAL já existia com outro nome; aqui só ampliamos a busca.
+const SEARCH_TERMS: Record<string, string[]> = {
+  // Tríceps na polia (o pessoal chama de "pulley")
+  triceps_polia_corda: ['pulley', 'triceps pulley', 'triceps na polia'],
+  triceps_polia_barra: ['pulley', 'triceps pulley', 'triceps na polia', 'triceps barra reta'],
+  triceps_polia_v: ['pulley', 'triceps na polia'],
+  triceps_frances_corda_polia: ['pulley', 'triceps frances na polia'],
+  triceps_coice: ['kickback', 'coice de triceps'],
+  triceps_maquina: ['triceps maquina sentado', 'extensao de triceps na maquina', 'triceps na maquina', 'triceps pulley maquina'],
+  // Remadas / puxadas
+  back_remada_maquina: ['remada articulada', 'remada maquina sentada', 'remada sentada', 'seated row'],
+  back_remada_baixa: ['remada baixa', 'remada baixa maquina', 'remada baixa no cabo', 'low row'],
+  back_puxada_pulley: ['puxada alta', 'pulldown', 'lat pulldown', 'puxada frente'],
+  back_puxada_supinada: ['pulldown', 'puxada alta'],
+  back_puxada_fechada: ['pulldown', 'puxada alta'],
+  back_puxada_triangulo: ['pulldown', 'puxada alta'],
+};
+
+const withSearchTerms = (exercise: Exercise): Exercise => {
+  const extra = SEARCH_TERMS[exercise.id];
+  if (!extra) return exercise;
+  return { ...exercise, searchTerms: [...(exercise.searchTerms ?? []), ...extra] };
+};
+
+export const MOCK_EXERCISES: Exercise[] = [...BASE_EXERCISES, ...EXPANSION_EXERCISES]
+  .map(withLocalImages)
+  .map(withSearchTerms);
