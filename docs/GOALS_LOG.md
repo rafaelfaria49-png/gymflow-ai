@@ -879,3 +879,55 @@ Próximo incremento recomendado: **GOAL-21 — Perfil de treino e retorno aos tr
 Próximo incremento recomendado: **GOAL-22**. Adaptação real de treino, progressão e curadoria de exercícios/programas não foram iniciadas.
 
 ---
+
+## GOAL-22 — Motor de volume, frequência e duração (2026-07-16)
+
+### Pré-flight e escopo
+
+- Base confirmada: `master` em `404209d9b731c59f566edf96c9e21c6d83da036d`; baseline de 12 arquivos/183 testes aprovado.
+- Único WIP: `.claude/settings.local.json`, preservado e fora do stage.
+- Trabalho mantido no worktree principal porque nenhum arquivo permitido estava em conflito.
+- Sem UI nova: cenários foram exercitados por domínio, testes e harness; Construtor, Context, programas, catálogo, progressão e storage não foram editados.
+
+### Motores e regras
+
+- Faixas semanais configuráveis por experiência e classe muscular, sempre chamadas de referência/alvo inicial/limite de cautela.
+- Atleta começa com a mesma faixa de avançado; retorno preserva o nível e aplica fator heurístico conforme a pausa somente à referência.
+- Volume planejado separa séries diretas, exposição secundária ponderada em 0,5, aquecimento e séries não classificadas. `legs_general` continua genérico.
+- Duração detalhada separa trabalho, descanso entre séries, setup, transição e aquecimento; usa reps, mecânica, lateralidade e equipamentos quando disponíveis.
+- API `estimateWorkoutDuration` permanece com shape e fórmula legados para todos os consumidores atuais.
+- Capacidade de sessão estima séries/exercícios que cabem em 30/45/60/75/90 min sem escolher exercícios.
+- Assessment retorna `fits`, `tight`, `exceeds_time`, `low_volume`, `high_volume` ou `insufficient_data`, com reasons, warnings, confidence e sugestões não aplicadas.
+
+### Harness real anonimizado
+
+- 4 costas + 4 bíceps, 4 séries, 8–12 reps: 32 séries preservadas; 74 min centrais (bounds 60–93), sendo 22 min de trabalho, 39 de descanso, 7 de transição e 6 de setup; `exceeds_time` para 60 min.
+- 4 costas + 5 bíceps: 36 séries preservadas; 82 min centrais (bounds 66–104), com 24 min de trabalho, 43 de descanso, 8 de transição e 7 de setup; `exceeds_time` para 75 min.
+- Nenhum exercício/série foi removido; alternativas permaneceram textuais.
+
+### Arquivos
+
+- Tipos: `src/types/training-volume.ts`, `src/types/index.ts`.
+- Regras/motores: `src/lib/training-volume-rules.ts`, `src/lib/training-volume.ts`, `src/lib/workoutDuration.ts`, `src/lib/training-plan-assessment.ts`, `src/lib/volumeProfiles.ts`.
+- Testes: `src/lib/training-volume.test.ts`, `src/lib/workoutDuration.test.ts`, `src/lib/training-plan-assessment.test.ts`.
+- Documentação: `docs/training/GYMFLOW_VOLUME_AND_DURATION_ENGINE.md`, `docs/DECISOES.md`, `docs/PENDENCIAS.md`, `docs/GOALS_LOG.md`.
+
+### Validações
+
+- `npx vitest run`: 15 arquivos, **252 testes** aprovados (183 anteriores + 69 novos).
+- `npx tsc --noEmit`: aprovado.
+- ESLint focado em todos os arquivos TypeScript alterados/novos: zero erros e zero warnings.
+- `npm run build`: aprovado no Next.js 16.2.6.
+- `npm run build:mobile`: export estático aprovado; `cap:sync` e Android build não executados.
+- Harness substituiu teste manual porque não houve UI. Matriz de capacidade e cenários de 32/36 séries foram executados deterministicamente.
+- Hashes de programas, exercícios, progressão, storage, Context e WorkoutBuilder permaneceram idênticos ao pré-flight.
+- `rg -n "alert\(|confirm\(" src`: zero ocorrência.
+- `git diff --check`: aprovado.
+
+### Gate G2 — proposta, não aprovação
+
+A proposta inclui faixas, fatores de retorno, peso 0,5 de sinergistas, fórmula de duração, defaults de descanso/setup/transição, atleta igual a avançado, política para dados incompletos e catálogo de sugestões. Todos exigem revisão profissional e aprovação explícita do Founder.
+
+Próximo passo: **revisão e aprovação do Gate G2 pelo Founder**. Somente depois iniciar **GOAL-19A**; ele não foi iniciado neste incremento.
+
+---

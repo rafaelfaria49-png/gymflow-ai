@@ -50,6 +50,25 @@ export type {
   TrainingStatusDefinition,
 } from './training-profile';
 
+export type {
+  CapacityReference,
+  DetailedWorkoutDurationEstimate,
+  ExerciseDurationEstimate,
+  MuscleGroupVolumeResult,
+  MuscleVolumeClass,
+  PlanAssessmentStatus,
+  PlannedVolumeAnalysis,
+  SessionCapacityEstimate,
+  SetVolumeReference,
+  TrainingPlanAssessment,
+  TrainingPlanSuggestion,
+  TrainingPlanWarning,
+  TrainingGoalContext,
+  TrainingVolumeLevel,
+  VolumeConfidence,
+  WeeklyVolumeGuideline,
+} from './training-volume';
+
 export interface WeeklyWorkoutDay {
   dayName: string; // 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
   workoutName: string; // Ex: 'Quadríceps + Glúteo', 'Descanso'

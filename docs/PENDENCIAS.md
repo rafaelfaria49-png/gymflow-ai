@@ -1,5 +1,16 @@
 # Pendências
 
+## GOAL-22 — motor de volume e duração / Gate G2
+
+- **Revisão profissional obrigatória:** aprovar ou ajustar faixas semanais, modificadores de retorno, peso 0,5 dos sinergistas, defaults de descanso/setup/transição e bounds antes de exposição pública.
+- **Gate G2:** o Founder precisa revisar a proposta em `docs/training/GYMFLOW_VOLUME_AND_DURATION_ENGINE.md`; este commit não equivale a aprovação.
+- **GOAL-19A bloqueado pelo Gate G2:** não iniciar o Construtor inteligente multi-dia antes da decisão explícita.
+- **GOAL-33A:** preencher taxonomia canônica dos 126 exercícios para elevar confidence e reduzir warnings legados.
+- Decidir futuramente se o Construtor atual migra da estimativa legada para a detalhada; a troca pode alterar números visíveis e requer aceite de produto.
+- Modelar supersets, técnicas avançadas, aquecimento específico e lotação somente em incrementos próprios, com novos testes e sem inferência silenciosa.
+- Definir como planos multi-dia informarão `weeklyOccurrences`; frequência do perfil sozinha não identifica quantas vezes cada grupo aparece.
+- Storage v1, progressão, programas, catálogo, treino ativo e histórico permanecem fora desta decisão.
+
 ## GOAL-21 — perfil de treino e retorno
 
 - **GOAL-22:** consumir o contexto derivado somente após modelar regras explícitas e testáveis de volume/frequência/duração. O status `returning` sozinho não autoriza percentual fixo de redução, deload ou troca de prescrição.

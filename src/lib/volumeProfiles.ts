@@ -3,6 +3,7 @@
 // o perfil só sugere um alvo de tempo/exercícios e alimenta o aviso de duração.
 
 import { VolumeProfile } from '../types';
+import type { TrainingVolumeLevel } from '../types/training-volume';
 
 export interface VolumeProfileConfig {
   id: VolumeProfile;
@@ -12,6 +13,8 @@ export interface VolumeProfileConfig {
   maxMinutes: number;
   minExercises: number;
   maxExercises: number;
+  /** Classificação descritiva da sessão; não substitui faixas semanais por músculo. */
+  referenceLevel?: Exclude<TrainingVolumeLevel, 'very_high'>;
 }
 
 export const VOLUME_PROFILES: VolumeProfileConfig[] = [
@@ -22,7 +25,8 @@ export const VOLUME_PROFILES: VolumeProfileConfig[] = [
     minMinutes: 35,
     maxMinutes: 45,
     minExercises: 4,
-    maxExercises: 5
+    maxExercises: 5,
+    referenceLevel: 'low'
   },
   {
     id: 'standard',
@@ -31,7 +35,8 @@ export const VOLUME_PROFILES: VolumeProfileConfig[] = [
     minMinutes: 50,
     maxMinutes: 65,
     minExercises: 5,
-    maxExercises: 7
+    maxExercises: 7,
+    referenceLevel: 'moderate'
   },
   {
     id: 'high',
@@ -40,7 +45,8 @@ export const VOLUME_PROFILES: VolumeProfileConfig[] = [
     minMinutes: 70,
     maxMinutes: 90,
     minExercises: 7,
-    maxExercises: 9
+    maxExercises: 9,
+    referenceLevel: 'high'
   }
 ];
 
@@ -52,4 +58,8 @@ export function getVolumeProfile(id: VolumeProfile): VolumeProfileConfig {
 export function defaultTargetMinutes(id: VolumeProfile): number {
   const profile = getVolumeProfile(id);
   return Math.round((profile.minMinutes + profile.maxMinutes) / 2);
+}
+
+export function getVolumeProfileReferenceLevel(id: VolumeProfile): Exclude<TrainingVolumeLevel, 'very_high'> {
+  return getVolumeProfile(id).referenceLevel ?? 'moderate';
 }

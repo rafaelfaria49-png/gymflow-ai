@@ -2,6 +2,19 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-22 (2026-07-16)
+
+- **API de duração legada preservada exatamente:** `estimateWorkoutDuration` usa o novo motor em modo de compatibilidade; a migração visual para o breakdown detalhado exige decisão futura.
+- **Faixas são referências de produto:** nunca recebem nomes clínicos como volume mínimo efetivo, máximo recuperável ou limite seguro.
+- **Atleta começa com a faixa de avançado:** nível esportivo não autoriza volume extremo automático.
+- **Retorno altera somente a referência:** fatores por pausa são heurísticas configuráveis; o nível e o plano permanecem intactos.
+- **Exposição secundária começa em 0,5:** fica separada de séries diretas e precisa de aprovação no Gate G2.
+- **`legs_general` permanece indivisível:** o motor não infere quadríceps, posterior ou glúteos antes da curadoria.
+- **Descanso não é duplicado na duração detalhada:** conta somente entre séries; depois da última entra a transição.
+- **Volume semanal exige ocorrências explícitas:** um treino não é multiplicado automaticamente pela frequência total do perfil.
+- **Sem UI neste incremento:** testes/harness exercitam os cenários sem criar superfície artificial ou ação “Aplicar”.
+- **Gate G2 não está aprovado:** faixas, fatores, tempos e sugestões aguardam revisão do Founder antes do GOAL-19A.
+
 ## GOAL-21 (2026-07-16)
 
 - **Experiência e continuidade são dimensões ortogonais:** `level` continua sendo a experiência escolhida; `trainingStatus` informa apenas `active` ou `returning`. Uma pausa nunca rebaixa automaticamente o aluno.
