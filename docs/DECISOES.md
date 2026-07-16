@@ -2,6 +2,18 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-21 (2026-07-16)
+
+- **Experiência e continuidade são dimensões ortogonais:** `level` continua sendo a experiência escolhida; `trainingStatus` informa apenas `active` ou `returning`. Uma pausa nunca rebaixa automaticamente o aluno.
+- **`athlete` foi preservado e Personal Trainer não virou nível:** atleta descreve competição/alta performance; Personal Trainer será papel de um futuro modo Personal.
+- **Sem objeto persistido duplicado:** objetivo, frequência e duração continuam nos campos existentes de `UserProfile`; `ResolvedTrainingProfile` é somente um view model derivado.
+- **Perfil legado resolve como `active` em leitura:** a ausência de `trainingStatus` não dispara rewrite, migração ou bump do envelope v1.
+- **Detalhes de retorno não são apagados ao marcar `active`:** a UI os oculta e preserva para histórico/contexto. Nenhuma ação de limpeza foi criada neste GOAL.
+- **`previousLevel` permanece opcional:** agrega contexto quando nível atual e experiência anterior diferem, mas nunca promove/rebaixa automaticamente.
+- **Data de retorno é civil (`YYYY-MM-DD`):** validação por componentes de calendário, sem parse UTC que possa trocar o dia; datas futuras são rejeitadas.
+- **Duas superfícies de UI foram usadas:** onboarding e configurações já existentes em Evolução. Um seletor/resumo compartilhado evita regras paralelas.
+- **Nenhuma prescrição foi introduzida:** retorno produz label/contexto, não altera séries, repetições, volume, RPE, descanso, progressão, programas ou exercícios.
+
 ## GOAL-18A (2026-07-16)
 
 - **`legs` resolve para `legs_general`, nunca para quadríceps/posterior:** os 23 exercícios legados de pernas continuam genéricos até a curadoria do GOAL-33A.

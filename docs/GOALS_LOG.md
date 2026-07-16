@@ -836,3 +836,46 @@ Nenhum dos 126 exercícios foi reclassificado; nenhum exercício foi adicionado;
 Próximo incremento recomendado: **GOAL-21 — Perfil de treino e retorno aos treinos**. GOAL-20, GOAL-24 e GOAL-33A não foram iniciados.
 
 ---
+
+## GOAL-21 — Perfil de treino e retorno aos treinos (2026-07-16)
+
+### Modelo e regras
+
+- Experiência e continuidade passaram a ser dimensões independentes: `beginner`, `intermediate`, `advanced` e `athlete` descrevem experiência; `active` e `returning` descrevem o momento atual.
+- “Personal Trainer” continua sendo profissão, não nível. `athlete` é exibido como “Atleta / Alta performance”.
+- O contexto de retorno aceita pausa aproximada, data civil opcional, nível anterior opcional e observações livres não médicas. Anos de experiência também são opcionais e não promovem/rebaixam o nível automaticamente.
+- Perfis antigos sem `trainingStatus` são resolvidos como `active`; o envelope `gymflow:state:v1` e o formato de export/import não mudaram.
+- O caso real anonimizado — intermediário, 7 anos, retorno após 3–6 meses, hipertrofia, 5 dias e 75 minutos — permanece “Intermediário em retorno”. Nenhuma prescrição, série, repetição, volume, exercício ou programa é alterado neste incremento.
+
+### Produto e integração
+
+- O onboarding agora explica e coleta experiência + continuidade sem mandar quem retorna para iniciante.
+- A seção existente de configurações em Evolução permite revisar e salvar o mesmo perfil depois; alternar para ativo oculta, mas preserva, os detalhes de retorno.
+- Um summary compartilhado apresenta labels compostos como “Intermediário em retorno” e deixa explícito que o contexto só poderá orientar adaptações futuras.
+- A integração no contexto adiciona apenas os novos campos opcionais ao cadastro; autosave, hidratação, backup e import/export continuam usando a persistência v1 existente.
+
+### Arquivos
+
+- Tipos e domínio: `src/types/training-profile.ts`, `src/types/index.ts`, `src/lib/training-profile.ts`.
+- Componentes: `src/components/TrainingProfileSelector.tsx`, `src/components/TrainingProfileSummary.tsx`.
+- Superfícies: `src/modules/OnboardingFlow.tsx`, `src/modules/EvolutionDashboard.tsx`.
+- Integração mínima: `src/providers/GymFlowContext.tsx`.
+- Testes e documentação: `src/lib/training-profile.test.ts`, `docs/profile/GYMFLOW_TRAINING_PROFILE.md`, `docs/DECISOES.md`, `docs/PENDENCIAS.md`, `docs/GOALS_LOG.md`.
+
+### Validações
+
+- `npx vitest run`: 12 arquivos, **183 testes** aprovados (158 anteriores + 25 novos).
+- `npx tsc --noEmit`: aprovado.
+- ESLint focado nos tipos, domínio, testes, componentes e duas superfícies: aprovado, com um aviso preexistente de `<img>` em Evolução; o arquivo legado do contexto mantém débitos de lint fora das três linhas deste incremento.
+- `npm run build`: aprovado no Next.js 16.2.6.
+- `npm run build:mobile`: export estático aprovado; Android build e `cap sync` não executados.
+- Navegador: perfil legado abriu como “Intermediário”; retorno 3–6 meses com 7 anos virou “Intermediário em retorno” e sobreviveu à recarga; alternar ativo/retorno ocultou e restaurou os detalhes; exportação pela UI confirmou backup de 14.940 bytes; zero erros no console.
+- O upload do arquivo de importação não foi automatizado pelo controlador do navegador. O roundtrip export/import do envelope v1, incluindo perfil e invariância de programas, treino ativo e histórico, foi validado deterministicamente no teste de domínio.
+- `rg -n "alert\(|confirm\(" src`: zero ocorrência.
+- `git diff --check`: aprovado.
+
+### Continuação
+
+Próximo incremento recomendado: **GOAL-22**. Adaptação real de treino, progressão e curadoria de exercícios/programas não foram iniciadas.
+
+---

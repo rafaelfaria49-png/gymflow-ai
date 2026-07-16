@@ -1,5 +1,13 @@
 # Pendências
 
+## GOAL-21 — perfil de treino e retorno
+
+- **GOAL-22:** consumir o contexto derivado somente após modelar regras explícitas e testáveis de volume/frequência/duração. O status `returning` sozinho não autoriza percentual fixo de redução, deload ou troca de prescrição.
+- Validar em pesquisa/uso real se a faixa máxima de 80 anos para experiência aproximada é suficiente; ela é apenas guarda de integridade, não critério de nível.
+- O perfil demo permanece sem os campos opcionais para cobrir o fallback legado `active`. Se produtos futuros exigirem status explícito em todos os perfis, fazer migração separada e confirmada, não rewrite silencioso.
+- Não existe ação para apagar definitivamente o histórico de retorno. Se ela for criada, deverá usar `ConfirmDialog` e explicar a perda de contexto.
+- Testes de componente não foram adicionados porque o projeto não possui ambiente DOM/Testing Library; o seletor é coberto pelo domínio e pelo teste manual. Adotar cobertura de interação quando a infraestrutura de UI existir.
+
 ## GOAL-18A — taxonomia e equipamentos
 
 - **GOAL-33A:** curar os 126 exercícios em lotes e preencher os novos campos opcionais. Até lá, `legs` continua `legs_general`; nenhum exercício deve ser inferido automaticamente como quadríceps, posterior ou glúteos.

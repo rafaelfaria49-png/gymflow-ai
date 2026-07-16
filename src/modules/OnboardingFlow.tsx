@@ -3,6 +3,10 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { ArrowLeft, ArrowRight, BrainCircuit, ShieldAlert, Award, Play } from 'lucide-react';
+import { TrainingProfileSelector } from '../components/TrainingProfileSelector';
+import { TrainingProfileSummary } from '../components/TrainingProfileSummary';
+import { validateTrainingProfile } from '../lib/training-profile';
+import type { TrainingProfileFields } from '../types/training-profile';
 
 export const OnboardingFlow = () => {
   const { registerUser } = useGymFlow();
@@ -15,7 +19,10 @@ export const OnboardingFlow = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [goal, setGoal] = useState<'hypertrophy' | 'slimming' | 'strength' | 'conditioning' | 'athlete'>('hypertrophy');
-  const [level, setLevel] = useState<'beginner' | 'intermediate' | 'advanced' | 'athlete'>('intermediate');
+  const [trainingProfile, setTrainingProfile] = useState<TrainingProfileFields>({
+    level: 'intermediate',
+    trainingStatus: 'active',
+  });
   const [gender, setGender] = useState<'male' | 'female' | 'neutral'>('neutral');
   const [age, setAge] = useState(25);
   const [weight, setWeight] = useState(75);
@@ -27,6 +34,8 @@ export const OnboardingFlow = () => {
   const [restrictions, setRestrictions] = useState<string[]>([]);
   const [muscleFocus, setMuscleFocus] = useState<string[]>(['Peito', 'Costas']);
   const [preference, setPreference] = useState('');
+  const level = trainingProfile.level;
+  const trainingProfileValid = validateTrainingProfile(trainingProfile).valid;
 
   const nextStep = () => setStep((s) => s + 1);
   const prevStep = () => setStep((s) => Math.max(1, s - 1));
@@ -89,7 +98,10 @@ export const OnboardingFlow = () => {
       equipments,
       restrictions,
       muscleFocus,
-      preference
+      preference,
+      trainingStatus: trainingProfile.trainingStatus ?? 'active',
+      returnToTraining: trainingProfile.returnToTraining,
+      trainingExperienceYears: trainingProfile.trainingExperienceYears,
     });
   };
 
@@ -127,16 +139,16 @@ export const OnboardingFlow = () => {
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-white mb-2">Qual seu objetivo principal?</h2>
             <div className="grid grid-cols-1 gap-2.5">
-              {[
+              {([
                 { id: 'hypertrophy', label: '💪 Hipertrofia (Ganhar massa magra)' },
                 { id: 'slimming', label: '🏃 Emagrecimento & Definição' },
                 { id: 'strength', label: '🏋️ Força Bruta (Aumentar cargas)' },
                 { id: 'conditioning', label: '⚡ Condicionamento Físico & GPP' },
                 { id: 'athlete', label: '🏆 Performance Atlética Olímpica' }
-              ].map((opt) => (
+              ] as const).map((opt) => (
                 <button
                   key={opt.id}
-                  onClick={() => setGoal(opt.id as any)}
+                  onClick={() => setGoal(opt.id)}
                   className={`p-4 rounded-xl text-left border text-sm font-bold transition-all ${
                     goal === opt.id
                       ? 'border-gym-accent bg-gym-accent/10 text-gym-accent'
@@ -152,28 +164,12 @@ export const OnboardingFlow = () => {
       case 3:
         return (
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-white mb-2">Qual seu nível atual de musculação?</h2>
-            <div className="grid grid-cols-1 gap-2.5">
-              {[
-                { id: 'beginner', title: 'Iniciante', desc: 'Nunca treinei ou estou voltando após muito tempo parado' },
-                { id: 'intermediate', title: 'Intermediário', desc: 'Treino há pelo menos 6-12 meses consistentes' },
-                { id: 'advanced', title: 'Avançado', desc: 'Treino há mais de 2 anos e conheço os limites das minhas cargas' },
-                { id: 'athlete', title: 'Atleta / Profissional', desc: 'Foco competitivo, alta performance e intensidade' }
-              ].map((opt) => (
-                <button
-                  key={opt.id}
-                  onClick={() => setLevel(opt.id as any)}
-                  className={`p-4 rounded-xl text-left border transition-all ${
-                    level === opt.id
-                      ? 'border-gym-accent bg-gym-accent/10 text-gym-accent'
-                      : 'border-white/5 bg-white/5 text-white hover:bg-white/10'
-                  }`}
-                >
-                  <span className="block text-sm font-bold">{opt.title}</span>
-                  <span className="block text-xs text-gym-text-muted mt-0.5">{opt.desc}</span>
-                </button>
-              ))}
-            </div>
+            <h2 className="text-xl font-bold text-white mb-2">Experiência e momento atual</h2>
+            <TrainingProfileSelector
+              idPrefix="onboarding-training-profile"
+              value={trainingProfile}
+              onChange={setTrainingProfile}
+            />
           </div>
         );
       case 4:
@@ -185,15 +181,15 @@ export const OnboardingFlow = () => {
             <div>
               <label className="block text-[10px] font-bold uppercase text-gym-text-muted mb-1.5">Perfil de Treino</label>
               <div className="grid grid-cols-3 gap-2">
-                {[
+                {([
                   { id: 'male', label: '🚹 Masculino' },
                   { id: 'female', label: '🚺 Feminino' },
                   { id: 'neutral', label: '⚧ Neutro' }
-                ].map((g) => (
+                ] as const).map((g) => (
                   <button
                     key={g.id}
                     type="button"
-                    onClick={() => setGender(g.id as any)}
+                    onClick={() => setGender(g.id)}
                     className={`py-2.5 rounded-xl border text-[11px] font-bold transition-all ${
                       gender === g.id
                         ? 'border-gym-accent bg-gym-accent/10 text-gym-accent'
@@ -291,14 +287,14 @@ export const OnboardingFlow = () => {
             <h2 className="text-xl font-bold text-white mb-2">Onde treina e Equipamentos</h2>
             <div className="space-y-4">
               <div className="flex gap-2">
-                {[
+                {([
                   { id: 'gym', label: '🏢 Academia' },
                   { id: 'home', label: '🏠 Casa (Calistenia)' },
                   { id: 'both', label: '🔄 Ambos' }
-                ].map((loc) => (
+                ] as const).map((loc) => (
                   <button
                     key={loc.id}
-                    onClick={() => setLocation(loc.id as any)}
+                    onClick={() => setLocation(loc.id)}
                     className={`flex-1 py-3 font-bold rounded-xl border text-xs transition-all ${
                       location === loc.id
                         ? 'border-gym-accent bg-gym-accent/15 text-gym-accent'
@@ -436,6 +432,8 @@ export const OnboardingFlow = () => {
             <p className="text-xs text-gym-text-muted mt-1">Desenvolvido com base no seu perfil de {level} no objetivo {goal}.</p>
           </div>
 
+          <TrainingProfileSummary profile={{ ...trainingProfile, goal, frequency, duration }} />
+
           {/* Card Resumo do Plano */}
           <div className="bg-gym-card border border-white/10 rounded-2xl p-5 text-left space-y-3">
             <div className="flex items-center justify-between">
@@ -469,7 +467,7 @@ export const OnboardingFlow = () => {
           </button>
         </div>
       ) : (
-        <div className="glass w-full max-w-lg p-6 md:p-8 rounded-3xl border border-white/5 shadow-2xl flex flex-col justify-between min-h-[480px]">
+        <div className="glass w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto p-6 md:p-8 rounded-3xl border border-white/5 shadow-2xl flex flex-col justify-between min-h-[480px]">
           {/* Top Progress bar */}
           <div>
             <div className="flex justify-between items-center text-xs text-gym-text-muted mb-4 font-bold">
@@ -504,7 +502,7 @@ export const OnboardingFlow = () => {
             {step < 8 ? (
               <button
                 onClick={nextStep}
-                disabled={step === 1 && (!name || !email)}
+                disabled={(step === 1 && (!name || !email)) || (step === 3 && !trainingProfileValid)}
                 className="py-3 px-6 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md shadow-gym-accent/15 cursor-pointer disabled:opacity-50"
               >
                 Avançar <ArrowRight className="w-4 h-4" />

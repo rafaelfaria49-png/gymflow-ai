@@ -4,6 +4,10 @@ import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { SocialShareModal } from '../components/SocialShareModal';
 import { useToast } from '../components/ui/Toast';
+import { TrainingProfileSelector } from '../components/TrainingProfileSelector';
+import { TrainingProfileSummary } from '../components/TrainingProfileSummary';
+import { validateTrainingProfile } from '../lib/training-profile';
+import type { TrainingProfileFields } from '../types/training-profile';
 import {
   Scale,
   Ruler,
@@ -39,6 +43,12 @@ export const EvolutionDashboard = () => {
   const [waistInput, setWaistInput] = useState('');
   const [hipsInput, setHipsInput] = useState('');
   const [armsInput, setArmsInput] = useState('');
+  const [trainingProfileDraft, setTrainingProfileDraft] = useState<TrainingProfileFields>(() => ({
+    level: user?.level ?? 'beginner',
+    trainingStatus: user?.trainingStatus ?? 'active',
+    returnToTraining: user?.returnToTraining,
+    trainingExperienceYears: user?.trainingExperienceYears,
+  }));
 
   // Evolution photos mock list
   const [photos, setPhotos] = useState<string[]>([
@@ -48,7 +58,7 @@ export const EvolutionDashboard = () => {
 
   // Social Share states
   const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [shareData, setShareData] = useState<any | null>(null);
+  const [shareData, setShareData] = useState<React.ComponentProps<typeof SocialShareModal>['shareData']>(null);
 
   const handleWeightSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +77,21 @@ export const EvolutionDashboard = () => {
     setHipsInput('');
     setArmsInput('');
     toast.success('Medidas registradas com sucesso!');
+  };
+
+  const handleTrainingProfileSave = () => {
+    const validation = validateTrainingProfile(trainingProfileDraft);
+    if (!validation.valid) {
+      toast.error(validation.errors[0]?.message ?? 'Revise os dados do perfil de treino.');
+      return;
+    }
+    updateUserProfile({
+      level: trainingProfileDraft.level,
+      trainingStatus: trainingProfileDraft.trainingStatus ?? 'active',
+      returnToTraining: trainingProfileDraft.returnToTraining,
+      trainingExperienceYears: trainingProfileDraft.trainingExperienceYears,
+    });
+    toast.success('Perfil de treino salvo. Seu nível de experiência foi preservado.');
   };
 
   const handleSimulatePhotoUpload = () => {
@@ -354,7 +379,7 @@ export const EvolutionDashboard = () => {
           <div className="bg-gym-card border border-white/5 p-4 rounded-2xl mt-4">
             <h4 className="text-xs font-bold text-white">Relatório Semanal IA</h4>
             <p className="text-[10px] text-gym-text-muted mt-1 leading-relaxed">
-              "Você treinou 3 vezes esta semana. O volume semanal do peito atingiu 14 séries, que está na faixa ideal hipertrófica. Reduza o volume de quadríceps na próxima sessão para evitar overreaching."
+              &ldquo;Você treinou 3 vezes esta semana. O volume semanal do peito atingiu 14 séries, que está na faixa ideal hipertrófica. Reduza o volume de quadríceps na próxima sessão para evitar overreaching.&rdquo;
             </p>
           </div>
         </div>
@@ -372,6 +397,33 @@ export const EvolutionDashboard = () => {
           </p>
         </div>
 
+        {user && (
+          <div className="border-b border-white/5 pb-6 space-y-5">
+            <div>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Experiência e continuidade</h4>
+              <p className="text-[10px] text-gym-text-muted mt-1 leading-relaxed">
+                Uma pausa não apaga sua experiência. Este contexto ainda não altera séries, repetições ou volume.
+              </p>
+            </div>
+
+            <TrainingProfileSummary profile={user} />
+            <TrainingProfileSelector
+              idPrefix="settings-training-profile"
+              value={trainingProfileDraft}
+              onChange={setTrainingProfileDraft}
+            />
+
+            <button
+              type="button"
+              onClick={handleTrainingProfileSave}
+              disabled={!validateTrainingProfile(trainingProfileDraft).valid}
+              className="min-h-[44px] w-full sm:w-auto px-5 rounded-xl bg-gym-accent hover:bg-gym-accent-hover text-gym-dark text-xs font-extrabold uppercase tracking-wider transition-all disabled:opacity-50"
+            >
+              Salvar perfil de treino
+            </button>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
           {/* GÊNERO E PREFERÊNCIAS */}
           <div className="space-y-4">
@@ -379,15 +431,15 @@ export const EvolutionDashboard = () => {
             <div className="space-y-2">
               <label className="text-[10px] text-gym-text-muted font-bold block">Gênero do Perfil</label>
               <div className="grid grid-cols-3 gap-2">
-                {[
+                {([
                   { value: 'male', label: 'Masculino' },
                   { value: 'female', label: 'Feminino' },
                   { value: 'neutral', label: 'Neutro' }
-                ].map((g) => (
+                ] as const).map((g) => (
                   <button
                     key={g.value}
                     type="button"
-                    onClick={() => updateUserProfile({ gender: g.value as any })}
+                    onClick={() => updateUserProfile({ gender: g.value })}
                     className={`py-2 rounded-xl text-xs font-bold transition-all border ${
                       user?.gender === g.value
                         ? 'bg-gym-accent text-gym-dark border-gym-accent font-black'

@@ -6,6 +6,12 @@ import type {
   MovementPatternId,
   MuscleGroupId,
 } from './training-taxonomy';
+import type {
+  ReturnToTrainingProfile,
+  TrainingContinuityStatus,
+  TrainingExperienceLevel,
+  TrainingGoal,
+} from './training-profile';
 
 export type {
   EquipmentCategory,
@@ -27,6 +33,22 @@ export type {
   TaxonomyValidationIssue,
   TaxonomyValidationReport,
 } from './training-taxonomy';
+
+export type {
+  ResolvedTrainingProfile,
+  ReturnToTrainingProfile,
+  TrainingBreakDuration,
+  TrainingBreakDurationDefinition,
+  TrainingContinuityStatus,
+  TrainingExperienceDefinition,
+  TrainingExperienceLevel,
+  TrainingGoal,
+  TrainingProfileFields,
+  TrainingProfileSource,
+  TrainingProfileValidationIssue,
+  TrainingProfileValidationResult,
+  TrainingStatusDefinition,
+} from './training-profile';
 
 export interface WeeklyWorkoutDay {
   dayName: string; // 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
@@ -92,8 +114,8 @@ export interface ProgramWeek {
 export interface UserProfile {
   name: string;
   email: string;
-  level: 'beginner' | 'intermediate' | 'advanced' | 'athlete';
-  goal: 'hypertrophy' | 'slimming' | 'strength' | 'conditioning' | 'athlete';
+  level: TrainingExperienceLevel;
+  goal: TrainingGoal;
   gender: 'male' | 'female' | 'neutral';
   age: number;
   weight: number;
@@ -116,6 +138,9 @@ export interface UserProfile {
   connectedSocials?: string[]; // Ex: ['instagram', 'facebook']
   restTimerDefaultSeconds?: number; // Descanso padrão entre séries (GOAL-06)
   restTimerSoundEnabled?: boolean; // Beep ao fim do descanso (GOAL-06)
+  trainingStatus?: TrainingContinuityStatus;
+  returnToTraining?: ReturnToTrainingProfile;
+  trainingExperienceYears?: number;
 }
 
 export interface Exercise {
