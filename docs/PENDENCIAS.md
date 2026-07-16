@@ -1,5 +1,14 @@
 # Pendências
 
+## GOAL-18A — taxonomia e equipamentos
+
+- **GOAL-33A:** curar os 126 exercícios em lotes e preencher os novos campos opcionais. Até lá, `legs` continua `legs_general`; nenhum exercício deve ser inferido automaticamente como quadríceps, posterior ou glúteos.
+- Resolver por exercício os 17 mapeamentos `generic`: Leg Press/panturrilha/supino sem modelo, bancos sem inclinação e strings com alternativas (`ou`/`/`). O raw deve continuar preservado para diagnóstico.
+- Revisar duplicidades/semelhanças já inventariadas sem apagar IDs prematuramente: nome exato duplicado `biceps_rosca_direta`/`biceps_rosca_w`; dois Leg Press 45° (`legs_leg_press` e `legs_legpress_45`); crucifixo/crossover em polia e duas variações de tríceps com corda semanticamente próximas.
+- **GOAL-20:** integrar `normalizeTaxonomyText`, registry e busca aos filtros visuais. A busca existente continua funcional e não mudou neste incremento.
+- **GOAL-24:** consumir IDs/padrões na substituição somente após o modelo de sessão; registry isolado não autoriza troca automática.
+- O status `active` indica equipamento conhecido/disponível no vocabulário informado, não que haja exercício, foto, vídeo ou prescrição correspondente no catálogo.
+
 ## GOAL-17A — persistência v1 segura
 
 - **GOAL-17B (após GOAL-23A):** repetir benchmark em aparelhos Android/iOS de entrada, medir jank real no WebView e então decidir entre particionar chaves ou mover histórico para IndexedDB. As fixtures atuais não justificam a troca física imediata.

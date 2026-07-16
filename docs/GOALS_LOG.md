@@ -787,3 +787,52 @@ A persistência `gymflow:state:v1` agora distingue load válido, vazio, legado, 
 - Nenhuma dependência, IndexedDB, backend ou shape do domínio de treino foi introduzido.
 
 ---
+
+## GOAL-18A — Fundação de taxonomia muscular, padrões e equipamentos (2026-07-16)
+
+### Pré-flight e inventário inicial
+
+- Base: `master` em `8fd10352413c1ddcee2528f5708709ae920b7bf8`; único WIP era `.claude/settings.local.json`, preservado e não staged.
+- Catálogo: 126 exercícios, 12 valores de `muscleGroup`, 10 valores usados em `secondaryMuscles`, 72 strings distintas de `equipment` e níveis `beginner` (73), `intermediate` (44), `advanced` (9), sem `athlete` no seed.
+- Busca: 35 ocorrências de `searchTerms`, 23 termos distintos. Substituições: 256 referências/110 IDs distintos, zero inválida. Programas: 12 seeds/99 referências, zero inválida.
+- Nomes: um duplicado exato (`biceps_rosca_direta` e `biceps_rosca_w`, ambos “Rosca Direta com Barra W”); pares semanticamente próximos documentados para GOAL-33A, inclusive os dois Leg Press 45°.
+- Baseline confirmado: 9 arquivos/88 testes do GOAL-17A.
+
+### Fundação criada
+
+- 20 grupos musculares canônicos, com labels PT-BR, aliases, categoria e ordem. `legs -> legs_general` e `abs -> core`; nenhuma inferência detalhada foi aplicada ao catálogo.
+- 25 padrões de movimento, com descrição, categoria e aliases; mecânica, lateralidade e posição corporal tipadas.
+- 13 categorias operacionais. Bancos, racks, barras, halteres e kettlebells foram tratados como equipamentos específicos.
+- Registry com 82 equipamentos e 106 aliases, cobrindo aparelhos reais informados pelo Founder e declarando status/tipo de carga.
+- Normalização determinística de acento, caixa, espaços, hífen, barra, pontuação e grau, preservando números.
+- Mapa explícito das 72 strings raw para um ou mais IDs: 72 resolvidas, zero `unresolved`; 17 casos `generic` mantêm warning para curadoria. A equivalência `Polia (Crossover)`/`Polia / Crossover` é deliberada e validada.
+- Resolvers são puros, tipados e sem React/localStorage. Lookup canônico é exato; busca parcial não vira fuzzy matching.
+
+### Compatibilidade
+
+`Exercise` recebeu somente campos opcionais: `primaryMuscleGroupId`, `secondaryMuscleGroupIds`, `movementPatternIds`, `equipmentIds`, `mechanics`, `laterality` e `bodyPosition`. Os campos raw e o carregamento atual foram preservados.
+
+Nenhum dos 126 exercícios foi reclassificado; nenhum exercício foi adicionado; `src/mock/exercises.ts`, programas, UI, Treino Ativo, Construtor, persistência, PWA, Android e assets ficaram intactos. Registry não significa que um aparelho já possui exercício.
+
+### Arquivos
+
+- Tipos: `src/types/training-taxonomy.ts`, `src/types/index.ts`.
+- Domínio: `src/lib/training-taxonomy.ts`, `src/lib/equipment-registry.ts`, `src/lib/equipment-legacy-map.ts`.
+- Testes: `src/lib/training-taxonomy.test.ts`, `src/lib/equipment-registry.test.ts`.
+- Documentação: `docs/taxonomy/GYMFLOW_TRAINING_TAXONOMY.md`, `docs/DECISOES.md`, `docs/PENDENCIAS.md`, `docs/GOALS_LOG.md`.
+
+### Validações
+
+- `npx vitest run`: 11 arquivos, **158 testes** aprovados (88 anteriores + 70 novos).
+- `npx tsc --noEmit`: aprovado.
+- `npm run build`: aprovado no Next.js 16.2.6.
+- `npm run build:mobile`: export estático aprovado; Android build e `cap sync` não executados.
+- Auditoria reproduzível: 126 exercícios, 72 raw, 82 equipamentos, 106 aliases, 72 resolvidos, zero unresolved e zero colisão de alias; uma equivalência raw explicitamente aprovada.
+- `rg -n "alert\(|confirm\(" src`: zero ocorrência.
+- `git diff --check`: aprovado.
+
+### Continuação
+
+Próximo incremento recomendado: **GOAL-21 — Perfil de treino e retorno aos treinos**. GOAL-20, GOAL-24 e GOAL-33A não foram iniciados.
+
+---

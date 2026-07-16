@@ -2,6 +2,17 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-18A (2026-07-16)
+
+- **`legs` resolve para `legs_general`, nunca para quadríceps/posterior:** os 23 exercícios legados de pernas continuam genéricos até a curadoria do GOAL-33A.
+- **Grupos específicos futuros entram na fundação, não no catálogo:** `adductors`, `abductors`, `lower_back`, `forearms` e `traps` são necessários para domínio/equipamentos reais, mas nenhum dos 126 exercícios recebeu classificação nova agora.
+- **Banco, rack, barra, halter e kettlebell são equipamentos, não categorias:** categorias representam famílias operacionais; equipamentos concretos mantêm aliases e características próprias.
+- **Lookup exato não usa fuzzy matching:** acento, caixa, grau e pontuação são normalizados; aproximação perigosa não vira resolução canônica. Busca parcial continua separada e pode retornar vários resultados.
+- **Strings legadas ambíguas resolvem como `generic` com warning:** não há `unresolved` silencioso nem precisão inventada. Dezessete valores ficam explicitamente para o GOAL-33A.
+- **As duas grafias de crossover são uma equivalência aprovada:** `Polia (Crossover)` e `Polia / Crossover` normalizam igual e apontam explicitamente para o mesmo ID; qualquer outra colisão reprova a validação.
+- **Registry não implica exercício existente:** os aparelhos reais do Founder entram como fundação para GOAL-20/24/33A, sem criar exercício, filtro, UI ou algoritmo de substituição.
+- **A busca visual atual foi preservada:** a nova normalização é compatível e mais abrangente, mas `exerciseSearch.ts` não foi alterado neste GOAL; a integração compartilhada fica para o GOAL-20.
+
 ## GOAL-17A (2026-07-16)
 
 - **O envelope canônico continua sendo `{ v: 1, savedAt, data }` na chave `gymflow:state:v1`:** não existe `v: 2`, segunda fonte de verdade ou migração para IndexedDB neste GOAL.

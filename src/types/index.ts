@@ -1,3 +1,33 @@
+import type {
+  EquipmentId,
+  ExerciseBodyPosition,
+  ExerciseLaterality,
+  ExerciseMechanics,
+  MovementPatternId,
+  MuscleGroupId,
+} from './training-taxonomy';
+
+export type {
+  EquipmentCategory,
+  EquipmentDefinition,
+  EquipmentId,
+  EquipmentLoadType,
+  EquipmentResolution,
+  EquipmentResolutionKind,
+  EquipmentStatus,
+  ExerciseBodyPosition,
+  ExerciseLaterality,
+  ExerciseMechanics,
+  MovementPatternCategory,
+  MovementPatternDefinition,
+  MovementPatternId,
+  MuscleGroupCategory,
+  MuscleGroupDefinition,
+  MuscleGroupId,
+  TaxonomyValidationIssue,
+  TaxonomyValidationReport,
+} from './training-taxonomy';
+
 export interface WeeklyWorkoutDay {
   dayName: string; // 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
   workoutName: string; // Ex: 'Quadríceps + Glúteo', 'Descanso'
@@ -110,6 +140,13 @@ export interface Exercise {
   images?: string[]; // GOAL-09: caminhos locais (/assets/exercises/<id>/N.jpg); vazio p/ exercícios criados no Admin
   techniqueFrames?: TechniqueFrame[]; // GOAL-13: sequência visual técnica; mantém images[] como fallback compatível
   searchTerms?: string[]; // GOAL-15: apelidos/termos de academia p/ a busca achar o exercício (ex.: "pulley", "puxada alta")
+  primaryMuscleGroupId?: MuscleGroupId;
+  secondaryMuscleGroupIds?: MuscleGroupId[];
+  movementPatternIds?: MovementPatternId[];
+  equipmentIds?: EquipmentId[];
+  mechanics?: ExerciseMechanics;
+  laterality?: ExerciseLaterality;
+  bodyPosition?: ExerciseBodyPosition;
 }
 
 export interface WorkoutSet {
