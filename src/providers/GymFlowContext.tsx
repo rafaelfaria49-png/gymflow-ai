@@ -27,10 +27,27 @@ import {
   MOCK_COMMUNITY,
   MOCK_TRAILS
 } from '../mock/data';
-import { loadState, saveState, clearState } from '../lib/storage';
+import {
+  CURRENT_STORAGE_VERSION,
+  clearStateResult,
+  flushState,
+  loadBackupResult,
+  loadStateResult,
+  restoreBackup,
+  saveEnvelopeResult,
+} from '../lib/storage';
+import { commitStorageImport, createRawRecoveryExport, downloadTextFile } from '../lib/storage-export';
+import { mergePersistedState, migrateLegacyState } from '../lib/storage-migrations';
+import type {
+  GymFlowBackupFile,
+  PersistedState as StoragePersistedState,
+  StorageHealth,
+  StorageWriteResult,
+} from '../lib/storage-types';
 import { suggestNext, lastRecordedWeight, ExerciseSessionHistory } from '../lib/progression';
 import { estimateWorkoutDuration, muscleGroupsForSlots } from '../lib/workoutDuration';
 import { useToast } from '../components/ui/Toast';
+import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
 
 export const STORAGE_KEY = 'gymflow:state:v1';
 
@@ -223,6 +240,13 @@ interface GymFlowContextType {
   chatMessages: ChatMessage[];
   sendChatMessage: (text: string) => void;
   clearChat: () => void;
+
+  // Persistência local segura (GOAL-17A)
+  storageHealth: StorageHealth;
+  applyStorageImport: (backup: GymFlowBackupFile<PersistedState>) => StorageWriteResult<PersistedState>;
+  restoreStorageBackup: () => StorageWriteResult<PersistedState>;
+  startFreshStorage: () => StorageWriteResult<PersistedState>;
+  downloadStorageRecovery: () => void;
 }
 
 const GymFlowContext = createContext<GymFlowContextType | undefined>(undefined);
@@ -527,111 +551,186 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [hasActiveWorkout]);
 
-  // ===== Persistência local-first (GOAL-01) — envelope versionado, sem backend =====
-  // `hydrated` evita que o primeiro render sobrescreva os dados salvos com os defaults.
+  // ===== Persistência local segura (GOAL-17A) — commit lógico verificado =====
+  // `hydrated` evita que o primeiro render sobrescreva dados salvos com defaults.
   const [hydrated, setHydrated] = useState(false);
+  const [storageHealth, setStorageHealth] = useState<StorageHealth>({
+    status: 'loading',
+    hasBackup: false,
+  });
+  const storageBlockedRef = useRef(false);
+  const pendingSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastWriteErrorRef = useRef<string | null>(null);
+  const lastLifecycleFlushRef = useRef(0);
+
+  const persistedState: PersistedState = {
+    user,
+    weeklyPlan,
+    customPrograms,
+    activeWorkout,
+    activeWorkoutStartedAt,
+    restTimerEndAt,
+    restTimerTotalSeconds,
+    restTimerLabel,
+    workoutHistory,
+    weightHistory,
+    measurementsHistory,
+    nutrition,
+    achievements,
+    challenges,
+    favoriteExercises,
+    recentlyViewedVideoIds,
+  };
+  const persistedStateRef = useRef<PersistedState>(persistedState);
+  const initialPersistedStateRef = useRef<PersistedState>(persistedState);
+  persistedStateRef.current = persistedState;
+
+  const hasValidBackup = () => loadBackupResult<StoragePersistedState>(STORAGE_KEY).status === 'ok';
+
+  const reportWriteResult = (result: StorageWriteResult<unknown>) => {
+    if (result.ok) {
+      if (lastWriteErrorRef.current) {
+        lastWriteErrorRef.current = null;
+        setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
+      }
+      return;
+    }
+    if (result.reason === 'blocked') return;
+    const signature = `${result.reason}:${result.error}`;
+    setStorageHealth({
+      status: 'write-error',
+      hasBackup: hasValidBackup(),
+      issue: { kind: result.reason, message: result.error },
+    });
+    if (lastWriteErrorRef.current !== signature) {
+      lastWriteErrorRef.current = signature;
+      toast.error(
+        result.reason === 'quota'
+          ? 'Sem espaço para salvar. Seus dados atuais foram preservados.'
+          : 'Não foi possível confirmar o salvamento local.',
+      );
+    }
+  };
+
+  const savePersistedStateNow = () => {
+    if (pendingSaveRef.current) {
+      clearTimeout(pendingSaveRef.current);
+      pendingSaveRef.current = null;
+    }
+    const result = flushState<StoragePersistedState>(
+      STORAGE_KEY,
+      persistedStateRef.current,
+      storageBlockedRef.current,
+    );
+    reportWriteResult(result);
+    return result;
+  };
 
   useEffect(() => {
-    let saved = loadState<PersistedState>(STORAGE_KEY);
+    const defaults = initialPersistedStateRef.current;
+    const loaded = loadStateResult<StoragePersistedState>(STORAGE_KEY);
+    let saved: PersistedState | null = null;
 
-    // Migração das chaves legadas (gymflow_user / gymflow_weeklyPlan) para o novo envelope.
-    if (!saved) {
+    if (loaded.status === 'ok' || loaded.status === 'legacy') {
+      saved = mergePersistedState(defaults, loaded.value) as PersistedState;
+    } else if (loaded.status === 'empty') {
       try {
-        const legacyUser = window.localStorage.getItem('gymflow_user');
-        if (legacyUser) {
-          const parsedUser: UserProfile = JSON.parse(legacyUser);
-          const legacyPlan = window.localStorage.getItem('gymflow_weeklyPlan');
-          saved = {
-            user: parsedUser,
-            weeklyPlan: legacyPlan ? JSON.parse(legacyPlan) : (parsedUser.weeklyPlan || []),
-            activeWorkout: null,
-            activeWorkoutStartedAt: null,
-            restTimerEndAt: null,
-            restTimerTotalSeconds: null,
-            restTimerLabel: null,
-            workoutHistory: [],
-            weightHistory: [],
-            measurementsHistory: [],
-            nutrition: { calories: 0, protein: 0, carbs: 0, fat: 0, water: 0 },
-            achievements: [],
-            challenges: [],
-            favoriteExercises: [],
-            recentlyViewedVideoIds: [],
-            customPrograms: []
-          };
+        const migration = migrateLegacyState(STORAGE_KEY, defaults, window.localStorage);
+        if (migration.status === 'migrated' || migration.status === 'already-current') {
+          saved = mergePersistedState(defaults, migration.value) as PersistedState;
+          if (migration.status === 'migrated' && migration.cleanupWarning) {
+            toast.info(migration.cleanupWarning);
+          }
+        } else if (migration.status !== 'no-legacy') {
+          storageBlockedRef.current = true;
+          const error = migration.status === 'write-failed' && !migration.result.ok
+            ? migration.result.error
+            : 'error' in migration
+              ? migration.error
+              : 'Não foi possível migrar os dados locais antigos.';
+          const kind = migration.status === 'write-failed' && !migration.result.ok
+            ? migration.result.reason
+            : migration.status === 'unavailable'
+              ? 'unavailable'
+              : 'corrupt';
+          setStorageHealth({
+            status: 'blocked',
+            hasBackup: hasValidBackup(),
+            issue: { kind, message: error },
+          });
         }
-      } catch {
-        /* legado corrompido — ignorar */
+      } catch (error) {
+        storageBlockedRef.current = true;
+        setStorageHealth({
+          status: 'blocked',
+          hasBackup: hasValidBackup(),
+          issue: {
+            kind: 'unavailable',
+            message: error instanceof Error ? error.message : 'localStorage indisponível.',
+          },
+        });
       }
-    }
-    try {
-      window.localStorage.removeItem('gymflow_user');
-      window.localStorage.removeItem('gymflow_weeklyPlan');
-    } catch {
-      /* ignorar */
+    } else {
+      storageBlockedRef.current = true;
+      setStorageHealth({
+        status: 'blocked',
+        hasBackup: hasValidBackup(),
+        issue: loaded.status === 'unsupported-version'
+          ? {
+              kind: 'unsupported-version',
+              message: `A versão local ${String(loaded.version)} não é suportada por este app.`,
+              raw: loaded.raw,
+              version: loaded.version,
+            }
+          : loaded.status === 'corrupt'
+            ? { kind: 'corrupt', message: loaded.error, raw: loaded.raw }
+            : { kind: 'unavailable', message: loaded.error },
+      });
     }
 
     if (saved) {
-      // Aplica o estado salvo por cima dos defaults, campo a campo, para que
-      // dados parciais/antigos não derrubem o app.
-      if (saved.user) setUser(saved.user);
-      if (Array.isArray(saved.weeklyPlan) && saved.weeklyPlan.length > 0) setWeeklyPlan(saved.weeklyPlan);
-      if (Array.isArray(saved.workoutHistory) && saved.workoutHistory.length > 0) setWorkoutHistory(saved.workoutHistory);
-      if (Array.isArray(saved.weightHistory) && saved.weightHistory.length > 0) setWeightHistory(saved.weightHistory);
-      if (Array.isArray(saved.measurementsHistory) && saved.measurementsHistory.length > 0) setMeasurementsHistory(saved.measurementsHistory);
-      if (saved.nutrition && typeof saved.nutrition === 'object') setNutrition(saved.nutrition);
-      if (Array.isArray(saved.achievements) && saved.achievements.length > 0) setAchievements(saved.achievements);
-      if (Array.isArray(saved.challenges) && saved.challenges.length > 0) setChallenges(saved.challenges);
-      if (Array.isArray(saved.favoriteExercises)) setFavoriteExercises(saved.favoriteExercises);
-      if (Array.isArray(saved.recentlyViewedVideoIds)) setRecentlyViewedVideoIds(saved.recentlyViewedVideoIds);
-      if (Array.isArray(saved.customPrograms)) setCustomPrograms(saved.customPrograms);
+      setUser(saved.user);
+      setWeeklyPlan(saved.weeklyPlan);
+      setCustomPrograms(saved.customPrograms);
+      setActiveWorkout(saved.activeWorkout);
+      setActiveWorkoutStartedAt(saved.activeWorkoutStartedAt);
+      setWorkoutHistory(saved.workoutHistory);
+      setWeightHistory(saved.weightHistory);
+      setMeasurementsHistory(saved.measurementsHistory);
+      setNutrition(saved.nutrition);
+      setAchievements(saved.achievements);
+      setChallenges(saved.challenges);
+      setFavoriteExercises(saved.favoriteExercises);
+      setRecentlyViewedVideoIds(saved.recentlyViewedVideoIds);
 
-      // Treino ativo sobrevive a refresh: restaura sessão + timestamp de início.
       if (saved.activeWorkout && saved.activeWorkoutStartedAt) {
-        setActiveWorkout(saved.activeWorkout);
-        setActiveWorkoutStartedAt(saved.activeWorkoutStartedAt);
         setWorkoutDuration(Math.max(0, Math.floor((Date.now() - saved.activeWorkoutStartedAt) / 1000)));
       }
-
-      // Timer de descanso sobrevive a refresh (GOAL-06): se o horário de término já
-      // passou enquanto o app estava fechado, não restaura nada — estado coerente
-      // (sem timer "negativo" e sem disparar toast/vibração de um descanso antigo).
       if (saved.restTimerEndAt && saved.restTimerEndAt > Date.now()) {
         setRestTimerEndAt(saved.restTimerEndAt);
-        setRestTimerTotalSeconds(saved.restTimerTotalSeconds ?? null);
-        setRestTimerLabel(saved.restTimerLabel ?? null);
+        setRestTimerTotalSeconds(saved.restTimerTotalSeconds);
+        setRestTimerLabel(saved.restTimerLabel);
       }
-
       if (saved.user) {
         setActiveView(saved.activeWorkout && saved.activeWorkoutStartedAt ? 'active-workout' : 'dashboard');
       }
     }
+
+    if (!storageBlockedRef.current) {
+      setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
+    }
     setHydrated(true);
   }, []);
 
-  // Salva com debounce de 500ms sempre que o estado persistível mudar.
+  // Debounce normal de 500 ms; o resultado discriminado alimenta a UI de erro.
   useEffect(() => {
-    if (!hydrated) return;
-    const persisted: PersistedState = {
-      user,
-      weeklyPlan,
-      customPrograms,
-      activeWorkout,
-      activeWorkoutStartedAt,
-      restTimerEndAt,
-      restTimerTotalSeconds,
-      restTimerLabel,
-      workoutHistory,
-      weightHistory,
-      measurementsHistory,
-      nutrition,
-      achievements,
-      challenges,
-      favoriteExercises,
-      recentlyViewedVideoIds
+    if (!hydrated || storageBlockedRef.current) return;
+    const handle = setTimeout(savePersistedStateNow, 500);
+    pendingSaveRef.current = handle;
+    return () => {
+      clearTimeout(handle);
+      if (pendingSaveRef.current === handle) pendingSaveRef.current = null;
     };
-    const handle = setTimeout(() => saveState(STORAGE_KEY, persisted), 500);
-    return () => clearTimeout(handle);
   }, [
     hydrated,
     user,
@@ -649,8 +748,28 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     achievements,
     challenges,
     favoriteExercises,
-    recentlyViewedVideoIds
+    recentlyViewedVideoIds,
   ]);
+
+  // Flush síncrono reduz a janela de perda ao ocultar/fechar a página ou WebView.
+  useEffect(() => {
+    if (!hydrated) return;
+    const lifecycleFlush = () => {
+      const now = Date.now();
+      if (now - lastLifecycleFlushRef.current < 100) return;
+      lastLifecycleFlushRef.current = now;
+      savePersistedStateNow();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') lifecycleFlush();
+    };
+    window.addEventListener('pagehide', lifecycleFlush);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('pagehide', lifecycleFlush);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [hydrated]);
 
   // GOAL-15: empilha uma notificação de XP com limite e consolidação.
   // Eventos de XP repetidos e recentes (mesmo texto, ex.: "Série concluída!")
@@ -785,7 +904,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     setRestTimerTotalSeconds(null);
     setRestTimerLabel(null);
     setActiveView('landing');
-    clearState(STORAGE_KEY);
+    const cleared = clearStateResult(STORAGE_KEY);
+    if (!cleared.ok) toast.error('Não foi possível remover os dados locais deste aparelho.');
   };
 
   const updateUserPremium = (status: 'free' | 'pro' | 'elite') => {
@@ -1792,6 +1912,72 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     ]);
   };
 
+  const finishConfirmedStorageOperation = (
+    operation: () => StorageWriteResult<StoragePersistedState>,
+    successMessage: string,
+  ): StorageWriteResult<PersistedState> => {
+    const wasBlocked = storageBlockedRef.current;
+    const previousHealth = storageHealth;
+    storageBlockedRef.current = true;
+    if (pendingSaveRef.current) {
+      clearTimeout(pendingSaveRef.current);
+      pendingSaveRef.current = null;
+    }
+
+    const result = operation();
+    if (!result.ok) {
+      storageBlockedRef.current = wasBlocked;
+      if (wasBlocked) {
+        setStorageHealth(previousHealth);
+        toast.error('A recuperação falhou; o conteúdo original continua preservado.');
+      } else {
+        reportWriteResult(result);
+      }
+      return result as StorageWriteResult<PersistedState>;
+    }
+
+    setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
+    toast.success(successMessage);
+    window.setTimeout(() => window.location.reload(), 600);
+    return result as StorageWriteResult<PersistedState>;
+  };
+
+  const applyStorageImport = (
+    backup: GymFlowBackupFile<PersistedState>,
+  ): StorageWriteResult<PersistedState> => finishConfirmedStorageOperation(
+    () => commitStorageImport(STORAGE_KEY, backup as GymFlowBackupFile<StoragePersistedState>),
+    'Backup importado e verificado. Recarregando os dados...',
+  );
+
+  const restoreStorageBackup = (): StorageWriteResult<PersistedState> => finishConfirmedStorageOperation(
+    () => restoreBackup<StoragePersistedState>(STORAGE_KEY),
+    'Backup local restaurado e verificado.',
+  );
+
+  const startFreshStorage = (): StorageWriteResult<PersistedState> => finishConfirmedStorageOperation(
+    () => saveEnvelopeResult<StoragePersistedState>(
+      STORAGE_KEY,
+      {
+        v: CURRENT_STORAGE_VERSION,
+        savedAt: new Date().toISOString(),
+        data: initialPersistedStateRef.current,
+      },
+      { allowOverwriteInvalid: true, source: 'fresh' },
+    ),
+    'Novo estado local criado com segurança.',
+  );
+
+  const downloadStorageRecovery = () => {
+    const raw = storageHealth.issue?.raw;
+    if (!raw) {
+      toast.error('Não há conteúdo bruto disponível para exportar.');
+      return;
+    }
+    const recovery = createRawRecoveryExport(raw);
+    downloadTextFile(recovery.content, recovery.filename);
+    toast.info(`Conteúdo original exportado (${recovery.bytes.toLocaleString('pt-BR')} bytes).`);
+  };
+
   return (
     <GymFlowContext.Provider
       value={{
@@ -1892,10 +2078,22 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
         chatMessages,
         sendChatMessage,
-        clearChat
+        clearChat,
+
+        storageHealth,
+        applyStorageImport,
+        restoreStorageBackup,
+        startFreshStorage,
+        downloadStorageRecovery,
       }}
     >
       {children}
+      <StorageRecoveryNotice
+        health={storageHealth}
+        onExportRaw={downloadStorageRecovery}
+        onRestoreBackup={restoreStorageBackup}
+        onStartFresh={startFreshStorage}
+      />
     </GymFlowContext.Provider>
   );
 };

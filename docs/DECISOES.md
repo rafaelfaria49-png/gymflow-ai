@@ -2,6 +2,17 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-17A (2026-07-16)
+
+- **O envelope canônico continua sendo `{ v: 1, savedAt, data }` na chave `gymflow:state:v1`:** não existe `v: 2`, segunda fonte de verdade ou migração para IndexedDB neste GOAL.
+- **O save é um “commit lógico verificado”, não uma transação atômica:** o fluxo serializa/valida, guarda o envelope válido anterior em `:backup`, grava, relê, compara e valida; em divergência tenta restaurar exatamente o valor anterior.
+- **Validação v1 é estrutural e tolerante:** campos antigos opcionais podem faltar e recebem defaults na hidratação, mas campos críticos presentes precisam ter shape aceitável. Arrays vazios são dados válidos e substituem defaults.
+- **Corrupção e versão desconhecida bloqueiam autosave:** o valor original permanece na chave principal, uma única quarentena rolante guarda sua cópia e somente confirmação via `ConfirmDialog` autoriza restaurar backup ou iniciar estado novo.
+- **Superfície de gestão escolhida:** `src/modules/AdminPanel.tsx`, na seção “Dados locais” já existente. Um único `StorageRecoveryNotice` global cobre o caso em que o usuário nem consegue chegar ao painel por causa de load bloqueado.
+- **Última alteração recebe flush síncrono em `pagehide` e `visibilitychange` quando hidden:** o debounce normal continua em 500 ms; listeners são únicos, limpos no cleanup e não executam trabalho assíncrono.
+- **`localStorage` permanece no GOAL-17A:** a fixture pesada (~660 KB) mediu save/readback mockado em 8,44 ms de mediana e 13,39 ms de p95. Particionamento/IndexedDB fica para GOAL-17B após o schema do GOAL-23A estabilizar, salvo nova evidência em dispositivo real.
+- **Origem de recuperação é explícita no resultado de escrita:** `save`, `backup`, `import` ou `fresh`; isso registra a operação sem alterar o domínio de treino nem poluir o envelope v1.
+
 ## GOAL-10.6 (2026-07-04)
 
 - **"Salvar" sempre navega para `workouts` (aba Treinos), ignorando `builderReturnView`:** a Tarefa 3 pede explicitamente que salvar mostre "Meus Treinos" imediatamente, então esse botão específico tem destino fixo — diferente de "Cancelar" (que respeita de onde o usuário veio, via `builderReturnView`, pois nada foi necessariamente concluído).

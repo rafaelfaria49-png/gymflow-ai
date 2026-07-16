@@ -759,3 +759,31 @@ Correção dos bugs reais encontrados no uso do APK Android: (1) notificações 
 ### Confirmação de escopo
 
 Nenhuma imagem ou vídeo novo foi gerado. Backend, Supabase, Prisma, pagamento/Stripe, LGPD, autenticação real, Avatar Lab, Motion Engine, GLBs, POC 3D e lote 2 de imagens não foram tocados. Único ajuste "mobile" foi CSS de safe-area (sem plugin novo, sem editar `android/`).
+## GOAL-17A — Persistência v1 segura, migrações, backup e export/import (2026-07-16)
+
+### Resumo
+
+A persistência `gymflow:state:v1` agora distingue load válido, vazio, legado, corrompido, versão incompatível e storage indisponível. O envelope `{ v: 1, savedAt, data }` foi preservado; saves criam backup rolante do último envelope válido, fazem readback exato e retornam erro discriminado em vez de engolir falhas.
+
+### Recuperação e compatibilidade
+
+- JSON corrompido/versão desconhecida permanece na chave principal, recebe uma única quarentena e bloqueia autosave até confirmação explícita.
+- Migração de `gymflow_user`/`gymflow_weeklyPlan` lê e valida antes, salva/relê o v1 e só então remove as origens; é idempotente e mantém tudo se a escrita falhar.
+- Hidratação usa presença/shape, não `length > 0`; arrays vazios, treino ativo, timestamps de timer, histórico, favoritos e programas personalizados atravessam roundtrip.
+- Debounce de 500 ms continua; `pagehide` e aba oculta fazem flush síncrono sem salvar quando o storage está bloqueado.
+- Export/import offline usa JSON validado, limite de 5 MiB, preview e `ConfirmDialog`; import só troca o estado após confirmação e commit verificado.
+- `AdminPanel.tsx` recebeu a gestão mínima de dados locais e `StorageRecoveryNotice.tsx` mantém falhas críticas visíveis globalmente.
+
+### Validação do incremento
+
+- `npx vitest run`: 9 arquivos, 88 testes, todos verdes (56 anteriores + 32 novos).
+- `npx tsc --noEmit`: aprovado.
+- `npm run build`: aprovado no Next.js 16.2.6.
+- `npm run build:mobile`: export estático aprovado, sem tocar em `android/**`.
+- `rg -n "alert\(|confirm\(" src`: nenhuma ocorrência.
+- Benchmark com 1.000 iterações: fixture pesada 659.858 bytes; save/readback mediana 8,4356 ms, p95 13,3922 ms.
+- Teste no navegador carregou a landing hidratada e sem erro de console, mas a interação não pôde ser validada nesta execução porque o dev server bloqueou HMR para `127.0.0.1` (origin fora de `allowedDevOrigins`). Os fluxos de storage permanecem cobertos deterministicamente pelos testes; `next.config.ts` não foi alterado por estar fora da allowlist.
+- Decisão: manter `localStorage`; reavaliar particionamento/IndexedDB no GOAL-17B após o GOAL-23A.
+- Nenhuma dependência, IndexedDB, backend ou shape do domínio de treino foi introduzido.
+
+---

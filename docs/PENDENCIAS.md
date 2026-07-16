@@ -1,5 +1,13 @@
 # Pendências
 
+## GOAL-17A — persistência v1 segura
+
+- **GOAL-17B (após GOAL-23A):** repetir benchmark em aparelhos Android/iOS de entrada, medir jank real no WebView e então decidir entre particionar chaves ou mover histórico para IndexedDB. As fixtures atuais não justificam a troca física imediata.
+- `localStorage` continua síncrono, sem transação nativa e com concorrência “última aba vence”; o commit lógico reduz corrupção/readback divergente, mas não oferece lock entre múltiplas abas/WebViews.
+- O backup rolante fica no mesmo origin/aparelho e não substitui uma cópia externa. Export JSON manual é o caminho de recuperação fora do dispositivo.
+- Arquivos exportados não são criptografados e contêm dados pessoais de treino. Criptografia não foi simulada; proteção do arquivo continua responsabilidade do usuário até existir requisito/projeto real para isso.
+- Validar em dispositivo físico futuro os fluxos de download/upload do WebView Capacitor e atualização por instalação sobre o APK existente. O build mobile preserva a mesma chave, mas comportamento de sistema/limpeza de dados continua dependente do Android.
+
 Problemas encontrados fora do escopo dos GOALs — anotados aqui, não corrigidos.
 
 - (2026-07-03, visto no GOAL-01) `GymFlowContext.tsx` e `AdminPanel.tsx` usam `alert()` nativo em código pré-existente (swap de exercício, replanejar semana, academia cheia, cadastro de exercício). A regra proíbe apenas em código novo; migrar para toasts em GOAL futuro. **Resolvido no GOAL-03** (todos os `alert()`/`confirm()` foram substituídos por `ToastProvider`/`ConfirmDialog`).

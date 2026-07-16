@@ -1,22 +1,97 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useGymFlow, STORAGE_KEY } from '../providers/GymFlowContext';
-import { clearState } from '../lib/storage';
+import {
+  createStorageExport,
+  downloadTextFile,
+  inspectStorageImport,
+  MAX_IMPORT_BYTES,
+} from '../lib/storage-export';
+import type { GymFlowBackupFile, PersistedState, StorageImportPreview } from '../lib/storage-types';
 import { Exercise } from '../types';
-import { Shield, Plus, Trash2, Users, Dumbbell, Award, BarChart2, HardDrive } from 'lucide-react';
+import {
+  Shield,
+  Plus,
+  Trash2,
+  Users,
+  Dumbbell,
+  Award,
+  BarChart2,
+  HardDrive,
+  Download,
+  Upload,
+  RotateCcw,
+} from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 export const AdminPanel = () => {
-  const { exercises, addNewExercise, deleteExercise } = useGymFlow();
+  const {
+    exercises,
+    addNewExercise,
+    deleteExercise,
+    storageHealth,
+    applyStorageImport,
+    restoreStorageBackup,
+    startFreshStorage,
+  } = useGymFlow();
   const toast = useToast();
   const [showAddForm, setShowAddForm] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [pendingImport, setPendingImport] = useState<{
+    backup: GymFlowBackupFile<PersistedState>;
+    preview: StorageImportPreview;
+    filename: string;
+  } | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const handleResetLocalData = () => {
-    clearState(STORAGE_KEY);
-    window.location.reload();
+    setShowResetConfirm(false);
+    startFreshStorage();
+  };
+
+  const handleExportLocalData = () => {
+    const result = createStorageExport(STORAGE_KEY);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    downloadTextFile(result.content, result.filename);
+    toast.success(`Backup exportado (${result.bytes.toLocaleString('pt-BR')} bytes).`);
+  };
+
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > MAX_IMPORT_BYTES) {
+      toast.error('Arquivo rejeitado: o limite de importação é 5 MiB.');
+      return;
+    }
+
+    try {
+      const inspection = inspectStorageImport(await file.text(), file.size);
+      if (!inspection.ok) {
+        toast.error(`Arquivo rejeitado: ${inspection.error}`);
+        return;
+      }
+      setPendingImport({
+        backup: inspection.backup,
+        preview: inspection.preview,
+        filename: file.name,
+      });
+    } catch {
+      toast.error('Não foi possível ler o arquivo selecionado.');
+    }
+  };
+
+  const confirmStorageImport = () => {
+    if (!pendingImport) return;
+    const candidate = pendingImport.backup;
+    setPendingImport(null);
+    applyStorageImport(candidate);
   };
 
   // Form states for new exercise
@@ -277,8 +352,56 @@ export const AdminPanel = () => {
           Dados locais
         </h3>
         <p className="text-[11px] text-gym-text-muted leading-relaxed">
-          Todo o progresso (perfil, treinos, XP, histórico) fica salvo somente neste aparelho.
-          Zerar os dados apaga tudo e reinicia o app do zero.
+          Todo o progresso (perfil, treinos, XP e histórico) fica salvo somente neste aparelho.
+          O commit lógico é confirmado por releitura e mantém um backup válido anterior.
+        </p>
+        <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
+          <span className={`rounded-full px-2.5 py-1 ${
+            storageHealth.status === 'ready'
+              ? 'bg-gym-emerald/15 text-gym-emerald'
+              : 'bg-gym-rose/15 text-gym-rose'
+          }`}>
+            {storageHealth.status === 'ready' ? 'Armazenamento verificado' : 'Armazenamento requer atenção'}
+          </span>
+          {storageHealth.hasBackup && (
+            <span className="rounded-full bg-gym-accent/15 px-2.5 py-1 text-gym-accent">Backup disponível</span>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <button
+            type="button"
+            onClick={handleExportLocalData}
+            className="min-h-[44px] rounded-2xl border border-white/10 bg-white/5 px-3 text-xs font-extrabold text-white hover:bg-white/10"
+          >
+            <Download className="mr-1.5 inline h-4 w-4" /> Exportar JSON
+          </button>
+          <button
+            type="button"
+            onClick={() => importInputRef.current?.click()}
+            className="min-h-[44px] rounded-2xl border border-gym-accent/25 bg-gym-accent/10 px-3 text-xs font-extrabold text-gym-accent hover:bg-gym-accent/15"
+          >
+            <Upload className="mr-1.5 inline h-4 w-4" /> Importar JSON
+          </button>
+          <button
+            type="button"
+            disabled={!storageHealth.hasBackup}
+            onClick={() => setShowRestoreConfirm(true)}
+            className="min-h-[44px] rounded-2xl border border-white/10 bg-white/5 px-3 text-xs font-extrabold text-white enabled:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <RotateCcw className="mr-1.5 inline h-4 w-4" /> Restaurar backup
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={handleImportFile}
+            aria-label="Selecionar backup JSON do GymFlow"
+          />
+        </div>
+        <p className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3 text-[10px] leading-relaxed text-yellow-200/80">
+          O arquivo exportado contém dados pessoais de treino. Ele não é enviado a servidor algum;
+          guarde-o em local seguro.
         </p>
         <button
           onClick={() => setShowResetConfirm(true)}
@@ -292,11 +415,34 @@ export const AdminPanel = () => {
         isOpen={showResetConfirm}
         variant="destructive"
         title="Zerar todos os dados do app?"
-        description="Perfil, treinos, XP, histórico e tudo o mais salvo neste aparelho será apagado permanentemente. Essa ação não pode ser desfeita."
+        description="O app iniciará um novo estado padrão após uma gravação verificada. O estado v1 atual ficará disponível como backup local anterior."
         confirmLabel="Zerar dados"
         cancelLabel="Cancelar"
         onConfirm={handleResetLocalData}
         onCancel={() => setShowResetConfirm(false)}
+      />
+      <ConfirmDialog
+        isOpen={showRestoreConfirm}
+        title="Restaurar o backup local anterior?"
+        description="O estado atual será substituído somente depois da gravação e releitura verificadas."
+        confirmLabel="Restaurar backup"
+        cancelLabel="Cancelar"
+        onConfirm={() => {
+          setShowRestoreConfirm(false);
+          restoreStorageBackup();
+        }}
+        onCancel={() => setShowRestoreConfirm(false)}
+      />
+      <ConfirmDialog
+        isOpen={pendingImport !== null}
+        title="Importar este backup do GymFlow?"
+        description={pendingImport
+          ? `${pendingImport.filename} · exportado em ${new Date(pendingImport.preview.exportedAt).toLocaleString('pt-BR')} · ${pendingImport.preview.workoutSessions} sessões · ${pendingImport.preview.hasActiveWorkout ? 'com treino ativo' : 'sem treino ativo'} · ${pendingImport.preview.customPrograms} programas personalizados · ${pendingImport.preview.bytes.toLocaleString('pt-BR')} bytes. O estado atual será salvo como backup antes da troca.`
+          : undefined}
+        confirmLabel="Importar e restaurar"
+        cancelLabel="Cancelar"
+        onConfirm={confirmStorageImport}
+        onCancel={() => setPendingImport(null)}
       />
     </div>
   );
