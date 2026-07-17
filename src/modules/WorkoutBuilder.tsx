@@ -1,57 +1,107 @@
 'use client';
 
 import React, { useMemo, useRef, useState } from 'react';
+import { Calendar, ChevronLeft, Play, Save, Sparkles } from 'lucide-react';
 import { useGymFlow } from '../providers/GymFlowContext';
-import { Exercise, ExerciseSlot, ProgressionType, ProgramDay, UserProfile, VolumeProfile, WorkoutProgram } from '../types';
-import { VOLUME_PROFILES, defaultTargetMinutes } from '../lib/volumeProfiles';
-import { estimateWorkoutDuration, muscleGroupsForSlots, buildDurationWarning } from '../lib/workoutDuration';
+import type { Exercise, ExerciseSlot, VolumeProfile, WorkoutBuilderDraft, WorkoutProgram } from '../types';
+import type { MuscleGroupId } from '../types/training-taxonomy';
+import type { TrainingExperienceLevel } from '../types/training-profile';
+import type { WorkoutProgramBuilderDraft } from '../types/workout-builder';
 import { useToast } from '../components/ui/Toast';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { NumericInput } from '../components/ui/NumericInput';
+import { estimateWorkoutDurationDetailed } from '../lib/workoutDuration';
+import { createBuilderId } from '../lib/workout-builder-id';
 import {
-  ChevronLeft,
-  Plus,
-  Search,
-  X,
-  Check,
-  ArrowUp,
-  ArrowDown,
-  Copy,
-  Trash2,
-  Play,
-  Save,
-  Calendar,
-  Dumbbell,
-  Layers,
-  Clock,
-  Activity,
-  AlertTriangle
-} from 'lucide-react';
+  cloneSlots,
+  normalizeWorkoutProgramForBuilder,
+} from '../lib/workout-program-normalization';
+import {
+  activeWorkoutNameForDay,
+  addDayToDraft,
+  addEmptyDaysToDraft,
+  addSlotToDay,
+  buildProgramFromDraft,
+  canAddDay,
+  canRemoveDay,
+  clampTargetMinutes,
+  clearDayCustomName,
+  countExerciseInDay,
+  dayDisplayName,
+  draftHasAnyExercise,
+  duplicateDayInDraft,
+  duplicateSlotInDay,
+  findDay,
+  findExerciseInOtherDays,
+  isDraftDirty,
+  moveDayInDraft,
+  moveSlotInDay,
+  removeDayFromDraft,
+  removeSlotFromDay,
+  serializeDraftSignature,
+  toggleDayMuscleGroup,
+  updateDayInDraft,
+  updateSlotInDay,
+} from '../lib/workout-builder';
+import { ExercisePickerModal } from '../components/workout-builder/ExercisePickerModal';
+import { StartDayPicker } from '../components/workout-builder/StartDayPicker';
+import { WorkoutDaysEditor } from '../components/workout-builder/WorkoutDaysEditor';
+import { WorkoutDayTabs } from '../components/workout-builder/WorkoutDayTabs';
+import { WorkoutProgramDetails } from '../components/workout-builder/WorkoutProgramDetails';
+import { WorkoutProgramSummary } from '../components/workout-builder/WorkoutProgramSummary';
 
-const MUSCLE_FILTERS = [
-  { id: 'all', label: 'Todos' },
-  { id: 'chest', label: 'Peito' },
-  { id: 'back', label: 'Costas' },
-  { id: 'shoulders', label: 'Ombros' },
-  { id: 'biceps', label: 'Bíceps' },
-  { id: 'triceps', label: 'Tríceps' },
-  { id: 'legs', label: 'Pernas' },
-  { id: 'glutes', label: 'Glúteos' },
-  { id: 'abs', label: 'Abdômen' },
-  { id: 'calves', label: 'Panturrilha' },
-  { id: 'cardio', label: 'Cardio' },
-  { id: 'mobility', label: 'Mobilidade' },
-  { id: 'functional', label: 'Funcional' }
-];
+/**
+ * Draft inicial do Construtor.
+ *
+ * Com um customProgram de origem, o programa INTEIRO é normalizado (todos os dias) —
+ * é isso que impede a regressão de salvar um dia e apagar os irmãos. O `WorkoutBuilderDraft`
+ * legado (um dia só) continua aceito: vira o Dia 1 de um programa novo, que é
+ * exatamente o caso de "editar um dia de um programa sugerido" (gera custom novo).
+ */
+function createInitialDraft(
+  legacy: WorkoutBuilderDraft | null,
+  sourceProgram: WorkoutProgram | null,
+  profileLevel?: TrainingExperienceLevel,
+  profileMinutes?: number,
+): WorkoutProgramBuilderDraft {
+  const options = { fallbackLevel: profileLevel, fallbackTargetMinutes: profileMinutes };
+  if (sourceProgram) return normalizeWorkoutProgramForBuilder(sourceProgram, options);
 
-// GOAL-10.5: Construtor de Treino manual — cria/edita UM treino (dia) real por vez.
-// Cada "Salvar" vira um WorkoutProgram de 1 dia em customPrograms (isCustom: true);
-// não agrupa múltiplos dias no mesmo programa para nunca arriscar sobrescrever um
-// dia irmão (ver docs/DECISOES.md GOAL-10.5).
+  const base = normalizeWorkoutProgramForBuilder(undefined, options);
+  if (!legacy) return base;
+
+  const legacyName = legacy.name?.trim();
+  const targetMinutes = clampTargetMinutes(legacy.targetMinutes ?? base.days[0].targetMinutes);
+  return {
+    ...base,
+    name: legacyName || base.name,
+    level: legacy.level ?? base.level,
+    targetMinutes,
+    days: [{
+      ...base.days[0],
+      ...(legacyName ? { customName: legacyName } : {}),
+      volumeProfile: legacy.volumeProfile ?? base.days[0].volumeProfile,
+      targetMinutes,
+      slots: cloneSlots(legacy.slots),
+    }],
+  };
+}
+
+/**
+ * GOAL-19A: Construtor de Treino multi-dia.
+ *
+ * Um "Salvar" agora grava UM WorkoutProgram com N dias em `weeks[0].days` (fonte
+ * canônica; `exercises` achatado nunca é recriado). Substitui a regra do GOAL-10.5
+ * de "1 programa = 1 dia", que existia para não sobrescrever um dia irmão — agora os
+ * dias irmãos são editados juntos, no mesmo draft, e nenhum se perde.
+ *
+ * O que este GOAL NÃO faz: escolher exercícios, pontuar, sugerir ou alterar o treino
+ * automaticamente. Todo aviso é textual (ver docs/builder/GYMFLOW_MULTI_DAY_WORKOUT_BUILDER.md).
+ */
 export const WorkoutBuilder = () => {
   const {
     user,
     exercises,
+    programs,
     builderDraft,
     builderReturnView,
     setActiveView,
@@ -59,213 +109,206 @@ export const WorkoutBuilder = () => {
     startWorkout,
     weeklyPlan,
     assignDayToWeekday,
-    setWorkoutsTab
+    setWorkoutsTab,
   } = useGymFlow();
   const toast = useToast();
 
-  const [name, setName] = useState(builderDraft?.name ?? 'Meu Treino');
-  const [level, setLevel] = useState<UserProfile['level']>(builderDraft?.level ?? user?.level ?? 'intermediate');
-  const [volumeProfile, setVolumeProfileState] = useState<VolumeProfile>(builderDraft?.volumeProfile ?? 'standard');
-  const [targetMinutes, setTargetMinutes] = useState<number>(
-    builderDraft?.targetMinutes ?? defaultTargetMinutes(builderDraft?.volumeProfile ?? 'standard')
-  );
-  const [slots, setSlots] = useState<ExerciseSlot[]>(builderDraft?.slots ?? []);
-
-  // GOAL-10.5: ids finais resolvidos PREGUIÇOSAMENTE e cacheados pela sessão do
-  // Construtor (useRef, não useState — não precisa re-render ao definir). Sem isso,
-  // clicar "Planejar" em 2 dias diferentes (ou Salvar e depois Iniciar) mintaria um
-  // `custom_${Date.now()}` novo a cada clique, duplicando o mesmo treino em vez de
-  // atualizar/referenciar o que acabou de ser salvo.
-  const idsRef = useRef<{ programId: string; dayId: string } | null>(
-    builderDraft?.programId && builderDraft?.dayId
-      ? { programId: builderDraft.programId, dayId: builderDraft.dayId }
-      : null
-  );
-
-  const resolveIds = () => {
-    if (!idsRef.current) {
-      const newProgramId = `custom_${Date.now()}`;
-      idsRef.current = { programId: newProgramId, dayId: `${newProgramId}_day` };
-    }
-    return idsRef.current;
-  };
-
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const [muscleFilter, setMuscleFilter] = useState('all');
-
-  // GOAL-10.6: "Salvar e Planejar" só revela a seção de dias da semana depois de
-  // salvar — antes ficava sempre visível, o que confundia com o botão "Iniciar Agora".
-  const [weekdayPickerVisible, setWeekdayPickerVisible] = useState(false);
-  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
-
-  // GOAL-10.6: evita perda silenciosa de mudanças não salvas ao cancelar/voltar —
-  // compara o estado atual com o último snapshot salvo (ou o rascunho inicial).
-  const initialSnapshotRef = useRef(JSON.stringify({ name: builderDraft?.name ?? 'Meu Treino', slots: builderDraft?.slots ?? [] }));
-  const isDirty = () => JSON.stringify({ name, slots }) !== initialSnapshotRef.current;
-  const markSaved = () => {
-    initialSnapshotRef.current = JSON.stringify({ name, slots });
-  };
-
-  const derivedMuscleGroups = useMemo(() => muscleGroupsForSlots(slots, exercises), [slots, exercises]);
-  const estimate = useMemo(() => estimateWorkoutDuration(slots), [slots]);
-  const warning = buildDurationWarning(estimate.minutes, targetMinutes);
-
-  const filteredPickerExercises = exercises.filter((ex) => {
-    const matchesSearch = ex.name.toLowerCase().includes(search.toLowerCase());
-    const matchesMuscle = muscleFilter === 'all' || ex.muscleGroup === muscleFilter;
-    return matchesSearch && matchesMuscle;
+  // Resolvido UMA vez (lazy state): o Construtor passa a ser dono do draft, e
+  // mudanças em customPrograms não podem atropelar a edição em andamento.
+  // Avaliar duas vezes geraria ids de dia diferentes entre draft e seleção.
+  const [initial] = useState(() => {
+    const source = builderDraft?.programId
+      ? programs.find((program) => program.id === builderDraft.programId && program.isCustom) ?? null
+      : null;
+    const initialDraft = createInitialDraft(builderDraft, source, user?.level, user?.duration);
+    const dayId = builderDraft?.dayId && initialDraft.days.some((day) => day.id === builderDraft.dayId)
+      ? builderDraft.dayId
+      : initialDraft.days[0].id;
+    return { draft: initialDraft, source, dayId };
   });
 
-  const handleProfileChange = (p: VolumeProfile) => {
-    setVolumeProfileState(p);
-    setTargetMinutes(defaultTargetMinutes(p));
+  const sourceProgramRef = useRef<WorkoutProgram | null>(initial.source);
+  const [draft, setDraft] = useState<WorkoutProgramBuilderDraft>(initial.draft);
+  const [selectedDayId, setSelectedDayId] = useState<string>(initial.dayId);
+
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [startPickerOpen, setStartPickerOpen] = useState(false);
+  const [weekdayPickerVisible, setWeekdayPickerVisible] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [dayPendingRemoval, setDayPendingRemoval] = useState<string | null>(null);
+  const [frequencyHintDismissed, setFrequencyHintDismissed] = useState(false);
+
+  const savedSignatureRef = useRef<string>(serializeDraftSignature(draft));
+  const markSaved = (saved: WorkoutProgramBuilderDraft) => {
+    savedSignatureRef.current = serializeDraftSignature(saved);
   };
 
-  const handleAddExercise = (ex: Exercise) => {
-    // Exercícios sem sinergistas secundários tratados como isolados (faixa de reps
-    // mais alta, menos descanso) — mesma heurística usada nos helpers comp/iso do
-    // mock/programs.ts, sem precisar duplicar a lista de exercícios "compostos".
-    const isIsolated = !ex.secondaryMuscles || ex.secondaryMuscles.length === 0;
-    const newSlot: ExerciseSlot = {
-      exerciseId: ex.id,
-      series: 3,
-      repRange: isIsolated ? [10, 15] : [8, 10],
-      targetRPE: 8,
-      restSec: isIsolated ? 75 : 120,
-      progression: 'dupla',
-      incrementKg: isIsolated ? 1 : 2.5
-    };
-    setSlots((prev) => [...prev, newSlot]);
-    // GOAL-10.6: modal fica aberto para adicionar vários exercícios em sequência —
-    // fechar era o principal atrito reportado para montar treinos de 7+ exercícios.
-    toast.success(`"${ex.name}" adicionado ao treino.`);
-  };
+  const selectedDay = findDay(draft, selectedDayId) ?? draft.days[0];
+  const selectedIndex = draft.days.findIndex((day) => day.id === selectedDay.id);
+  const multiDay = draft.days.length > 1;
 
-  // GOAL-10.6: quantas vezes este exercício já está no treino — usado só para
-  // avisar claramente ("Adicionar novamente"), nunca para bloquear a duplicata.
-  const countInSlots = (exId: string) => slots.filter((s) => s.exerciseId === exId).length;
+  const durationByDay = useMemo(
+    () => draft.days.map((day) => estimateWorkoutDurationDetailed(day.slots, exercises, {
+      goal: user?.goal,
+      defaultRestSeconds: user?.restTimerDefaultSeconds,
+    })),
+    [draft.days, exercises, user?.goal, user?.restTimerDefaultSeconds],
+  );
+  const selectedEstimate = durationByDay[selectedIndex] ?? durationByDay[0];
 
-  const updateSlot = (idx: number, fields: Partial<ExerciseSlot>) => {
-    setSlots((prev) => prev.map((s, i) => (i === idx ? { ...s, ...fields } : s)));
-  };
+  const volumeProfileForSummary = useMemo(() => ({
+    level: draft.level,
+    goal: user?.goal ?? 'hypertrophy',
+    trainingStatus: user?.trainingStatus,
+    returnToTraining: user?.returnToTraining,
+  } as const), [draft.level, user?.goal, user?.trainingStatus, user?.returnToTraining]);
 
-  const removeSlot = (idx: number) => {
-    setSlots((prev) => prev.filter((_, i) => i !== idx));
-  };
+  // Sugestão visual: o perfil diz 5 dias/semana, mas quem decide é o usuário (PART 3).
+  const suggestedFrequency = user?.frequency ?? 0;
+  const showFrequencyHint = !frequencyHintDismissed
+    && !draft.programId
+    && draft.days.length === 1
+    && draft.days[0].slots.length === 0
+    && suggestedFrequency > 1;
 
-  const duplicateSlot = (idx: number) => {
-    setSlots((prev) => {
-      const copy = [...prev];
-      copy.splice(idx + 1, 0, { ...prev[idx] });
-      return copy;
-    });
-  };
+  const otherDaysWithExercise = (exerciseId: string) =>
+    findExerciseInOtherDays(draft, selectedDay.id, exerciseId).map((day) => `Dia ${day.dayNumber}`);
 
-  const moveSlot = (idx: number, direction: -1 | 1) => {
-    setSlots((prev) => {
-      const target = idx + direction;
-      if (target < 0 || target >= prev.length) return prev;
-      const copy = [...prev];
-      [copy[idx], copy[target]] = [copy[target], copy[idx]];
-      return copy;
-    });
-  };
+  // ===== Dias =====
 
-  const buildProgramFromDraft = (): { program: WorkoutProgram; day: ProgramDay } => {
-    const { programId: finalProgramId, dayId: finalDayId } = resolveIds();
-    const finalName = name.trim() || 'Meu Treino';
-    const day: ProgramDay = {
-      id: finalDayId,
-      name: finalName,
-      slots,
-      volumeProfile
-    };
-    const program: WorkoutProgram = {
-      id: finalProgramId,
-      name: finalName,
-      durationWeeks: 0,
-      frequencyDays: 1,
-      level,
-      objective: 'Treino personalizado criado no Construtor de Treino',
-      exercises: [],
-      description: 'Treino criado manualmente pelo usuário no Construtor de Treino.',
-      repeatWeeks: true,
-      weeks: [{ number: 1, days: [day] }],
-      isCustom: true
-    };
-    return { program, day };
-  };
-
-  const handleCancel = () => setActiveView(builderReturnView);
-
-  // GOAL-10.6: evita descartar em silêncio — só pergunta se há algo que ainda não
-  // foi salvo (comparado contra o último snapshot salvo/inicial).
-  const handleCancelClick = () => {
-    if (isDirty()) {
-      setShowDiscardConfirm(true);
-    } else {
-      handleCancel();
-    }
-  };
-
-  // GOAL-10.6: "Salvar" sempre volta para a aba Treinos já em "Meus Treinos" —
-  // o usuário precisa ver imediatamente que o treino foi salvo (Tarefa 3).
-  const handleSaveOnly = () => {
-    if (slots.length === 0) {
-      toast.error('Adicione pelo menos 1 exercício antes de salvar.');
+  const handleAddDay = () => {
+    const next = addDayToDraft(draft, createBuilderId);
+    if (next === draft) {
+      toast.error('Este programa já atingiu o número máximo de dias.');
       return;
     }
-    const { program } = buildProgramFromDraft();
+    setDraft(next);
+    setSelectedDayId(next.days[next.days.length - 1].id);
+  };
+
+  const handleUseProfileFrequency = () => {
+    const next = addEmptyDaysToDraft(draft, suggestedFrequency - draft.days.length, createBuilderId);
+    setDraft(next);
+    setFrequencyHintDismissed(true);
+    toast.success(`${next.days.length} dias vazios criados — monte cada um do seu jeito.`);
+  };
+
+  const handleDuplicateDay = () => {
+    const next = duplicateDayInDraft(draft, selectedDay.id, createBuilderId);
+    if (next === draft) {
+      toast.error('Este programa já atingiu o número máximo de dias.');
+      return;
+    }
+    setDraft(next);
+    setSelectedDayId(next.days[selectedIndex + 1].id);
+    toast.success('Dia duplicado.');
+  };
+
+  const handleConfirmRemoveDay = () => {
+    if (!dayPendingRemoval) return;
+    const next = removeDayFromDraft(draft, dayPendingRemoval);
+    setDayPendingRemoval(null);
+    if (next === draft) return;
+    setDraft(next);
+    if (dayPendingRemoval === selectedDay.id) {
+      setSelectedDayId(next.days[Math.min(selectedIndex, next.days.length - 1)].id);
+    }
+    toast.success('Dia removido.');
+  };
+
+  const handleMoveDay = (direction: -1 | 1) => setDraft(moveDayInDraft(draft, selectedDay.id, direction));
+
+  // ===== Exercícios =====
+
+  const handleAddExercise = (exercise: Exercise) => {
+    // Mesma heurística do GOAL-10.5: sem sinergistas = isolado (mais reps, menos descanso).
+    const isolated = !exercise.secondaryMuscles || exercise.secondaryMuscles.length === 0;
+    const slot: ExerciseSlot = {
+      exerciseId: exercise.id,
+      series: 3,
+      repRange: isolated ? [10, 15] : [8, 10],
+      targetRPE: 8,
+      restSec: isolated ? 75 : 120,
+      progression: 'dupla',
+      incrementKg: isolated ? 1 : 2.5,
+    };
+    setDraft(addSlotToDay(draft, selectedDay.id, slot));
+    toast.success(`"${exercise.name}" adicionado ao Dia ${selectedDay.dayNumber}.`);
+  };
+
+  // ===== Salvamento =====
+
+  const persist = (current: WorkoutProgramBuilderDraft) => {
+    const program = buildProgramFromDraft(current, sourceProgramRef.current, createBuilderId);
     saveCustomProgram(program);
-    markSaved();
+    // Reaproveita o mesmo id/dias nos próximos salvamentos desta sessão (sem duplicar).
+    sourceProgramRef.current = program;
+    const persisted = { ...current, programId: program.id };
+    setDraft(persisted);
+    markSaved(persisted);
+    return program;
+  };
+
+  const guardHasExercise = (action: string) => {
+    if (draftHasAnyExercise(draft)) return true;
+    toast.error(`Adicione pelo menos 1 exercício antes de ${action}.`);
+    return false;
+  };
+
+  const handleSaveOnly = () => {
+    if (!guardHasExercise('salvar')) return;
+    const program = persist(draft);
     setWorkoutsTab('mine');
     toast.success(`"${program.name}" salvo em Meus Treinos.`);
     setActiveView('workouts');
   };
 
-  const handleStartNow = () => {
-    if (slots.length === 0) {
-      toast.error('Adicione pelo menos 1 exercício antes de iniciar.');
-      return;
-    }
-    const { program, day } = buildProgramFromDraft();
-    saveCustomProgram(program);
-    markSaved();
-    // explicitDay evita depender do setState de customPrograms já ter propagado.
-    startWorkout(program.id, program.name, day.id, day);
-  };
-
-  // GOAL-10.6: "Salvar e Planejar" salva imediatamente e revela a seção de dias da
-  // semana (antes ficava sempre visível, confundindo com "Iniciar Agora").
   const handleSaveAndPlan = () => {
-    if (slots.length === 0) {
-      toast.error('Adicione pelo menos 1 exercício antes de planejar.');
-      return;
-    }
-    const { program } = buildProgramFromDraft();
-    saveCustomProgram(program);
-    markSaved();
+    if (!guardHasExercise('planejar')) return;
+    const program = persist(draft);
     toast.success(`"${program.name}" salvo — escolha um dia da semana abaixo.`);
     setWeekdayPickerVisible(true);
   };
 
-  const handlePlanToWeekday = (dayName: string) => {
-    if (slots.length === 0) {
-      toast.error('Adicione pelo menos 1 exercício antes de planejar.');
-      return;
-    }
-    const { program, day } = buildProgramFromDraft();
-    saveCustomProgram(program);
-    markSaved();
-    assignDayToWeekday(dayName, program, day);
+  const handlePlanToWeekday = (weekdayName: string) => {
+    const program = persist(draft);
+    const day = program.weeks[0].days[selectedIndex] ?? program.weeks[0].days[0];
+    assignDayToWeekday(weekdayName, program, day);
     setActiveView('planner');
   };
 
-  const handleFinishWithoutPlanning = () => {
-    setWorkoutsTab('mine');
-    setActiveView('workouts');
+  const startDay = (dayId: string) => {
+    const day = findDay(draft, dayId);
+    if (!day || day.slots.length === 0) {
+      toast.error('Este dia ainda não tem exercícios.');
+      return;
+    }
+    const program = persist(draft);
+    const programDay = program.weeks[0].days.find((item) => item.id === day.id);
+    if (!programDay) return;
+    setStartPickerOpen(false);
+    // explicitDay: não depende do setState de customPrograms ter propagado.
+    startWorkout(program.id, activeWorkoutNameForDay(program.name, day, multiDay), programDay.id, programDay);
   };
+
+  const handleStartNow = () => {
+    if (!guardHasExercise('iniciar')) return;
+    if (!multiDay) {
+      startDay(draft.days[0].id);
+      return;
+    }
+    setStartPickerOpen(true);
+  };
+
+  // ===== Saída =====
+
+  const handleCancel = () => setActiveView(builderReturnView);
+  const handleCancelClick = () => {
+    if (isDraftDirty(draft, savedSignatureRef.current)) setShowDiscardConfirm(true);
+    else handleCancel();
+  };
+
+  const pendingRemovalDay = dayPendingRemoval ? findDay(draft, dayPendingRemoval) : undefined;
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6 max-w-3xl mx-auto">
@@ -277,288 +320,133 @@ export const WorkoutBuilder = () => {
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <div>
+        <div className="min-w-0">
           <h1 className="text-xl lg:text-2xl font-black text-white tracking-tight">Construtor de Treino</h1>
-          <p className="text-xs text-gym-text-muted mt-0.5">Monte, edite e salve seu próprio treino.</p>
-        </div>
-      </div>
-
-      {/* CONFIG BÁSICA */}
-      <div className="glass p-5 rounded-3xl border border-white/5 space-y-4">
-        <div>
-          <label className="block text-[10px] font-bold uppercase text-gym-text-muted mb-1.5">Nome do treino</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Ex: Peito e Tríceps"
-            className="w-full bg-gym-dark border border-white/10 rounded-xl py-2.5 px-3 text-sm text-white outline-none focus:border-gym-accent"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-gym-text-muted mb-1.5">Nível</label>
-            <select
-              value={level}
-              onChange={(e) => setLevel(e.target.value as UserProfile['level'])}
-              className="w-full bg-gym-dark border border-white/10 rounded-xl py-2.5 px-3 text-xs text-white outline-none focus:border-gym-accent"
-            >
-              <option value="beginner">Iniciante</option>
-              <option value="intermediate">Intermediário</option>
-              <option value="advanced">Avançado</option>
-              <option value="athlete">Atleta / Pro</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-gym-text-muted mb-1.5">Tempo alvo (min)</label>
-            <NumericInput
-              min={10}
-              value={targetMinutes}
-              onCommit={(v) => setTargetMinutes(v ?? 10)}
-              className="w-full bg-gym-dark border border-white/10 rounded-xl py-2.5 px-3 text-xs text-white outline-none focus:border-gym-accent"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-[10px] font-bold uppercase text-gym-text-muted mb-1.5">Perfil de volume</label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {VOLUME_PROFILES.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleProfileChange(p.id)}
-                className={`p-2.5 rounded-xl border text-left transition-all min-h-[44px] ${
-                  volumeProfile === p.id
-                    ? 'bg-gym-accent/15 border-gym-accent text-gym-accent'
-                    : 'bg-white/5 border-white/5 text-gym-text-muted hover:text-white'
-                }`}
-              >
-                <span className="block text-[11px] font-black">{p.label}</span>
-                <span className="block text-[9px] mt-0.5 leading-snug">{p.description}</span>
-              </button>
-            ))}
-          </div>
-          <p className="text-[9px] text-gym-text-muted mt-2 leading-relaxed">
-            O perfil só sugere um alvo — você pode montar qualquer volume real.
+          <p className="text-xs text-gym-text-muted mt-0.5">
+            Monte um programa com um ou vários dias — você escolhe cada exercício.
           </p>
         </div>
       </div>
 
-      {/* RESUMO AO VIVO */}
-      <div className="glass p-5 rounded-3xl border border-white/5">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-white/5 rounded-2xl p-3 text-center">
-            <Dumbbell className="w-4 h-4 text-gym-accent mx-auto mb-1" />
-            <span className="block text-[9px] text-gym-text-muted uppercase">Exercícios</span>
-            <span className="block text-sm font-extrabold text-white">{slots.length}</span>
-          </div>
-          <div className="bg-white/5 rounded-2xl p-3 text-center">
-            <Layers className="w-4 h-4 text-gym-accent mx-auto mb-1" />
-            <span className="block text-[9px] text-gym-text-muted uppercase">Séries</span>
-            <span className="block text-sm font-extrabold text-white">{estimate.totalSeries}</span>
-          </div>
-          <div className="bg-white/5 rounded-2xl p-3 text-center">
-            <Clock className="w-4 h-4 text-gym-accent mx-auto mb-1" />
-            <span className="block text-[9px] text-gym-text-muted uppercase">Duração est.</span>
-            <span className="block text-sm font-extrabold text-white">{estimate.minutes} min</span>
-          </div>
-          <div className="bg-white/5 rounded-2xl p-3 text-center">
-            <Activity className="w-4 h-4 text-gym-accent mx-auto mb-1" />
-            <span className="block text-[9px] text-gym-text-muted uppercase">Grupos</span>
-            <span className="block text-[10px] font-bold text-white truncate" title={derivedMuscleGroups.join(', ')}>
-              {derivedMuscleGroups.length > 0 ? derivedMuscleGroups.join(', ') : '—'}
-            </span>
-          </div>
-        </div>
+      <WorkoutProgramDetails
+        name={draft.name}
+        level={draft.level}
+        objective={draft.objective}
+        onNameChange={(name) => setDraft({ ...draft, name })}
+        onLevelChange={(level: TrainingExperienceLevel) => setDraft({ ...draft, level })}
+        onObjectiveChange={(objective) => setDraft({ ...draft, objective })}
+      />
 
-        {warning && (
-          <div className="mt-3 bg-gym-amber/10 border border-gym-amber/30 rounded-xl p-3 flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-gym-amber flex-shrink-0 mt-0.5" />
-            <p className="text-[11px] text-gym-amber leading-relaxed">{warning}</p>
-          </div>
-        )}
-
-        <p className="text-[9px] text-gym-text-muted mt-3 leading-relaxed">
-          Sugestão de treino • volume estimado • ajuste conforme sua recuperação.
-        </p>
-      </div>
-
-      {/* LISTA DE EXERCÍCIOS */}
+      {/* DIAS */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white">Exercícios ({slots.length})</h3>
-          <button
-            onClick={() => setPickerOpen(true)}
-            className="min-h-[44px] bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-bold px-4 rounded-xl text-xs flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" /> Adicionar Exercício
-          </button>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-bold text-white">
+            Dias do programa ({draft.days.length})
+          </h2>
+          {!canAddDay(draft) && (
+            <span className="text-[9px] text-gym-text-muted">Máximo de dias atingido</span>
+          )}
         </div>
 
-        {slots.length === 0 ? (
-          <div className="glass p-8 text-center rounded-3xl border border-white/5 space-y-3 flex flex-col items-center">
-            <Dumbbell className="w-10 h-10 text-gym-text-muted opacity-40" />
-            <h4 className="text-sm font-bold text-white">Nenhum exercício ainda</h4>
-            <p className="text-xs text-gym-text-muted max-w-sm">
-              Adicione o primeiro exercício para começar a montar seu treino.
-            </p>
-            <button
-              onClick={() => setPickerOpen(true)}
-              className="min-h-[44px] px-6 bg-gym-accent hover:bg-gym-accent-hover active:scale-[0.98] text-gym-dark font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center gap-1.5"
-            >
-              <Plus className="w-4 h-4" />
-              Adicionar Exercício
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {slots.map((slot, idx) => {
-              const ex = exercises.find((e) => e.id === slot.exerciseId);
-              return (
-                <div key={`${slot.exerciseId}_${idx}`} className="bg-gym-card/60 border border-white/5 rounded-2xl p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <span className="text-[10px] text-gym-accent font-bold">#{idx + 1}</span>
-                      <h4 className="text-xs font-bold text-white truncate">{ex?.name ?? 'Exercício desconhecido'}</h4>
-                      <p className="text-[10px] text-gym-text-muted capitalize">{ex?.muscleGroup}</p>
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => moveSlot(idx, -1)}
-                        disabled={idx === 0}
-                        className="p-2 bg-white/5 rounded-lg disabled:opacity-30 text-white tap-target"
-                        title="Mover para cima"
-                      >
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => moveSlot(idx, 1)}
-                        disabled={idx === slots.length - 1}
-                        className="p-2 bg-white/5 rounded-lg disabled:opacity-30 text-white tap-target"
-                        title="Mover para baixo"
-                      >
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => duplicateSlot(idx)}
-                        className="p-2 bg-white/5 rounded-lg text-white tap-target"
-                        title="Duplicar"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => removeSlot(idx)}
-                        className="p-2 bg-gym-rose/10 rounded-lg text-gym-rose tap-target"
-                        title="Remover"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
+        <WorkoutDayTabs
+          days={draft.days}
+          selectedDayId={selectedDay.id}
+          canAddDay={canAddDay(draft)}
+          onSelect={setSelectedDayId}
+          onAddDay={handleAddDay}
+        />
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
-                      Séries
-                      <NumericInput
-                        min={1}
-                        value={slot.series}
-                        onCommit={(v) => updateSlot(idx, { series: v ?? 1 })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
-                      />
-                    </label>
-                    <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
-                      Reps mín.
-                      <NumericInput
-                        min={1}
-                        value={slot.repRange[0]}
-                        onCommit={(v) => updateSlot(idx, { repRange: [v ?? 1, slot.repRange[1]] })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
-                      />
-                    </label>
-                    <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
-                      Reps máx.
-                      <NumericInput
-                        min={1}
-                        value={slot.repRange[1]}
-                        onCommit={(v) => updateSlot(idx, { repRange: [slot.repRange[0], v ?? 1] })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
-                      />
-                    </label>
-                    <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
-                      RPE alvo
-                      <NumericInput
-                        min={1}
-                        max={10}
-                        value={slot.targetRPE}
-                        onCommit={(v) => updateSlot(idx, { targetRPE: v ?? 1 })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
-                      />
-                    </label>
-                    <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
-                      Descanso (s)
-                      <NumericInput
-                        min={0}
-                        value={slot.restSec}
-                        onCommit={(v) => updateSlot(idx, { restSec: v ?? 0 })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
-                      />
-                    </label>
-                    <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
-                      Progressão
-                      <select
-                        value={slot.progression}
-                        onChange={(e) => updateSlot(idx, { progression: e.target.value as ProgressionType })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
-                      >
-                        <option value="dupla">Dupla progressão</option>
-                        <option value="linear">Linear</option>
-                        <option value="nenhuma">Nenhuma</option>
-                      </select>
-                    </label>
-                    <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
-                      Incremento (kg)
-                      <NumericInput
-                        min={0}
-                        allowDecimal
-                        value={slot.incrementKg}
-                        onCommit={(v) => updateSlot(idx, { incrementKg: v ?? 0 })}
-                        className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
-                      />
-                    </label>
-                  </div>
-                </div>
-              );
-            })}
+        {showFrequencyHint && (
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[10px] text-gym-text-muted leading-relaxed min-w-0">
+              <Sparkles className="w-3 h-3 text-gym-accent inline mr-1" />
+              Seu perfil indica {suggestedFrequency} dias por semana. Quer começar com {suggestedFrequency} dias vazios?
+            </p>
+            <div className="flex gap-2 flex-shrink-0">
+              <button
+                onClick={handleUseProfileFrequency}
+                className="min-h-[36px] px-3 bg-gym-accent/15 border border-gym-accent/40 text-gym-accent rounded-xl text-[10px] font-bold"
+              >
+                Criar {suggestedFrequency} dias
+              </button>
+              <button
+                onClick={() => setFrequencyHintDismissed(true)}
+                className="min-h-[36px] px-3 bg-white/5 border border-white/10 text-gym-text-muted hover:text-white rounded-xl text-[10px] font-bold"
+              >
+                Continuar com 1
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* PLANEJAR NA SEMANA — só aparece depois de "Salvar e Planejar" (Tarefa 4) */}
+      <WorkoutDaysEditor
+        day={selectedDay}
+        exercises={exercises}
+        estimate={selectedEstimate}
+        canMoveLeft={selectedIndex > 0}
+        canMoveRight={selectedIndex < draft.days.length - 1}
+        canDuplicate={canAddDay(draft)}
+        canRemove={canRemoveDay(draft)}
+        otherDaysWithExercise={otherDaysWithExercise}
+        onCustomNameChange={(customName) => setDraft(updateDayInDraft(draft, selectedDay.id, { customName }))}
+        onUseAutoName={() => setDraft(clearDayCustomName(draft, selectedDay.id))}
+        onToggleMuscleGroup={(muscleGroupId: MuscleGroupId) =>
+          setDraft(toggleDayMuscleGroup(draft, selectedDay.id, muscleGroupId))}
+        onTargetMinutesChange={(minutes) =>
+          setDraft(updateDayInDraft(draft, selectedDay.id, { targetMinutes: clampTargetMinutes(minutes) }))}
+        onVolumeProfileChange={(volumeProfile: VolumeProfile) =>
+          setDraft(updateDayInDraft(draft, selectedDay.id, { volumeProfile }))}
+        onMoveDay={handleMoveDay}
+        onDuplicateDay={handleDuplicateDay}
+        onRemoveDay={() => setDayPendingRemoval(selectedDay.id)}
+        onOpenPicker={() => setPickerOpen(true)}
+        onSlotChange={(index, fields) => setDraft(updateSlotInDay(draft, selectedDay.id, index, fields))}
+        onSlotMove={(index, direction) => setDraft(moveSlotInDay(draft, selectedDay.id, index, direction))}
+        onSlotDuplicate={(index) => setDraft(duplicateSlotInDay(draft, selectedDay.id, index))}
+        onSlotRemove={(index) => setDraft(removeSlotFromDay(draft, selectedDay.id, index))}
+      />
+
+      <WorkoutProgramSummary
+        draft={draft}
+        exercises={exercises}
+        profile={volumeProfileForSummary}
+        profileFrequency={suggestedFrequency}
+        totalMinutesByDay={durationByDay.map((estimate) => estimate.totalMinutes)}
+      />
+
+      {/* PLANEJAR NA SEMANA — revelado após "Salvar e Planejar" */}
       {weekdayPickerVisible && (
         <div className="glass p-5 rounded-3xl border border-gym-accent/20 space-y-3">
           <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-            <Calendar className="w-4 h-4 text-gym-accent" /> Treino salvo — escolha um dia da semana
+            <Calendar className="w-4 h-4 text-gym-accent" /> Programa salvo — planejar o Dia {selectedDay.dayNumber}
           </h3>
+          <p className="text-[10px] text-gym-text-muted leading-relaxed">
+            Escolha o dia da semana para <strong className="text-white">{dayDisplayName(selectedDay)}</strong>. Os
+            outros dias podem ser atribuídos no Planejador, em &quot;Escolher&quot;.
+          </p>
           {weeklyPlan.length > 0 ? (
             <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
-              {weeklyPlan.map((d) => (
+              {weeklyPlan.map((weekday) => (
                 <button
-                  key={d.dayName}
-                  onClick={() => handlePlanToWeekday(d.dayName)}
+                  key={weekday.dayName}
+                  onClick={() => handlePlanToWeekday(weekday.dayName)}
                   className="min-h-[44px] bg-white/5 hover:bg-gym-accent/15 hover:text-gym-accent border border-white/10 rounded-xl text-[10px] font-bold text-white transition-all"
                 >
-                  {d.dayName.slice(0, 3)}
+                  {weekday.dayName.slice(0, 3)}
                 </button>
               ))}
             </div>
           ) : (
             <p className="text-xs text-gym-text-muted">
-              Gere uma semana no Planejador primeiro para poder escolher um dia — o treino já está salvo em Meus Treinos.
+              Gere uma semana no Planejador primeiro para poder escolher um dia — o programa já está salvo em Meus Treinos.
             </p>
           )}
           <button
-            onClick={handleFinishWithoutPlanning}
+            onClick={() => {
+              setWorkoutsTab('mine');
+              setActiveView('workouts');
+            }}
             className="text-[10px] font-bold text-gym-text-muted hover:text-white underline"
           >
             Concluir sem planejar
@@ -597,8 +485,8 @@ export const WorkoutBuilder = () => {
       <ConfirmDialog
         isOpen={showDiscardConfirm}
         variant="destructive"
-        title="Descartar treino sem salvar?"
-        description={`Você tem ${slots.length} exercício(s) e/ou alterações que ainda não foram salvos. Se sair agora, esse progresso será perdido.`}
+        title="Descartar alterações não salvas?"
+        description={`Este programa tem ${draft.days.length} dia(s) com alterações que ainda não foram salvas. Se sair agora, esse progresso será perdido.`}
         confirmLabel="Descartar"
         cancelLabel="Continuar editando"
         onConfirm={() => {
@@ -608,102 +496,37 @@ export const WorkoutBuilder = () => {
         onCancel={() => setShowDiscardConfirm(false)}
       />
 
-      {/* MODAL: BIBLIOTECA DE EXERCÍCIOS */}
-      {pickerOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-4"
-          onClick={() => setPickerOpen(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-gym-dark border border-white/10 rounded-3xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden"
-          >
-            <div className="p-5 border-b border-white/5 space-y-3 flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white">Adicionar Exercício</h3>
-                <button
-                  onClick={() => setPickerOpen(false)}
-                  className="p-2 text-gym-text-muted hover:text-white bg-white/5 rounded-lg tap-target"
-                  aria-label="Fechar"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-gym-text-muted" />
-                <input
-                  autoFocus
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar por nome..."
-                  className="w-full bg-gym-card border border-white/10 rounded-xl py-2 pl-9 pr-3 text-xs text-white outline-none focus:border-gym-accent"
-                />
-              </div>
-              <div className="flex gap-1.5 overflow-x-auto whitespace-nowrap pb-1">
-                {MUSCLE_FILTERS.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => setMuscleFilter(m.id)}
-                    className={`py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all flex-shrink-0 ${
-                      muscleFilter === m.id ? 'bg-gym-accent text-gym-dark' : 'bg-white/5 text-gym-text-muted hover:text-white'
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-              {filteredPickerExercises.length === 0 ? (
-                <p className="text-xs text-gym-text-muted text-center py-8">Nenhum exercício encontrado.</p>
-              ) : (
-                filteredPickerExercises.map((ex) => {
-                  const countInWorkout = countInSlots(ex.id);
-                  return (
-                    <button
-                      key={ex.id}
-                      onClick={() => handleAddExercise(ex)}
-                      className={`w-full text-left border rounded-xl p-3 flex items-center justify-between transition-all min-h-[44px] ${
-                        countInWorkout > 0
-                          ? 'bg-gym-accent/5 border-gym-accent/20 hover:border-gym-accent/40'
-                          : 'bg-white/5 border-white/5 hover:bg-gym-accent/10 hover:border-gym-accent/30'
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="text-xs font-bold text-white truncate">{ex.name}</h4>
-                          {countInWorkout > 0 && (
-                            <span className="flex-shrink-0 text-[8px] font-black uppercase bg-gym-accent/15 text-gym-accent px-1.5 py-0.5 rounded-full">
-                              No treino ×{countInWorkout}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-gym-text-muted capitalize mt-0.5">
-                          {ex.muscleGroup} • {ex.equipment}
-                        </p>
-                      </div>
-                      <span className="flex-shrink-0 ml-2 flex items-center gap-1.5">
-                        {countInWorkout > 0 && (
-                          <span className="text-[9px] text-gym-accent font-bold whitespace-nowrap hidden sm:inline">Adicionar novamente</span>
-                        )}
-                        <Plus className="w-4 h-4 text-gym-accent" />
-                      </span>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-            <div className="p-3 border-t border-white/5 flex-shrink-0">
-              <button
-                onClick={() => setPickerOpen(false)}
-                className="w-full min-h-[44px] bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2"
-              >
-                <Check className="w-4 h-4" /> Concluir ({slots.length} {slots.length === 1 ? 'exercício' : 'exercícios'})
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={dayPendingRemoval !== null}
+        variant="destructive"
+        title={`Remover o Dia ${pendingRemovalDay?.dayNumber ?? ''}?`}
+        description={
+          pendingRemovalDay
+            ? `"${dayDisplayName(pendingRemovalDay)}" e seus ${pendingRemovalDay.slots.length} exercício(s) serão removidos deste programa. Os outros dias continuam como estão.`
+            : ''
+        }
+        confirmLabel="Remover dia"
+        cancelLabel="Manter"
+        onConfirm={handleConfirmRemoveDay}
+        onCancel={() => setDayPendingRemoval(null)}
+      />
+
+      <StartDayPicker
+        isOpen={startPickerOpen}
+        days={draft.days}
+        onSelect={startDay}
+        onCancel={() => setStartPickerOpen(false)}
+      />
+
+      <ExercisePickerModal
+        isOpen={pickerOpen}
+        day={selectedDay}
+        exercises={exercises}
+        countInDay={(exerciseId) => countExerciseInDay(selectedDay, exerciseId)}
+        otherDaysWithExercise={otherDaysWithExercise}
+        onAdd={handleAddExercise}
+        onClose={() => setPickerOpen(false)}
+      />
     </div>
   );
 };

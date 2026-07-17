@@ -4,6 +4,77 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-19A — Construtor de treino multi-dia (2026-07-17)
+
+### Resumo
+
+O Construtor deixou de criar "um programa = um dia" e passou a montar **programas com vários
+dias**: Dia 1..N gerados automaticamente, foco muscular por dia (taxonomia do GOAL-18A), nomes
+automáticos honestos com nome customizado opcional, slots isolados por dia, estimativa de
+duração e volume por dia (motor do GOAL-22) e uma análise do programa inteiro com o volume
+semanal por grupo comparado à referência do perfil (GOAL-21).
+
+**Gate G2: aprovado pelo Founder** — pré-requisito deste GOAL.
+
+A regra do GOAL-10.5 ("nunca agrupar dias no mesmo programa para não sobrescrever um dia irmão")
+ficou obsoleta: o Construtor agora carrega o **programa inteiro**, então os irmãos são editados
+juntos e nenhum se perde. `weeks[0].days` é a fonte canônica; a lista achatada
+`WorkoutProgram.exercises` nunca é recriada.
+
+Nada é escolhido, sugerido ou alterado automaticamente. Todo aviso é textual.
+
+### Descoberta que moldou o GOAL
+
+**Nenhum dos 126 exercícios tem `primaryMuscleGroupId`** — todos resolvem pelo campo legado
+`muscleGroup`, e os 23 de perna colapsam em `legs_general`. Ou seja, **nada resolve para
+quadríceps ou posterior de coxa**. Sem tratamento, o filtro "Foco do dia" devolveria lista vazia
+ao focar Quadríceps, e a análise afirmaria *"não possui trabalho direto para posterior"* com a
+Mesa Flexora no dia — falso. `LEGACY_GENERIC_COVERAGE` resolve dizendo apenas "não é possível
+afirmar nem negar", sempre exibindo a origem legada. Glúteos/panturrilhas têm grupo legado
+próprio, então a ausência deles continua sendo afirmada. Cura definitiva: **GOAL-33A**.
+
+### Arquivos
+
+- Tipos: `src/types/workout-builder.ts` (novo), `src/types/index.ts` (campos aditivos e opcionais em `ProgramDay`).
+- Domínio: `src/lib/workout-builder-id.ts`, `src/lib/workout-day-naming.ts`, `src/lib/workout-program-normalization.ts`, `src/lib/workout-builder.ts` (todos novos).
+- UI: `src/components/workout-builder/{WorkoutProgramDetails,WorkoutDayTabs,WorkoutDayFocusSelector,WorkoutDayActions,WorkoutDaySummary,WorkoutDaysEditor,WorkoutProgramSummary,ExercisePickerModal,StartDayPicker}.tsx` (novos), `src/modules/WorkoutBuilder.tsx` (reescrito).
+- Consumo mínimo: `src/providers/GymFlowContext.tsx` (3 linhas: import + `programDayDisplayLabel` em `buildWeekFromProgram`/`assignDayToWeekday`), `src/modules/PlannerView.tsx`, `src/modules/WorkoutsTab.tsx`.
+- Testes: `src/lib/workout-builder.test.ts`, `src/lib/workout-day-naming.test.ts`, `src/lib/workout-program-normalization.test.ts`.
+- Documentação: `docs/builder/GYMFLOW_MULTI_DAY_WORKOUT_BUILDER.md`, `docs/DECISOES.md`, `docs/PENDENCIAS.md`, `docs/GOALS_LOG.md`.
+
+`openWorkoutBuilder` **não mudou de assinatura** — `programId` passou a significar "edite este
+programa" e `dayId` "abra neste dia", então os chamadores existentes já abrem o programa inteiro.
+
+### Validações
+
+- `npx vitest run`: 18 arquivos, **391 testes** aprovados (252 anteriores + 139 novos). Nenhum teste anterior alterado ou removido.
+- `npx tsc --noEmit`: aprovado.
+- ESLint nos arquivos novos/reescritos: **zero erros e zero warnings**. Os 12 problemas (9 erros, 3 warnings) restantes em `GymFlowContext.tsx` são **pré-existentes** — o baseline `7495225` produz a mesma contagem, com as linhas deslocadas exatamente pelas 3 que este GOAL adicionou.
+- `npm run build` e `npm run build:mobile`: aprovados. `cap:sync`/`android:build` não executados.
+- `rg -n "alert\(|confirm\(" src`: zero `alert()`/`confirm()` nativos.
+- `git diff --check`: limpo.
+- Hashes idênticos ao pré-flight: `src/mock/exercises.ts`, `src/mock/programs.ts`, `src/lib/progression.ts`, `src/lib/storage.ts`.
+
+### Teste manual (navegador, dev server em `:3000`)
+
+Programa de 4 dias criado do zero: focos selecionados, nomes automáticos conferidos
+("Peito e Tríceps", "Costas e Bíceps", "Quadríceps e Panturrilhas", "Ombros, Posterior de coxa e
+Glúteos"), nome customizado aplicado no Dia 4, exercícios adicionados por dia, alternância entre
+dias sem perda de slot, duplicação (renumerou 4→5 e inseriu a cópia logo após a original),
+reordenação (Dia 2 → Dia 1, ids estáveis), remoção via `ConfirmDialog` informando os exercícios,
+estimativas e análise conferidas, salvo, **página recarregada**, reaberto — os 4 dias, o foco, o
+nome customizado e os slots voltaram intactos. "Salvar e Planejar", Planner (os 4 dias aparecem
+como "Dia N — Nome"; dias seed seguem "Dia A — …" inalterados) e "Iniciar Agora" (pergunta qual
+dia; iniciar o Dia 3 carregou os slots do Dia 3 e a sessão virou "Meu ABCD Multi-dia — Dia 3 ·
+Quadríceps e Panturrilhas"). Saída com alterações pediu confirmação; "Continuar editando"
+preservou o draft. **Zero erros e zero warnings no console.**
+
+### Próximo passo
+
+**GOAL-19B** — templates, criação guiada e refinamento do construtor multi-dia. Não iniciado.
+
+---
+
 ## GOAL-01 — Persistência local-first (2026-07-03)
 
 ### Resumo

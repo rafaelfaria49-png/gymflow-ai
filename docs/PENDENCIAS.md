@@ -1,10 +1,21 @@
 # Pendências
 
+## GOAL-19A — Construtor multi-dia
+
+- **GOAL-33A é o gargalo de honestidade do Construtor.** Nenhum dos 126 exercícios tem `primaryMuscleGroupId`; os 23 de perna colapsam em `legs_general`, então nada resolve para quadríceps/posterior. Enquanto isso: a confidence nunca chega a `high`, o filtro "Foco do dia" depende de `LEGACY_GENERIC_COVERAGE` e a análise não consegue confirmar volume direto de subgrupos de perna. Curar a taxonomia remove o mapa e os avisos legados de uma vez.
+- **`ExerciseSlot` sem `id` (para o GOAL-23A):** a identidade do slot é o índice dentro do dia. Reordenar/duplicar slots funciona, mas não há identidade estável para vincular um slot a um `SessionLog`. Avaliar `slotId` com migração explícita quando SessionPlan/SessionLog entrar — envolve `mock/programs.ts` e `progression.ts`.
+- **Token `gym-amber` está morto (fora do escopo deste GOAL).** `--color-gym-amber` não existe no `@theme` de `globals.css`, então `text-gym-amber`/`bg-gym-amber/10`/`border-gym-amber/30` não geram CSS (0 ocorrências no CSS compilado; `.text-gym-rose` gera normalmente). O aviso de duração do Construtor renderizava sem cor desde o GOAL-10.5. O Construtor migrou para `amber-400` (paleta padrão do Tailwind, que continua ativa); **`ActiveWorkoutPage.tsx` ainda usa `gym-amber` e segue com avisos sem cor**. Corrigir num passe de UI: ou adicionar `--color-gym-amber` ao `@theme`, ou migrar o consumidor restante.
+- **`weeklyOccurrences` continua sem uso real no Construtor:** a análise conta cada dia do programa **uma vez por semana** (a semana canônica = os dias do programa). Se o usuário repetir o mesmo dia em dois dias da semana no Planejador, o volume semanal real será maior que o exibido. Resolver quando o Planejador virar fonte de frequência (herda a pendência do GOAL-22).
+- **Sem UI para apagar um treino custom** (herdado do GOAL-10.5) — agora mais visível, porque um programa multi-dia é um objeto maior para ficar preso em "Meus Treinos".
+- **Reordenação é por botões ←/→**, sem drag-and-drop: não existe infraestrutura segura de DnD no projeto e o GOAL proibia dependência nova. Reavaliar no GOAL-19B.
+- **Testes de componente continuam ausentes** (o projeto não tem ambiente DOM/Testing Library): todo o domínio do Construtor é puro e coberto por 139 testes; a UI foi coberta por teste manual no navegador. Adotar cobertura de interação quando a infraestrutura existir.
+- **`durationWeeks` fica 0 e `repeatWeeks` true** para programas do Construtor — o Construtor não expõe periodização. Se o GOAL-19B introduzir templates com duração, os campos já existem no draft.
+
 ## GOAL-22 — motor de volume e duração / Gate G2
 
 - **Revisão profissional obrigatória:** aprovar ou ajustar faixas semanais, modificadores de retorno, peso 0,5 dos sinergistas, defaults de descanso/setup/transição e bounds antes de exposição pública.
 - **Gate G2:** o Founder precisa revisar a proposta em `docs/training/GYMFLOW_VOLUME_AND_DURATION_ENGINE.md`; este commit não equivale a aprovação.
-- **GOAL-19A bloqueado pelo Gate G2:** não iniciar o Construtor inteligente multi-dia antes da decisão explícita.
+- ~~**GOAL-19A bloqueado pelo Gate G2**~~ — **resolvido em 2026-07-17**: o Founder aprovou o Gate G2 e o GOAL-19A (Construtor multi-dia) foi executado sobre as decisões aprovadas. A revisão profissional das faixas segue obrigatória antes de exposição pública.
 - **GOAL-33A:** preencher taxonomia canônica dos 126 exercícios para elevar confidence e reduzir warnings legados.
 - Decidir futuramente se o Construtor atual migra da estimativa legada para a detalhada; a troca pode alterar números visíveis e requer aceite de produto.
 - Modelar supersets, técnicas avançadas, aquecimento específico e lotação somente em incrementos próprios, com novos testes e sem inferência silenciosa.

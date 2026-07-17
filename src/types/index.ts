@@ -51,6 +51,12 @@ export type {
 } from './training-profile';
 
 export type {
+  BuilderIdFactory,
+  WorkoutDayBuilderDraft,
+  WorkoutProgramBuilderDraft,
+} from './workout-builder';
+
+export type {
   CapacityReference,
   DetailedWorkoutDurationEstimate,
   ExerciseDurationEstimate,
@@ -111,6 +117,12 @@ export interface ProgramDay {
   name: string; // Ex: 'Dia A — Peito Foco'
   slots: ExerciseSlot[];
   volumeProfile?: VolumeProfile; // GOAL-10.5: opcional — só quando o Day foi pensado para um perfil específico
+  // GOAL-19A: metadados do Construtor multi-dia. Todos opcionais — dias seed e dias
+  // criados antes do GOAL-19A simplesmente não os têm, e continuam válidos.
+  dayNumber?: number; // projeção da posição (1-based); NUNCA identidade — o id é que identifica o dia
+  muscleGroupIds?: MuscleGroupId[]; // foco muscular escolhido no Construtor
+  customName?: string; // nome digitado pelo usuário; ausente = `name` veio do nome automático
+  targetMinutes?: number; // tempo disponível pensado para este dia
 }
 
 // GOAL-10.5: rascunho do Construtor de Treino manual — vive em memória (contexto),

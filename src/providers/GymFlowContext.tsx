@@ -46,6 +46,7 @@ import type {
 } from '../lib/storage-types';
 import { suggestNext, lastRecordedWeight, ExerciseSessionHistory } from '../lib/progression';
 import { estimateWorkoutDuration, muscleGroupsForSlots } from '../lib/workoutDuration';
+import { programDayDisplayLabel } from '../lib/workout-day-naming';
 import { useToast } from '../components/ui/Toast';
 import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
 
@@ -288,7 +289,9 @@ function buildWeekFromProgram(program: WorkoutProgram, frequency: number, allExe
     const estimate = estimateWorkoutDuration(progDay.slots);
     return {
       dayName,
-      workoutName: progDay.name,
+      // GOAL-19A: dias do Construtor multi-dia entram como "Dia N — Nome"; dias seed
+      // já trazem a própria identidade no nome e saem daqui inalterados.
+      workoutName: programDayDisplayLabel(progDay),
       muscleGroups: muscleGroupsForSlots(progDay.slots, allExercises),
       duration: estimate.minutes,
       exerciseCount: estimate.exerciseCount,
@@ -1423,11 +1426,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // outros dias. Usado pelo botão "Escolher treino" do Planejador.
   const assignDayToWeekday = (dayName: string, program: WorkoutProgram, day: ProgramDay) => {
     const estimate = estimateWorkoutDuration(day.slots);
+    const dayLabel = programDayDisplayLabel(day);
     const updated = weeklyPlan.map((d) =>
       d.dayName === dayName
         ? {
             ...d,
-            workoutName: day.name,
+            workoutName: dayLabel,
             muscleGroups: muscleGroupsForSlots(day.slots, exercises),
             duration: estimate.minutes,
             exerciseCount: estimate.exerciseCount,
@@ -1442,7 +1446,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     if (user) {
       setUser((prev) => (prev ? { ...prev, weeklyPlan: updated } : null));
     }
-    toast.success(`"${day.name}" planejado para ${dayName}.`);
+    toast.success(`"${dayLabel}" planejado para ${dayName}.`);
   };
 
   // GOAL-10.5: cria ou atualiza (upsert por id) um treino do Construtor manual.

@@ -2,6 +2,28 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-19A (2026-07-17)
+
+- **Gate G2 aprovado pelo Founder** é o pré-requisito deste GOAL; as faixas, o peso 0,5 dos sinergistas e a fórmula de duração do GOAL-22 são consumidos como estão, sem reabrir a discussão.
+- **`weeks[0].days` é a fonte canônica** dos programas customizados; `WorkoutProgram.exercises` (achatado) nunca é recriado a partir dos dias — programas novos gravam `[]` e uma lista pré-existente é preservada como está (não duplicar, mas também não destruir).
+- **A regra do GOAL-10.5 "1 programa = 1 dia" fica obsoleta:** ela existia para não sobrescrever um dia irmão; agora o Construtor carrega o programa inteiro e os irmãos são editados juntos.
+- **`ProgramDay` ganhou campos aditivos e opcionais** (`dayNumber`, `muscleGroupIds`, `customName`, `targetMinutes`): dias seed e dias pré-GOAL-19A não os têm e continuam válidos; o storage v1 não deep-valida programas, então o roundtrip JSON é seguro.
+- **`dayNumber` é projeção da posição, nunca identidade:** persistido só para os consumidores exibirem sem plumbing de índice, e recalculado a cada normalização. Quem identifica o dia é o `id`.
+- **Nome do dia sem o número embutido:** `ProgramDay.name` guarda o nome final (`customName || autoName`), e `programDayDisplayLabel` compõe "Dia N — Nome" só quando há `dayNumber`. Embutir o número no `name` renomearia programas antigos ("Meu Treino" → "Dia 1 — Meu Treino") e quebraria o roundtrip exigido pelo GOAL.
+- **Nome antigo é reconstruído como `customName`:** se o `name` persistido não é o que o gerador automático produziria para aquele foco, só pode ter vindo do usuário. É isso que preserva, sem perda, o nome de programas de um dia só.
+- **`openWorkoutBuilder` manteve a assinatura:** `programId` passou a significar "edite este programa" e `dayId` "abra neste dia". Por isso "Editar" no Planejador e em Meus Treinos já abre o programa inteiro sem alterar os chamadores — a integração com o Context ficou em zero mudança no caminho de leitura.
+- **Resumos de nome conservadores:** só `quadriceps+hamstrings+glutes → "Pernas"` e `biceps+triceps → "Braços"`, e apenas com o conjunto completo. Panturrilha nunca é absorvida em "Pernas".
+- **`SHORT_LABEL_OVERRIDES` (core/legs_general/traps):** a taxonomia continua a fonte da verdade; o mapa só encurta rótulos que ficariam ruins dentro de um nome composto ("Ombros e Abdômen/Core" → "Ombros e Core"), como os chips pedidos pelo GOAL.
+- **`LEGACY_GENERIC_COVERAGE` (legs_general → quadriceps/hamstrings/adductors/abductors):** nenhum dos 126 exercícios tem `primaryMuscleGroupId` hoje, então nada resolve para quadríceps/posterior. Sem isso, filtrar por "Quadríceps" devolveria lista vazia e a análise afirmaria "sem trabalho direto para posterior" com a Mesa Flexora no dia — uma afirmação falsa. O mapa diz apenas "não é possível afirmar nem negar", sempre com a origem legada à mostra. Não é substituição automática; a cura é o GOAL-33A.
+- **Ausência só é afirmada quando é verificável:** glúteos e panturrilhas têm grupo legado próprio → a ausência deles continua sendo afirmada; quadríceps/posterior viram "classificado de forma genérica".
+- **Volume do dia não é comparado com a faixa semanal:** comparar um dia isolado com uma referência semanal, sem o contexto dos outros dias, seria desonesto. A comparação só existe no painel do programa.
+- **Painel chamado "Análise do programa", nunca IA nem "otimizado":** não existe otimização; são números lidos e avisos textuais.
+- **`ExerciseSlot` continua sem `id`:** adicionar `slotId` exigiria tocar `mock/programs.ts`/`progression.ts` (intocáveis neste GOAL) e criaria slots seed sem id. Identidade do slot = índice no dia; `slotId` fica para o GOAL-23A.
+- **Fábrica de IDs própria (`workout-builder-id.ts`), sem dependência nova:** `crypto.randomUUID` quando disponível, `getRandomValues` depois, e contador monotônico + relógio como último recurso. Tira `Date.now()` de dentro do componente (dois cliques no mesmo ms geravam ids iguais) e torna os helpers testáveis.
+- **Avisos usam `amber-400` (paleta padrão do Tailwind), não `gym-amber`:** `--color-gym-amber` não existe no `@theme`, então `text-gym-amber` não gera CSS algum (verificado no CSS compilado: 0 ocorrências, contra `.text-gym-rose{color:var(--color-gym-rose)}`). Corrigir o token está fora da allowlist deste GOAL — ver PENDENCIAS.
+- **Rótulo do card de treino custom passou a depender da estrutura real** (`N dias` / `N exercícios`): contar só o primeiro dia diria "5 exercícios" para um programa de 4 dias.
+- **Teto de 7 dias por programa:** guarda defensiva de integridade, não recomendação de treino.
+
 ## GOAL-22 (2026-07-16)
 
 - **API de duração legada preservada exatamente:** `estimateWorkoutDuration` usa o novo motor em modo de compatibilidade; a migração visual para o breakdown detalhado exige decisão futura.

@@ -5,6 +5,17 @@ import { useGymFlow } from '../providers/GymFlowContext';
 import { WorkoutProgram, Exercise, ProgramDay } from '../types';
 import { Play, Calendar, Target, Clock, ChevronRight, X, Plus, Wrench, Pencil } from 'lucide-react';
 import { estimateWorkoutDuration } from '../lib/workoutDuration';
+import { programDayDisplayLabel } from '../lib/workout-day-naming';
+
+// GOAL-19A: um treino do Construtor pode ter vários dias. Contar só os exercícios do
+// primeiro dia diria "5 exercícios" para um programa de 4 dias — por isso o rótulo
+// passa a depender da estrutura real do programa.
+const customProgramSummaryLabel = (program: WorkoutProgram): string => {
+  const days = program.weeks[0]?.days ?? [];
+  if (days.length > 1) return `${days.length} dias`;
+  const count = days[0]?.slots.length ?? 0;
+  return `${count} ${count === 1 ? 'exercício' : 'exercícios'}`;
+};
 
 export const WorkoutsTab = () => {
   const {
@@ -176,7 +187,7 @@ export const WorkoutsTab = () => {
                 <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" />
                   {prog.isCustom
-                    ? `${estimateWorkoutDuration(prog.weeks[0]?.days[0]?.slots ?? []).exerciseCount} exercícios`
+                    ? customProgramSummaryLabel(prog)
                     : `${prog.frequencyDays}x por semana`}
                 </span>
               </div>
@@ -260,7 +271,7 @@ export const WorkoutsTab = () => {
                 {(selectedProgram.weeks[0]?.days || []).map((day) => (
                   <div key={day.id} className="bg-gym-card/50 border border-white/5 rounded-2xl overflow-hidden">
                     <div className="flex items-center justify-between px-3.5 py-2.5 bg-white/5 border-b border-white/5 gap-2">
-                      <h5 className="text-xs font-black text-white truncate">{day.name}</h5>
+                      <h5 className="text-xs font-black text-white truncate">{programDayDisplayLabel(day)}</h5>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         {selectedProgram.isCustom && (
                           <button

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { WeeklyWorkoutDay, WorkoutProgram, ProgramDay } from '../types';
 import { Calendar, Sparkles, Play, RotateCcw, Sliders, Clock, Move, Copy, Wrench, Pencil, ListChecks, X } from 'lucide-react';
+import { programDayDisplayLabel } from '../lib/workout-day-naming';
 
 export const PlannerView = () => {
   const {
@@ -534,7 +535,7 @@ export const PlannerView = () => {
                           onClick={() => handleChooseProgramDay(program, day)}
                           className="w-full text-left bg-white/5 hover:bg-gym-accent/10 border border-white/5 hover:border-gym-accent/30 rounded-xl p-3 flex items-center justify-between transition-all min-h-[44px]"
                         >
-                          <span className="text-xs font-bold text-white">{day.name}</span>
+                          <span className="text-xs font-bold text-white">{programDayDisplayLabel(day)}</span>
                           <span className="text-[10px] text-gym-text-muted">{day.slots.length} exercícios</span>
                         </button>
                       ))}
