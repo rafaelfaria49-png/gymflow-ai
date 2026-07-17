@@ -45,6 +45,12 @@ import type {
   StorageWriteResult,
 } from '../lib/storage-types';
 import { suggestNext, lastRecordedWeight, ExerciseSessionHistory } from '../lib/progression';
+import {
+  clearProgramFromWeeklyPlan,
+  deriveCustomProgramFromSeed,
+  duplicateWorkoutProgram,
+  removeProgramFromList,
+} from '../lib/workout-program-actions';
 import { estimateWorkoutDuration, muscleGroupsForSlots } from '../lib/workoutDuration';
 import { programDayDisplayLabel } from '../lib/workout-day-naming';
 import { useToast } from '../components/ui/Toast';
@@ -106,6 +112,10 @@ export interface XpNotification {
   createdAt: number; // reinicia a cada consolidação (renova o tempo de auto-dismiss)
 }
 
+// GOAL-19B: passo inicial da criação guiada quando o Construtor é aberto para um
+// programa novo. `null` = abertura normal (edição ou modo padrão do gate).
+export type BuilderCreationStep = 'mode' | 'frequency' | 'template';
+
 export interface ChatActionCard {
   label: string;
   actionType: 'start-workout' | 'generate-week' | 'swap-exercise' | 'watch-video' | 'replan-missed' | 'crowded-gym';
@@ -145,7 +155,15 @@ interface GymFlowContextType {
   lastSavedProgramId: string | null;
   builderDraft: WorkoutBuilderDraft | null;
   builderReturnView: AppView;
-  openWorkoutBuilder: (draft?: WorkoutBuilderDraft, returnView?: AppView) => void;
+  // GOAL-19B: `creationStep` é aditivo e opcional — chamadas existentes (2 args) seguem
+  // inalteradas. Deep-linka a criação guiada para o modo/frequência/template.
+  openWorkoutBuilder: (draft?: WorkoutBuilderDraft, returnView?: AppView, creationStep?: BuilderCreationStep) => void;
+  builderCreationStep: BuilderCreationStep | null;
+
+  // GOAL-19B: ações sobre programas na lista "Meus Treinos".
+  deleteCustomProgram: (programId: string) => void;
+  duplicateProgram: (programId: string) => void;
+  createProgramFromBase: (programId: string) => void;
 
   // GOAL-10.6: aba ativa de Treinos (Programas Sugeridos x Meus Treinos) e "Escolher
   // treino" — movidos para o contexto para que o Dashboard também consiga acioná-los.
@@ -387,6 +405,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // WorkoutProgram em customPrograms via saveCustomProgram).
   const [builderDraft, setBuilderDraft] = useState<WorkoutBuilderDraft | null>(null);
   const [builderReturnView, setBuilderReturnView] = useState<AppView>('planner');
+  // GOAL-19B: passo inicial da criação guiada (apenas para programa novo).
+  const [builderCreationStep, setBuilderCreationStep] = useState<BuilderCreationStep | null>(null);
   // GOAL-10.5: id do último customProgram salvo — usado pela aba Treinos para
   // destacar/posicionar o treino recém-criado em "Meus Treinos" (GOAL-10.6).
   const [lastSavedProgramId, setLastSavedProgramId] = useState<string | null>(null);
@@ -1462,10 +1482,77 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     setLastSavedProgramId(program.id);
   };
 
-  const openWorkoutBuilder = (draft?: WorkoutBuilderDraft, returnView: AppView = 'planner') => {
+  const openWorkoutBuilder = (
+    draft?: WorkoutBuilderDraft,
+    returnView: AppView = 'planner',
+    creationStep?: BuilderCreationStep,
+  ) => {
     setBuilderDraft(draft ?? null);
     setBuilderReturnView(returnView);
+    setBuilderCreationStep(creationStep ?? null);
     setActiveView('workout-builder');
+  };
+
+  // GOAL-19B: exclusão real de programa customizado.
+  //
+  // Só programas customizados podem ser excluídos (seed nunca). O histórico
+  // (workoutHistory) e a sessão ativa (activeWorkout) são snapshots sem `programId`,
+  // então a exclusão jamais os toca — o que satisfaz "nunca apagar a sessão ativa" por
+  // construção. A única referência real é o weeklyPlan, cujas entradas futuras são
+  // liberadas (sem card quebrado). Ver docs/builder/GYMFLOW_GUIDED_WORKOUT_CREATION.md.
+  const deleteCustomProgram = (programId: string) => {
+    const target = customPrograms.find((program) => program.id === programId);
+    if (!target) {
+      toast.error('Só é possível excluir treinos personalizados.');
+      return;
+    }
+    setCustomPrograms((prev) => removeProgramFromList(prev, programId));
+    setWeeklyPlan((prev) => {
+      const cleaned = clearProgramFromWeeklyPlan(prev, programId);
+      if (user) setUser((u) => (u ? { ...u, weeklyPlan: cleaned } : null));
+      return cleaned;
+    });
+    setLastSavedProgramId((prev) => (prev === programId ? null : prev));
+    toast.success(`"${target.name}" foi excluído dos seus treinos.`);
+  };
+
+  // GOAL-19B: duplica um programa customizado — cópia editável, novos ids, "— Cópia".
+  const duplicateProgram = (programId: string) => {
+    const target = customPrograms.find((program) => program.id === programId);
+    if (!target) {
+      toast.error('Só é possível duplicar treinos personalizados.');
+      return;
+    }
+    const copy = duplicateWorkoutProgram(target);
+    saveCustomProgram(copy);
+    setWorkoutsTab('mine');
+    toast.success(`Cópia criada: "${copy.name}".`);
+  };
+
+  // GOAL-19B: "Usar como base" — cria um custom novo (novos ids) a partir de qualquer
+  // programa (seed ou custom) e abre no Construtor para edição. O original fica intacto.
+  const createProgramFromBase = (programId: string) => {
+    const target = allPrograms.find((program) => program.id === programId);
+    if (!target) {
+      toast.error('Programa não encontrado.');
+      return;
+    }
+    const derived = deriveCustomProgramFromSeed(target);
+    saveCustomProgram(derived);
+    const firstDay = derived.weeks[0]?.days[0];
+    openWorkoutBuilder(
+      {
+        programId: derived.id,
+        dayId: firstDay?.id,
+        name: derived.name,
+        level: derived.level,
+        volumeProfile: firstDay?.volumeProfile ?? 'standard',
+        targetMinutes: firstDay?.targetMinutes ?? user?.duration ?? 60,
+        slots: [],
+      },
+      'workouts',
+    );
+    toast.success(`"${derived.name}" criado a partir de um modelo — edite à vontade.`);
   };
 
   // GOAL-10.6: "Escolher treino para hoje" (Dashboard) reaproveita o mesmo seletor
@@ -2007,6 +2094,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         builderDraft,
         builderReturnView,
         openWorkoutBuilder,
+        builderCreationStep,
+        deleteCustomProgram,
+        duplicateProgram,
+        createProgramFromBase,
 
         workoutsTab,
         setWorkoutsTab,

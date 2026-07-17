@@ -2,6 +2,23 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-19B (2026-07-17)
+
+- **"Torso / Pernas 4 dias" foi descartado por duplicação semântica** com "Superior / Inferior 4 dias" (Torso = Peito+Costas+Ombros+Braços = Superior; Pernas = Inferior). Ficaram **6 templates** úteis, dentro da faixa 5–7 exigida.
+- **"Corpo inteiro 3d" e "Retorno 3d" coexistem** porque diferem em `volumeProfile` (standard vs compact) e propósito; um teste garante que nenhum par de templates colida em (estrutura muscular + volume + flag de retorno).
+- **Template nunca contém exercícios nem vira identidade do programa:** a conversão cria ids novos e `slots: []`; `WorkoutProgram.exercises` (achatado) nunca é recriado para customs novos (regra herdada do GOAL-19A).
+- **Retorno afeta só o `volumeProfile` inicial, nunca o nível:** um dia que começaria em "Alto volume" nasce em "Padrão"; `experienceLevel` é preservado (retorno mantém o nível).
+- **Frequência é sugestão editável (1–7):** o número inicial vem do perfil; frequência ausente/inválida cai para 1 dia, sem inventar divisão muscular a partir do número de dias.
+- **Exclusão limpa só referências futuras do `weeklyPlan`** (dia vira "Sem treino definido", `exerciseCount: 0`, sem card quebrado); `trained` é preservado (o passado não é reescrito).
+- **Sessão ativa e histórico são intocáveis por construção:** `WorkoutSession` não tem `programId`, então excluir um programa nunca apaga a sessão ativa nem reescreve o histórico. Como não há vínculo, não bloqueamos nem apagamos nada por aproximação de nome — a sessão segue rodando e o diálogo declara isso.
+- **Seed nunca é editado nem excluído:** "Usar como base" cria um custom novo (ids novos, sem "— Cópia") e abre no Construtor; "Duplicar" (só custom) cria cópia com "— Cópia". O menu de seed nunca mostra "Excluir".
+- **`openWorkoutBuilder` ganhou 3º parâmetro opcional aditivo (`creationStep`)** para o estado vazio deep-linkar a criação guiada; as chamadas de 2 args seguem inalteradas — o contrato existente não quebrou.
+- **`useProgramAsBase` renomeado para `createProgramFromBase`:** um método cujo nome começa com "use" dispara falso positivo do `react-hooks/rules-of-hooks` nos call sites; o nome sem "use" resolve sem gambiarra.
+- **Sincronização de aba sem efeito:** a lista "Meus Treinos" inicializa `kind` a partir do contexto (a aba remonta ao voltar do Construtor) e o clique em "Duplicar" seta `kind='mine'` no handler — evita um `useEffect` com `setState` (regra `react-hooks/set-state-in-effect`, já um débito pré-existente no projeto).
+- **Duração média do card memoizada por assinatura leve** (`id:dias:slots`): a estimativa só recalcula quando a estrutura muda, nunca a cada render (PART 11).
+- **Código novo usa só tokens/classes que geram CSS** (`gym-accent`, `gym-rose`, `gym-emerald`, `amber-400` etc.); o token morto `gym-amber` em `ActiveWorkoutPage` **não** foi corrigido (fora do escopo — segue em PENDENCIAS).
+- **Sem drag-and-drop e sem dependência nova:** a reordenação de dias segue por botões ←/→ do GOAL-19A; DnD continua fora de escopo.
+
 ## GOAL-19A (2026-07-17)
 
 - **Gate G2 aprovado pelo Founder** é o pré-requisito deste GOAL; as faixas, o peso 0,5 dos sinergistas e a fórmula de duração do GOAL-22 são consumidos como estão, sem reabrir a discussão.

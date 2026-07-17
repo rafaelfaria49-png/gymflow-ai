@@ -1,13 +1,22 @@
 # Pendências
 
+## GOAL-19B — Criação guiada e templates
+
+- **GOAL-20 é o próximo passo natural:** motor de sugestões, filtros e seleção inteligente de exercícios. Este GOAL preparou a superfície (templates estruturais + criação guiada), mas **não** escolhe, pontua nem substitui exercícios — isso permanece proibido até o GOAL-20.
+- **Revisão profissional dos templates:** as estruturas (divisões, focos por dia, frequências sugeridas) são de produto e devem ser validadas por um profissional antes de exposição pública, assim como as faixas do GOAL-22.
+- **Templates não têm periodização:** `durationWeeks` fica 0 e `repeatWeeks` true (herdado do GOAL-19A). Se um GOAL futuro introduzir mesociclos/periodização nos templates, os campos já existem no draft.
+- **Vínculo sessão↔programa continua ausente:** `WorkoutSession` (ativa e histórico) não tem `programId`, então a exclusão não consegue — de propósito — detectar "esta sessão veio deste programa". A proteção é por construção (o snapshot é independente). Se um GOAL futuro precisar dessa rastreabilidade, exigirá migração explícita de `WorkoutSession`.
+- **Testes de componente continuam ausentes** (o projeto não tem ambiente DOM/Testing Library): todo o domínio novo (templates, conversão, ações de programa, busca/filtro/ordenação, dirty-state) é puro e coberto por **60 testes**; a UI (gate de criação, menu, diálogo de exclusão, mobile, teclado) foi coberta por teste manual no navegador. Adotar cobertura de interação quando a infraestrutura existir.
+- **`react-hooks` no `GymFlowContext.tsx`:** 8 problemas de ESLint pré-existentes (set-state-in-effect nos timers, ref durante render na persistência, exhaustive-deps) permanecem — são anteriores ao GOAL-19B e estão em código sensível (persistência/timers) fora do escopo. Corrigir num passe dedicado de saneamento de efeitos.
+
 ## GOAL-19A — Construtor multi-dia
 
 - **GOAL-33A é o gargalo de honestidade do Construtor.** Nenhum dos 126 exercícios tem `primaryMuscleGroupId`; os 23 de perna colapsam em `legs_general`, então nada resolve para quadríceps/posterior. Enquanto isso: a confidence nunca chega a `high`, o filtro "Foco do dia" depende de `LEGACY_GENERIC_COVERAGE` e a análise não consegue confirmar volume direto de subgrupos de perna. Curar a taxonomia remove o mapa e os avisos legados de uma vez.
 - **`ExerciseSlot` sem `id` (para o GOAL-23A):** a identidade do slot é o índice dentro do dia. Reordenar/duplicar slots funciona, mas não há identidade estável para vincular um slot a um `SessionLog`. Avaliar `slotId` com migração explícita quando SessionPlan/SessionLog entrar — envolve `mock/programs.ts` e `progression.ts`.
 - **Token `gym-amber` está morto (fora do escopo deste GOAL).** `--color-gym-amber` não existe no `@theme` de `globals.css`, então `text-gym-amber`/`bg-gym-amber/10`/`border-gym-amber/30` não geram CSS (0 ocorrências no CSS compilado; `.text-gym-rose` gera normalmente). O aviso de duração do Construtor renderizava sem cor desde o GOAL-10.5. O Construtor migrou para `amber-400` (paleta padrão do Tailwind, que continua ativa); **`ActiveWorkoutPage.tsx` ainda usa `gym-amber` e segue com avisos sem cor**. Corrigir num passe de UI: ou adicionar `--color-gym-amber` ao `@theme`, ou migrar o consumidor restante.
 - **`weeklyOccurrences` continua sem uso real no Construtor:** a análise conta cada dia do programa **uma vez por semana** (a semana canônica = os dias do programa). Se o usuário repetir o mesmo dia em dois dias da semana no Planejador, o volume semanal real será maior que o exibido. Resolver quando o Planejador virar fonte de frequência (herda a pendência do GOAL-22).
-- **Sem UI para apagar um treino custom** (herdado do GOAL-10.5) — agora mais visível, porque um programa multi-dia é um objeto maior para ficar preso em "Meus Treinos".
-- **Reordenação é por botões ←/→**, sem drag-and-drop: não existe infraestrutura segura de DnD no projeto e o GOAL proibia dependência nova. Reavaliar no GOAL-19B.
+- ~~**Sem UI para apagar um treino custom**~~ — **resolvido no GOAL-19B**: exclusão de programa customizado com `ConfirmDialog` dedicado, análise de impacto e limpeza das referências futuras do `weeklyPlan`.
+- **Reordenação é por botões ←/→**, sem drag-and-drop: não existe infraestrutura segura de DnD no projeto e o GOAL proibia dependência nova. **Reavaliado no GOAL-19B e mantido fora de escopo** (continua proibida dependência nova); reavaliar quando houver infra de DnD.
 - **Testes de componente continuam ausentes** (o projeto não tem ambiente DOM/Testing Library): todo o domínio do Construtor é puro e coberto por 139 testes; a UI foi coberta por teste manual no navegador. Adotar cobertura de interação quando a infraestrutura existir.
 - **`durationWeeks` fica 0 e `repeatWeeks` true** para programas do Construtor — o Construtor não expõe periodização. Se o GOAL-19B introduzir templates com duração, os campos já existem no draft.
 

@@ -4,6 +4,57 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-19B — Templates e criação guiada do Construtor (2026-07-17)
+
+### Resumo
+
+O Construtor multi-dia (GOAL-19A) ganhou uma **experiência de criação guiada**: ao abrir um
+programa novo, o usuário escolhe entre **programa em branco**, **usar minha frequência** (N dias
+vazios a partir do perfil) ou **começar com um template** (estrutura pronta → prévia → draft
+editável). Foram adicionados **6 templates estruturais** (corpo inteiro 3d, superior/inferior 4d,
+PPL 3d, PPL 6d, divisão 5d, retorno 3d), **duplicação** e **exclusão** de programas customizados,
+**"usar como base"** para seeds, e a lista **"Meus Treinos"** ganhou busca, filtros, ordenação e
+estados vazios honestos.
+
+**Templates não contêm exercícios** e **nenhum exercício é escolhido automaticamente** — isso é o
+GOAL-20. Tudo é editável; a frequência é sugestão; retorno mantém o nível; seeds nunca são
+alterados nem excluídos; histórico e sessão ativa nunca são apagados ao excluir um programa.
+
+### Arquivos
+
+- Tipos: `src/types/workout-templates.ts` (novo).
+- Domínio (novos): `src/lib/workout-templates.ts`, `src/lib/workout-guided-creation.ts`,
+  `src/lib/workout-program-actions.ts` (+ 3 arquivos de teste).
+- UI (novos): `src/components/workout-builder/{WorkoutCreationMode,WorkoutTemplatePicker,WorkoutTemplatePreview,WorkoutProgramMenu,WorkoutProgramDeleteDialog}.tsx`.
+- UI (alterados): `src/modules/WorkoutBuilder.tsx` (fases de criação), `src/modules/WorkoutsTab.tsx` (busca/filtro/ordenação/menu/exclusão).
+- Estado: `src/providers/GymFlowContext.tsx` (`deleteCustomProgram`, `duplicateProgram`, `createProgramFromBase`, param aditivo `creationStep`).
+- Docs: `docs/builder/GYMFLOW_GUIDED_WORKOUT_CREATION.md` (novo).
+
+### Decisão que moldou o GOAL
+
+`WorkoutSession` (sessão ativa e histórico) **não tem `programId`** — é um snapshot autocontido.
+Logo, excluir um programa **jamais** toca a sessão ativa ou o histórico (garantia por construção).
+A única referência real é o `weeklyPlan`, cujas entradas futuras são liberadas sem card quebrado.
+
+### Validações
+
+- `npx vitest run` → **451 testes** (391 do GOAL-19A + 60 novos), verdes.
+- `npx tsc --noEmit` limpo. `npm run build` e `npm run build:mobile` passam.
+- ESLint dos arquivos novos limpo; os 8 problemas remanescentes em `GymFlowContext.tsx` são
+  pré-existentes (idênticos à base `1044417`), em código não tocado.
+- `rg "alert\(|confirm\(" src` → nenhum diálogo nativo.
+- Hashes de `mock/exercises.ts`, `mock/programs.ts`, `progression.ts`, `storage.ts`,
+  `training-volume.ts`, `workoutDuration.ts`, `ActiveWorkoutPage.tsx` **idênticos** antes/depois.
+
+### Como testar
+
+Criar Treino → escolher cada modo; aplicar um template de 4 dias, editar foco/nome, adicionar
+exercícios, salvar, recarregar; duplicar e editar a cópia; excluir a cópia; usar um seed como
+base (seed intacto); buscar sem acento; filtros; excluir "Meu ABCD Multi-dia" e conferir que o
+Planner não quebra e o histórico permanece.
+
+---
+
 ## GOAL-19A — Construtor de treino multi-dia (2026-07-17)
 
 ### Resumo

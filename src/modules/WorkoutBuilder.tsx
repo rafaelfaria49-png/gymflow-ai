@@ -42,12 +42,27 @@ import {
   updateDayInDraft,
   updateSlotInDay,
 } from '../lib/workout-builder';
+import {
+  createEmptyWorkoutDraftFromFrequency,
+  createWorkoutDraftFromTemplate,
+  type GuidedCreationProfile,
+} from '../lib/workout-guided-creation';
+import {
+  getWorkoutTemplate,
+  listWorkoutTemplates,
+  type TemplateCompatibilityProfile,
+} from '../lib/workout-templates';
 import { ExercisePickerModal } from '../components/workout-builder/ExercisePickerModal';
 import { StartDayPicker } from '../components/workout-builder/StartDayPicker';
+import { WorkoutCreationMode } from '../components/workout-builder/WorkoutCreationMode';
 import { WorkoutDaysEditor } from '../components/workout-builder/WorkoutDaysEditor';
 import { WorkoutDayTabs } from '../components/workout-builder/WorkoutDayTabs';
 import { WorkoutProgramDetails } from '../components/workout-builder/WorkoutProgramDetails';
 import { WorkoutProgramSummary } from '../components/workout-builder/WorkoutProgramSummary';
+import { WorkoutTemplatePicker } from '../components/workout-builder/WorkoutTemplatePicker';
+import { WorkoutTemplatePreview } from '../components/workout-builder/WorkoutTemplatePreview';
+
+type BuilderPhase = 'mode' | 'template-picker' | 'template-preview' | 'editor';
 
 /**
  * Draft inicial do Construtor.
@@ -104,6 +119,7 @@ export const WorkoutBuilder = () => {
     programs,
     builderDraft,
     builderReturnView,
+    builderCreationStep,
     setActiveView,
     saveCustomProgram,
     startWorkout,
@@ -124,19 +140,33 @@ export const WorkoutBuilder = () => {
     const dayId = builderDraft?.dayId && initialDraft.days.some((day) => day.id === builderDraft.dayId)
       ? builderDraft.dayId
       : initialDraft.days[0].id;
-    return { draft: initialDraft, source, dayId };
+    // GOAL-19B: entrada de criação nova (sem draft legado e sem programa de origem) abre
+    // a criação guiada; qualquer edição de programa existente vai direto para o editor.
+    const startsInCreation = !builderDraft && !source;
+    return { draft: initialDraft, source, dayId, startsInCreation };
   });
 
   const sourceProgramRef = useRef<WorkoutProgram | null>(initial.source);
   const [draft, setDraft] = useState<WorkoutProgramBuilderDraft>(initial.draft);
   const [selectedDayId, setSelectedDayId] = useState<string>(initial.dayId);
 
+  // GOAL-19B: fase da criação guiada. `savedSignatureRef` continua sendo a linha de base
+  // do dirty-state — aplicar template/frequência muda o draft mas NÃO a base, então sair
+  // sem salvar dispara o ConfirmDialog (PART 16). O passo inicial pode vir deep-linkado
+  // do estado vazio de "Meus Treinos" (PART 12).
+  const [phase, setPhase] = useState<BuilderPhase>(() => {
+    if (!initial.startsInCreation) return 'editor';
+    return builderCreationStep === 'template' ? 'template-picker' : 'mode';
+  });
+  const [templateId, setTemplateId] = useState<string | null>(null);
+
   const [pickerOpen, setPickerOpen] = useState(false);
   const [startPickerOpen, setStartPickerOpen] = useState(false);
   const [weekdayPickerVisible, setWeekdayPickerVisible] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [dayPendingRemoval, setDayPendingRemoval] = useState<string | null>(null);
-  const [frequencyHintDismissed, setFrequencyHintDismissed] = useState(false);
+  // Após a criação guiada a dica de frequência é redundante — já foi oferecida no gate.
+  const [frequencyHintDismissed, setFrequencyHintDismissed] = useState(initial.startsInCreation);
 
   const savedSignatureRef = useRef<string>(serializeDraftSignature(draft));
   const markSaved = (saved: WorkoutProgramBuilderDraft) => {
@@ -309,6 +339,86 @@ export const WorkoutBuilder = () => {
   };
 
   const pendingRemovalDay = dayPendingRemoval ? findDay(draft, dayPendingRemoval) : undefined;
+
+  // ===== Criação guiada (GOAL-19B) =====
+
+  const guidedProfile: GuidedCreationProfile = {
+    level: user?.level ?? 'intermediate',
+    duration: user?.duration,
+    frequency: user?.frequency,
+    trainingStatus: user?.trainingStatus,
+  };
+  const compatibilityProfile: TemplateCompatibilityProfile = {
+    level: user?.level ?? 'intermediate',
+    frequency: user?.frequency,
+    goal: user?.goal,
+    trainingStatus: user?.trainingStatus,
+  };
+
+  // Substitui o draft pelo recém-criado e entra no editor. NÃO mexe em `savedSignatureRef`:
+  // o draft aplicado fica "sujo" em relação à base em branco, protegendo a saída.
+  const enterEditorWithDraft = (created: WorkoutProgramBuilderDraft) => {
+    setDraft(created);
+    setSelectedDayId(created.days[0].id);
+    setFrequencyHintDismissed(true);
+    setPhase('editor');
+  };
+
+  // "Programa em branco": mantém o draft inicial (1 dia vazio) — base == atual, sem dirty.
+  const handleStartBlank = () => setPhase('editor');
+
+  const handleStartFromFrequency = (dayCount: number) => {
+    enterEditorWithDraft(createEmptyWorkoutDraftFromFrequency(guidedProfile, dayCount, createBuilderId));
+  };
+
+  const handleUseTemplate = () => {
+    const template = templateId ? getWorkoutTemplate(templateId) : undefined;
+    if (!template) {
+      setPhase('template-picker');
+      return;
+    }
+    enterEditorWithDraft(createWorkoutDraftFromTemplate(template, guidedProfile, { createId: createBuilderId }));
+  };
+
+  const chosenTemplate = templateId ? getWorkoutTemplate(templateId) : undefined;
+
+  if (phase !== 'editor') {
+    return (
+      <div className="space-y-6 pb-20 lg:pb-6 max-w-3xl mx-auto">
+        {phase === 'mode' && (
+          <WorkoutCreationMode
+            suggestedFrequency={suggestedFrequency}
+            initialView={builderCreationStep === 'frequency' ? 'frequency' : 'choose'}
+            onBlank={handleStartBlank}
+            onFrequency={handleStartFromFrequency}
+            onTemplate={() => setPhase('template-picker')}
+            onCancel={handleCancel}
+          />
+        )}
+        {phase === 'template-picker' && (
+          <WorkoutTemplatePicker
+            templates={listWorkoutTemplates()}
+            profile={compatibilityProfile}
+            onPreview={(id) => {
+              setTemplateId(id);
+              setPhase('template-preview');
+            }}
+            onBack={() => setPhase('mode')}
+          />
+        )}
+        {phase === 'template-preview' && chosenTemplate && (
+          <WorkoutTemplatePreview
+            template={chosenTemplate}
+            profile={compatibilityProfile}
+            sessionMinutes={user?.duration}
+            onUse={handleUseTemplate}
+            onBack={() => setPhase('template-picker')}
+            onCancel={handleCancel}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6 max-w-3xl mx-auto">
