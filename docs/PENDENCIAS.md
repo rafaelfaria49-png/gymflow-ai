@@ -5,9 +5,9 @@
 - **GOAL-20 é o próximo passo natural:** motor de sugestões, filtros e seleção inteligente de exercícios. Este GOAL preparou a superfície (templates estruturais + criação guiada), mas **não** escolhe, pontua nem substitui exercícios — isso permanece proibido até o GOAL-20.
 - **Revisão profissional dos templates:** as estruturas (divisões, focos por dia, frequências sugeridas) são de produto e devem ser validadas por um profissional antes de exposição pública, assim como as faixas do GOAL-22.
 - **Templates não têm periodização:** `durationWeeks` fica 0 e `repeatWeeks` true (herdado do GOAL-19A). Se um GOAL futuro introduzir mesociclos/periodização nos templates, os campos já existem no draft.
-- **Vínculo sessão↔programa continua ausente:** `WorkoutSession` (ativa e histórico) não tem `programId`, então a exclusão não consegue — de propósito — detectar "esta sessão veio deste programa". A proteção é por construção (o snapshot é independente). Se um GOAL futuro precisar dessa rastreabilidade, exigirá migração explícita de `WorkoutSession`.
+- **Origem histórica adicionada no GOAL-19A.1:** `WorkoutSession` pode guardar `sourceProgramId`/`sourceProgramDayId` opcionais, mas continua sendo um snapshot independente. Essa origem não autoriza apagar ou reconstruir sessão ativa/histórico ao excluir um programa.
 - **Testes de componente continuam ausentes** (o projeto não tem ambiente DOM/Testing Library): todo o domínio novo (templates, conversão, ações de programa, busca/filtro/ordenação, dirty-state) é puro e coberto por **60 testes**; a UI (gate de criação, menu, diálogo de exclusão, mobile, teclado) foi coberta por teste manual no navegador. Adotar cobertura de interação quando a infraestrutura existir.
-- **`react-hooks` no `GymFlowContext.tsx`:** 8 problemas de ESLint pré-existentes (set-state-in-effect nos timers, ref durante render na persistência, exhaustive-deps) permanecem — são anteriores ao GOAL-19B e estão em código sensível (persistência/timers) fora do escopo. Corrigir num passe dedicado de saneamento de efeitos.
+- **`react-hooks` no `GymFlowContext.tsx`:** a validação integrada ficou em zero erros e três avisos de `exhaustive-deps`, localizados em código sensível de persistência/timers. Corrigir os avisos em um passe dedicado de saneamento de efeitos.
 
 ## GOAL-19A — Construtor multi-dia
 

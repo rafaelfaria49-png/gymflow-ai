@@ -134,18 +134,18 @@ coberto por teste).
 Só **programas customizados** podem ser excluídos (seed nunca). O diálogo (`ConfirmDialog`
 dedicado) mostra o impacto: dias, exercícios e quantos dias da semana serão liberados.
 
-- **weeklyPlan:** as entradas que apontam para o programa viram "Sem treino definido"
-  (`exerciseCount: 0`, sem `programId`/`programDayId`) — sem card quebrado, sem botão de iniciar
-  um programa morto. `trained` é preservado (o passado não é reescrito).
-- **Histórico:** `workoutHistory` é uma lista de snapshots **sem `programId`** → a exclusão
-  jamais o toca. Snapshots antigos permanecem intactos.
-- **Treino ativo:** `activeWorkout` também é um snapshot sem `programId` → excluir o programa
-  **nunca** apaga a sessão ativa nem a interrompe (garantia por construção, não por
-  aproximação). O diálogo declara isso explicitamente.
+- **weeklyPlan futuro:** entradas não treinadas que apontam para o programa são invalidadas com
+  `planningIssue: 'missing-program-day'`, nome “Escolha novamente o treino”, resumos zerados e
+  sem `programId`/`programDayId`. Não há card quebrado nem botão para iniciar programa morto.
+- **Dia treinado:** retorna integralmente intacto; nome, resumos, IDs e status não são reescritos.
+- **Histórico:** `workoutHistory` é uma lista de snapshots autocontidos. A origem opcional
+  (`sourceProgramId`/`sourceProgramDayId`) é metadado histórico e permanece após a exclusão.
+- **Treino ativo:** `activeWorkout` segue a mesma regra de snapshot; excluir o programa
+  **nunca** apaga, reconstrói ou interrompe a sessão. A origem histórica pode continuar apontando
+  para o ID excluído sem transformá-lo em vínculo vivo.
 
-Como o modelo atual **não vincula** sessão/histórico a `programId`, agimos conservadoramente:
-não apagamos nada relacionado por aproximação de nome, e não bloqueamos a exclusão por
-aproximação — a sessão ativa é independente e segue rodando.
+Não apagamos nada de sessão/histórico por ID ou aproximação de nome. A sessão ativa é
+independente e segue rodando; apenas o planejamento futuro exige nova escolha.
 
 ---
 

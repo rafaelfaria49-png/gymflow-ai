@@ -4,6 +4,66 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-19B.1 — Integração do salvamento seguro ao Construtor guiado (2026-07-18)
+
+### Integração e decisões
+
+- Destino confirmado em `feat/gymflow-goal19b-guided-builder`, partindo de
+  `bab77f1b696eac0ce77819a789f229a33539917a`; a referência local
+  `safety/gymflow-goal19b-before-save-sync` foi criada nesse ponto e não recebeu push.
+- O fix `41d99e18d064c250aa9f26c2965fd2cd6a52dd76` foi reaplicado como
+  `5ec7a21804c83673ac226bf350c4143d4619c832`. Os conflitos em `docs/GOALS_LOG.md` e
+  `src/modules/WorkoutsTab.tsx` foram resolvidos preservando os dois conjuntos de funcionalidades.
+- Salvar um programa reconcilia, em uma única implementação, os vínculos futuros de `weeklyPlan`
+  e `user.weeklyPlan`. Nome, duração, quantidade e grupos são atualizados; dia removido recebe
+  `planningIssue: 'missing-program-day'`, perde os IDs inválidos e exige nova escolha, sem fallback
+  silencioso para o Dia 1.
+- Exclusão de programa invalida somente vínculos futuros. Dias treinados, sessão ativa e histórico
+  permanecem snapshots integrais, mesmo quando conservam a origem opcional do programa excluído.
+- Templates continuam estruturais e sem exercícios; criação em branco, por frequência e por
+  template, duplicação, exclusão, seed como base, busca, filtros, ordenação, dirty state e mobile
+  foram preservados. Programas legados realmente achatados são promovidos para um dia canônico ao
+  duplicar ou usar como base, sem perder slots nem alterar a origem.
+- Programa multi-dia exige escolha explícita do dia; programa canônico de um dia continua iniciando
+  diretamente, e a lista achatada v1 é tratada explicitamente como um único treino legado. O
+  envelope permanece `gymflow:state:v1` e nenhuma dependência foi adicionada.
+
+### Validações automatizadas
+
+- Baseline anterior ao cherry-pick: 21 arquivos e **451 testes** aprovados, além de TypeScript,
+  build web e build mobile verdes.
+- Resultado integrado: 25 arquivos e **492 testes** aprovados (451 anteriores + 39 do fix + 2 casos
+  adicionais de integração: compatibilidade legada e exclusão segura), sem excluir testes.
+- `npx tsc --noEmit`: aprovado. ESLint focado em todos os TypeScript/TSX alterados: zero erros e
+  três avisos de dependências de hooks já localizados em `GymFlowContext.tsx`.
+- `npm run build` e `npm run build:mobile`: aprovados no Next.js 16.2.6. `cap:sync` e build Android
+  não foram executados. `git diff --check` e as auditorias de preservação passaram.
+- SHA-256 antes/depois, idênticos: `exercises.ts` `8107BB3A…52AF`, `programs.ts`
+  `C87447A6…F41B`, `progression.ts` `BB0D62B4…C4FD`, `storage.ts` `1B041243…AED`,
+  `training-volume.ts` `26D2D1E1…AE4` e `workoutDuration.ts` `178D75D0…AB7B`.
+
+### Teste manual integrado
+
+- Execução isolada em `:3003` com Next dev/Webpack, sem usar o `localStorage` das portas 3000–3002.
+  O template Superior/Inferior de quatro dias criou quatro dias vazios; exercícios adicionados nos
+  Dias 1/2 sobreviveram à recarga.
+- O Dia 2 foi planejado para Segunda e depois renomeado para “Inferior Órion”; adicionar dois
+  exercícios e remover um atualizou imediatamente o Planejador para 3 exercícios, 24 min e grupos
+  `legs`, `glutes` e `calves`.
+- Segunda iniciou exatamente o Dia 2. `080` + Enter virou `80` e sobreviveu à recarga; reps `12`
+  persistiram ao clicar imediatamente em “Editar programa de origem”. O Builder abriu o programa e
+  o dia corretos, manteve a sessão em background e o retorno preservou carga, reps e os 3 exercícios.
+- A duplicação criou uma cópia independente com o mesmo conteúdo; excluir a cópia manteve o vínculo
+  original e a sessão ativa. Remover o Dia 2 do original exibiu o aviso, zerou o vínculo futuro,
+  removeu o botão de início de Segunda e exigiu “Escolher novamente”; o Dia 1 não foi iniciado.
+- A sessão já aberta continuou com o snapshot “Dia 2 — Inferior Órion”, foi finalizada com 80 kg ×
+  12 reps e apareceu no histórico mesmo após o dia deixar de existir no programa. Busca por
+  `integracao orion`, filtros de nível, ordenação por nome e viewport 390×844 foram validados.
+- Console do navegador: zero erros e zero avisos. O servidor/pasta temporários de QA foram
+  encerrados; `.claude/settings.local.json` permaneceu fora dos commits e nenhum push foi feito.
+
+---
+
 ## GOAL-19B — Templates e criação guiada do Construtor (2026-07-17)
 
 ### Resumo
@@ -32,9 +92,10 @@ alterados nem excluídos; histórico e sessão ativa nunca são apagados ao excl
 
 ### Decisão que moldou o GOAL
 
-`WorkoutSession` (sessão ativa e histórico) **não tem `programId`** — é um snapshot autocontido.
-Logo, excluir um programa **jamais** toca a sessão ativa ou o histórico (garantia por construção).
-A única referência real é o `weeklyPlan`, cujas entradas futuras são liberadas sem card quebrado.
+`WorkoutSession` (sessão ativa e histórico) é um snapshot autocontido. Após o GOAL-19A.1 ele
+pode guardar `sourceProgramId`/`sourceProgramDayId` como origem histórica opcional, nunca como
+vínculo vivo. Logo, excluir um programa **jamais** toca a sessão ativa ou o histórico; apenas
+referências futuras do `weeklyPlan` são invalidadas, e dias treinados permanecem integrais.
 
 ### Validações
 
@@ -447,7 +508,7 @@ Programas ganharam estrutura real (`Program → Week → Day → ExerciseSlot`) 
 2. `npx tsc --noEmit` — sem erros.
 3. `npm run build` — passou (Next 16.2.6, Turbopack).
 4. Cross-check automatizado: todos os `exerciseId` usados nos slots existem em `src/mock/exercises.ts`.
-5. Compatibilidade validada por código: plano antigo salvo (sem `programDayId`) abre o primeiro Day quando há `programId`, mantém comportamento anterior sem `programId`, e nunca crasha (campos novos opcionais); persistência GOAL-01, timer GOAL-06, ActionBar GOAL-04 e toasts GOAL-03 não alterados estruturalmente.
+5. Compatibilidade atualizada pelos GOAL-19A.1/19B.1: plano antigo continua hidratando, porém `programId` multi-dia sem `programDayId` exige nova escolha e jamais cai no primeiro Day; programa canônico de um dia e treino sem `programId` seguem compatíveis. Persistência GOAL-01, timer GOAL-06, ActionBar GOAL-04 e toasts GOAL-03 não foram alterados estruturalmente.
 6. Nenhum arquivo de `labs/avatar-lab/`, `docs/avatar-design/` ou `app/poc-3d` alterado.
 
 ### Como testar no celular

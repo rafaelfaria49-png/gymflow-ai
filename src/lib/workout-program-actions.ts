@@ -11,14 +11,18 @@
 import type { ProgramWeek, WeeklyWorkoutDay, WorkoutProgram } from '../types';
 import type { BuilderIdFactory } from '../types/workout-builder';
 import { createBuilderId } from './workout-builder-id';
-import { cloneSlots } from './workout-program-normalization';
+import { cloneSlots, slotsFromLegacyExercises } from './workout-program-normalization';
 import { normalizeText } from './exerciseSearch';
+import {
+  MISSING_PROGRAM_DAY_ISSUE,
+  MISSING_PROGRAM_DAY_WORKOUT_NAME,
+} from './workout-plan-sync';
 
 // ===== Cópia com novos ids =====
 
 function cloneProgramWeeks(program: WorkoutProgram, createId: BuilderIdFactory): ProgramWeek[] {
   const weeks = Array.isArray(program.weeks) ? program.weeks : [];
-  return weeks.map((week) => ({
+  const clonedWeeks = weeks.map((week) => ({
     number: week.number,
     days: (week.days ?? []).map((day) => ({
       ...day,
@@ -27,6 +31,25 @@ function cloneProgramWeeks(program: WorkoutProgram, createId: BuilderIdFactory):
       ...(Array.isArray(day.muscleGroupIds) ? { muscleGroupIds: [...day.muscleGroupIds] } : {}),
     })),
   }));
+  if (clonedWeeks.some((week) => week.days.length > 0)) return clonedWeeks;
+
+  // Compatibilidade v1: programas persistidos antes da estrutura de dias podem ter
+  // somente a lista achatada. A cópia promove esse conteúdo para um único dia canônico,
+  // sem manter duas fontes de verdade e sem perder exercícios.
+  const legacySlots = slotsFromLegacyExercises(program);
+  if (legacySlots.length === 0) return clonedWeeks;
+  return [{
+    number: 1,
+    days: [{
+      id: createId('day'),
+      name: program.name,
+      customName: program.name,
+      dayNumber: 1,
+      muscleGroupIds: [],
+      volumeProfile: 'standard',
+      slots: legacySlots,
+    }],
+  }];
 }
 
 function cloneProgramWithNewIds(
@@ -76,7 +99,7 @@ export function deriveCustomProgramFromSeed(
 // ===== Exclusão =====
 
 /** Rótulo honesto de um dia da semana cuja referência de programa foi liberada. */
-export const CLEARED_WEEKLY_WORKOUT_NAME = 'Sem treino definido';
+export const CLEARED_WEEKLY_WORKOUT_NAME = MISSING_PROGRAM_DAY_WORKOUT_NAME;
 
 export interface ProgramDeletionImpact {
   dayCount: number;
@@ -91,12 +114,12 @@ export function analyzeProgramDeletion(
   weeklyPlan: readonly WeeklyWorkoutDay[] | undefined | null,
 ): ProgramDeletionImpact {
   const days = program.weeks?.[0]?.days ?? [];
-  const dayCount = days.length;
-  const exerciseCount = dayCount > 0
+  const dayCount = programDayCount(program);
+  const exerciseCount = days.length > 0
     ? days.reduce((total, day) => total + (day.slots?.length ?? 0), 0)
     : (program.exercises?.length ?? 0);
   const weeklyReferenceDayNames = (weeklyPlan ?? [])
-    .filter((day) => day.programId === program.id)
+    .filter((day) => !day.trained && day.programId === program.id)
     .map((day) => day.dayName);
   return { dayCount, exerciseCount, weeklyReferenceDayNames };
 }
@@ -104,18 +127,16 @@ export function analyzeProgramDeletion(
 /**
  * Limpa as referências a um programa no weeklyPlan.
  *
- * Dias que apontavam para o programa viram "Sem treino definido" (não descanso — seria
- * mentir sobre a intenção do usuário) e sem card quebrado: `exerciseCount: 0` faz o
- * Planejador oferecer "escolher treino" em vez de um botão de iniciar programa morto.
- * `trained` é preservado — o histórico do que já aconteceu não é reescrito. Puro: não
- * muta o array recebido.
+ * Dias futuros que apontavam para o programa usam a mesma invalidação de um ProgramDay
+ * removido: o Planejador explica a causa e exige nova escolha. Dias treinados são
+ * snapshots passados e retornam integralmente intactos. Puro: não muta o array recebido.
  */
 export function clearProgramFromWeeklyPlan(
   weeklyPlan: readonly WeeklyWorkoutDay[] | undefined | null,
   programId: string,
 ): WeeklyWorkoutDay[] {
   return (weeklyPlan ?? []).map((day) => {
-    if (day.programId !== programId) return day;
+    if (day.trained || day.programId !== programId) return day;
     return {
       ...day,
       workoutName: CLEARED_WEEKLY_WORKOUT_NAME,
@@ -125,6 +146,7 @@ export function clearProgramFromWeeklyPlan(
       isRest: false,
       programId: undefined,
       programDayId: undefined,
+      planningIssue: MISSING_PROGRAM_DAY_ISSUE,
     };
   });
 }
@@ -143,7 +165,9 @@ export type ProgramFilterKind = 'all' | 'mine' | 'ready';
 export type ProgramSortKey = 'recent' | 'name' | 'days';
 
 export function programDayCount(program: WorkoutProgram): number {
-  return program.weeks?.[0]?.days?.length ?? 0;
+  const persistedCount = program.weeks?.[0]?.days?.length ?? 0;
+  if (persistedCount > 0) return persistedCount;
+  return slotsFromLegacyExercises(program).length > 0 ? 1 : 0;
 }
 
 /** Busca por nome — ignora acentos e caixa, casa por tokens (reusa a normalização existente). */

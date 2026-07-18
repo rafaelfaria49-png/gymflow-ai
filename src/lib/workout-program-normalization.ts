@@ -75,7 +75,7 @@ export function parseLegacyRepRange(reps: unknown): [number, number] | null {
  * já aplica ao adicionar um exercício à mão — não são medidas, são defaults declarados.
  * Caminho defensivo: nenhum programa seed atual cai aqui (todos têm weeks[0].days).
  */
-function slotsFromLegacyExercises(program: WorkoutProgram): ExerciseSlot[] {
+export function slotsFromLegacyExercises(program: WorkoutProgram): ExerciseSlot[] {
   if (!Array.isArray(program.exercises)) return [];
   return program.exercises.map((entry) => ({
     exerciseId: entry.exerciseId,

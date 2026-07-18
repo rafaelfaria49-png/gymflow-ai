@@ -9,10 +9,12 @@ import {
   duplicateWorkoutProgram,
   filterProgramsByKind,
   organizePrograms,
+  programDayCount,
   programMatchesSearch,
   removeProgramFromList,
   sortPrograms,
 } from './workout-program-actions';
+import { MISSING_PROGRAM_DAY_ISSUE } from './workout-plan-sync';
 
 function slot(exerciseId: string, overrides: Partial<ExerciseSlot> = {}): ExerciseSlot {
   return {
@@ -85,11 +87,30 @@ describe('duplicateWorkoutProgram (GOAL-19B PART 8)', () => {
     expect(original.weeks[0].days[0].slots[0].series).toBe(3);
   });
 
-  it('duplica um programa antigo de um único dia', () => {
+  it('duplica um programa estruturado antigo de um único dia', () => {
     const oneDay = program({ weeks: [{ number: 1, days: [day('only')] }], frequencyDays: 1 });
     const copy = duplicateWorkoutProgram(oneDay, createSequentialIdFactory());
     expect(copy.weeks[0].days).toHaveLength(1);
     expect(copy.frequencyDays).toBe(1);
+  });
+
+  it('promove um programa legado achatado sem perder exercícios', () => {
+    const legacy = program({
+      weeks: [],
+      frequencyDays: 1,
+      exercises: [{ exerciseId: 'legacy-row', sets: 4, reps: '6-10' }],
+    });
+    const before = structuredClone(legacy);
+    const copy = duplicateWorkoutProgram(legacy, createSequentialIdFactory());
+
+    expect(copy.exercises).toEqual([]);
+    expect(copy.weeks[0].days).toHaveLength(1);
+    expect(copy.weeks[0].days[0].slots).toEqual([expect.objectContaining({
+      exerciseId: 'legacy-row',
+      series: 4,
+      repRange: [6, 10],
+    })]);
+    expect(legacy).toEqual(before);
   });
 });
 
@@ -98,6 +119,7 @@ describe('deriveCustomProgramFromSeed (GOAL-19B PART 8)', () => {
     const seed = program({
       id: 'seed_1',
       isCustom: false,
+      weeks: [],
       exercises: [{ exerciseId: 'chest_supino_reto', sets: 3, reps: '8-12' }],
     });
     const before = JSON.stringify(seed);
@@ -108,6 +130,11 @@ describe('deriveCustomProgramFromSeed (GOAL-19B PART 8)', () => {
     expect(derived.name).toBe('Meu ABCD'); // sem "— Cópia"
     // Novo custom NUNCA recria a lista achatada legada.
     expect(derived.exercises).toEqual([]);
+    expect(derived.weeks[0].days[0].slots).toEqual([expect.objectContaining({
+      exerciseId: 'chest_supino_reto',
+      series: 3,
+      repRange: [8, 12],
+    })]);
     // Seed intacto (inclusive a lista achatada legada).
     expect(JSON.stringify(seed)).toBe(before);
   });
@@ -120,33 +147,52 @@ describe('analyzeProgramDeletion (GOAL-19B PART 9)', () => {
       { dayName: 'Segunda', workoutName: 'x', muscleGroups: [], duration: 0, exerciseCount: 1, isRest: false, programId: 'prog_1', programDayId: 'd1' },
       { dayName: 'Terça', workoutName: 'Descanso', muscleGroups: [], duration: 0, exerciseCount: 0, isRest: true },
       { dayName: 'Quarta', workoutName: 'y', muscleGroups: [], duration: 0, exerciseCount: 1, isRest: false, programId: 'other', programDayId: 'z' },
+      { dayName: 'Quinta', workoutName: 'feito', muscleGroups: ['Peito'], duration: 45, exerciseCount: 4, isRest: false, programId: 'prog_1', programDayId: 'd2', trained: true },
     ];
     const impact = analyzeProgramDeletion(prog, weeklyPlan);
     expect(impact.dayCount).toBe(2);
     expect(impact.exerciseCount).toBe(2);
     expect(impact.weeklyReferenceDayNames).toEqual(['Segunda']);
+
+    const legacyImpact = analyzeProgramDeletion(program({
+      weeks: [],
+      exercises: [{ exerciseId: 'legacy-row', sets: 4, reps: '6-10' }],
+    }), []);
+    expect(legacyImpact).toMatchObject({ dayCount: 1, exerciseCount: 1 });
   });
 });
 
 describe('clearProgramFromWeeklyPlan (GOAL-19B PART 9)', () => {
   const weeklyPlan: WeeklyWorkoutDay[] = [
-    { dayName: 'Segunda', workoutName: 'Treino', muscleGroups: ['Peito'], duration: 50, exerciseCount: 5, isRest: false, programId: 'prog_1', programDayId: 'd1', trained: true },
-    { dayName: 'Terça', workoutName: 'Treino', muscleGroups: ['Costas'], duration: 50, exerciseCount: 5, isRest: false, programId: 'other', programDayId: 'z' },
+    { dayName: 'Segunda', workoutName: 'Treino concluído', muscleGroups: ['Peito'], duration: 50, exerciseCount: 5, isRest: false, programId: 'prog_1', programDayId: 'd1', trained: true },
+    { dayName: 'Terça', workoutName: 'Treino futuro', muscleGroups: ['Pernas'], duration: 60, exerciseCount: 6, isRest: false, programId: 'prog_1', programDayId: 'd2', trained: false },
+    { dayName: 'Quarta', workoutName: 'Outro treino', muscleGroups: ['Costas'], duration: 50, exerciseCount: 5, isRest: false, programId: 'other', programDayId: 'z' },
   ];
 
-  it('libera só os dias do programa excluído, sem card quebrado', () => {
+  it('preserva integralmente o snapshot de um dia já treinado', () => {
     const cleaned = clearProgramFromWeeklyPlan(weeklyPlan, 'prog_1');
-    expect(cleaned[0].programId).toBeUndefined();
-    expect(cleaned[0].programDayId).toBeUndefined();
-    expect(cleaned[0].workoutName).toBe(CLEARED_WEEKLY_WORKOUT_NAME);
-    expect(cleaned[0].exerciseCount).toBe(0);
-    expect(cleaned[0].isRest).toBe(false);
-    expect(cleaned[0].trained).toBe(true); // histórico do dia preservado
+    expect(cleaned[0]).toBe(weeklyPlan[0]);
+    expect(cleaned[0]).toEqual(weeklyPlan[0]);
+  });
+
+  it('invalida somente vínculos futuros, sem fallback ou card quebrado', () => {
+    const cleaned = clearProgramFromWeeklyPlan(weeklyPlan, 'prog_1');
+    expect(cleaned[1]).toMatchObject({
+      workoutName: CLEARED_WEEKLY_WORKOUT_NAME,
+      muscleGroups: [],
+      duration: 0,
+      exerciseCount: 0,
+      isRest: false,
+      planningIssue: MISSING_PROGRAM_DAY_ISSUE,
+    });
+    expect(cleaned[1].programId).toBeUndefined();
+    expect(cleaned[1].programDayId).toBeUndefined();
   });
 
   it('preserva dias de outros programas', () => {
     const cleaned = clearProgramFromWeeklyPlan(weeklyPlan, 'prog_1');
-    expect(cleaned[1]).toEqual(weeklyPlan[1]);
+    expect(cleaned[2]).toBe(weeklyPlan[2]);
+    expect(cleaned[2]).toEqual(weeklyPlan[2]);
   });
 
   it('não muta o weeklyPlan original', () => {
@@ -201,6 +247,13 @@ describe('busca e filtros de Meus Treinos (GOAL-19B PART 11)', () => {
     ]);
     expect(sortPrograms(all, 'days').map((p) => p.id)).toEqual(['mine_b', 'seed', 'mine_a']);
     expect(sortPrograms(all, 'recent').map((p) => p.id)).toEqual(['mine_b', 'mine_a', 'seed']);
+
+    const legacy = program({
+      weeks: [],
+      exercises: [{ exerciseId: 'legacy-row', sets: 3, reps: '8-12' }],
+    });
+    expect(programDayCount(legacy)).toBe(1);
+    expect(programDayCount(program({ weeks: [], exercises: [] }))).toBe(0);
   });
 
   it('fixa o recém-criado no topo apenas na ordem por recência', () => {

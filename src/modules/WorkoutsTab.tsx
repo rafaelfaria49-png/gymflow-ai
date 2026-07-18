@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { estimateWorkoutDuration, muscleGroupsForSlots } from '../lib/workoutDuration';
 import { programDayDisplayLabel } from '../lib/workout-day-naming';
+import { slotsFromLegacyExercises } from '../lib/workout-program-normalization';
 import {
   analyzeProgramDeletion,
   organizePrograms,
@@ -30,11 +31,31 @@ import {
 import { WorkoutProgramMenu, type WorkoutProgramMenuItem } from '../components/workout-builder/WorkoutProgramMenu';
 import { WorkoutProgramDeleteDialog } from '../components/workout-builder/WorkoutProgramDeleteDialog';
 
+// Projeção somente de leitura para programas v1 que ainda têm apenas a lista achatada.
+// O id sintético nunca é persistido nem enviado ao Context; serve para o card/modal
+// exibirem esse legado honestamente como o único treino que ele representa.
+const displayDaysForProgram = (program: WorkoutProgram): ProgramDay[] => {
+  const persistedDays = program.weeks?.[0]?.days ?? [];
+  if (persistedDays.length > 0) return persistedDays;
+
+  const legacySlots = slotsFromLegacyExercises(program);
+  if (legacySlots.length === 0) return [];
+  return [{
+    id: `legacy-display-${program.id}`,
+    name: program.name,
+    customName: program.name,
+    dayNumber: 1,
+    muscleGroupIds: [],
+    volumeProfile: 'standard',
+    slots: legacySlots,
+  }];
+};
+
 // GOAL-19A: um treino do Construtor pode ter vários dias. Contar só os exercícios do
 // primeiro dia diria "5 exercícios" para um programa de 4 dias — por isso o rótulo
 // passa a depender da estrutura real do programa.
 const customProgramSummaryLabel = (program: WorkoutProgram): string => {
-  const days = program.weeks[0]?.days ?? [];
+  const days = displayDaysForProgram(program);
   if (days.length > 1) return `${days.length} dias`;
   const count = days[0]?.slots.length ?? 0;
   return `${count} ${count === 1 ? 'exercício' : 'exercícios'}`;
@@ -100,7 +121,7 @@ export const WorkoutsTab = () => {
   const programsSignature = useMemo(
     () => programs
       .map((program) => {
-        const days = program.weeks?.[0]?.days ?? [];
+        const days = displayDaysForProgram(program);
         const slots = days.reduce((total, day) => total + day.slots.length, 0);
         return `${program.id}:${days.length}:${slots}`;
       })
@@ -110,7 +131,7 @@ export const WorkoutsTab = () => {
   const cardSummaries = useMemo(() => {
     const map = new Map<string, { dayCount: number; avgMinutes: number; mainGroups: string[] }>();
     for (const program of programs) {
-      const days = program.weeks?.[0]?.days ?? [];
+      const days = displayDaysForProgram(program);
       const durations = days.map((day) => estimateWorkoutDuration(day.slots).minutes);
       const avgMinutes = durations.length
         ? Math.round(durations.reduce((total, value) => total + value, 0) / durations.length)
@@ -136,10 +157,21 @@ export const WorkoutsTab = () => {
   const visiblePrograms = kind === 'ready'
     ? organized.filter((program) => program.level === selectedLevel)
     : organized;
-  const selectedProgramDays = selectedProgram?.weeks[0]?.days ?? [];
+  const selectedPersistedProgramDays = selectedProgram?.weeks?.[0]?.days ?? [];
+  const selectedProgramHasLegacyExercises = selectedPersistedProgramDays.length === 0
+    && (selectedProgram?.exercises?.length ?? 0) > 0;
+  const selectedProgramDays = selectedProgram ? displayDaysForProgram(selectedProgram) : [];
 
   const handleStartProgram = (program: WorkoutProgram) => {
-    const days = program.weeks[0]?.days ?? [];
+    const days = program.weeks?.[0]?.days ?? [];
+
+    if (days.length === 0 && (program.exercises?.length ?? 0) > 0) {
+      // Compatibilidade v1 explícita: uma lista achatada representa um único treino
+      // legado. O resolver do Context mantém esse caminho separado de programa vazio.
+      startWorkout(program.id);
+      setSelectedProgram(null);
+      return;
+    }
 
     if (days.length === 1) {
       // Mesmo para um programa de um dia, informar o ID torna a origem inequívoca.
@@ -519,7 +551,7 @@ export const WorkoutsTab = () => {
                           </p>
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                          {selectedProgram.isCustom && (
+                          {selectedProgram.isCustom && !selectedProgramHasLegacyExercises && (
                             <button
                               onClick={() => handleEditProgramDay(selectedProgram, day)}
                               className="min-h-[32px] text-[9px] bg-white/5 hover:bg-white/10 border border-white/10 text-white font-extrabold px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1"
@@ -529,6 +561,10 @@ export const WorkoutsTab = () => {
                           )}
                           <button
                             onClick={() => {
+                              if (selectedProgramHasLegacyExercises) {
+                                handleStartProgram(selectedProgram);
+                                return;
+                              }
                               startWorkout(selectedProgram.id, undefined, day.id);
                               setSelectedProgram(null);
                             }}
@@ -590,7 +626,7 @@ export const WorkoutsTab = () => {
                   <Calendar className="w-3.5 h-3.5" />
                   Planejar Semana
                 </button>
-                {selectedProgramDays.length === 1 ? (
+                {selectedProgramDays.length === 1 || selectedProgramHasLegacyExercises ? (
                   <button
                     onClick={() => handleStartProgram(selectedProgram)}
                     className="flex-1 min-h-[44px] py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center justify-center gap-1.5"
