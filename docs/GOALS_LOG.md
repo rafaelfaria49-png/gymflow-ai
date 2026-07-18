@@ -55,6 +55,55 @@ Planner não quebra e o histórico permanece.
 
 ---
 
+## GOAL-19A.1 — Corrigir salvamento, sincronização do planejamento e edições da sessão (2026-07-18)
+
+### Isolamento e pré-flight
+
+- Trabalho executado somente em `C:\Projetos\gymflow-ai-save-sync-001`, branch `fix/gymflow-save-sync-001`, criada a partir de `10444172713b341d8d5ad1daed3490646a3da859`.
+- O worktree principal permaneceu na branch `feat/gymflow-goal19b-guided-builder`, com seu WIP preservado e sem alteração tracked/staged causada por este GOAL.
+- Baseline isolado aprovado: 18 arquivos e 391 testes, além de `npx tsc --noEmit`.
+- A documentação local do Next.js 16.2.6 em `node_modules/next/dist/docs/` foi consultada antes das alterações de componentes client-side.
+
+### Programa e planejamento
+
+- Salvar um programa personalizado agora reconcilia todos os dias futuros vinculados ao mesmo `programId`, recalculando nome, grupos, duração e quantidade de exercícios a partir do `ProgramDay` canônico.
+- Dias já treinados e dias de outros programas são preservados. `weeklyPlan` e `user.weeklyPlan` recebem a mesma versão reconciliada.
+- Se um `programDayId` planejado foi removido, o vínculo é invalidado com `planningIssue: 'missing-program-day'`, os resumos são zerados e o Planejador exige nova escolha.
+- O início é estrito: ID informado precisa existir; programa multi-dia sem ID exige seleção; somente programa com um único dia aceita resolução implícita. Não existe fallback silencioso para o Dia 1.
+- A aba Treinos reutiliza seu detalhe como seletor explícito de dias e mostra, por dia, nome, quantidade real de exercícios e duração.
+
+### Sessão e persistência
+
+- A sessão ativa é um snapshot independente. Edições de carga, reps, RPE, notas, séries, exercícios, trocas e lotação usam atualizações funcionais e permanecem na sessão/histórico sem reescrever a prescrição futura.
+- Sessões iniciadas de programa guardam metadados opcionais de origem (`sourceProgramId`, `sourceProgramDayId`, nomes de programa/dia). Treinos livres e snapshots legados continuam válidos.
+- “Editar programa de origem” abre o programa e o dia exatos. A sessão permanece em background, “Iniciar Agora” fica oculto nesse fluxo e um bloqueio global impede sobrescrever uma sessão ativa.
+- `NumericInput` preserva rascunhos focados (`080`, vírgula/ponto, vazio), emite imediatamente valores válidos para o Context e mantém contratos de blur, Enter, Escape, limites e atualização externa.
+- Finalização desfoca o campo ativo e usa o snapshot mais recente. Refs canônicas de sessão, histórico e horário de início eliminam a janela de perda entre uma edição/início no mesmo tick e `pagehide`/`visibilitychange`.
+- O envelope continua `gymflow:state:v1`; hidratação, backup e export/import preservam os novos campos opcionais sem migração ou dependência nova.
+
+### Testes e validações
+
+- `npx vitest run`: 22 arquivos e **430 testes** aprovados (391 anteriores + 39 novos).
+- `npx tsc --noEmit`: aprovado.
+- ESLint focado em todos os TypeScript/TSX alterados: zero erros; três avisos de dependências de hooks permaneceram no Context.
+- `npm run build`: aprovado no Next.js 16.2.6.
+- `npm run build:mobile`: export estático aprovado; `cap sync` e build Android não executados.
+- `rg -n "alert\(|confirm\(" src`: zero ocorrência. `git diff --check`: aprovado.
+- Testes de storage cobrem roundtrip de carga, reps, RPE, notas, adição/remoção/troca, origem, histórico e export/import mantendo a versão 1.
+- Cenário manual: programa de dois dias foi planejado, editado (nome, adição/remoção, séries), salvo e iniciado no dia correto; o Planejador mostrou 2 exercícios/20 min e a sessão refletiu os 2 exercícios e 4 séries esperados.
+- Carga `80` sobreviveu ao reload; reps `12` chegaram à sessão antes da confirmação; exercício improvisado sobreviveu à navegação e ao reload; editar a origem retornou à mesma sessão sem oferecer novo início.
+- Remover o dia do programa invalidou duas ocorrências planejadas, bloqueou início sem fallback e preservou a sessão já aberta. A finalização criou entrada no histórico; detalhes internos do snapshot são cobertos pelos testes porque o card atual de histórico não os expõe.
+- Console do navegador: zero erros e zero avisos.
+- Hashes de `src/mock/exercises.ts`, `src/mock/programs.ts`, `src/lib/progression.ts`, `src/lib/storage.ts`, `src/lib/training-volume.ts` e `src/lib/workoutDuration.ts` permaneceram idênticos ao pré-flight. `src/modules/WorkoutBuilder.tsx` mudou somente na integração mínima autorizada para impedir novo início durante edição da origem.
+
+### Continuação
+
+- **GOAL-23A:** criar uma ação deliberada, comparável e confirmável para promover diferenças da sessão ao programa; nenhuma propagação automática foi adicionada.
+- Validar `pagehide`, background e encerramento pelo sistema em WebView Android físico.
+- Integração com a GOAL-19B deve ser feita depois, pelo responsável daquele WIP, preferencialmente via cherry-pick deste commit e nova execução conjunta dos testes/builds. Nenhuma integração ou push foi feito neste GOAL.
+
+---
+
 ## GOAL-19A — Construtor de treino multi-dia (2026-07-17)
 
 ### Resumo

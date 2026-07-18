@@ -9,6 +9,7 @@ import {
   STORAGE_BACKUP_SUFFIX,
   STORAGE_QUARANTINE_SUFFIX,
 } from './storage';
+import type { WorkoutProgram, WorkoutSession } from '../types';
 import type { StorageLike } from './storage-types';
 
 class MemoryStorage implements StorageLike {
@@ -50,6 +51,103 @@ describe('storage v1 seguro', () => {
     const loaded = loadStateResult<{ workoutHistory: { id: string }[] }>(KEY, storage);
     expect(loaded.status).toBe('ok');
     if (loaded.status === 'ok') expect(loaded.value.workoutHistory[0].id).toBe('session_1');
+  });
+
+  it('preserva o snapshot editado da sessão sem alterar a prescrição do programa', () => {
+    const program: WorkoutProgram = {
+      id: 'program-1',
+      name: 'Programa futuro',
+      durationWeeks: 4,
+      frequencyDays: 1,
+      level: 'intermediate',
+      objective: 'Teste',
+      exercises: [],
+      description: 'Teste',
+      repeatWeeks: true,
+      weeks: [{
+        number: 1,
+        days: [{
+          id: 'day-1',
+          name: 'Dia original',
+          slots: [{
+            exerciseId: 'original-exercise',
+            series: 3,
+            repRange: [8, 12],
+            targetRPE: 8,
+            restSec: 90,
+            progression: 'dupla',
+            incrementKg: 2.5,
+          }],
+        }],
+      }],
+      isCustom: true,
+    };
+    const activeWorkout: WorkoutSession = {
+      id: 'session-active',
+      name: 'Sessão executada',
+      date: '2026-07-18',
+      duration: 0,
+      calories: 0,
+      xpEarned: 0,
+      sourceProgramId: program.id,
+      sourceProgramDayId: 'day-1',
+      sourceProgramName: program.name,
+      sourceProgramDayName: 'Dia original',
+      exercises: [
+        {
+          id: 'active-swapped',
+          exerciseId: 'replacement-exercise',
+          name: 'Exercício substituto',
+          muscleGroup: 'chest',
+          notes: 'Nota mais recente',
+          sets: [{ id: 'set-1', weight: 80, reps: 12, rpe: 9, completed: true }],
+        },
+        {
+          id: 'active-added',
+          exerciseId: 'improvised-exercise',
+          name: 'Exercício improvisado',
+          muscleGroup: 'back',
+          sets: [{ id: 'set-2', weight: 35, reps: 10, completed: false }],
+        },
+      ],
+    };
+    const completedWorkout: WorkoutSession = {
+      ...activeWorkout,
+      id: 'session-history',
+      duration: 3600,
+      totalVolume: 960,
+    };
+    const storage = new MemoryStorage();
+    const data = {
+      activeWorkout,
+      workoutHistory: [completedWorkout],
+      customPrograms: [program],
+    };
+
+    expect(saveStateResult(KEY, data, storage).ok).toBe(true);
+    const loaded = loadStateResult<typeof data>(KEY, storage);
+    expect(loaded.status).toBe('ok');
+    if (loaded.status !== 'ok') return;
+
+    expect(loaded.value.activeWorkout.exercises).toHaveLength(2);
+    expect(loaded.value.activeWorkout.exercises[0]).toMatchObject({
+      id: 'active-swapped',
+      exerciseId: 'replacement-exercise',
+      notes: 'Nota mais recente',
+    });
+    expect(loaded.value.activeWorkout.exercises[0].sets[0]).toMatchObject({
+      weight: 80,
+      reps: 12,
+      rpe: 9,
+    });
+    expect(loaded.value.activeWorkout.exercises.some((exercise) => exercise.id === 'removed-exercise')).toBe(false);
+    expect(loaded.value.activeWorkout.exercises[1].id).toBe('active-added');
+    expect(loaded.value.workoutHistory[0]).toMatchObject({
+      sourceProgramId: 'program-1',
+      sourceProgramDayId: 'day-1',
+      sourceProgramName: 'Programa futuro',
+    });
+    expect(loaded.value.customPrograms[0]).toEqual(program);
   });
 
   it('distingue estado vazio', () => {

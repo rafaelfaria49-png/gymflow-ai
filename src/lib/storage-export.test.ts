@@ -75,6 +75,42 @@ describe('exportação e importação local', () => {
     if (loaded.status === 'ok') expect(loaded.value.activeWorkout?.id).toBe('session_fixture_active_001');
   });
 
+  it('preserva origem opcional da sessão e do histórico sem mudar o envelope v1', () => {
+    const envelope = JSON.parse(rawFixture);
+    const sourceOrigin = {
+      sourceProgramId: 'program-custom-1',
+      sourceProgramDayId: 'program-day-2',
+      sourceProgramName: 'Programa de origem',
+      sourceProgramDayName: 'Dia 2 — Pernas',
+    };
+    Object.assign(envelope.data.activeWorkout, sourceOrigin);
+    envelope.data.workoutHistory = [{
+      ...envelope.data.activeWorkout,
+      id: 'session_fixture_history_001',
+      duration: 3600,
+    }];
+
+    const source = new MemoryStorage();
+    source.setItem(KEY, JSON.stringify(envelope));
+    const exported = createStorageExport(KEY, source);
+    expect(exported.ok).toBe(true);
+    if (!exported.ok) return;
+
+    const target = new MemoryStorage();
+    const inspection = inspectStorageImport(exported.content, exported.bytes);
+    expect(inspection.ok).toBe(true);
+    if (!inspection.ok) return;
+    expect(commitStorageImport(KEY, inspection.backup, target).ok).toBe(true);
+
+    const storedEnvelope = JSON.parse(target.getItem(KEY) ?? '{}');
+    expect(storedEnvelope.v).toBe(1);
+    const loaded = loadStateResult<PersistedState>(KEY, target);
+    expect(loaded.status).toBe('ok');
+    if (loaded.status !== 'ok') return;
+    expect(loaded.value.activeWorkout).toMatchObject(sourceOrigin);
+    expect(loaded.value.workoutHistory[0]).toMatchObject(sourceOrigin);
+  });
+
   it('rejeita JSON inválido sem alterar o estado atual', () => {
     const storage = new MemoryStorage();
     storage.setItem(KEY, rawFixture);

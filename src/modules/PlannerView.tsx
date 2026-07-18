@@ -3,8 +3,12 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { WeeklyWorkoutDay, WorkoutProgram, ProgramDay } from '../types';
-import { Calendar, Sparkles, Play, RotateCcw, Sliders, Clock, Move, Copy, Wrench, Pencil, ListChecks, X } from 'lucide-react';
+import { AlertTriangle, Calendar, Sparkles, Play, RotateCcw, Sliders, Clock, Move, Copy, Wrench, Pencil, ListChecks, X } from 'lucide-react';
 import { programDayDisplayLabel } from '../lib/workout-day-naming';
+import { estimateWorkoutDuration } from '../lib/workoutDuration';
+
+const hasMissingProgramDayIssue = (day: WeeklyWorkoutDay): boolean =>
+  day.planningIssue === 'missing-program-day';
 
 export const PlannerView = () => {
   const {
@@ -58,7 +62,8 @@ export const PlannerView = () => {
           muscleGroups: [],
           // GOAL-07: alternar treino/descanso desfaz o vínculo com o Day do programa
           programId: undefined,
-          programDayId: undefined
+          programDayId: undefined,
+          planningIssue: undefined,
         };
       }
       return day;
@@ -75,7 +80,16 @@ export const PlannerView = () => {
   // um programa vinculado) — nunca mais o modal antigo que fabricava exerciseCount.
   const handleEditDay = (day: WeeklyWorkoutDay) => {
     const sourceProgram = programs.find((p) => p.id === day.programId);
-    const sourceDay = sourceProgram?.weeks?.[0]?.days.find((d) => d.id === day.programDayId);
+    const sourceDay = sourceProgram?.weeks?.flatMap((week) => week.days).find((d) => d.id === day.programDayId);
+    const hasBrokenProgramLink = Boolean(day.programId || day.programDayId) && (!sourceProgram || !sourceDay);
+
+    // Um vínculo removido precisa ser escolhido novamente. Abrir o Construtor sem
+    // programa/dia criaria um treino vazio e esconderia a causa real do problema.
+    if (hasMissingProgramDayIssue(day) || hasBrokenProgramLink) {
+      setChooserDayName(day.dayName);
+      return;
+    }
+
     openWorkoutBuilder(
       {
         programId: sourceProgram?.isCustom ? sourceProgram.id : undefined,
@@ -145,7 +159,8 @@ export const PlannerView = () => {
             exerciseCount: sourceDay.exerciseCount,
             muscleGroups: sourceDay.muscleGroups ? [...sourceDay.muscleGroups] : [],
             programId: sourceDay.programId,
-            programDayId: sourceDay.programDayId
+            programDayId: sourceDay.programDayId,
+            planningIssue: sourceDay.planningIssue,
           };
         }
         return day;
@@ -229,7 +244,7 @@ export const PlannerView = () => {
                 ].map((g) => (
                   <button
                     key={g.id}
-                    onClick={() => setGender(g.id as any)}
+                    onClick={() => setGender(g.id as typeof gender)}
                     className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
                       gender === g.id
                         ? 'bg-white/10 text-white'
@@ -247,7 +262,7 @@ export const PlannerView = () => {
               <label className="block text-[10px] font-bold uppercase text-gym-text-muted mb-1.5">Objetivo</label>
               <select
                 value={goal}
-                onChange={(e) => setGoal(e.target.value as any)}
+                onChange={(e) => setGoal(e.target.value as typeof goal)}
                 className="w-full bg-gym-dark border border-white/10 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-gym-accent"
               >
                 <option value="hypertrophy">Hipertrofia (Massa Magra)</option>
@@ -263,7 +278,7 @@ export const PlannerView = () => {
               <label className="block text-[10px] font-bold uppercase text-gym-text-muted mb-1.5">Nível</label>
               <select
                 value={level}
-                onChange={(e) => setLevel(e.target.value as any)}
+                onChange={(e) => setLevel(e.target.value as typeof level)}
                 className="w-full bg-gym-dark border border-white/10 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-gym-accent"
               >
                 <option value="beginner">Iniciante</option>
@@ -337,6 +352,7 @@ export const PlannerView = () => {
               {weeklyPlan.map((day) => {
                 const isTargetForSwap = movingFromDay && movingFromDay !== day.dayName;
                 const isTargetForCopy = duplicatingFromDay && duplicatingFromDay !== day.dayName;
+                const hasMissingProgramDay = hasMissingProgramDayIssue(day);
 
                 return (
                   <div
@@ -346,6 +362,8 @@ export const PlannerView = () => {
                         ? 'bg-gym-emerald/5 border-gym-emerald/20 text-gym-emerald'
                         : day.isRest
                         ? 'bg-white/5 border-transparent text-gym-text-muted'
+                        : hasMissingProgramDay
+                        ? 'bg-gym-amber/5 border-gym-amber/30 text-white'
                         : 'bg-gym-card border-white/5 text-white hover:border-gym-accent/20'
                     }`}
                   >
@@ -363,6 +381,14 @@ export const PlannerView = () => {
                             ))}
                           </div>
                         )}
+                        {hasMissingProgramDay && (
+                          <div className="mt-2 flex max-w-md items-start gap-1.5 rounded-lg border border-gym-amber/25 bg-gym-amber/10 px-2.5 py-2 text-[10px] font-semibold leading-relaxed text-gym-amber">
+                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                            <span>
+                              O dia usado neste planejamento foi removido do programa. Escolha novamente um treino.
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -370,6 +396,10 @@ export const PlannerView = () => {
                     <div className="flex items-center justify-end gap-2 flex-wrap sm:flex-nowrap">
                       {!day.isRest && (
                         <div className="hidden md:flex items-center gap-2 text-[10px] text-gym-text-muted mr-2">
+                          <span className="flex items-center gap-0.5">
+                            <ListChecks className="w-3.5 h-3.5" /> {day.exerciseCount}{' '}
+                            {day.exerciseCount === 1 ? 'exercício' : 'exercícios'}
+                          </span>
                           <span className="flex items-center gap-0.5">
                             <Clock className="w-3.5 h-3.5" /> {day.duration}m
                           </span>
@@ -440,23 +470,25 @@ export const PlannerView = () => {
                                 title="Escolher treino"
                               >
                                 <ListChecks className="w-3 h-3 text-gym-accent" />
-                                Escolher
+                                {hasMissingProgramDay ? 'Escolher novamente' : 'Escolher'}
                               </button>
 
                               {/* Editar dia no Construtor — sempre com os slots reais, nunca fabricados */}
-                              <button
-                                onClick={() => handleEditDay(day)}
-                                className="min-h-[44px] text-[9px] font-bold px-2.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-white flex items-center gap-1 active:scale-95 transition-all"
-                                title="Editar dia"
-                              >
-                                <Pencil className="w-3 h-3 text-gym-accent" />
-                                Editar
-                              </button>
+                              {!hasMissingProgramDay && (
+                                <button
+                                  onClick={() => handleEditDay(day)}
+                                  className="min-h-[44px] text-[9px] font-bold px-2.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-white flex items-center gap-1 active:scale-95 transition-all"
+                                  title="Editar dia"
+                                >
+                                  <Pencil className="w-3 h-3 text-gym-accent" />
+                                  Editar
+                                </button>
+                              )}
                             </>
                           )}
 
                           {/* Launch active — só quando o dia tem exercícios reais de verdade */}
-                          {!day.isRest && !day.trained && day.exerciseCount > 0 && (
+                          {!day.isRest && !day.trained && !hasMissingProgramDay && day.exerciseCount > 0 && (
                             <button
                               onClick={() => startWorkout(day.programId, day.workoutName, day.programDayId)}
                               className="tap-target bg-gym-accent hover:bg-gym-accent-hover text-gym-dark rounded-lg transition-all flex items-center justify-center active:scale-95 shadow-md shadow-gym-accent/15"
@@ -467,7 +499,7 @@ export const PlannerView = () => {
                             </button>
                           )}
 
-                          {!day.isRest && !day.trained && day.exerciseCount === 0 && (
+                          {!day.isRest && !day.trained && !hasMissingProgramDay && day.exerciseCount === 0 && (
                             <span className="text-[9px] font-bold text-gym-text-muted bg-white/5 px-2 py-1 rounded-full">
                               Sem treino
                             </span>
@@ -529,16 +561,21 @@ export const PlannerView = () => {
                           <span className="text-[8px] bg-gym-accent/15 text-gym-accent px-1.5 py-0.5 rounded-full">Meu treino</span>
                         )}
                       </span>
-                      {(program.weeks[0]?.days || []).map((day) => (
-                        <button
-                          key={day.id}
-                          onClick={() => handleChooseProgramDay(program, day)}
-                          className="w-full text-left bg-white/5 hover:bg-gym-accent/10 border border-white/5 hover:border-gym-accent/30 rounded-xl p-3 flex items-center justify-between transition-all min-h-[44px]"
-                        >
-                          <span className="text-xs font-bold text-white">{programDayDisplayLabel(day)}</span>
-                          <span className="text-[10px] text-gym-text-muted">{day.slots.length} exercícios</span>
-                        </button>
-                      ))}
+                      {(program.weeks[0]?.days || []).map((day) => {
+                        const estimate = estimateWorkoutDuration(day.slots);
+                        return (
+                          <button
+                            key={day.id}
+                            onClick={() => handleChooseProgramDay(program, day)}
+                            className="w-full text-left bg-white/5 hover:bg-gym-accent/10 border border-white/5 hover:border-gym-accent/30 rounded-xl p-3 flex items-center justify-between gap-3 transition-all min-h-[44px]"
+                          >
+                            <span className="text-xs font-bold text-white">{programDayDisplayLabel(day)}</span>
+                            <span className="flex-shrink-0 text-right text-[10px] text-gym-text-muted">
+                              {estimate.exerciseCount} {estimate.exerciseCount === 1 ? 'exercício' : 'exercícios'} · ~{estimate.minutes} min
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   ))}
               </div>

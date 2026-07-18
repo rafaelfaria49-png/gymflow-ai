@@ -53,6 +53,18 @@ import {
 } from '../lib/workout-program-actions';
 import { estimateWorkoutDuration, muscleGroupsForSlots } from '../lib/workoutDuration';
 import { programDayDisplayLabel } from '../lib/workout-day-naming';
+import { reconcileWeeklyPlanWithProgram } from '../lib/workout-plan-sync';
+import {
+  resolveWorkoutStart,
+  upsertWorkoutProgram,
+  type WorkoutStartFailureReason,
+} from '../lib/workout-session-origin';
+import {
+  adaptWorkoutForCrowdedGym,
+  swapWorkoutExercise,
+  toggleWorkoutSetCompletion,
+  updateWorkoutExerciseNotes,
+} from '../lib/workout-session-mutations';
 import { useToast } from '../components/ui/Toast';
 import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
 
@@ -119,7 +131,7 @@ export type BuilderCreationStep = 'mode' | 'frequency' | 'template';
 export interface ChatActionCard {
   label: string;
   actionType: 'start-workout' | 'generate-week' | 'swap-exercise' | 'watch-video' | 'replan-missed' | 'crowded-gym';
-  payload?: any;
+  payload?: string;
 }
 
 interface ChatMessage {
@@ -333,6 +345,25 @@ function getTodayDayName(): string {
   return daysMap[todayNormalized] || 'Segunda';
 }
 
+function resolveStateAction<T>(current: T, action: React.SetStateAction<T>): T {
+  return typeof action === 'function'
+    ? (action as (previous: T) => T)(current)
+    : action;
+}
+
+function workoutStartFailureMessage(reason: WorkoutStartFailureReason): string {
+  if (reason === 'program-day-not-found') {
+    return 'Este dia não existe mais no programa. Escolha novamente o treino no Planejador.';
+  }
+  if (reason === 'day-selection-required') {
+    return 'Este programa tem vários dias. Escolha qual dia deseja iniciar.';
+  }
+  if (reason === 'empty-program') {
+    return 'Este programa não possui um dia ou exercício válido para iniciar.';
+  }
+  return 'Este programa não está mais disponível. Escolha novamente o treino.';
+}
+
 const GOAL_KEYWORDS: Record<string, RegExp> = {
   hypertrophy: /hipertrofia|massa|volume|estética/i,
   slimming: /emagrec|calóric|defini|queima/i,
@@ -361,7 +392,9 @@ function selectProgramForProfile(programs: WorkoutProgram[], goal: string, level
 // Silencioso em qualquer erro (autoplay bloqueado, navegador sem suporte etc.).
 function playBeep() {
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    const AudioCtx = window.AudioContext || (window as typeof window & {
+      webkitAudioContext?: typeof AudioContext;
+    }).webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
     const oscillator = ctx.createOscillator();
@@ -382,7 +415,7 @@ function playBeep() {
 
 export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const toast = useToast();
-  const [activeView, setActiveView] = useState<AppView>('landing');
+  const [activeView, setActiveViewState] = useState<AppView>('landing');
   const [user, setUser] = useState<UserProfile | null>(null);
 
   // Lists
@@ -392,13 +425,31 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const [challenges, setChallenges] = useState<Challenge[]>(MOCK_CHALLENGES);
   const [achievements, setAchievements] = useState<Achievement[]>(MOCK_ACHIEVEMENTS);
   const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>(MOCK_COMMUNITY);
-  const [weeklyPlan, setWeeklyPlan] = useState<WeeklyWorkoutDay[]>([]);
+  const [weeklyPlan, setWeeklyPlanState] = useState<WeeklyWorkoutDay[]>([]);
+  const weeklyPlanRef = useRef<WeeklyWorkoutDay[]>([]);
+  // O ref torna chamadas sequenciais canônicas mesmo antes do próximo render. O mesmo
+  // array calculado uma única vez alimenta o estado top-level e user.weeklyPlan.
+  const setWeeklyPlan: React.Dispatch<React.SetStateAction<WeeklyWorkoutDay[]>> = (action) => {
+    const next = resolveStateAction(weeklyPlanRef.current, action);
+    weeklyPlanRef.current = next;
+    setWeeklyPlanState(() => next);
+    setUser((previousUser) => {
+      if (!previousUser || previousUser.weeklyPlan === next) return previousUser;
+      return { ...previousUser, weeklyPlan: next };
+    });
+  };
   const trails = MOCK_TRAILS;
 
   // GOAL-10.5: treinos criados/editados no Construtor de Treino manual (persistidos
   // em customPrograms). allPrograms mescla com MOCK_PROGRAMS para que startWorkout,
   // applyProgramToWeek e as telas de Treinos/Planejador não precisem de lógica paralela.
-  const [customPrograms, setCustomPrograms] = useState<WorkoutProgram[]>([]);
+  const [customPrograms, setCustomProgramsState] = useState<WorkoutProgram[]>([]);
+  const customProgramsRef = useRef<WorkoutProgram[]>([]);
+  const setCustomPrograms: React.Dispatch<React.SetStateAction<WorkoutProgram[]>> = (action) => {
+    const next = resolveStateAction(customProgramsRef.current, action);
+    customProgramsRef.current = next;
+    setCustomProgramsState(() => next);
+  };
   const allPrograms = [...programs, ...customPrograms];
 
   // Rascunho aberto no Construtor — não persistido (o que é salvo vira um
@@ -423,9 +474,27 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const todayPlan = weeklyPlan.find((d) => d.dayName === todayDayName) ?? null;
 
   // Active workout
-  const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
+  const [activeWorkout, setActiveWorkoutState] = useState<WorkoutSession | null>(null);
+  const activeWorkoutRef = useRef<WorkoutSession | null>(null);
+  const setActiveWorkout: React.Dispatch<React.SetStateAction<WorkoutSession | null>> = (action) => {
+    const next = resolveStateAction(activeWorkoutRef.current, action);
+    activeWorkoutRef.current = next;
+    setActiveWorkoutState(() => next);
+  };
+  const setActiveView = (view: AppView) => {
+    // Superfícies legadas podem tentar navegar mesmo quando startWorkout bloqueia
+    // um programa multi-dia sem escolha. Nunca abrir a tela ativa sem sessão real.
+    if (view === 'active-workout' && !activeWorkoutRef.current) return;
+    setActiveViewState(view);
+  };
   // Timestamp de início (ms) — fonte da verdade do tempo decorrido; sobrevive a refresh.
-  const [activeWorkoutStartedAt, setActiveWorkoutStartedAt] = useState<number | null>(null);
+  const [activeWorkoutStartedAt, setActiveWorkoutStartedAtState] = useState<number | null>(null);
+  const activeWorkoutStartedAtRef = useRef<number | null>(null);
+  const setActiveWorkoutStartedAt: React.Dispatch<React.SetStateAction<number | null>> = (action) => {
+    const next = resolveStateAction(activeWorkoutStartedAtRef.current, action);
+    activeWorkoutStartedAtRef.current = next;
+    setActiveWorkoutStartedAtState(() => next);
+  };
   const [workoutDuration, setWorkoutDuration] = useState<number>(0);
 
   // Timer de descanso (GOAL-06) — timestamp de término é a fonte da verdade
@@ -433,11 +502,18 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const [restTimerEndAt, setRestTimerEndAt] = useState<number | null>(null);
   const [restTimerTotalSeconds, setRestTimerTotalSeconds] = useState<number | null>(null);
   const [restTimerLabel, setRestTimerLabel] = useState<string | null>(null);
-  const [restSecondsRemaining, setRestSecondsRemaining] = useState<number>(0);
+  const [restSecondsRemainingState, setRestSecondsRemaining] = useState<number>(0);
+  const restSecondsRemaining = restTimerEndAt ? restSecondsRemainingState : 0;
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
   // Evolution & Metrics
-  const [workoutHistory, setWorkoutHistory] = useState<WorkoutSession[]>([]);
+  const [workoutHistory, setWorkoutHistoryState] = useState<WorkoutSession[]>([]);
+  const workoutHistoryRef = useRef<WorkoutSession[]>([]);
+  const setWorkoutHistory: React.Dispatch<React.SetStateAction<WorkoutSession[]>> = (action) => {
+    const next = resolveStateAction(workoutHistoryRef.current, action);
+    workoutHistoryRef.current = next;
+    setWorkoutHistoryState(() => next);
+  };
   const [weightHistory, setWeightHistory] = useState<{ date: string; value: number }[]>([
     { date: '2026-05-01', value: 82.5 },
     { date: '2026-05-08', value: 81.9 },
@@ -486,8 +562,6 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       const tick = () => setWorkoutDuration(Math.max(0, Math.floor((Date.now() - activeWorkoutStartedAt) / 1000)));
       tick();
       timer = setInterval(tick, 1000);
-    } else {
-      setWorkoutDuration(0);
     }
     return () => clearInterval(timer);
   }, [activeWorkout, activeWorkoutStartedAt]);
@@ -496,7 +570,6 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // é sempre recalculado a partir de `restTimerEndAt`, então sobrevive a refresh.
   useEffect(() => {
     if (!restTimerEndAt) {
-      setRestSecondsRemaining(0);
       return;
     }
 
@@ -606,7 +679,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   };
   const persistedStateRef = useRef<PersistedState>(persistedState);
   const initialPersistedStateRef = useRef<PersistedState>(persistedState);
-  persistedStateRef.current = persistedState;
+  useEffect(() => {
+    persistedStateRef.current = persistedState;
+  });
 
   const hasValidBackup = () => loadBackupResult<StoragePersistedState>(STORAGE_KEY).status === 'ok';
 
@@ -640,9 +715,24 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       clearTimeout(pendingSaveRef.current);
       pendingSaveRef.current = null;
     }
+    // Os refs são atualizados no próprio evento de edição. Assim pagehide/visibilitychange
+    // não dependem de um render intermediário para enxergar o último valor válido.
+    const renderedState = persistedStateRef.current;
+    const latestState: PersistedState = {
+      ...renderedState,
+      weeklyPlan: weeklyPlanRef.current,
+      customPrograms: customProgramsRef.current,
+      activeWorkout: activeWorkoutRef.current,
+      activeWorkoutStartedAt: activeWorkoutStartedAtRef.current,
+      workoutHistory: workoutHistoryRef.current,
+      user: renderedState.user
+        ? { ...renderedState.user, weeklyPlan: weeklyPlanRef.current }
+        : null,
+    };
+    persistedStateRef.current = latestState;
     const result = flushState<StoragePersistedState>(
       STORAGE_KEY,
-      persistedStateRef.current,
+      latestState,
       storageBlockedRef.current,
     );
     reportWriteResult(result);
@@ -961,89 +1051,105 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
   // Workout state management
   const startWorkout = (programId?: string, customName?: string, programDayId?: string, explicitDay?: ProgramDay) => {
+    if (activeWorkoutRef.current) {
+      toast.info('Já existe um treino em andamento. Finalize ou cancele antes de iniciar outro.');
+      setActiveView('active-workout');
+      return;
+    }
+
     let workoutName = customName || 'Treino Personalizado';
     let activeExs: ActiveExercise[] = [];
+    let sessionOrigin: Partial<Pick<
+      WorkoutSession,
+      'sourceProgramId' | 'sourceProgramDayId' | 'sourceProgramName' | 'sourceProgramDayName'
+    >> = {};
 
-    if (programId || explicitDay) {
-      // GOAL-10.5: explicitDay permite iniciar um Day recém-criado/salvo no
-      // Construtor sem depender do setState de customPrograms já ter propagado
-      // (evita a corrida "salvei agora mesmo, mas allPrograms ainda está desatualizado").
-      const prog = programId ? allPrograms.find((p) => p.id === programId) : undefined;
-      if (prog || explicitDay) {
-        // GOAL-07: monta o treino a partir dos slots do Day real do programa.
-        // Sem programDayId (chamadas legadas/estado antigo), usa o primeiro Day.
-        const allDays = prog ? (prog.weeks ?? []).flatMap((w) => w.days) : [];
-        const programDay = explicitDay ?? (programDayId ? allDays.find((d) => d.id === programDayId) : undefined) ?? allDays[0];
+    // customProgramsRef é atualizado no próprio saveCustomProgram. Assim o fluxo
+    // "salvar e iniciar" encontra o programa novo antes do próximo render.
+    const program = programId
+      ? [...programs, ...customProgramsRef.current].find((item) => item.id === programId)
+      : undefined;
+    const resolution = resolveWorkoutStart({ programId, program, programDayId, explicitDay });
+    if (resolution.status === 'error') {
+      toast.error(workoutStartFailureMessage(resolution.reason));
+      return;
+    }
 
-        if (programDay) {
-          workoutName = customName || (prog ? `${prog.name} — ${programDay.name}` : programDay.name);
-          activeExs = programDay.slots.map((slot, idx) => {
-            // Fallback seguro: exercício ausente vira "Exercício Desconhecido",
-            // sem crashar (mesmo padrão legado).
-            const ex = exercises.find((e) => e.id === slot.exerciseId);
-
-            // GOAL-08: ANT = última sessão real; SUG = motor determinístico.
-            // Pré-preenche carga/reps com a sugestão quando ela existe.
-            const history = exerciseHistoryFor(slot.exerciseId);
-            const suggestion = suggestNext(slot, history);
-            const lastW = lastRecordedWeight(history);
-            const targetReps = suggestion.repsAlvo ?? slot.repRange[0];
-            const prefillWeight = suggestion.pesoKg ?? lastW ?? 10;
-
-            const sets: WorkoutSet[] = Array.from({ length: slot.series }, (_, sIdx) => ({
-              id: `set_${idx}_${sIdx}`,
-              reps: targetReps,
-              weight: prefillWeight,
-              completed: false,
-              suggestedWeight: suggestion.pesoKg ?? undefined,
-              lastWeight: lastW ?? undefined,
-              rpe: slot.targetRPE
-            }));
-
-            return {
-              id: `active_ex_${idx}_${Date.now()}`,
-              exerciseId: slot.exerciseId,
-              name: ex?.name || 'Exercício Desconhecido',
-              muscleGroup: ex?.muscleGroup || 'Corpo Todo',
-              sets,
-              notes: '',
-              repRange: slot.repRange,
-              targetRPE: slot.targetRPE,
-              restSec: slot.restSec,
-              progressionNote: suggestion.motivo
-            };
-          });
-        } else if (prog) {
-          // Programa sem weeks (legado): mantém o comportamento antigo pela lista achatada.
-          workoutName = prog.name;
-          activeExs = prog.exercises.map((pe, idx) => {
-            const ex = exercises.find((e) => e.id === pe.exerciseId);
-            const setsCount = pe.sets || 3;
-            const repString = pe.reps || '10';
-            const repsVal = parseInt(repString) || 10;
-            // GOAL-08: ANT real do histórico; sem slot não há sugestão do motor (SUG = —)
-            const lastW = lastRecordedWeight(exerciseHistoryFor(pe.exerciseId));
-            const sets: WorkoutSet[] = Array.from({ length: setsCount }, (_, sIdx) => ({
-              id: `set_${idx}_${sIdx}`,
-              reps: repsVal,
-              weight: lastW ?? 10,
-              completed: false,
-              suggestedWeight: undefined,
-              lastWeight: lastW ?? undefined,
-              rpe: 7
-            }));
-
-            return {
-              id: `active_ex_${idx}_${Date.now()}`,
-              exerciseId: pe.exerciseId,
-              name: ex?.name || 'Exercício Desconhecido',
-              muscleGroup: ex?.muscleGroup || 'Corpo Todo',
-              sets,
-              notes: ''
-            };
-          });
-        }
+    if (resolution.status === 'program-day') {
+      const programDay = resolution.day;
+      if (programDay.slots.length === 0) {
+        toast.error('Este dia ainda não possui exercícios para iniciar.');
+        return;
       }
+      workoutName = customName
+        || (resolution.program ? `${resolution.program.name} — ${programDay.name}` : programDay.name);
+      sessionOrigin = resolution.origin ?? {};
+      activeExs = programDay.slots.map((slot, idx) => {
+        // Fallback seguro: exercício ausente vira "Exercício Desconhecido",
+        // sem crashar (mesmo padrão legado).
+        const ex = exercises.find((e) => e.id === slot.exerciseId);
+
+        // GOAL-08: ANT = última sessão real; SUG = motor determinístico.
+        // Pré-preenche carga/reps com a sugestão quando ela existe.
+        const history = exerciseHistoryFor(slot.exerciseId);
+        const suggestion = suggestNext(slot, history);
+        const lastW = lastRecordedWeight(history);
+        const targetReps = suggestion.repsAlvo ?? slot.repRange[0];
+        const prefillWeight = suggestion.pesoKg ?? lastW ?? 10;
+
+        const sets: WorkoutSet[] = Array.from({ length: slot.series }, (_, sIdx) => ({
+          id: `set_${idx}_${sIdx}`,
+          reps: targetReps,
+          weight: prefillWeight,
+          completed: false,
+          suggestedWeight: suggestion.pesoKg ?? undefined,
+          lastWeight: lastW ?? undefined,
+          rpe: slot.targetRPE
+        }));
+
+        return {
+          id: `active_ex_${idx}_${Date.now()}`,
+          exerciseId: slot.exerciseId,
+          name: ex?.name || 'Exercício Desconhecido',
+          muscleGroup: ex?.muscleGroup || 'Corpo Todo',
+          sets,
+          notes: '',
+          repRange: slot.repRange,
+          targetRPE: slot.targetRPE,
+          restSec: slot.restSec,
+          progressionNote: suggestion.motivo
+        };
+      });
+    } else if (resolution.status === 'legacy-program') {
+      // Compatibilidade explícita para programas antigos sem weeks/days.
+      const legacyProgram = resolution.program;
+      workoutName = customName || legacyProgram.name;
+      sessionOrigin = resolution.origin;
+      activeExs = legacyProgram.exercises.map((pe, idx) => {
+        const ex = exercises.find((e) => e.id === pe.exerciseId);
+        const setsCount = pe.sets || 3;
+        const repString = pe.reps || '10';
+        const repsVal = parseInt(repString) || 10;
+        const lastW = lastRecordedWeight(exerciseHistoryFor(pe.exerciseId));
+        const sets: WorkoutSet[] = Array.from({ length: setsCount }, (_, sIdx) => ({
+          id: `set_${idx}_${sIdx}`,
+          reps: repsVal,
+          weight: lastW ?? 10,
+          completed: false,
+          suggestedWeight: undefined,
+          lastWeight: lastW ?? undefined,
+          rpe: 7
+        }));
+
+        return {
+          id: `active_ex_${idx}_${Date.now()}`,
+          exerciseId: pe.exerciseId,
+          name: ex?.name || 'Exercício Desconhecido',
+          muscleGroup: ex?.muscleGroup || 'Corpo Todo',
+          sets,
+          notes: ''
+        };
+      });
     } else {
       // Treino livre inicializado com 1 exercício padrão
       const defaultEx = exercises[0];
@@ -1074,7 +1180,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       duration: 0,
       calories: 0,
       exercises: activeExs,
-      xpEarned: 0
+      xpEarned: 0,
+      ...sessionOrigin,
     });
     setActiveWorkoutStartedAt(Date.now());
     setWorkoutDuration(0);
@@ -1087,6 +1194,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const updateWorkoutSet = (exerciseIndex: number, setIndex: number, fields: Partial<WorkoutSet>) => {
     setActiveWorkout((prev) => {
       if (!prev) return prev;
+      const currentSet = prev.exercises[exerciseIndex]?.sets[setIndex];
+      if (!currentSet) return prev;
+      const changed = (Object.keys(fields) as (keyof WorkoutSet)[]).some(
+        (field) => !Object.is(currentSet[field], fields[field]),
+      );
+      if (!changed) return prev;
       const exercises = prev.exercises.map((ex, i) =>
         i === exerciseIndex
           ? { ...ex, sets: ex.sets.map((s, j) => (j === setIndex ? { ...s, ...fields } : s)) }
@@ -1103,6 +1216,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const addSetToActiveExercise = (exerciseIndex: number) => {
     setActiveWorkout((prev) => {
       if (!prev) return prev;
+      if (!prev.exercises[exerciseIndex]) return prev;
       const exercises = prev.exercises.map((ex, i) => {
         if (i !== exerciseIndex) return ex;
         const lastSet = ex.sets[ex.sets.length - 1];
@@ -1124,8 +1238,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const removeSetFromActiveExercise = (exerciseIndex: number) => {
     setActiveWorkout((prev) => {
       if (!prev) return prev;
+      const currentExercise = prev.exercises[exerciseIndex];
+      if (!currentExercise || currentExercise.sets.length <= 1) return prev;
       const exercises = prev.exercises.map((ex, i) =>
-        i === exerciseIndex && ex.sets.length > 1 ? { ...ex, sets: ex.sets.slice(0, -1) } : ex
+        i === exerciseIndex ? { ...ex, sets: ex.sets.slice(0, -1) } : ex
       );
       return { ...prev, exercises };
     });
@@ -1163,29 +1279,30 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const removeExerciseFromActiveWorkout = (exerciseIndex: number) => {
     setActiveWorkout((prev) => {
       // Mantém pelo menos 1 exercício no treino ativo.
-      if (!prev || prev.exercises.length <= 1) return prev;
+      if (!prev || prev.exercises.length <= 1 || !prev.exercises[exerciseIndex]) return prev;
       return { ...prev, exercises: prev.exercises.filter((_, i) => i !== exerciseIndex) };
     });
   };
 
   const updateExerciseNotes = (exerciseIndex: number, notes: string) => {
-    if (!activeWorkout) return;
-    const updatedExercises = [...activeWorkout.exercises];
-    updatedExercises[exerciseIndex] = {
-      ...updatedExercises[exerciseIndex],
-      notes
-    };
-    setActiveWorkout({
-      ...activeWorkout,
-      exercises: updatedExercises
-    });
+    setActiveWorkout((prev) => (
+      prev ? updateWorkoutExerciseNotes(prev, exerciseIndex, notes) : prev
+    ));
   };
 
   const completeWorkoutSet = (exerciseIndex: number, setIndex: number) => {
-    if (!activeWorkout) return;
-    const isCompleted = !activeWorkout.exercises[exerciseIndex].sets[setIndex].completed;
-    updateWorkoutSet(exerciseIndex, setIndex, { completed: isCompleted });
-    if (isCompleted) {
+    const currentWorkout = activeWorkoutRef.current;
+    if (!currentWorkout) return;
+    const transition = toggleWorkoutSetCompletion(currentWorkout, exerciseIndex, setIndex);
+    if (!transition.changed) return;
+    setActiveWorkout((prev) => {
+      if (!prev) return prev;
+      return prev === currentWorkout
+        ? transition.workout
+        : toggleWorkoutSetCompletion(prev, exerciseIndex, setIndex).workout;
+    });
+
+    if (transition.completed) {
       // Feedback tátil curto ao concluir série (GOAL-11) — com guarda de suporte.
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate(10);
@@ -1194,11 +1311,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
       // Timer de descanso automático (GOAL-06): não inicia se essa era a última
       // série pendente do treino inteiro (nada para descansar antes de).
-      const isLastRemainingSet = activeWorkout.exercises.every((ex, exIdx) =>
-        ex.sets.every((s, sIdx) => (exIdx === exerciseIndex && sIdx === setIndex) || s.completed)
-      );
-      if (!isLastRemainingSet) {
-        const targetExercise = activeWorkout.exercises[exerciseIndex];
+      if (!transition.isLastRemainingSet && transition.targetExercise) {
+        const targetExercise = transition.targetExercise;
         const meta = exercises.find((e) => e.id === targetExercise.exerciseId);
         // GOAL-07: o restSec do ExerciseSlot tem prioridade sobre o restSec do
         // exercício e sobre o padrão do usuário. restSec 0 (ex.: cardio) = sem timer.
@@ -1228,79 +1342,57 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const swapExerciseInActiveWorkout = (exerciseIndex: number, newExerciseId: string, reason?: string) => {
-    if (!activeWorkout) return;
+    const currentWorkout = activeWorkoutRef.current;
+    if (!currentWorkout) return;
     const newEx = exercises.find((e) => e.id === newExerciseId);
     if (!newEx) return;
-
-    const updatedExercises = [...activeWorkout.exercises];
-    const oldName = updatedExercises[exerciseIndex].name;
-    updatedExercises[exerciseIndex] = {
-      ...updatedExercises[exerciseIndex],
-      exerciseId: newExerciseId,
-      name: newEx.name,
-      muscleGroup: newEx.muscleGroup
-    };
-
-    setActiveWorkout({
-      ...activeWorkout,
-      exercises: updatedExercises
+    const currentExercise = currentWorkout.exercises[exerciseIndex];
+    if (!currentExercise || currentExercise.exerciseId === newExerciseId) return;
+    const nextWorkout = swapWorkoutExercise(currentWorkout, exerciseIndex, newEx);
+    setActiveWorkout((prev) => {
+      if (!prev) return prev;
+      return prev === currentWorkout
+        ? nextWorkout
+        : swapWorkoutExercise(prev, exerciseIndex, newEx);
     });
     const reasonMsg = reason ? ` devido a ${reason}` : '';
     addXp(20, 'Substituição de exercício executada');
-    toast.success(`Substituição aplicada sem alterar o objetivo muscular do treino: ${oldName} -> ${newEx.name}${reasonMsg}.`);
+    toast.success(`Substituição aplicada sem alterar o objetivo muscular do treino: ${currentExercise.name} -> ${newEx.name}${reasonMsg}.`);
   };
 
   const adaptActiveWorkoutForCrowdedGym = () => {
-    if (!activeWorkout) return;
-    let count = 0;
-    const adaptedExs = activeWorkout.exercises.map((ex) => {
-      const baseEx = exercises.find((e) => e.id === ex.exerciseId);
-      if (baseEx && (baseEx.equipment === 'Máquina' || baseEx.equipment.includes('Leg Press') || baseEx.equipment.includes('Polia'))) {
-        // Achar substituto livre (Halteres / Peso Corporal) do mesmo grupo muscular
-        const alt = exercises.find((e) =>
-          e.muscleGroup === baseEx.muscleGroup &&
-          e.id !== baseEx.id &&
-          (e.equipment === 'Halteres' || e.equipment === 'Peso Corporal')
-        );
-        if (alt) {
-          count++;
-          return {
-            ...ex,
-            exerciseId: alt.id,
-            name: alt.name,
-            muscleGroup: alt.muscleGroup
-          };
-        }
-      }
-      return ex;
-    });
-
-    if (count > 0) {
-      setActiveWorkout({
-        ...activeWorkout,
-        exercises: adaptedExs
+    const currentWorkout = activeWorkoutRef.current;
+    if (!currentWorkout) return;
+    const adaptation = adaptWorkoutForCrowdedGym(currentWorkout, exercises);
+    if (adaptation.replacementCount > 0) {
+      setActiveWorkout((prev) => {
+        if (!prev) return prev;
+        return prev === currentWorkout
+          ? adaptation.workout
+          : adaptWorkoutForCrowdedGym(prev, exercises).workout;
       });
       addXp(100, 'Treino adaptado: Academia Cheia!');
       unlockAchievement('ach_17');
-      toast.success(`Academia Lotada: Substituímos ${count} exercícios em aparelhos por pesos livres (halteres/peso corporal) de mesma ativação muscular.`);
+      toast.success(`Academia Lotada: Substituímos ${adaptation.replacementCount} exercícios em aparelhos por pesos livres (halteres/peso corporal) de mesma ativação muscular.`);
     } else {
       toast.info('Seu treino já é composto por pesos livres ou não há aparelhos de trilhos mecânicos para adaptar.');
     }
   };
 
   const finishWorkout = (rpe: number) => {
-    if (!activeWorkout || !user) return;
+    const workoutToFinish = activeWorkoutRef.current;
+    if (!workoutToFinish || !user) return;
 
     const minutes = Math.ceil(workoutDuration / 60);
     const kcalPerMinute = rpe >= 8 ? 8.5 : rpe >= 5 ? 6.5 : 4.5;
     const caloriesBurned = Math.round(minutes * kcalPerMinute);
 
-    const completedSetsCount = activeWorkout.exercises.reduce((acc, ex) => {
+    const completedSetsCount = workoutToFinish.exercises.reduce((acc, ex) => {
       return acc + ex.sets.filter((s) => s.completed).length;
     }, 0);
 
     // Calcular volume levantado
-    const totalVolume = activeWorkout.exercises.reduce((acc, ex) => {
+    const totalVolume = workoutToFinish.exercises.reduce((acc, ex) => {
       return acc + ex.sets.filter(s => s.completed).reduce((sAcc, s) => sAcc + (s.reps * s.weight), 0);
     }, 0);
 
@@ -1308,7 +1400,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
     // Detecção de PRs fictícios
     const prsDetected: string[] = [];
-    activeWorkout.exercises.forEach(ex => {
+    workoutToFinish.exercises.forEach(ex => {
       const bestSet = ex.sets.filter(s => s.completed).reduce((best, s) => s.weight > best ? s.weight : best, 0);
       if (bestSet >= 100 && ex.exerciseId === 'chest_supino_reto') {
         prsDetected.push('Supino Reto 100kg');
@@ -1325,7 +1417,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     });
 
     const finalSession: WorkoutSession = {
-      ...activeWorkout,
+      ...workoutToFinish,
       duration: workoutDuration,
       calories: caloriesBurned,
       xpEarned: finalXp,
@@ -1380,7 +1472,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     );
 
     addPost(
-      `Treino finalizado! Concluí "${activeWorkout.name}" em ${minutes} minutos. Volume total: ${totalVolume}kg. ${prsDetected.length > 0 ? `🚀 PRs Batidos: ${prsDetected.join(', ')}!` : ''} 🔥 #GymFlow #Fitness`,
+      `Treino finalizado! Concluí "${workoutToFinish.name}" em ${minutes} minutos. Volume total: ${totalVolume}kg. ${prsDetected.length > 0 ? `🚀 PRs Batidos: ${prsDetected.join(', ')}!` : ''} 🔥 #GymFlow #Fitness`,
       'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600&auto=format&fit=crop'
     );
 
@@ -1416,9 +1508,6 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     const adjustedDays = buildWeekFromProgram(program, frequency, exercises);
 
     setWeeklyPlan(adjustedDays);
-    if (user) {
-      setUser((prev) => prev ? { ...prev, weeklyPlan: adjustedDays } : null);
-    }
     addXp(150, `Ficha Semanal gerada pela IA Coach com o programa "${program.name}"!`);
   };
 
@@ -1433,9 +1522,6 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     const adjustedDays = buildWeekFromProgram(program, frequency, exercises);
 
     setWeeklyPlan(adjustedDays);
-    if (user) {
-      setUser((prev) => prev ? { ...prev, weeklyPlan: adjustedDays } : null);
-    }
     addXp(100, `Programa "${program.name}" atribuído à sua semana!`);
     toast.success(`Semana planejada com "${program.name}". Cada dia abre o treino real daquele dia.`);
     setActiveView('planner');
@@ -1447,10 +1533,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const assignDayToWeekday = (dayName: string, program: WorkoutProgram, day: ProgramDay) => {
     const estimate = estimateWorkoutDuration(day.slots);
     const dayLabel = programDayDisplayLabel(day);
-    const updated = weeklyPlan.map((d) =>
-      d.dayName === dayName
+    setWeeklyPlan((currentPlan) => currentPlan.map((plannedDay) =>
+      plannedDay.dayName === dayName
         ? {
-            ...d,
+            ...plannedDay,
             workoutName: dayLabel,
             muscleGroups: muscleGroupsForSlots(day.slots, exercises),
             duration: estimate.minutes,
@@ -1458,26 +1544,28 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
             isRest: false,
             programId: program.id,
             programDayId: day.id,
+            planningIssue: undefined,
             trained: false
           }
-        : d
-    );
-    setWeeklyPlan(updated);
-    if (user) {
-      setUser((prev) => (prev ? { ...prev, weeklyPlan: updated } : null));
-    }
+        : plannedDay
+    ));
     toast.success(`"${dayLabel}" planejado para ${dayName}.`);
   };
 
   // GOAL-10.5: cria ou atualiza (upsert por id) um treino do Construtor manual.
   const saveCustomProgram = (program: WorkoutProgram) => {
-    setCustomPrograms((prev) => {
-      const idx = prev.findIndex((p) => p.id === program.id);
-      if (idx === -1) return [...prev, program];
-      const updated = [...prev];
-      updated[idx] = program;
-      return updated;
-    });
+    // O dispatch canônico atualiza customProgramsRef imediatamente; startWorkout
+    // encontra nome/dia/origem completos no mesmo evento de "salvar e iniciar".
+    setCustomPrograms((prev) => upsertWorkoutProgram(prev, program));
+    const reconciliation = reconcileWeeklyPlanWithProgram(
+      weeklyPlanRef.current,
+      program,
+      exercises,
+    );
+    setWeeklyPlan(reconciliation.weeklyPlan);
+    if (reconciliation.invalidatedDayNames.length > 0) {
+      toast.info('O dia usado neste planejamento foi removido do programa. Escolha novamente um treino.');
+    }
     // GOAL-10.6: guarda qual foi o último salvo para "Meus Treinos" destacar/posicionar.
     setLastSavedProgramId(program.id);
   };
@@ -1563,13 +1651,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const replanMissedWorkout = () => {
-    if (weeklyPlan.length === 0) return;
+    const currentPlan = weeklyPlanRef.current;
+    if (currentPlan.length === 0) return;
 
     const curDayName = getTodayDayName();
-    const targetDayIdx = weeklyPlan.findIndex(d => d.dayName === curDayName);
+    const targetDayIdx = currentPlan.findIndex(d => d.dayName === curDayName);
 
     if (targetDayIdx !== -1) {
-      const updated = [...weeklyPlan];
+      const updated = [...currentPlan];
       const nextRestIdx = updated.findIndex((d, idx) => idx > targetDayIdx && d.isRest);
       if (nextRestIdx !== -1) {
         const missedWorkout = { ...updated[targetDayIdx] };
@@ -1579,9 +1668,6 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         updated[nextRestIdx] = { ...missedWorkout, dayName: restDay.dayName, trained: false };
 
         setWeeklyPlan(updated);
-        if (user) {
-          setUser((prev) => prev ? { ...prev, weeklyPlan: updated } : null);
-        }
         addXp(80, 'Semana replanejada pela IA Coach!');
         toast.success(`IA Coach Reorganizou: O treino de ${missedWorkout.dayName} foi adiado para ${restDay.dayName} para respeitar a sua recuperação muscular.`);
       } else {
@@ -1593,13 +1679,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const markDayTrained = (dayName: string) => {
-    setWeeklyPlan((prev) => {
-      const updated = prev.map((d) => (d.dayName === dayName ? { ...d, trained: true } : d));
-      if (user) {
-        setUser((u) => u ? { ...u, weeklyPlan: updated } : null);
-      }
-      return updated;
-    });
+    setWeeklyPlan((prev) => prev.map((day) => (
+      day.dayName === dayName ? { ...day, trained: true } : day
+    )));
   };
 
   // Evolution Metric Loggers

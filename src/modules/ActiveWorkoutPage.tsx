@@ -3,11 +3,13 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { TechniqueSequencePlayer } from '../components/TechniqueSequencePlayer';
-import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, Flag, X, Plus, Trash2, Search } from 'lucide-react';
+import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, Flag, X, Plus, Trash2, Search, Info, Pencil } from 'lucide-react';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { NumericInput } from '../components/ui/NumericInput';
 import { matchesExerciseSearch } from '../lib/exerciseSearch';
 import { getTechniqueVideoIdForExerciseId } from '../lib/exerciseTechniqueMap';
+import { estimateWorkoutDuration } from '../lib/workoutDuration';
+import { useToast } from '../components/ui/Toast';
 
 export const ActiveWorkoutPage = () => {
   const {
@@ -24,7 +26,9 @@ export const ActiveWorkoutPage = () => {
     finishWorkout,
     cancelWorkout,
     exercises,
+    programs,
     adaptActiveWorkoutForCrowdedGym,
+    openWorkoutBuilder,
     openGlobalPlayer,
     // Timer de descanso (GOAL-06) — estado vive no GymFlowContext para sobreviver a
     // refresh e continuar contando mesmo se o usuário sair desta tela.
@@ -35,6 +39,7 @@ export const ActiveWorkoutPage = () => {
     skipRestTimer,
     setActiveView
   } = useGymFlow();
+  const toast = useToast();
 
   const [rpe, setRpe] = useState(7);
   const [showFinishModal, setShowFinishModal] = useState(false);
@@ -177,6 +182,53 @@ export const ActiveWorkoutPage = () => {
   const allSetsCompleted = totalSetsCount > 0 && completedSetsCount === totalSetsCount;
   const currentSetNumber = Math.min(completedSetsCount + 1, totalSetsCount || 1);
 
+  const blurActiveField = () => {
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement) activeElement.blur();
+  };
+
+  const openFinishModal = () => {
+    // NumericInput confirma no blur. O valor válido também já chegou ao Context
+    // durante a digitação, mas desfocar normaliza vazio/decimal antes do resumo.
+    blurActiveField();
+    setShowFinishModal(true);
+  };
+
+  const handleEditSourceProgram = () => {
+    if (!activeWorkout.sourceProgramId) return;
+
+    const sourceProgram = programs.find((program) => program.id === activeWorkout.sourceProgramId);
+    if (!sourceProgram) {
+      toast.error('O programa de origem não existe mais. O treino atual continua salvo como snapshot.');
+      return;
+    }
+
+    const sourceDays = (sourceProgram.weeks ?? []).flatMap((week) => week.days);
+    const sourceDay = activeWorkout.sourceProgramDayId
+      ? sourceDays.find((day) => day.id === activeWorkout.sourceProgramDayId)
+      : sourceDays.length === 1
+        ? sourceDays[0]
+        : undefined;
+    if (!sourceDay) {
+      toast.error('O dia de origem não existe mais no programa. O treino atual não será alterado.');
+      return;
+    }
+
+    openWorkoutBuilder(
+      {
+        programId: sourceProgram.id,
+        dayId: sourceDay.id,
+        name: sourceDay.name,
+        level: sourceProgram.level,
+        volumeProfile: sourceDay.volumeProfile ?? 'standard',
+        targetMinutes: sourceDay.targetMinutes ?? estimateWorkoutDuration(sourceDay.slots).minutes,
+        slots: sourceDay.slots,
+      },
+      'active-workout',
+    );
+    toast.info('O treino atual mantém o snapshot iniciado. As alterações do programa valerão para as próximas sessões.');
+  };
+
   const handleContinue = () => {
     for (const ex of activeWorkout.exercises) {
       const incompleteSet = ex.sets.find((s) => !s.completed);
@@ -189,7 +241,7 @@ export const ActiveWorkoutPage = () => {
         return;
       }
     }
-    setShowFinishModal(true);
+    openFinishModal();
   };
 
   return (
@@ -225,12 +277,38 @@ export const ActiveWorkoutPage = () => {
           </button>
 
           <button
-            onClick={() => setShowFinishModal(true)}
+            onClick={openFinishModal}
             className="bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black px-4 py-2 rounded-xl transition-all shadow-md shadow-gym-accent/15 text-xs uppercase tracking-wider"
           >
             Finalizar
           </button>
         </div>
+      </div>
+
+      <div className="bg-gym-accent/5 border border-gym-accent/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex items-start gap-2.5 flex-1 min-w-0">
+          <Info className="w-4 h-4 text-gym-accent flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs text-white font-semibold leading-relaxed">
+              Ajustes feitos aqui valem para esta sessão e serão registrados no histórico. Para alterar os próximos treinos, edite o programa.
+            </p>
+            {activeWorkout.sourceProgramName && (
+              <p className="text-[10px] text-gym-text-muted mt-1">
+                Origem: {activeWorkout.sourceProgramName}
+                {activeWorkout.sourceProgramDayName ? ` · ${activeWorkout.sourceProgramDayName}` : ''}
+              </p>
+            )}
+          </div>
+        </div>
+        {activeWorkout.sourceProgramId && (
+          <button
+            type="button"
+            onClick={handleEditSourceProgram}
+            className="min-h-[40px] px-3.5 bg-white/5 hover:bg-white/10 border border-white/10 text-gym-accent rounded-xl text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 flex-shrink-0"
+          >
+            <Pencil className="w-3.5 h-3.5" /> Editar programa de origem
+          </button>
+        )}
       </div>
 
       {/* REST TIMER (GOAL-06) — versão desktop, sempre visível na página (não fixa).
@@ -447,6 +525,7 @@ export const ActiveWorkoutPage = () => {
                       min={0}
                       disabled={set.completed}
                       aria-label={`Carga da série ${setIdx + 1} (kg)`}
+                      onValidChange={(v) => updateWorkoutSet(exIdx, setIdx, { weight: v })}
                       onCommit={(v) => updateWorkoutSet(exIdx, setIdx, { weight: v ?? 0 })}
                       className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
                     />
@@ -459,6 +538,7 @@ export const ActiveWorkoutPage = () => {
                       min={0}
                       disabled={set.completed}
                       aria-label={`Repetições da série ${setIdx + 1}`}
+                      onValidChange={(v) => updateWorkoutSet(exIdx, setIdx, { reps: v })}
                       onCommit={(v) => updateWorkoutSet(exIdx, setIdx, { reps: v ?? 0 })}
                       className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
                     />
@@ -474,6 +554,7 @@ export const ActiveWorkoutPage = () => {
                       placeholder="8"
                       disabled={set.completed}
                       aria-label={`RPE da série ${setIdx + 1}`}
+                      onValidChange={(v) => updateWorkoutSet(exIdx, setIdx, { rpe: v })}
                       onCommit={(v) => updateWorkoutSet(exIdx, setIdx, { rpe: v ?? undefined })}
                       className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
                     />
@@ -621,7 +702,7 @@ export const ActiveWorkoutPage = () => {
                 </span>
               </div>
               <button
-                onClick={allSetsCompleted ? () => setShowFinishModal(true) : handleContinue}
+                onClick={allSetsCompleted ? openFinishModal : handleContinue}
                 className="flex-shrink-0 min-h-[44px] flex items-center gap-1.5 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black uppercase tracking-wider text-xs px-4 py-3 rounded-xl shadow-md shadow-gym-accent/20 transition-all active:scale-95"
               >
                 {allSetsCompleted ? (
@@ -653,7 +734,7 @@ export const ActiveWorkoutPage = () => {
 
             <h3 className="text-sm font-bold text-gym-accent uppercase tracking-wider mb-2">Substitutos IA Coach</h3>
             <h2 className="text-base font-bold text-white mb-4">
-              Substituir "{activeWorkout.exercises[swapIndex]?.name}"
+              Substituir &quot;{activeWorkout.exercises[swapIndex]?.name}&quot;
             </h2>
 
             <div className="space-y-2">
@@ -826,7 +907,10 @@ export const ActiveWorkoutPage = () => {
                 Voltar
               </button>
               <button
-                onClick={() => finishWorkout(rpe)}
+                onClick={() => {
+                  blurActiveField();
+                  finishWorkout(rpe);
+                }}
                 className="flex-1 py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15"
               >
                 Concluir & Registrar

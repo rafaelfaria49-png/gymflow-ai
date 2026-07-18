@@ -84,6 +84,7 @@ export interface WeeklyWorkoutDay {
   isRest: boolean;
   programId?: string;
   programDayId?: string; // GOAL-07: referência ao ProgramDay real (Programa → Semana → Dia)
+  planningIssue?: 'missing-program-day';
   trained?: boolean;
 }
 
@@ -241,6 +242,11 @@ export interface WorkoutSession {
   xpEarned: number;
   totalVolume?: number; // total kg levantados (reps * weight)
   prsDetected?: string[]; // lista de nomes de PRs batidos
+  // Origem informativa do snapshot. Opcional para manter sessões livres/legadas válidas.
+  sourceProgramId?: string;
+  sourceProgramDayId?: string;
+  sourceProgramName?: string;
+  sourceProgramDayName?: string;
 }
 
 export interface WorkoutProgram {

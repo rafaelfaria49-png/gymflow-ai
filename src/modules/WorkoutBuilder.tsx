@@ -578,12 +578,14 @@ export const WorkoutBuilder = () => {
         >
           <Calendar className="w-4 h-4" /> Salvar e Planejar
         </button>
-        <button
-          onClick={handleStartNow}
-          className="flex-1 min-h-[44px] py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-gym-accent/15"
-        >
-          <Play className="w-4 h-4" /> Iniciar Agora
-        </button>
+        {builderReturnView !== 'active-workout' && (
+          <button
+            onClick={handleStartNow}
+            className="flex-1 min-h-[44px] py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-gym-accent/15"
+          >
+            <Play className="w-4 h-4" /> Iniciar Agora
+          </button>
+        )}
         <button
           onClick={handleCancelClick}
           className="min-h-[44px] py-3 px-6 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold rounded-xl text-xs"

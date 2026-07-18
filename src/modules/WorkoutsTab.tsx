@@ -9,6 +9,7 @@ import {
   Clock,
   Copy,
   LayoutGrid,
+  ListChecks,
   Pencil,
   Play,
   Plus,
@@ -135,10 +136,21 @@ export const WorkoutsTab = () => {
   const visiblePrograms = kind === 'ready'
     ? organized.filter((program) => program.level === selectedLevel)
     : organized;
+  const selectedProgramDays = selectedProgram?.weeks[0]?.days ?? [];
 
   const handleStartProgram = (program: WorkoutProgram) => {
-    startWorkout(program.id);
-    setSelectedProgram(null);
+    const days = program.weeks[0]?.days ?? [];
+
+    if (days.length === 1) {
+      // Mesmo para um programa de um dia, informar o ID torna a origem inequívoca.
+      startWorkout(program.id, undefined, days[0].id);
+      setSelectedProgram(null);
+      return;
+    }
+
+    // Programas multi-dia nunca iniciam silenciosamente o primeiro dia. O modal
+    // existente é o seletor canônico e também explica programas sem dias válidos.
+    setSelectedProgram(program);
   };
 
   const handleCreateWorkout = (creationStep: 'mode' | 'frequency' | 'template' = 'mode') => {
@@ -438,7 +450,7 @@ export const WorkoutsTab = () => {
                     <button
                       onClick={() => handleStartProgram(prog)}
                       className="bg-white/5 hover:bg-gym-accent/15 hover:text-gym-accent border border-white/10 hover:border-gym-accent/20 p-2.5 rounded-xl transition-all tap-target flex items-center justify-center"
-                      title="Iniciar Treino"
+                      title={(prog.weeks[0]?.days.length ?? 0) > 1 ? 'Escolher dia do treino' : 'Iniciar Treino'}
                       aria-label={`Iniciar ${prog.name}`}
                     >
                       <Play className="w-3.5 h-3.5 fill-current" />
@@ -491,56 +503,62 @@ export const WorkoutsTab = () => {
 
               {/* Estrutura real do programa: Dias e Slots (GOAL-07) */}
               <h4 className="text-xs font-bold uppercase tracking-wider text-gym-text-muted mb-3 pl-1">
-                Divisão de Treinos ({selectedProgram.weeks[0]?.days.length || 0}{' '}
-                {(selectedProgram.weeks[0]?.days.length || 0) === 1 ? 'dia' : 'dias'})
+                Divisão de Treinos ({selectedProgramDays.length} {selectedProgramDays.length === 1 ? 'dia' : 'dias'})
               </h4>
 
               <div className="space-y-4">
-                {(selectedProgram.weeks[0]?.days || []).map((day) => (
-                  <div key={day.id} className="bg-gym-card/50 border border-white/5 rounded-2xl overflow-hidden">
-                    <div className="flex items-center justify-between px-3.5 py-2.5 bg-white/5 border-b border-white/5 gap-2">
-                      <h5 className="text-xs font-black text-white truncate">{programDayDisplayLabel(day)}</h5>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {selectedProgram.isCustom && (
+                {selectedProgramDays.map((day) => {
+                  const estimate = estimateWorkoutDuration(day.slots);
+                  return (
+                    <div key={day.id} className="bg-gym-card/50 border border-white/5 rounded-2xl overflow-hidden">
+                      <div className="flex items-center justify-between px-3.5 py-2.5 bg-white/5 border-b border-white/5 gap-2">
+                        <div className="min-w-0">
+                          <h5 className="text-xs font-black text-white truncate">{programDayDisplayLabel(day)}</h5>
+                          <p className="mt-0.5 text-[9px] font-semibold text-gym-text-muted">
+                            {estimate.exerciseCount} {estimate.exerciseCount === 1 ? 'exercício' : 'exercícios'} · duração aproximada de {estimate.minutes} min
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {selectedProgram.isCustom && (
+                            <button
+                              onClick={() => handleEditProgramDay(selectedProgram, day)}
+                              className="min-h-[32px] text-[9px] bg-white/5 hover:bg-white/10 border border-white/10 text-white font-extrabold px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1"
+                            >
+                              <Pencil className="w-3 h-3 text-gym-accent" /> Editar
+                            </button>
+                          )}
                           <button
-                            onClick={() => handleEditProgramDay(selectedProgram, day)}
-                            className="min-h-[32px] text-[9px] bg-white/5 hover:bg-white/10 border border-white/10 text-white font-extrabold px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1"
+                            onClick={() => {
+                              startWorkout(selectedProgram.id, undefined, day.id);
+                              setSelectedProgram(null);
+                            }}
+                            className="min-h-[32px] text-[9px] bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1"
                           >
-                            <Pencil className="w-3 h-3 text-gym-accent" /> Editar
+                            <Play className="w-3 h-3 fill-gym-dark" /> Iniciar
                           </button>
-                        )}
-                        <button
-                          onClick={() => {
-                            startWorkout(selectedProgram.id, undefined, day.id);
-                            setSelectedProgram(null);
-                          }}
-                          className="min-h-[32px] text-[9px] bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1"
-                        >
-                          <Play className="w-3 h-3 fill-gym-dark" /> Iniciar
-                        </button>
+                        </div>
+                      </div>
+                      <div className="divide-y divide-white/5">
+                        {day.slots.map((slot, idx) => {
+                          const ex = getExerciseDetails(slot.exerciseId);
+                          return (
+                            <div key={idx} className="p-3 flex items-center justify-between">
+                              <div>
+                                <h6 className="text-xs font-bold text-white">{ex?.name || 'Exercício Desconhecido'}</h6>
+                                <p className="text-[10px] text-gym-text-muted capitalize">
+                                  {ex?.muscleGroup || 'Geral'} • Descanso {slot.restSec}s • RPE {slot.targetRPE}
+                                </p>
+                              </div>
+                              <span className="text-xs font-extrabold text-gym-accent font-mono whitespace-nowrap">
+                                {slot.series} x {slot.repRange[0] === slot.repRange[1] ? slot.repRange[0] : `${slot.repRange[0]}-${slot.repRange[1]}`}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                    <div className="divide-y divide-white/5">
-                      {day.slots.map((slot, idx) => {
-                        const ex = getExerciseDetails(slot.exerciseId);
-                        return (
-                          <div key={idx} className="p-3 flex items-center justify-between">
-                            <div>
-                              <h6 className="text-xs font-bold text-white">{ex?.name || 'Exercício Desconhecido'}</h6>
-                              <p className="text-[10px] text-gym-text-muted capitalize">
-                                {ex?.muscleGroup || 'Geral'} • Descanso {slot.restSec}s • RPE {slot.targetRPE}
-                              </p>
-                            </div>
-                            <span className="text-xs font-extrabold text-gym-accent font-mono whitespace-nowrap">
-                              {slot.series} x{' '}
-                              {slot.repRange[0] === slot.repRange[1] ? slot.repRange[0] : `${slot.repRange[0]}-${slot.repRange[1]}`}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Botões */}
@@ -572,13 +590,22 @@ export const WorkoutsTab = () => {
                   <Calendar className="w-3.5 h-3.5" />
                   Planejar Semana
                 </button>
-                <button
-                  onClick={() => handleStartProgram(selectedProgram)}
-                  className="flex-1 min-h-[44px] py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center justify-center gap-1.5"
-                >
-                  Iniciar Treino Agora
-                  <Play className="w-3.5 h-3.5 fill-gym-dark" />
-                </button>
+                {selectedProgramDays.length === 1 ? (
+                  <button
+                    onClick={() => handleStartProgram(selectedProgram)}
+                    className="flex-1 min-h-[44px] py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center justify-center gap-1.5"
+                  >
+                    Iniciar Treino Agora
+                    <Play className="w-3.5 h-3.5 fill-gym-dark" />
+                  </button>
+                ) : (
+                  <div className="flex-1 min-h-[44px] py-3 px-4 bg-gym-accent/10 border border-gym-accent/25 text-gym-accent rounded-xl text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 text-center">
+                    <ListChecks className="w-3.5 h-3.5 flex-shrink-0" />
+                    {selectedProgramDays.length > 1
+                      ? 'Escolha um dia acima para iniciar'
+                      : 'Programa sem dias disponíveis'}
+                  </div>
+                )}
               </div>
             </div>
           </div>
