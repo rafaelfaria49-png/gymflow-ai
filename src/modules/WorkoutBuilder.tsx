@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, ChevronLeft, Play, Save, Sparkles } from 'lucide-react';
-import { useGymFlow } from '../providers/GymFlowContext';
+import { useGymFlow, type AppView } from '../providers/GymFlowContext';
 import type { Exercise, ExerciseSlot, VolumeProfile, WorkoutBuilderDraft, WorkoutProgram } from '../types';
 import type { MuscleGroupId } from '../types/training-taxonomy';
 import type { TrainingExperienceLevel } from '../types/training-profile';
@@ -11,6 +11,11 @@ import { useToast } from '../components/ui/Toast';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { estimateWorkoutDurationDetailed } from '../lib/workoutDuration';
 import { createBuilderId } from '../lib/workout-builder-id';
+import { getProgramDays } from '../lib/workout-program-days';
+import {
+  createBeforeUnloadGuard,
+  type ViewLeaveRequest,
+} from '../lib/view-navigation-guard';
 import {
   cloneSlots,
   normalizeWorkoutProgramForBuilder,
@@ -121,6 +126,7 @@ export const WorkoutBuilder = () => {
     builderReturnView,
     builderCreationStep,
     setActiveView,
+    registerViewLeaveGuard,
     saveCustomProgram,
     startWorkout,
     weeklyPlan,
@@ -150,7 +156,7 @@ export const WorkoutBuilder = () => {
   const [draft, setDraft] = useState<WorkoutProgramBuilderDraft>(initial.draft);
   const [selectedDayId, setSelectedDayId] = useState<string>(initial.dayId);
 
-  // GOAL-19B: fase da criação guiada. `savedSignatureRef` continua sendo a linha de base
+  // GOAL-19B: fase da criação guiada. `savedSignature` continua sendo a linha de base
   // do dirty-state — aplicar template/frequência muda o draft mas NÃO a base, então sair
   // sem salvar dispara o ConfirmDialog (PART 16). O passo inicial pode vir deep-linkado
   // do estado vazio de "Meus Treinos" (PART 12).
@@ -163,15 +169,44 @@ export const WorkoutBuilder = () => {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [startPickerOpen, setStartPickerOpen] = useState(false);
   const [weekdayPickerVisible, setWeekdayPickerVisible] = useState(false);
-  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [pendingNavigationView, setPendingNavigationView] = useState<AppView | null>(null);
   const [dayPendingRemoval, setDayPendingRemoval] = useState<string | null>(null);
   // Após a criação guiada a dica de frequência é redundante — já foi oferecida no gate.
   const [frequencyHintDismissed, setFrequencyHintDismissed] = useState(initial.startsInCreation);
 
-  const savedSignatureRef = useRef<string>(serializeDraftSignature(draft));
+  const [savedSignature, setSavedSignature] = useState(() => serializeDraftSignature(draft));
+  const savedSignatureRef = useRef(savedSignature);
+  const draftRef = useRef(draft);
+  const pendingViewLeaveRef = useRef<ViewLeaveRequest<AppView> | null>(null);
   const markSaved = (saved: WorkoutProgramBuilderDraft) => {
-    savedSignatureRef.current = serializeDraftSignature(saved);
+    const signature = serializeDraftSignature(saved);
+    savedSignatureRef.current = signature;
+    setSavedSignature(signature);
   };
+
+  const draftDirty = isDraftDirty(draft, savedSignature);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    savedSignatureRef.current = savedSignature;
+  }, [savedSignature]);
+
+  useEffect(() => registerViewLeaveGuard((request) => {
+    if (!isDraftDirty(draftRef.current, savedSignatureRef.current)) return true;
+    if (pendingViewLeaveRef.current) return false;
+    pendingViewLeaveRef.current = request;
+    setPendingNavigationView(request.nextView);
+    return false;
+  }), [registerViewLeaveGuard]);
+
+  useEffect(() => {
+    const beforeUnload = createBeforeUnloadGuard(window);
+    beforeUnload.setDirty(draftDirty);
+    return beforeUnload.dispose;
+  }, [draftDirty]);
 
   const selectedDay = findDay(draft, selectedDayId) ?? draft.days[0];
   const selectedIndex = draft.days.findIndex((day) => day.id === selectedDay.id);
@@ -274,6 +309,7 @@ export const WorkoutBuilder = () => {
     // Reaproveita o mesmo id/dias nos próximos salvamentos desta sessão (sem duplicar).
     sourceProgramRef.current = program;
     const persisted = { ...current, programId: program.id };
+    draftRef.current = persisted;
     setDraft(persisted);
     markSaved(persisted);
     return program;
@@ -302,7 +338,12 @@ export const WorkoutBuilder = () => {
 
   const handlePlanToWeekday = (weekdayName: string) => {
     const program = persist(draft);
-    const day = program.weeks[0].days[selectedIndex] ?? program.weeks[0].days[0];
+    const programDays = getProgramDays(program);
+    const day = programDays[selectedIndex] ?? programDays[0];
+    if (!day) {
+      toast.error('O programa salvo não possui um dia válido para planejar.');
+      return;
+    }
     assignDayToWeekday(weekdayName, program, day);
     setActiveView('planner');
   };
@@ -314,7 +355,7 @@ export const WorkoutBuilder = () => {
       return;
     }
     const program = persist(draft);
-    const programDay = program.weeks[0].days.find((item) => item.id === day.id);
+    const programDay = getProgramDays(program).find((item) => item.id === day.id);
     if (!programDay) return;
     setStartPickerOpen(false);
     // explicitDay: não depende do setState de customPrograms ter propagado.
@@ -332,10 +373,27 @@ export const WorkoutBuilder = () => {
 
   // ===== Saída =====
 
+  const handleCompleteWithoutPlanning = () => {
+    if (!guardHasExercise('salvar')) return;
+    const program = persist(draft);
+    setWorkoutsTab('mine');
+    toast.success(`"${program.name}" salvo em Meus Treinos sem alterar o planejamento.`);
+    setActiveView('workouts');
+  };
+
   const handleCancel = () => setActiveView(builderReturnView);
-  const handleCancelClick = () => {
-    if (isDraftDirty(draft, savedSignatureRef.current)) setShowDiscardConfirm(true);
-    else handleCancel();
+  const handleCancelClick = handleCancel;
+
+  const cancelPendingNavigation = () => {
+    pendingViewLeaveRef.current = null;
+    setPendingNavigationView(null);
+  };
+
+  const confirmPendingNavigation = () => {
+    const pending = pendingViewLeaveRef.current;
+    pendingViewLeaveRef.current = null;
+    setPendingNavigationView(null);
+    pending?.proceed();
   };
 
   const pendingRemovalDay = dayPendingRemoval ? findDay(draft, dayPendingRemoval) : undefined;
@@ -355,7 +413,7 @@ export const WorkoutBuilder = () => {
     trainingStatus: user?.trainingStatus,
   };
 
-  // Substitui o draft pelo recém-criado e entra no editor. NÃO mexe em `savedSignatureRef`:
+  // Substitui o draft pelo recém-criado e entra no editor. NÃO mexe em `savedSignature`:
   // o draft aplicado fica "sujo" em relação à base em branco, protegendo a saída.
   const enterEditorWithDraft = (created: WorkoutProgramBuilderDraft) => {
     setDraft(created);
@@ -553,10 +611,7 @@ export const WorkoutBuilder = () => {
             </p>
           )}
           <button
-            onClick={() => {
-              setWorkoutsTab('mine');
-              setActiveView('workouts');
-            }}
+            onClick={handleCompleteWithoutPlanning}
             className="text-[10px] font-bold text-gym-text-muted hover:text-white underline"
           >
             Concluir sem planejar
@@ -595,17 +650,14 @@ export const WorkoutBuilder = () => {
       </div>
 
       <ConfirmDialog
-        isOpen={showDiscardConfirm}
+        isOpen={pendingNavigationView !== null}
         variant="destructive"
-        title="Descartar alterações não salvas?"
-        description={`Este programa tem ${draft.days.length} dia(s) com alterações que ainda não foram salvas. Se sair agora, esse progresso será perdido.`}
-        confirmLabel="Descartar"
+        title="Sair sem salvar?"
+        description={`Este programa tem ${draft.days.length} dia(s) com alterações que ainda não foram salvas. Ao ir para outra tela, esse progresso será perdido.`}
+        confirmLabel="Sair sem salvar"
         cancelLabel="Continuar editando"
-        onConfirm={() => {
-          setShowDiscardConfirm(false);
-          handleCancel();
-        }}
-        onCancel={() => setShowDiscardConfirm(false)}
+        onConfirm={confirmPendingNavigation}
+        onCancel={cancelPendingNavigation}
       />
 
       <ConfirmDialog

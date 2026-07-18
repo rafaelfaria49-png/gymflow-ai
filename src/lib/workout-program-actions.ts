@@ -8,10 +8,11 @@
 //  - Excluir só limpa referências FUTURAS no weeklyPlan — histórico não é reescrito.
 //  - `WorkoutProgram.exercises` (lista achatada legada) nunca é recriada para customs.
 
-import type { ProgramWeek, WeeklyWorkoutDay, WorkoutProgram } from '../types';
+import type { ProgramDay, ProgramWeek, WeeklyWorkoutDay, WorkoutProgram } from '../types';
 import type { BuilderIdFactory } from '../types/workout-builder';
 import { createBuilderId } from './workout-builder-id';
 import { cloneSlots, slotsFromLegacyExercises } from './workout-program-normalization';
+import { getProgramDays, resolveProgramDays } from './workout-program-days';
 import { normalizeText } from './exerciseSearch';
 import {
   MISSING_PROGRAM_DAY_ISSUE,
@@ -20,17 +21,36 @@ import {
 
 // ===== Cópia com novos ids =====
 
+function isCloneableProgramDay(value: unknown): value is ProgramDay {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<ProgramDay>;
+  return typeof candidate.id === 'string'
+    && typeof candidate.name === 'string'
+    && Array.isArray(candidate.slots);
+}
+
 function cloneProgramWeeks(program: WorkoutProgram, createId: BuilderIdFactory): ProgramWeek[] {
-  const weeks = Array.isArray(program.weeks) ? program.weeks : [];
-  const clonedWeeks = weeks.map((week) => ({
-    number: week.number,
-    days: (week.days ?? []).map((day) => ({
-      ...day,
-      id: createId('day'),
-      slots: cloneSlots(day.slots),
-      ...(Array.isArray(day.muscleGroupIds) ? { muscleGroupIds: [...day.muscleGroupIds] } : {}),
-    })),
-  }));
+  const canonicalDays = getProgramDays(program);
+  const rawWeeks = (program as unknown as { weeks?: unknown }).weeks;
+  const weeks = Array.isArray(rawWeeks) ? rawWeeks : [];
+  const clonedWeeks: ProgramWeek[] = weeks
+    .filter((week) => Boolean(week) && typeof week === 'object')
+    .map((week, index) => {
+      const rawDays = (week as { days?: unknown }).days;
+      const days = index === 0
+        ? canonicalDays
+        : Array.isArray(rawDays) ? rawDays.filter(isCloneableProgramDay) : [];
+      const number = (week as { number?: unknown }).number;
+      return {
+        number: typeof number === 'number' && Number.isFinite(number) ? number : index + 1,
+        days: days.map((day) => ({
+          ...day,
+          id: createId('day'),
+          slots: cloneSlots(day.slots),
+          ...(Array.isArray(day.muscleGroupIds) ? { muscleGroupIds: [...day.muscleGroupIds] } : {}),
+        })),
+      };
+    });
   if (clonedWeeks.some((week) => week.days.length > 0)) return clonedWeeks;
 
   // Compatibilidade v1: programas persistidos antes da estrutura de dias podem ter
@@ -63,7 +83,7 @@ function cloneProgramWithNewIds(
     name: `${program.name}${renameSuffix}`,
     durationWeeks: program.durationWeeks,
     // Honesto: reflete o número real de dias do programa copiado.
-    frequencyDays: weeks[0]?.days.length ?? program.frequencyDays,
+    frequencyDays: weeks.at(0)?.days.length ?? program.frequencyDays,
     level: program.level,
     objective: program.objective,
     // Custom novo NUNCA recria a lista achatada legada (fonte canônica = weeks[0].days).
@@ -113,7 +133,7 @@ export function analyzeProgramDeletion(
   program: WorkoutProgram,
   weeklyPlan: readonly WeeklyWorkoutDay[] | undefined | null,
 ): ProgramDeletionImpact {
-  const days = program.weeks?.[0]?.days ?? [];
+  const days = getProgramDays(program);
   const dayCount = programDayCount(program);
   const exerciseCount = days.length > 0
     ? days.reduce((total, day) => total + (day.slots?.length ?? 0), 0)
@@ -165,9 +185,9 @@ export type ProgramFilterKind = 'all' | 'mine' | 'ready';
 export type ProgramSortKey = 'recent' | 'name' | 'days';
 
 export function programDayCount(program: WorkoutProgram): number {
-  const persistedCount = program.weeks?.[0]?.days?.length ?? 0;
-  if (persistedCount > 0) return persistedCount;
-  return slotsFromLegacyExercises(program).length > 0 ? 1 : 0;
+  const resolution = resolveProgramDays(program);
+  if (resolution.kind === 'canonical') return resolution.days.length;
+  return resolution.kind === 'legacy-flat' ? 1 : 0;
 }
 
 /** Busca por nome — ignora acentos e caixa, casa por tokens (reusa a normalização existente). */

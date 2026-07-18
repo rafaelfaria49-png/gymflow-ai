@@ -5,6 +5,7 @@ import { useGymFlow } from '../providers/GymFlowContext';
 import { WeeklyWorkoutDay, WorkoutProgram, ProgramDay } from '../types';
 import { AlertTriangle, Calendar, Sparkles, Play, RotateCcw, Sliders, Clock, Move, Copy, Wrench, Pencil, ListChecks, X } from 'lucide-react';
 import { programDayDisplayLabel } from '../lib/workout-day-naming';
+import { getProgramDays, resolveProgramDays } from '../lib/workout-program-days';
 import { estimateWorkoutDuration } from '../lib/workoutDuration';
 
 const hasMissingProgramDayIssue = (day: WeeklyWorkoutDay): boolean =>
@@ -37,6 +38,10 @@ export const PlannerView = () => {
   );
   const [frequency, setFrequency] = useState<number>(user?.frequency || 4);
   const [duration, setDuration] = useState<number>(user?.duration || 60);
+  const plannablePrograms = programs
+    .map((program) => ({ program, days: getProgramDays(program) }))
+    .filter(({ days }) => days.length > 0);
+  const hasLegacyFlatPrograms = programs.some((program) => resolveProgramDays(program).kind === 'legacy-flat');
 
   // Swapping and duplicating states
   const [movingFromDay, setMovingFromDay] = useState<string | null>(null);
@@ -80,7 +85,7 @@ export const PlannerView = () => {
   // um programa vinculado) — nunca mais o modal antigo que fabricava exerciseCount.
   const handleEditDay = (day: WeeklyWorkoutDay) => {
     const sourceProgram = programs.find((p) => p.id === day.programId);
-    const sourceDay = sourceProgram?.weeks?.flatMap((week) => week.days).find((d) => d.id === day.programDayId);
+    const sourceDay = getProgramDays(sourceProgram).find((candidate) => candidate.id === day.programDayId);
     const hasBrokenProgramLink = Boolean(day.programId || day.programDayId) && (!sourceProgram || !sourceDay);
 
     // Um vínculo removido precisa ser escolhido novamente. Abrir o Construtor sem
@@ -545,15 +550,15 @@ export const PlannerView = () => {
               </button>
             </div>
 
-            {programs.filter((p) => (p.weeks?.[0]?.days?.length ?? 0) > 0).length === 0 ? (
+            {plannablePrograms.length === 0 ? (
               <p className="text-xs text-gym-text-muted text-center py-8">
-                Nenhum programa com dias estruturados disponível ainda.
+                {hasLegacyFlatPrograms
+                  ? 'Os programas antigos ainda não possuem dias planejáveis. Use como base e salve no novo formato.'
+                  : 'Nenhum programa com dias estruturados disponível ainda.'}
               </p>
             ) : (
               <div className="space-y-4">
-                {programs
-                  .filter((p) => (p.weeks?.[0]?.days?.length ?? 0) > 0)
-                  .map((program) => (
+                {plannablePrograms.map(({ program, days }) => (
                     <div key={program.id} className="space-y-1.5">
                       <span className="text-[10px] font-black uppercase tracking-wider text-gym-text-muted flex items-center gap-1.5">
                         {program.name}
@@ -561,7 +566,7 @@ export const PlannerView = () => {
                           <span className="text-[8px] bg-gym-accent/15 text-gym-accent px-1.5 py-0.5 rounded-full">Meu treino</span>
                         )}
                       </span>
-                      {(program.weeks[0]?.days || []).map((day) => {
+                      {days.map((day) => {
                         const estimate = estimateWorkoutDuration(day.slots);
                         return (
                           <button

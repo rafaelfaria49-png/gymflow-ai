@@ -22,6 +22,7 @@ import {
 import { estimateWorkoutDuration, muscleGroupsForSlots } from '../lib/workoutDuration';
 import { programDayDisplayLabel } from '../lib/workout-day-naming';
 import { slotsFromLegacyExercises } from '../lib/workout-program-normalization';
+import { getProgramDays, resolveProgramDays } from '../lib/workout-program-days';
 import {
   analyzeProgramDeletion,
   organizePrograms,
@@ -35,8 +36,8 @@ import { WorkoutProgramDeleteDialog } from '../components/workout-builder/Workou
 // O id sintético nunca é persistido nem enviado ao Context; serve para o card/modal
 // exibirem esse legado honestamente como o único treino que ele representa.
 const displayDaysForProgram = (program: WorkoutProgram): ProgramDay[] => {
-  const persistedDays = program.weeks?.[0]?.days ?? [];
-  if (persistedDays.length > 0) return persistedDays;
+  const resolution = resolveProgramDays(program);
+  if (resolution.kind === 'canonical') return resolution.days;
 
   const legacySlots = slotsFromLegacyExercises(program);
   if (legacySlots.length === 0) return [];
@@ -157,15 +158,15 @@ export const WorkoutsTab = () => {
   const visiblePrograms = kind === 'ready'
     ? organized.filter((program) => program.level === selectedLevel)
     : organized;
-  const selectedPersistedProgramDays = selectedProgram?.weeks?.[0]?.days ?? [];
-  const selectedProgramHasLegacyExercises = selectedPersistedProgramDays.length === 0
-    && (selectedProgram?.exercises?.length ?? 0) > 0;
+  const selectedProgramResolution = resolveProgramDays(selectedProgram);
+  const selectedProgramHasLegacyExercises = selectedProgramResolution.kind === 'legacy-flat';
   const selectedProgramDays = selectedProgram ? displayDaysForProgram(selectedProgram) : [];
 
   const handleStartProgram = (program: WorkoutProgram) => {
-    const days = program.weeks?.[0]?.days ?? [];
+    const resolution = resolveProgramDays(program);
+    const days = resolution.kind === 'canonical' ? resolution.days : [];
 
-    if (days.length === 0 && (program.exercises?.length ?? 0) > 0) {
+    if (resolution.kind === 'legacy-flat') {
       // Compatibilidade v1 explícita: uma lista achatada representa um único treino
       // legado. O resolver do Context mantém esse caminho separado de programa vazio.
       startWorkout(program.id);
@@ -190,7 +191,7 @@ export const WorkoutsTab = () => {
   };
 
   const handleEditProgram = (program: WorkoutProgram) => {
-    const firstDay = program.weeks[0]?.days[0];
+    const firstDay = getProgramDays(program)[0];
     openWorkoutBuilder(
       {
         programId: program.id,
@@ -482,7 +483,7 @@ export const WorkoutsTab = () => {
                     <button
                       onClick={() => handleStartProgram(prog)}
                       className="bg-white/5 hover:bg-gym-accent/15 hover:text-gym-accent border border-white/10 hover:border-gym-accent/20 p-2.5 rounded-xl transition-all tap-target flex items-center justify-center"
-                      title={(prog.weeks[0]?.days.length ?? 0) > 1 ? 'Escolher dia do treino' : 'Iniciar Treino'}
+                      title={getProgramDays(prog).length > 1 ? 'Escolher dia do treino' : 'Iniciar Treino'}
                       aria-label={`Iniciar ${prog.name}`}
                     >
                       <Play className="w-3.5 h-3.5 fill-current" />

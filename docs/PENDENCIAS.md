@@ -1,5 +1,20 @@
 # Pendências
 
+## GOAL-19B.2A — Merge readiness
+
+- **Testes de interação continuam sem DOM/Testing Library:** controller de navegação,
+  continuação idempotente, cleanup e `beforeunload` têm cobertura pura; menu mobile, lateral,
+  TopBar, diálogo e preservação visual do draft dependem do QA manual no navegador.
+- **Repetir a matriz manual do GOAL-19B.2A:** nesta execução a página renderizou em desktop e
+  390×844 sem `error`/`warn`, mas a automação do navegador apenas focou os botões e não despachou
+  os handlers React em nenhuma das duas instâncias testadas. Os fluxos de descarte, saída após
+  salvar, reload e fixtures legadas não foram marcados como aprovados visualmente.
+- **Programa flat não pode ser planejado diretamente:** por não possuir `ProgramDay.id` real,
+  deve ser aberto/derivado e salvo no formato canônico antes de entrar no calendário. A UI
+  informa essa limitação em vez de fabricar vínculo.
+- **Warnings herdados de hooks:** manter apenas se a validação focada confirmar os mesmos três
+  `react-hooks/exhaustive-deps` já registrados no Context, sem warning novo.
+
 ## GOAL-19B — Criação guiada e templates
 
 - **GOAL-20 é o próximo passo natural:** motor de sugestões, filtros e seleção inteligente de exercícios. Este GOAL preparou a superfície (templates estruturais + criação guiada), mas **não** escolhe, pontua nem substitui exercícios — isso permanece proibido até o GOAL-20.

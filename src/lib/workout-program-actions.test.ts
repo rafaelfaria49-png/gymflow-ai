@@ -94,6 +94,19 @@ describe('duplicateWorkoutProgram (GOAL-19B PART 8)', () => {
     expect(copy.frequencyDays).toBe(1);
   });
 
+  it('preserva semanas adicionais válidas com novos ids', () => {
+    const original = program({
+      weeks: [
+        { number: 1, days: [day('week-1')] },
+        { number: 2, days: [day('week-2', { name: 'Segunda semana' })] },
+      ],
+    });
+    const copy = duplicateWorkoutProgram(original, createSequentialIdFactory());
+    expect(copy.weeks).toHaveLength(2);
+    expect(copy.weeks[1].days[0].name).toBe('Segunda semana');
+    expect(copy.weeks[1].days[0].id).not.toBe('week-2');
+  });
+
   it('promove um programa legado achatado sem perder exercícios', () => {
     const legacy = program({
       weeks: [],

@@ -4,6 +4,53 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-19B.2A — Merge readiness: dirty-state global e planejamento legado (2026-07-18)
+
+### Escopo e decisões
+
+- Trabalho executado em `feat/gymflow-goal19b-guided-builder`, com HEAD local/remoto inicial
+  `813764c557e8822fc95e53cf7ec133c825098911`; a referência local
+  `safety/gymflow-goal19b-before-readiness-fix` foi criada nesse ponto e não recebeu push.
+- `setActiveView` ganhou um guard transitório central. O Construtor registra o único guard ativo,
+  apresenta o `ConfirmDialog` existente e guarda uma continuação idempotente; menus mobile e
+  desktop, TopBar, ações internas, Voltar e logout passam pelo mesmo contrato.
+- `beforeunload` existe somente enquanto a assinatura está suja. Salvar atualiza draft e assinatura
+  antes de navegar; “Concluir sem planejar” valida, persiste e abre Meus Treinos sem modificar o
+  calendário.
+- A leitura de dias agora distingue `canonical`, `legacy-flat` e `empty`. Programa canônico de um
+  dia sem `programDayId` é reconciliado com seu ID real; multi-dia ambíguo e ID removido continuam
+  inválidos; dias treinados permanecem snapshots e conteúdo flat não recebe ID inventado.
+- Storage/envelope v1, catálogo, seeds, progressão, volume, duração, treino ativo e `NumericInput`
+  permaneceram inalterados. Nenhuma dependência foi adicionada.
+
+### Validações
+
+- Baseline: 25 arquivos e **492 testes** aprovados, além de TypeScript, build web e build mobile.
+- Resultado: 27 arquivos e **513 testes** aprovados (**21 casos novos**), sem excluir testes;
+  `npx tsc --noEmit`, `npm run build` e `npm run build:mobile` aprovados no Next.js 16.2.6.
+- ESLint focado em todos os TypeScript/TSX alterados: zero erros e somente os mesmos três avisos
+  herdados de `react-hooks/exhaustive-deps` em `GymFlowContext.tsx`.
+- Não há `alert(`/`confirm(` nativo; `weeks[0]` ficou apenas em testes, documentação e no resolver
+  defensivo. `git diff --check`, auditoria de dependências e hashes protegidos passaram.
+- SHA-256 antes/depois idênticos: `exercises.ts` `8107BB3A…52AF`, `programs.ts`
+  `C87447A6…F41B`, `progression.ts` `BB0D62B4…C4FD`, `storage.ts` `1B041243…AED`,
+  `training-volume.ts` `26D2D1E1…9AE4`, `workoutDuration.ts` `178D75D0…6AB7`,
+  `ActiveWorkoutPage.tsx` `5C072446…BE4` e `NumericInput.tsx` `97ED1658…ADA5`.
+
+### Checagem no navegador
+
+- A aplicação renderizou em desktop e em **390×844**, sem erro ou aviso no console. A automação do
+  navegador, porém, apenas focou os botões e não despachou os handlers React, tanto no servidor
+  isolado quanto na instância do workspace; a instrumentação diagnóstica temporária foi removida.
+- Por isso, os cliques de descarte/cancelamento, menus, saída após salvar, persistência após reload e
+  fixtures legadas **não foram declarados aprovados manualmente** nesta execução. Controller,
+  continuação, cleanup, `beforeunload`, resolução legada e reconciliação estão cobertos por testes
+  determinísticos; a matriz visual continua pendente de repetição manual.
+- O servidor e a pasta temporários foram encerrados/removidos. `.claude/settings.local.json`
+  permaneceu intocado e fora do commit; nenhum push foi feito.
+
+---
+
 ## GOAL-19B.1 — Integração do salvamento seguro ao Construtor guiado (2026-07-18)
 
 ### Integração e decisões

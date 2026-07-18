@@ -70,6 +70,30 @@ O Planejador mostra o aviso “O dia usado neste planejamento foi removido do pr
 
 `weeklyPlan` e `user.weeklyPlan` recebem exatamente a mesma versão reconciliada. Um usuário nulo não impede a atualização do estado principal.
 
+### Compatibilidade de vínculo sem programDayId
+
+Um planejamento v1 pode conter `programId` e omitir `programDayId`. Ao salvar o programa:
+
+- se existe exatamente um dia canônico, o vínculo é preservado e recebe o ID real desse dia;
+- nome, grupos, duração e quantidade são recalculados, e `planningIssue` é removido;
+- se existem vários dias, a referência continua ambígua, é invalidada e exige escolha;
+- se um ID foi informado e não existe mais, ele é invalidado mesmo que reste um único dia;
+- dias já treinados continuam snapshots intocados e nunca recebem um ID novo.
+
+Isso não reintroduz fallback para o Dia 1: a associação automática existe somente para a
+ausência histórica de ID em um programa inequivocamente de um único dia.
+
+## Leitura defensiva de dias
+
+`resolveProgramDays` centraliza a leitura da primeira semana canônica e sempre devolve um
+resultado tipado: `canonical`, `legacy-flat` ou `empty`. `weeks` ausente/vazio, primeira semana
+ausente, `days` ausente/inválido/vazio e entradas de dia inválidas não lançam exceção.
+
+Conteúdo flat legado permanece separado: detalhes e início usam `WorkoutProgram.exercises`;
+abrir no Construtor cria apenas um draft em memória; duplicar ou “Usar como base” converte a
+estrutura somente como consequência dessa ação explícita. O Planejador não fabrica
+`programDayId` para conteúdo flat e orienta salvar no novo formato antes de planejar.
+
 ## Resolução estrita para iniciar
 
 As regras para programas estruturados são:

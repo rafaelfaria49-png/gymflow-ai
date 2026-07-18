@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import {
   UserProfile,
   Exercise,
@@ -54,6 +54,11 @@ import {
 import { estimateWorkoutDuration, muscleGroupsForSlots } from '../lib/workoutDuration';
 import { programDayDisplayLabel } from '../lib/workout-day-naming';
 import { reconcileWeeklyPlanWithProgram } from '../lib/workout-plan-sync';
+import { getProgramDays, resolveProgramDays } from '../lib/workout-program-days';
+import {
+  createViewNavigationGuard,
+  type ViewLeaveGuard,
+} from '../lib/view-navigation-guard';
 import {
   resolveWorkoutStart,
   upsertWorkoutProgram,
@@ -149,6 +154,7 @@ interface ChatMessage {
 interface GymFlowContextType {
   activeView: AppView;
   setActiveView: (view: AppView) => void;
+  registerViewLeaveGuard: (guard: ViewLeaveGuard<AppView>) => () => void;
   user: UserProfile | null;
   loginDemoUser: () => void;
   registerUser: (profile: Partial<UserProfile>) => void;
@@ -306,7 +312,7 @@ function activeDaysForFrequency(frequency: number): string[] {
 // muscleGroupsForSlots (src/lib/workoutDuration.ts) — a mesma dupla de funções
 // usada pelo Construtor de Treino, então o card nunca mais diverge do treino real.
 function buildWeekFromProgram(program: WorkoutProgram, frequency: number, allExercises: Exercise[]): WeeklyWorkoutDay[] {
-  const programDays = program.weeks?.[0]?.days ?? [];
+  const programDays = getProgramDays(program);
   const activeDays = activeDaysForFrequency(frequency);
   let cursor = 0;
   return DAYS_ORDER.map((dayName) => {
@@ -374,8 +380,8 @@ const GOAL_KEYWORDS: Record<string, RegExp> = {
 
 // Escolhe o programa real mais adequado ao perfil: nível > objetivo > público-alvo.
 function selectProgramForProfile(programs: WorkoutProgram[], goal: string, level: string, gender: string): WorkoutProgram {
-  const byLevel = programs.filter((p) => p.level === level && (p.weeks?.[0]?.days?.length ?? 0) > 0);
-  const pool = byLevel.length > 0 ? byLevel : programs.filter((p) => (p.weeks?.[0]?.days?.length ?? 0) > 0);
+  const byLevel = programs.filter((p) => p.level === level && getProgramDays(p).length > 0);
+  const pool = byLevel.length > 0 ? byLevel : programs.filter((p) => getProgramDays(p).length > 0);
   const goalRe = GOAL_KEYWORDS[goal];
   const genderLabel = gender === 'female' ? 'Feminino' : gender === 'male' ? 'Masculino' : 'Unissex';
   const matchesGoal = (p: WorkoutProgram) => (goalRe ? goalRe.test(`${p.objective} ${p.name} ${p.description}`) : false);
@@ -416,6 +422,8 @@ function playBeep() {
 export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const toast = useToast();
   const [activeView, setActiveViewState] = useState<AppView>('landing');
+  const activeViewRef = useRef<AppView>('landing');
+  const viewNavigationGuardRef = useRef(createViewNavigationGuard<AppView>());
   const [user, setUser] = useState<UserProfile | null>(null);
 
   // Lists
@@ -481,12 +489,26 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     activeWorkoutRef.current = next;
     setActiveWorkoutState(() => next);
   };
-  const setActiveView = (view: AppView) => {
+  const commitActiveView = useCallback((view: AppView) => {
+    activeViewRef.current = view;
+    setActiveViewState(view);
+  }, []);
+  const requestActiveView = useCallback((view: AppView, commit?: () => void) => (
+    viewNavigationGuardRef.current.request(
+      activeViewRef.current,
+      view,
+      commit ?? (() => commitActiveView(view)),
+    )
+  ), [commitActiveView]);
+  const setActiveView = useCallback((view: AppView) => {
     // Superfícies legadas podem tentar navegar mesmo quando startWorkout bloqueia
     // um programa multi-dia sem escolha. Nunca abrir a tela ativa sem sessão real.
     if (view === 'active-workout' && !activeWorkoutRef.current) return;
-    setActiveViewState(view);
-  };
+    requestActiveView(view);
+  }, [requestActiveView]);
+  const registerViewLeaveGuard = useCallback((guard: ViewLeaveGuard<AppView>) => (
+    viewNavigationGuardRef.current.register(guard)
+  ), []);
   // Timestamp de início (ms) — fonte da verdade do tempo decorrido; sobrevive a refresh.
   const [activeWorkoutStartedAt, setActiveWorkoutStartedAtState] = useState<number | null>(null);
   const activeWorkoutStartedAtRef = useRef<number | null>(null);
@@ -1011,17 +1033,19 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
-    setUser(null);
-    setWeeklyPlan([]);
-    setActiveWorkout(null);
-    setActiveWorkoutStartedAt(null);
-    setWorkoutDuration(0);
-    setRestTimerEndAt(null);
-    setRestTimerTotalSeconds(null);
-    setRestTimerLabel(null);
-    setActiveView('landing');
-    const cleared = clearStateResult(STORAGE_KEY);
-    if (!cleared.ok) toast.error('Não foi possível remover os dados locais deste aparelho.');
+    requestActiveView('landing', () => {
+      setUser(null);
+      setWeeklyPlan([]);
+      setActiveWorkout(null);
+      setActiveWorkoutStartedAt(null);
+      setWorkoutDuration(0);
+      setRestTimerEndAt(null);
+      setRestTimerTotalSeconds(null);
+      setRestTimerLabel(null);
+      commitActiveView('landing');
+      const cleared = clearStateResult(STORAGE_KEY);
+      if (!cleared.ok) toast.error('Não foi possível remover os dados locais deste aparelho.');
+    });
   };
 
   const updateUserPremium = (status: 'free' | 'pro' | 'elite') => {
@@ -1069,7 +1093,35 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     const program = programId
       ? [...programs, ...customProgramsRef.current].find((item) => item.id === programId)
       : undefined;
-    const resolution = resolveWorkoutStart({ programId, program, programDayId, explicitDay });
+    const daysResolution = resolveProgramDays(program);
+    let safeExplicitDay = explicitDay;
+    if (program && !safeExplicitDay && programDayId) {
+      safeExplicitDay = getProgramDays(program).find((day) => day.id === programDayId);
+      if (!safeExplicitDay) {
+        toast.error(workoutStartFailureMessage('program-day-not-found'));
+        return;
+      }
+    } else if (program && !safeExplicitDay && !programDayId && daysResolution.kind === 'canonical') {
+      if (daysResolution.days.length > 1) {
+        toast.error(workoutStartFailureMessage('day-selection-required'));
+        return;
+      }
+      [safeExplicitDay] = daysResolution.days;
+    } else if (program && !safeExplicitDay && daysResolution.kind === 'empty') {
+      toast.error(workoutStartFailureMessage('empty-program'));
+      return;
+    }
+
+    const resolution = program && !safeExplicitDay && daysResolution.kind === 'legacy-flat'
+      ? {
+          status: 'legacy-program' as const,
+          program,
+          origin: {
+            sourceProgramId: program.id,
+            sourceProgramName: program.name,
+          },
+        }
+      : resolveWorkoutStart({ programId, program, programDayId, explicitDay: safeExplicitDay });
     if (resolution.status === 'error') {
       toast.error(workoutStartFailureMessage(resolution.reason));
       return;
@@ -1514,7 +1566,16 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // GOAL-07: atribui um programa específico à semana (usado nos Programas de Treino).
   const applyProgramToWeek = (programId: string) => {
     const program = allPrograms.find((p) => p.id === programId);
-    if (!program || (program.weeks?.[0]?.days?.length ?? 0) === 0) {
+    if (!program) {
+      toast.error('Programa não encontrado.');
+      return;
+    }
+    const daysResolution = resolveProgramDays(program);
+    if (daysResolution.kind === 'legacy-flat') {
+      toast.error('Este programa antigo ainda não possui dias para planejar. Use como base e salve no novo formato.');
+      return;
+    }
+    if (daysResolution.kind === 'empty') {
       toast.error('Programa sem dias estruturados para planejar a semana.');
       return;
     }
@@ -1623,7 +1684,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     }
     const derived = deriveCustomProgramFromSeed(target);
     saveCustomProgram(derived);
-    const firstDay = derived.weeks[0]?.days[0];
+    const firstDay = getProgramDays(derived)[0];
     openWorkoutBuilder(
       {
         programId: derived.id,
@@ -2155,6 +2216,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       value={{
         activeView,
         setActiveView,
+        registerViewLeaveGuard,
         user,
         loginDemoUser,
         registerUser,

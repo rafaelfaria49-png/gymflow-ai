@@ -1,5 +1,6 @@
 import type { Exercise, WeeklyWorkoutDay, WorkoutProgram } from '../types';
 import { programDayDisplayLabel } from './workout-day-naming';
+import { getProgramDays } from './workout-program-days';
 import { estimateWorkoutDuration, muscleGroupsForSlots } from './workoutDuration';
 
 export const MISSING_PROGRAM_DAY_ISSUE = 'missing-program-day' as const;
@@ -24,9 +25,8 @@ export function reconcileWeeklyPlanWithProgram(
   savedProgram: WorkoutProgram,
   exerciseCatalog: Exercise[],
 ): WeeklyPlanReconciliationResult {
-  const programDays = new Map(
-    (savedProgram.weeks ?? []).flatMap((week) => week.days).map((day) => [day.id, day] as const),
-  );
+  const canonicalDays = getProgramDays(savedProgram);
+  const programDays = new Map(canonicalDays.map((day) => [day.id, day] as const));
   const invalidatedDayNames: string[] = [];
   const updatedDayNames: string[] = [];
   let changed = false;
@@ -36,7 +36,9 @@ export function reconcileWeeklyPlanWithProgram(
 
     const programDay = plannedDay.programDayId
       ? programDays.get(plannedDay.programDayId)
-      : undefined;
+      : canonicalDays.length === 1
+        ? canonicalDays[0]
+        : undefined;
 
     if (!programDay) {
       invalidatedDayNames.push(plannedDay.dayName);

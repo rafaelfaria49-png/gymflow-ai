@@ -143,14 +143,74 @@ describe('reconcileWeeklyPlanWithProgram', () => {
     expect(result.weeklyPlan[0].workoutName).not.toContain('Dia que restou');
   });
 
-  it('invalida vínculo do programa sem programDayId em vez de adivinhar um dia', () => {
+  it('reconcilia vínculo legado sem programDayId quando existe exatamente um dia canônico', () => {
+    const result = reconcileWeeklyPlanWithProgram(
+      [plannedDay({ programDayId: undefined, planningIssue: MISSING_PROGRAM_DAY_ISSUE })],
+      makeProgram([makeDay('day-1', 'Único dia', [makeSlot('chest-1', 4)])]),
+      catalog,
+    );
+    expect(result.weeklyPlan[0]).toMatchObject({
+      workoutName: 'Dia 1 — Único dia',
+      muscleGroups: ['chest'],
+      exerciseCount: 1,
+      programId: 'program-1',
+      programDayId: 'day-1',
+      planningIssue: undefined,
+    });
+    expect(result.weeklyPlan[0].duration).toBeGreaterThan(0);
+    expect(result.updatedDayNames).toEqual(['Segunda']);
+    expect(result.invalidatedDayNames).toEqual([]);
+  });
+
+  it('tolera programa legado sem weeks sem lançar', () => {
+    const withoutWeeks = {
+      ...makeProgram([]),
+      weeks: undefined,
+      exercises: [{ exerciseId: 'chest-1', sets: 3, reps: '10' }],
+    } as unknown as WorkoutProgram;
+    const result = reconcileWeeklyPlanWithProgram([plannedDay({ programDayId: undefined })], withoutWeeks, catalog);
+    expect(result.invalidatedDayNames).toEqual(['Segunda']);
+    expect(result.weeklyPlan[0].planningIssue).toBe(MISSING_PROGRAM_DAY_ISSUE);
+  });
+
+  it('invalida vínculo multi-dia sem programDayId sem escolher silenciosamente o Dia 1', () => {
     const result = reconcileWeeklyPlanWithProgram(
       [plannedDay({ programDayId: undefined })],
-      makeProgram([makeDay('day-1', 'Único dia', [makeSlot('chest-1')])]),
+      makeProgram([
+        makeDay('day-1', 'Primeiro dia', [makeSlot('chest-1')]),
+        makeDay('day-2', 'Segundo dia', [makeSlot('legs-1')], 2),
+      ]),
+      catalog,
+    );
+    expect(result.invalidatedDayNames).toEqual(['Segunda']);
+    expect(result.weeklyPlan[0]).toMatchObject({
+      workoutName: MISSING_PROGRAM_DAY_WORKOUT_NAME,
+      programId: undefined,
+      programDayId: undefined,
+      planningIssue: MISSING_PROGRAM_DAY_ISSUE,
+    });
+    expect(result.weeklyPlan[0].workoutName).not.toContain('Primeiro dia');
+  });
+
+  it('não associa o único dia novo a um vínculo com programDayId removido', () => {
+    const result = reconcileWeeklyPlanWithProgram(
+      [plannedDay({ programDayId: 'day-removido' })],
+      makeProgram([makeDay('day-1', 'Dia atual', [makeSlot('chest-1')])]),
       catalog,
     );
     expect(result.weeklyPlan[0].planningIssue).toBe(MISSING_PROGRAM_DAY_ISSUE);
     expect(result.weeklyPlan[0].programId).toBeUndefined();
+  });
+
+  it('mantém snapshot treinado sem programDayId intocado', () => {
+    const trained = plannedDay({ trained: true, programDayId: undefined });
+    const result = reconcileWeeklyPlanWithProgram(
+      [trained],
+      makeProgram([makeDay('day-1', 'Dia atual', [makeSlot('chest-1')])]),
+      catalog,
+    );
+    expect(result.weeklyPlan).toEqual([trained]);
+    expect(result.weeklyPlan[0]).toBe(trained);
   });
 
   it('não muta a semana, o programa nem o catálogo recebidos', () => {

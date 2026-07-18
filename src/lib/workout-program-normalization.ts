@@ -21,6 +21,7 @@ import type {
 import type { TrainingExperienceLevel } from '../types/training-profile';
 import { defaultTargetMinutes } from './volumeProfiles';
 import { createBuilderId } from './workout-builder-id';
+import { getProgramDays } from './workout-program-days';
 import {
   generateWorkoutDayAutoName,
   normalizeMuscleGroupIds,
@@ -76,16 +77,23 @@ export function parseLegacyRepRange(reps: unknown): [number, number] | null {
  * Caminho defensivo: nenhum programa seed atual cai aqui (todos têm weeks[0].days).
  */
 export function slotsFromLegacyExercises(program: WorkoutProgram): ExerciseSlot[] {
-  if (!Array.isArray(program.exercises)) return [];
-  return program.exercises.map((entry) => ({
-    exerciseId: entry.exerciseId,
-    series: Number.isFinite(entry.sets) && entry.sets > 0 ? entry.sets : 3,
-    repRange: parseLegacyRepRange(entry.reps) ?? [8, 12],
-    targetRPE: 8,
-    restSec: 90,
-    progression: 'dupla' as const,
-    incrementKg: 2.5,
-  }));
+  const exercises = (program as unknown as { exercises?: unknown }).exercises;
+  if (!Array.isArray(exercises)) return [];
+  return exercises
+    .filter((entry): entry is WorkoutProgram['exercises'][number] => (
+      Boolean(entry)
+      && typeof entry === 'object'
+      && typeof (entry as { exerciseId?: unknown }).exerciseId === 'string'
+    ))
+    .map((entry) => ({
+      exerciseId: entry.exerciseId,
+      series: Number.isFinite(entry.sets) && entry.sets > 0 ? entry.sets : 3,
+      repRange: parseLegacyRepRange(entry.reps) ?? [8, 12],
+      targetRPE: 8,
+      restSec: 90,
+      progression: 'dupla' as const,
+      incrementKg: 2.5,
+    }));
 }
 
 function normalizeDay(
@@ -142,10 +150,9 @@ export function normalizeWorkoutProgramForBuilder(
     ? options.fallbackTargetMinutes as number
     : defaultTargetMinutes('standard');
 
-  const persistedDays = program?.weeks?.[0]?.days;
-  let days: WorkoutDayBuilderDraft[] = Array.isArray(persistedDays)
-    ? persistedDays.map((day, index) => normalizeDay(day, index, options))
-    : [];
+  const persistedDays = getProgramDays(program);
+  let days: WorkoutDayBuilderDraft[] = persistedDays
+    .map((day, index) => normalizeDay(day, index, options));
 
   // Sem weeks/days: tenta a lista achatada legada antes de desistir do conteúdo.
   if (days.length === 0 && program) {

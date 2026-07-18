@@ -189,7 +189,7 @@ describe('normalizeWorkoutProgramForBuilder — entradas incompletas', () => {
   });
 
   it('programa sem weeks cai na lista achatada legada sem perder os exercícios', () => {
-    const program: WorkoutProgram = {
+    const program = {
       id: 'custom_flat',
       name: 'Treino importado',
       durationWeeks: 0,
@@ -202,9 +202,10 @@ describe('normalizeWorkoutProgramForBuilder — entradas incompletas', () => {
       ],
       description: 'Sem weeks.',
       repeatWeeks: true,
-      weeks: [],
+      weeks: undefined,
       isCustom: true,
-    };
+    } as unknown as WorkoutProgram;
+    const before = structuredClone(program);
     const draft = normalizeWorkoutProgramForBuilder(program, { createId: createSequentialIdFactory() });
 
     expect(draft.days).toHaveLength(1);
@@ -213,6 +214,7 @@ describe('normalizeWorkoutProgramForBuilder — entradas incompletas', () => {
     expect(draft.days[0].slots[0].series).toBe(4);
     expect(draft.days[0].slots[0].repRange).toEqual([8, 12]);
     expect(draft.days[0].slots[1].repRange).toEqual([12, 12]);
+    expect(program).toEqual(before);
   });
 
   it('preserva a lista achatada existente sem recriá-la a partir dos dias', () => {

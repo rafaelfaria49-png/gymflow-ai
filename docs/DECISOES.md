@@ -2,6 +2,17 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-19B.2A (2026-07-18)
+
+- **`setActiveView` continua sendo a navegação pública única:** o Context ganhou um guard transitório central, não um segundo sistema de navegação; toda superfície existente fica protegida sem duplicar diálogos em menus.
+- **Confirmação pertence ao Builder:** o Context entrega uma continuação idempotente e não usa `window.confirm`; o Builder guarda o destino, renderiza o `ConfirmDialog` existente e consome exatamente uma navegação após “Sair sem salvar”.
+- **Logout sujo também é transacional:** limpeza de usuário/storage fica na continuação bloqueada; confirmar executa logout, cancelar preserva integralmente o draft.
+- **“Concluir sem planejar” salva:** a ação valida exercícios, persiste e marca a assinatura antes de abrir Meus Treinos; não atribui novo dia ao calendário.
+- **`beforeunload` é complementar e condicional:** um único listener existe apenas com assinatura suja e é removido ao salvar ou desmontar; nenhuma mensagem nativa customizada foi criada.
+- **Ausência de `programDayId` só é resolvida quando inequívoca:** programa canônico de um dia recebe o ID real; multi-dia continua ambíguo; ID informado e removido continua inválido; dia treinado não é reconciliado.
+- **Dias são lidos por resolução tipada:** `canonical`, `legacy-flat` e `empty` impedem crash sem transformar conteúdo flat em dia canônico durante leitura. O Planejador nunca inventa ID para o legado.
+- **Persistência permanece v1:** guard/destino não são persistidos; nenhum campo de storage, programa seed, exercício, progressão, volume ou duração mudou.
+
 ## GOAL-19B.1 (2026-07-18)
 
 - **Integração usa uma implementação canônica por responsabilidade:** ações guiadas continuam no Context, mas `saveCustomProgram`, `weeklyPlan`, sessão ativa e histórico usam os refs/atualizadores do GOAL-19A.1; não há espelho manual concorrente de `user.weeklyPlan`.
