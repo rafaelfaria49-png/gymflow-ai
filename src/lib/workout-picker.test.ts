@@ -25,6 +25,16 @@ const puxada = exercise('back_puxada_pulley');
 const rosca = exercise('biceps_rosca_direta');
 const flexora = exercise('legs_mesa_flexora');
 
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const nestedValue of Object.values(value as Record<string, unknown>)) {
+      deepFreeze(nestedValue);
+    }
+    Object.freeze(value);
+  }
+  return value;
+}
+
 describe('GOAL-TF-B / PART15 17–22 e 26–27', () => {
   it('PART15-17: normaliza os focos na ordem da taxonomia, sem duplicados ou inválidos', () => {
     const invalid = 'grupo_inexistente' as MuscleGroupId;
@@ -90,6 +100,48 @@ describe('GOAL-TF-B / PART15 17–22 e 26–27', () => {
 });
 
 describe('contratos adicionais do picker por foco', () => {
+  it('resolve três focos na ordem taxonômica, sem duplicar abas e com contadores equivalentes', () => {
+    const focusIds: MuscleGroupId[] = ['triceps', 'back', 'biceps', 'back'];
+    const groups = groupExercisesForDayFocus(MOCK_EXERCISES, focusIds);
+    const tabs = getWorkoutPickerTabs(focusIds);
+
+    expect(groups.map(({ id }) => id)).toEqual(['back', 'biceps', 'triceps']);
+    expect(tabs.map(({ id }) => id)).toEqual([
+      'back',
+      'biceps',
+      'triceps',
+      ALL_EXERCISES_TAB_ID,
+    ]);
+    expect(tabs.at(-1)).toEqual({ id: ALL_EXERCISES_TAB_ID, label: 'Todos' });
+    expect(new Set(tabs.map(({ id }) => id)).size).toBe(tabs.length);
+
+    for (const group of groups) {
+      const filtered = filterExercisesByDayFocus(MOCK_EXERCISES, [group.id]);
+      expect(group.items).toHaveLength(filtered.exercises.length);
+      expect(group.items.map(({ exercise: item }) => item.id)).toEqual(
+        filtered.exercises.map(({ id }) => id),
+      );
+    }
+  });
+
+  it('não modifica focos, biblioteca, exercícios ou seus arrays internos', () => {
+    const focusIds = deepFreeze<MuscleGroupId[]>(['triceps', 'chest', 'triceps']);
+    const input = deepFreeze(structuredClone([tricepsCorda, puxada, supino]));
+    const focusSnapshot = structuredClone(focusIds);
+    const inputSnapshot = structuredClone(input);
+    const originalOrder = input.map(({ id }) => id);
+
+    getDayFocusGroups(focusIds);
+    groupExercisesForDayFocus(input, focusIds);
+
+    expect(focusIds).toEqual(focusSnapshot);
+    expect(input).toEqual(inputSnapshot);
+    expect(input.map(({ id }) => id)).toEqual(originalOrder);
+    expect(input[0].executionSteps).toEqual(inputSnapshot[0].executionSteps);
+    expect(input[1].substitutions).toEqual(inputSnapshot[1].substitutions);
+    expect(input[2].commonErrors).toEqual(inputSnapshot[2].commonErrors);
+  });
+
   it('preserva a assinatura e o resultado público de filterExercisesByDayFocus por delegação', () => {
     const input = [puxada, supino, tricepsCorda];
     const result = filterExercisesByDayFocus(input, ['triceps']);

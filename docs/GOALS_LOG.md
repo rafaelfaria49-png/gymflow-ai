@@ -1266,7 +1266,7 @@ Próximo passo: **revisão e aprovação do Gate G2 pelo Founder**. Somente depo
 
 ### Validações
 
-- `npx vitest run`: 29 arquivos, **567 testes** aprovados (554 anteriores + 13 novos).
+- `npx vitest run`: 29 arquivos, **569 testes** aprovados (554 anteriores + 15 novos).
 - `npx tsc --noEmit`: aprovado.
 - ESLint nos quatro arquivos TypeScript/TSX tocados: zero erros e zero warnings.
 - `npm run build`: aprovado no Next.js 16.2.6/Turbopack.
@@ -1276,6 +1276,15 @@ Próximo passo: **revisão e aprovação do Gate G2 pelo Founder**. Somente depo
 - QA 360 px: scroll horizontal real (`331 > 281`) com `overflow-x: auto` e snap; documento sem overflow. O overlay passou a `z-[100]` após o QA no navegador revelar que o CTA global `Treinar` cobria os contadores; a correção foi revalidada visualmente.
 - Somente os arquivos autorizados e documentação foram tocados; `handleAddExercise`, seeds, storage, progressão e treino ativo permaneceram intocados.
 - Nenhum push ou merge foi feito; o GOAL C não foi iniciado.
+
+### Corretivo P2 pós-auditoria (2026-07-19)
+
+- Dias sem foco passaram a renderizar explicitamente a tablist com a única aba `Todos`, selecionada, focável e associada ao tabpanel da biblioteca completa.
+- O overlay do picker passou a reservar `calc(1rem + env(safe-area-inset-bottom))`, sem alterar `Navigation`, CTA global, shell ou estilos globais.
+- A cobertura ganhou testes explícitos para três focos em ordem não canônica, `Todos` ao final, contadores equivalentes e imutabilidade profunda das entradas.
+- QA em 360 × 800 e 390 × 844 confirmou rodapé acessível, lista rolável, 16 px de fallback com inset zero, expressão `env(...)` presente, overlay z-100 bloqueando o CTA z-50 e zero overflow/erro/warning. Não houve simulação real de notch.
+- Continuam registrados como riscos P3 a ausência de teste DOM automatizado nesta fase e a dependência circular entre `workout-builder.ts` e `workout-picker.ts`; ambos ficaram fora deste corretivo, com testes, tipos e build verdes.
+- Somente os quatro arquivos autorizados do corretivo foram alterados; não houve push, alteração na `master` nem início do GOAL C.
 
 ### Continuação
 

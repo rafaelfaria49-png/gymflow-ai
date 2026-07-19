@@ -92,6 +92,7 @@ const ExercisePickerContent = ({
   return (
     <div
       className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-4"
+      style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
       onClick={onClose}
       role="presentation"
     >
@@ -140,38 +141,36 @@ const ExercisePickerContent = ({
             )}
           </div>
 
-          {hasFocus && (
-            <div
-              role="tablist"
-              aria-label="Filtrar exercícios pelo foco do dia"
-              className="flex gap-1.5 overflow-x-auto snap-x snap-mandatory pb-1"
-            >
-              {tabs.map((tab, index) => {
-                const selected = activeTab.id === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    ref={(element) => { tabRefs.current[index] = element; }}
-                    id={tabDomId(day.id, tab.id)}
-                    type="button"
-                    role="tab"
-                    aria-selected={selected}
-                    aria-controls={panelId}
-                    tabIndex={selected ? 0 : -1}
-                    onClick={() => dispatch({ type: 'select-tab', tabId: tab.id })}
-                    onKeyDown={(event) => handleTabKeyDown(event, index)}
-                    className={`flex-shrink-0 snap-start min-h-[36px] py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all ${
-                      selected
-                        ? 'bg-gym-accent text-gym-dark'
-                        : 'bg-white/5 text-gym-text-muted hover:text-white'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <div
+            role="tablist"
+            aria-label="Filtrar exercícios pelo foco do dia"
+            className="flex gap-1.5 overflow-x-auto snap-x snap-mandatory pb-1"
+          >
+            {tabs.map((tab, index) => {
+              const selected = activeTab.id === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(element) => { tabRefs.current[index] = element; }}
+                  id={tabDomId(day.id, tab.id)}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  aria-controls={panelId}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => dispatch({ type: 'select-tab', tabId: tab.id })}
+                  onKeyDown={(event) => handleTabKeyDown(event, index)}
+                  className={`flex-shrink-0 snap-start min-h-[36px] py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all ${
+                    selected
+                      ? 'bg-gym-accent text-gym-dark'
+                      : 'bg-white/5 text-gym-text-muted hover:text-white'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
 
           {activeTab.id !== ALL_EXERCISES_TAB_ID && tabResult.usesLegacyClassification && (
             <p className="text-[10px] text-amber-400 flex items-start gap-1.5 leading-relaxed">
@@ -183,8 +182,8 @@ const ExercisePickerContent = ({
 
         <div
           id={panelId}
-          role={hasFocus ? 'tabpanel' : undefined}
-          aria-labelledby={hasFocus ? tabDomId(day.id, activeTab.id) : undefined}
+          role="tabpanel"
+          aria-labelledby={tabDomId(day.id, activeTab.id)}
           className="flex-1 overflow-y-auto p-3 space-y-1.5"
         >
           {tabResult.items.length === 0 ? (
