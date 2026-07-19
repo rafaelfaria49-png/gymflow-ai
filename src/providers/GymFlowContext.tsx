@@ -856,7 +856,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
     }
     setHydrated(true);
-  }, []);
+  }, [setActiveView]);
 
   // Debounce normal de 500 ms; o resultado discriminado alimenta a UI de erro.
   useEffect(() => {
