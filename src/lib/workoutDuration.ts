@@ -21,6 +21,7 @@ import { getEquipmentDefinition } from './equipment-registry';
 import { getMuscleGroupDefinition, resolveLegacyMuscleGroup } from './training-taxonomy';
 import { DURATION_RULES, lowestConfidence } from './training-volume-rules';
 import { resolveTrainingGoalContext } from './training-volume';
+import { analyzeWorkoutTimeFit } from './workout-time-fit';
 
 /** Contrato legado consumido hoje pelo Construtor, Planejador e cards. */
 export interface WorkoutDurationEstimate {
@@ -433,7 +434,19 @@ export function muscleGroupsForSlots(slots: ExerciseSlot[], allExercises: Exerci
 }
 
 // Aviso honesto: o app nunca corta exercícios sozinho, apenas informa o tempo.
+/**
+ * @deprecated Compatibilidade textual legada. Use `analyzeWorkoutTimeFit` para novas telas.
+ */
 export function buildDurationWarning(estimatedMinutes: number, targetMinutes: number | null | undefined): string | null {
-  if (!targetMinutes || estimatedMinutes <= targetMinutes) return null;
+  if (
+    typeof targetMinutes !== 'number'
+    || !Number.isFinite(targetMinutes)
+    || targetMinutes <= 0
+    || typeof estimatedMinutes !== 'number'
+    || !Number.isFinite(estimatedMinutes)
+    || estimatedMinutes <= 0
+  ) return null;
+  const analysis = analyzeWorkoutTimeFit({ targetMinutes, estimatedMinutes, exerciseCount: 1 });
+  if (!analysis.legacyOverExactTarget) return null;
   return `Este treino pode passar de ${targetMinutes} min (estimativa: ${estimatedMinutes} min). Reduza séries ou escolha o modo Alto Volume.`;
 }

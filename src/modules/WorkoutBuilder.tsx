@@ -10,6 +10,11 @@ import type { WorkoutProgramBuilderDraft } from '../types/workout-builder';
 import { useToast } from '../components/ui/Toast';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { estimateWorkoutDurationDetailed } from '../lib/workoutDuration';
+import {
+  analyzeVolumeProfileFit,
+  analyzeWorkoutTimeFit,
+  resolveRecommendedVolumeProfile,
+} from '../lib/workout-time-fit';
 import { createBuilderId } from '../lib/workout-builder-id';
 import { getProgramDays } from '../lib/workout-program-days';
 import {
@@ -149,7 +154,13 @@ export const WorkoutBuilder = () => {
     // GOAL-19B: entrada de criação nova (sem draft legado e sem programa de origem) abre
     // a criação guiada; qualquer edição de programa existente vai direto para o editor.
     const startsInCreation = !builderDraft && !source;
-    return { draft: initialDraft, source, dayId, startsInCreation };
+    return {
+      draft: initialDraft,
+      source,
+      dayId,
+      startsInCreation,
+      savedSignature: serializeDraftSignature(initialDraft),
+    };
   });
 
   const sourceProgramRef = useRef<WorkoutProgram | null>(initial.source);
@@ -174,7 +185,9 @@ export const WorkoutBuilder = () => {
   // Após a criação guiada a dica de frequência é redundante — já foi oferecida no gate.
   const [frequencyHintDismissed, setFrequencyHintDismissed] = useState(initial.startsInCreation);
 
-  const [savedSignature, setSavedSignature] = useState(() => serializeDraftSignature(draft));
+  // A linha de base nasce somente após `createInitialDraft` concluir toda normalização
+  // defensiva de abertura; editar um programa existente começa sempre sem dirty-state.
+  const [savedSignature, setSavedSignature] = useState(initial.savedSignature);
   const savedSignatureRef = useRef(savedSignature);
   const draftRef = useRef(draft);
   const pendingViewLeaveRef = useRef<ViewLeaveRequest<AppView> | null>(null);
@@ -220,6 +233,25 @@ export const WorkoutBuilder = () => {
     [draft.days, exercises, user?.goal, user?.restTimerDefaultSeconds],
   );
   const selectedEstimate = durationByDay[selectedIndex] ?? durationByDay[0];
+  const recommendedProfileByDay = useMemo(
+    () => draft.days.map((day) => resolveRecommendedVolumeProfile(day.targetMinutes)),
+    [draft.days],
+  );
+  const profileFitByDay = useMemo(
+    () => draft.days.map((day) => analyzeVolumeProfileFit(day.targetMinutes, day.volumeProfile)),
+    [draft.days],
+  );
+  const timeFitByDay = useMemo(
+    () => draft.days.map((day, index) => analyzeWorkoutTimeFit({
+      targetMinutes: day.targetMinutes,
+      estimatedMinutes: durationByDay[index]?.totalMinutes,
+      exerciseCount: day.slots.length,
+    })),
+    [draft.days, durationByDay],
+  );
+  const selectedRecommendation = recommendedProfileByDay[selectedIndex] ?? recommendedProfileByDay[0];
+  const selectedProfileFit = profileFitByDay[selectedIndex] ?? profileFitByDay[0];
+  const selectedTimeFit = timeFitByDay[selectedIndex] ?? timeFitByDay[0];
 
   const volumeProfileForSummary = useMemo(() => ({
     level: draft.level,
@@ -552,6 +584,10 @@ export const WorkoutBuilder = () => {
         day={selectedDay}
         exercises={exercises}
         estimate={selectedEstimate}
+        recommendation={selectedRecommendation}
+        profileFit={selectedProfileFit}
+        timeFit={selectedTimeFit}
+        recommendedExerciseRange={selectedTimeFit.recommendedExerciseRange}
         canMoveLeft={selectedIndex > 0}
         canMoveRight={selectedIndex < draft.days.length - 1}
         canDuplicate={canAddDay(draft)}
@@ -562,9 +598,13 @@ export const WorkoutBuilder = () => {
         onToggleMuscleGroup={(muscleGroupId: MuscleGroupId) =>
           setDraft(toggleDayMuscleGroup(draft, selectedDay.id, muscleGroupId))}
         onTargetMinutesChange={(minutes) =>
-          setDraft(updateDayInDraft(draft, selectedDay.id, { targetMinutes: clampTargetMinutes(minutes) }))}
+          setDraft((current) => updateDayInDraft(
+            current,
+            selectedDay.id,
+            { targetMinutes: clampTargetMinutes(minutes) },
+          ))}
         onVolumeProfileChange={(volumeProfile: VolumeProfile) =>
-          setDraft(updateDayInDraft(draft, selectedDay.id, { volumeProfile }))}
+          setDraft((current) => updateDayInDraft(current, selectedDay.id, { volumeProfile }))}
         onMoveDay={handleMoveDay}
         onDuplicateDay={handleDuplicateDay}
         onRemoveDay={() => setDayPendingRemoval(selectedDay.id)}

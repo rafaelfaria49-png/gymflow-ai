@@ -1210,3 +1210,38 @@ A proposta inclui faixas, fatores de retorno, peso 0,5 de sinergistas, fórmula 
 Próximo passo: **revisão e aprovação do Gate G2 pelo Founder**. Somente depois iniciar **GOAL-19A**; ele não foi iniciado neste incremento.
 
 ---
+
+## GOAL-TF-A — Tempo disponível canônico, perfil recomendado e time-fit (2026-07-19)
+
+### Pré-flight e isolamento
+
+- Base exata `06684ee3a2b6950dcdd72c44d9fef03d6f2b8a6a`, branch de origem `feat/gymflow-goal19b-guided-builder`.
+- O único untracked aceito no repositório principal foi `.claude/settings.local.json`; não havia modificação rastreada, stage ou stash.
+- Trabalho executado somente no worktree `C:\Projetos\gymflow-goal-tf-a`, branch `feat/gymflow-tf-goalA-tempo-canonico`.
+- Baseline aprovado: 27 arquivos, 513 testes; TypeScript aprovado. O documento físico ausente do Fable não foi recriado nem inventado; o comando e o complemento contratual foram usados como fonte autorizada.
+
+### Entrega
+
+- `ProgramDay.targetMinutes` passou a ser a fonte canônica em todos os call-sites autorizados de abertura do Construtor, com fallback para duração do usuário e default do perfil.
+- Novo domínio puro implementa recomendação de perfil, análise de divergência, faixa recomendada de exercícios e comparação time-fit com tolerância de ±5 min.
+- `buildDurationWarning` foi deprecado documentalmente e delega ao novo domínio, preservando string e comportamento positivos/finitos.
+- O Construtor deriva as análises por dia após a normalização de abertura; a assinatura salva nasce do draft já normalizado.
+- O campo de tempo mantém rascunho visual separado do commit; badge, aviso e resumo são textuais e nunca alteram slots automaticamente.
+- Storage v1, migrações, shape de `ProgramDay`, seeds, progressão, treino ativo e histórico não foram alterados.
+
+### Validações
+
+- `npx vitest run`: 28 arquivos, **554 testes** aprovados (513 anteriores + 41 novos).
+- `npx tsc --noEmit`: aprovado.
+- ESLint nos arquivos TypeScript/TSX tocados: zero erros e zero warnings novos. Permanecem somente os três warnings preexistentes do Context nas linhas 859, 870 e 908, fora do trecho alterado.
+- `npm run build`: aprovado no Next.js 16.2.6/Turbopack. O junction temporário de dependências do worktree foi substituído por cópia física ignorada das dependências já instaladas; nenhuma dependência foi instalada ou alterada.
+- `git diff --check`: aprovado; busca por `targetMinutes: estimateWorkoutDuration` em `src` retornou zero ocorrência.
+- Todos os hashes protegidos de exercícios, programas, progressão e `storage*.ts` permaneceram idênticos ao pré-flight.
+- QA visual: Costas + Bíceps, dois exercícios, alvo 60/Padrão, diferença de aproximadamente 46 min, faixa 55–65 e recomendação 5–7; rascunho 17 removeu o destaque dos presets; Alto Volume + 60 exibiu divergência sem mudar slots; viewport 360 px sem overflow horizontal; zero erros no console.
+- Nenhum push ou merge foi feito; o GOAL B não foi iniciado.
+
+### Continuação
+
+- Recalibrar as heurísticas somente após evidência de uso real e revisão profissional, em GOAL explícito posterior.
+
+---

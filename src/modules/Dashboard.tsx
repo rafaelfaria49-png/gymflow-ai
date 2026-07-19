@@ -17,6 +17,7 @@ import {
   Wrench,
   ListChecks
 } from 'lucide-react';
+import { defaultTargetMinutes } from '../lib/volumeProfiles';
 
 export const Dashboard = () => {
   const {
@@ -63,6 +64,7 @@ export const Dashboard = () => {
     if (!todayPlan) return;
     const sourceProgram = programs.find((p) => p.id === todayPlan.programId);
     const sourceDay = sourceProgram?.weeks?.[0]?.days.find((d) => d.id === todayPlan.programDayId);
+    const volumeProfile = sourceDay?.volumeProfile ?? 'standard';
     openWorkoutBuilder(
       {
         // Editar um treino sugerido sempre vira um treino NOVO (nunca sobrescreve o original).
@@ -70,8 +72,8 @@ export const Dashboard = () => {
         dayId: sourceProgram?.isCustom ? sourceDay?.id : undefined,
         name: todayPlan.workoutName,
         level: user.level,
-        volumeProfile: sourceDay?.volumeProfile ?? 'standard',
-        targetMinutes: todayPlan.duration || user.duration,
+        volumeProfile,
+        targetMinutes: sourceDay?.targetMinutes ?? user.duration ?? defaultTargetMinutes(volumeProfile),
         slots: sourceDay?.slots ?? []
       },
       'dashboard'
@@ -319,7 +321,7 @@ export const Dashboard = () => {
               </div>
             </div>
             <p className="text-xs text-gym-text-muted leading-relaxed">
-              "Fazer uma retração de escápulas rígida no supino reto não apenas protege os rotadores do ombro contra estiramentos como também aumenta em até 12% a ativação das fibras centrais do peitoral maior. Tente focar nisso na sessão de hoje!"
+              &quot;Fazer uma retração de escápulas rígida no supino reto não apenas protege os rotadores do ombro contra estiramentos como também aumenta em até 12% a ativação das fibras centrais do peitoral maior. Tente focar nisso na sessão de hoje!&quot;
             </p>
             <button
               onClick={() => setActiveView('ai-coach')}

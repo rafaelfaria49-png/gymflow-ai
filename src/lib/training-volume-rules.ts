@@ -151,6 +151,17 @@ export const DURATION_RULES = Object.freeze({
   upperBoundFactor: 1.25,
 });
 
+/** Regras de produto para comparar o tempo disponível com a estimativa do dia. */
+export const WORKOUT_TIME_FIT_RULES = Object.freeze({
+  minimumTargetMinutes: 10,
+  maximumTargetMinutes: 240,
+  operationalToleranceMinutes: 5,
+  belowCompactAdjustmentStepMinutes: 10,
+  aboveHighAdjustmentStepMinutes: 15,
+  minimumRecommendedExercises: 1,
+  maximumRecommendedExercises: 12,
+});
+
 export const SESSION_CAPACITY_RULES = Object.freeze({
   warmupSeconds: 300,
   nonWorkingTimeShare: 0.18,

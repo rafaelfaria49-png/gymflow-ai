@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   Copy,
@@ -16,6 +17,12 @@ import type { DetailedWorkoutDurationEstimate } from '../../types/training-volum
 import type { WorkoutDayBuilderDraft } from '../../types/workout-builder';
 import { NumericInput } from '../ui/NumericInput';
 import { VOLUME_PROFILES } from '../../lib/volumeProfiles';
+import type {
+  RecommendedExerciseRange,
+  RecommendedVolumeProfileResult,
+  VolumeProfileFitAnalysis,
+  WorkoutTimeFitAnalysis,
+} from '../../lib/workout-time-fit';
 import {
   MAX_DAY_TARGET_MINUTES,
   MIN_DAY_TARGET_MINUTES,
@@ -30,6 +37,10 @@ interface WorkoutDaysEditorProps {
   day: WorkoutDayBuilderDraft;
   exercises: readonly Exercise[];
   estimate: DetailedWorkoutDurationEstimate;
+  recommendation: RecommendedVolumeProfileResult;
+  profileFit: VolumeProfileFitAnalysis;
+  timeFit: WorkoutTimeFitAnalysis;
+  recommendedExerciseRange: RecommendedExerciseRange;
   canMoveLeft: boolean;
   canMoveRight: boolean;
   canDuplicate: boolean;
@@ -55,6 +66,10 @@ export const WorkoutDaysEditor = ({
   day,
   exercises,
   estimate,
+  recommendation,
+  profileFit,
+  timeFit,
+  recommendedExerciseRange,
   canMoveLeft,
   canMoveRight,
   canDuplicate,
@@ -73,8 +88,33 @@ export const WorkoutDaysEditor = ({
   onSlotMove,
   onSlotDuplicate,
   onSlotRemove,
-}: WorkoutDaysEditorProps) => (
-  <div className="glass p-5 rounded-3xl border border-gym-accent/15 space-y-4">
+}: WorkoutDaysEditorProps) => {
+  const [displayState, setDisplayState] = useState(() => ({
+    dayId: day.id,
+    canonicalMinutes: day.targetMinutes,
+    minutes: day.targetMinutes,
+  }));
+  const displayMinutes = displayState.dayId === day.id
+    && displayState.canonicalMinutes === day.targetMinutes
+    ? displayState.minutes
+    : day.targetMinutes;
+  const setDisplayMinutes = (minutes: number, canonicalMinutes = day.targetMinutes) => {
+    setDisplayState({ dayId: day.id, canonicalMinutes, minutes });
+  };
+
+  const commitTargetMinutes = (value: number | null) => {
+    const minutes = value ?? MIN_DAY_TARGET_MINUTES;
+    setDisplayMinutes(minutes, minutes);
+    onTargetMinutesChange(minutes);
+  };
+
+  const selectTargetMinutesPreset = (minutes: number) => {
+    setDisplayMinutes(minutes, minutes);
+    onTargetMinutesChange(minutes);
+  };
+
+  return (
+  <div className="glass p-5 rounded-3xl border border-gym-accent/15 space-y-4 min-w-0 overflow-hidden">
     {/* CABEÇALHO DO DIA */}
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
@@ -136,9 +176,9 @@ export const WorkoutDaysEditor = ({
             <button
               key={value}
               type="button"
-              onClick={() => onTargetMinutesChange(value)}
+              onClick={() => selectTargetMinutesPreset(value)}
               className={`min-h-[36px] px-3 rounded-xl text-[11px] font-bold border transition-all ${
-                day.targetMinutes === value
+                displayMinutes === value
                   ? 'bg-gym-accent/15 border-gym-accent text-gym-accent'
                   : 'bg-white/5 border-white/5 text-gym-text-muted hover:text-white'
               }`}
@@ -150,8 +190,9 @@ export const WorkoutDaysEditor = ({
         <NumericInput
           min={MIN_DAY_TARGET_MINUTES}
           max={MAX_DAY_TARGET_MINUTES}
-          value={day.targetMinutes}
-          onCommit={(value) => onTargetMinutesChange(value ?? MIN_DAY_TARGET_MINUTES)}
+          value={displayMinutes}
+          onValidChange={setDisplayMinutes}
+          onCommit={commitTargetMinutes}
           aria-label="Tempo alvo personalizado em minutos"
           className="w-full bg-gym-dark border border-white/10 rounded-xl min-h-[44px] px-3 text-xs text-white outline-none focus:border-gym-accent"
         />
@@ -165,22 +206,42 @@ export const WorkoutDaysEditor = ({
               key={profile.id}
               type="button"
               onClick={() => onVolumeProfileChange(profile.id)}
-              className={`p-2 rounded-xl border text-left transition-all min-h-[40px] ${
+              className={`p-2 rounded-xl border text-left transition-all min-h-[44px] min-w-0 ${
                 day.volumeProfile === profile.id
                   ? 'bg-gym-accent/15 border-gym-accent text-gym-accent'
                   : 'bg-white/5 border-white/5 text-gym-text-muted hover:text-white'
               }`}
             >
-              <span className="block text-[11px] font-black">{profile.label}</span>
-              <span className="block text-[9px] leading-snug">{profile.description}</span>
+              <span className="flex flex-wrap items-center justify-between gap-1.5 min-w-0">
+                <span className="text-[11px] font-black">{profile.label}</span>
+                {recommendation.profile === profile.id && (
+                  <span className="max-w-full rounded-full bg-gym-accent/15 border border-gym-accent/30 px-2 py-0.5 text-[8px] font-black leading-tight text-gym-accent whitespace-normal break-words">
+                    Recomendado p/ {recommendation.targetMinutes} min
+                  </span>
+                )}
+              </span>
+              <span className="block text-[9px] leading-snug break-words">{profile.description}</span>
             </button>
           ))}
         </div>
+        {profileFit.divergent && profileFit.message && (
+          <p className="mt-2 rounded-xl border border-amber-400/25 bg-amber-400/10 p-2.5 text-[10px] leading-relaxed text-amber-300 flex items-start gap-1.5 break-words">
+            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+            <span className="min-w-0">{profileFit.message}</span>
+          </p>
+        )}
       </div>
     </div>
 
     {/* RESUMO DO DIA */}
-    <WorkoutDaySummary day={day} exercises={exercises} estimate={estimate} />
+    <WorkoutDaySummary
+      day={day}
+      exercises={exercises}
+      estimate={estimate}
+      targetMinutes={day.targetMinutes}
+      timeFit={timeFit}
+      recommendedExerciseRange={recommendedExerciseRange}
+    />
 
     {/* EXERCÍCIOS DO DIA */}
     <div className="space-y-3">
@@ -346,4 +407,5 @@ export const WorkoutDaysEditor = ({
       )}
     </div>
   </div>
-);
+  );
+};

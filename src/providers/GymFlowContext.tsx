@@ -52,6 +52,7 @@ import {
   removeProgramFromList,
 } from '../lib/workout-program-actions';
 import { estimateWorkoutDuration, muscleGroupsForSlots } from '../lib/workoutDuration';
+import { defaultTargetMinutes } from '../lib/volumeProfiles';
 import { programDayDisplayLabel } from '../lib/workout-day-naming';
 import { reconcileWeeklyPlanWithProgram } from '../lib/workout-plan-sync';
 import { getProgramDays, resolveProgramDays } from '../lib/workout-program-days';
@@ -1685,14 +1686,15 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     const derived = deriveCustomProgramFromSeed(target);
     saveCustomProgram(derived);
     const firstDay = getProgramDays(derived)[0];
+    const volumeProfile = firstDay?.volumeProfile ?? 'standard';
     openWorkoutBuilder(
       {
         programId: derived.id,
         dayId: firstDay?.id,
         name: derived.name,
         level: derived.level,
-        volumeProfile: firstDay?.volumeProfile ?? 'standard',
-        targetMinutes: firstDay?.targetMinutes ?? user?.duration ?? 60,
+        volumeProfile,
+        targetMinutes: firstDay?.targetMinutes ?? user?.duration ?? defaultTargetMinutes(volumeProfile),
         slots: [],
       },
       'workouts',

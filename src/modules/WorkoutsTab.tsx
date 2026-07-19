@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { estimateWorkoutDuration, muscleGroupsForSlots } from '../lib/workoutDuration';
+import { defaultTargetMinutes } from '../lib/volumeProfiles';
 import { programDayDisplayLabel } from '../lib/workout-day-naming';
 import { slotsFromLegacyExercises } from '../lib/workout-program-normalization';
 import { getProgramDays, resolveProgramDays } from '../lib/workout-program-days';
@@ -192,14 +193,15 @@ export const WorkoutsTab = () => {
 
   const handleEditProgram = (program: WorkoutProgram) => {
     const firstDay = getProgramDays(program)[0];
+    const volumeProfile = firstDay?.volumeProfile ?? 'standard';
     openWorkoutBuilder(
       {
         programId: program.id,
         dayId: firstDay?.id,
         name: program.name,
         level: program.level,
-        volumeProfile: firstDay?.volumeProfile ?? 'standard',
-        targetMinutes: firstDay?.targetMinutes ?? estimateWorkoutDuration(firstDay?.slots ?? []).minutes,
+        volumeProfile,
+        targetMinutes: firstDay?.targetMinutes ?? user?.duration ?? defaultTargetMinutes(volumeProfile),
         slots: [],
       },
       'workouts',
@@ -208,14 +210,15 @@ export const WorkoutsTab = () => {
   };
 
   const handleEditProgramDay = (program: WorkoutProgram, day: ProgramDay) => {
+    const volumeProfile = day.volumeProfile ?? 'standard';
     openWorkoutBuilder(
       {
         programId: program.id,
         dayId: day.id,
         name: day.name,
         level: program.level,
-        volumeProfile: day.volumeProfile ?? 'standard',
-        targetMinutes: estimateWorkoutDuration(day.slots).minutes,
+        volumeProfile,
+        targetMinutes: day.targetMinutes ?? user?.duration ?? defaultTargetMinutes(volumeProfile),
         slots: day.slots,
       },
       'workouts',

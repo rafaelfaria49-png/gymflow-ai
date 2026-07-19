@@ -285,3 +285,12 @@ Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decis�
 - **Uma sessão ativa não pode ser sobrescrita por outro início:** o bloqueio é global no Context; ao editar o programa de origem a partir da sessão, o Construtor também oculta “Iniciar Agora” e retorna ao snapshot em andamento.
 - **Resumo do Planejador expõe o cache reconciliado completo:** quantidade real de exercícios e duração estimada aparecem juntas no card, além de nome e grupos musculares, para tornar a sincronização verificável sem abrir o treino.
 - **Flush de ciclo de vida lê referências canônicas:** sessão ativa, histórico e horário de início são espelhados em refs; `pagehide`/`visibilitychange` e finalização enxergam inclusive uma edição ou início ocorrido no mesmo tick.
+
+## GOAL-TF-A — tempo disponível canônico (2026-07-19)
+
+- **Tempo disponível e duração estimada têm papéis distintos:** `ProgramDay.targetMinutes` é entrada canônica; a estimativa dos slots é saída derivada e não volta a preencher o alvo.
+- **Abertura usa precedência explícita:** `day.targetMinutes ?? user?.duration ?? defaultTargetMinutes(volumeProfile)`. A assinatura salva é capturada depois dessa normalização para não criar dirty-state artificial.
+- **Recomendação é determinística e apenas textual:** perfil mais próximo com desempate pelo menor limite mínimo, tolerância de ±5 min e faixa de exercícios limitada a 1–12. Nenhum aviso altera perfil, tempo, séries ou slots.
+- **Rascunho e commit permanecem separados:** `onValidChange` atualiza somente a apresentação do campo e dos presets; blur/Enter confirmam, Escape restaura.
+- **Compatibilidade legada preservada:** `buildDurationWarning` delega ao novo analisador no modo de limite exato e mantém a mensagem pública anterior.
+- **Nenhuma evolução estrutural foi acoplada:** storage v1, migrações, shape de `ProgramDay`, seeds, progressão, treino ativo e histórico permanecem intocados. O GOAL B não foi iniciado.

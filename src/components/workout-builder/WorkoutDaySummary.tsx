@@ -5,6 +5,10 @@ import { AlertTriangle, Clock, Layers } from 'lucide-react';
 import type { Exercise } from '../../types';
 import type { WorkoutDayBuilderDraft } from '../../types/workout-builder';
 import type { DetailedWorkoutDurationEstimate, VolumeConfidence } from '../../types/training-volume';
+import type {
+  RecommendedExerciseRange,
+  WorkoutTimeFitAnalysis,
+} from '../../lib/workout-time-fit';
 import { summarizeDayVolume } from '../../lib/workout-builder';
 import { muscleGroupShortLabel } from '../../lib/workout-day-naming';
 
@@ -20,6 +24,9 @@ interface WorkoutDaySummaryProps {
   day: WorkoutDayBuilderDraft;
   exercises: readonly Exercise[];
   estimate: DetailedWorkoutDurationEstimate;
+  targetMinutes: number;
+  timeFit: WorkoutTimeFitAnalysis;
+  recommendedExerciseRange: RecommendedExerciseRange;
 }
 
 /**
@@ -29,9 +36,23 @@ interface WorkoutDaySummaryProps {
  * NÃO compara o dia com a faixa semanal — isso só faz sentido com o programa inteiro
  * na mão (a comparação vive em WorkoutProgramSummary). Nada aqui altera o treino.
  */
-export const WorkoutDaySummary = ({ day, exercises, estimate }: WorkoutDaySummaryProps) => {
+export const WorkoutDaySummary = ({
+  day,
+  exercises,
+  estimate,
+  targetMinutes,
+  timeFit,
+  recommendedExerciseRange,
+}: WorkoutDaySummaryProps) => {
   const volume = summarizeDayVolume(day, exercises);
   const empty = day.slots.length === 0;
+  const differenceText = !empty && timeFit.absoluteDifferenceMinutes !== null
+    ? timeFit.direction === 'within'
+      ? timeFit.absoluteDifferenceMinutes === 0
+        ? 'Estimativa alinhada ao tempo disponível.'
+        : `Aproximadamente ${timeFit.absoluteDifferenceMinutes} min ${timeFit.differenceMinutes! < 0 ? 'abaixo' : 'acima'} do tempo disponível, dentro da faixa operacional.`
+      : `Aproximadamente ${timeFit.absoluteDifferenceMinutes} min ${timeFit.direction === 'below' ? 'abaixo' : 'acima'} do tempo disponível.`
+    : null;
 
   const factors = [
     { label: 'de descanso', value: minutes(estimate.restSeconds) },
@@ -63,6 +84,29 @@ export const WorkoutDaySummary = ({ day, exercises, estimate }: WorkoutDaySummar
           <span className="block text-lg font-black text-white leading-tight">{estimate.totalSeries}</span>
           <span className="block text-[9px] text-gym-text-muted">{CONFIDENCE_LABEL[estimate.confidence]}</span>
         </div>
+      </div>
+
+      <div className="pt-2 border-t border-white/5 space-y-1.5 min-w-0">
+        <p className="text-[10px] text-white">
+          Tempo disponível: <strong>{targetMinutes} min</strong>
+        </p>
+        <p className="text-[10px] text-gym-text-muted">
+          Faixa operacional: {timeFit.operationalRange.minimumMinutes}–{timeFit.operationalRange.maximumMinutes} min
+        </p>
+        {differenceText && (
+          <p className="text-[10px] text-gym-accent leading-relaxed">{differenceText}</p>
+        )}
+        <p className="text-[10px] text-gym-text-muted leading-relaxed">
+          Recomendado para este tempo: {recommendedExerciseRange.minimumExercises}–{recommendedExerciseRange.maximumExercises} exercícios
+        </p>
+        <p className="text-[10px] text-gym-text-muted">
+          Atual: {day.slots.length} {day.slots.length === 1 ? 'exercício' : 'exercícios'}
+        </p>
+        {!empty && timeFit.suggestion && (
+          <p className="rounded-xl bg-gym-accent/10 border border-gym-accent/20 p-2.5 text-[10px] text-gym-accent leading-relaxed break-words">
+            {timeFit.suggestion}
+          </p>
+        )}
       </div>
 
       {!empty && factors.length > 0 && (

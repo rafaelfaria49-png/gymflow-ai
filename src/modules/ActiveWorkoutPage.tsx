@@ -8,11 +8,12 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { NumericInput } from '../components/ui/NumericInput';
 import { matchesExerciseSearch } from '../lib/exerciseSearch';
 import { getTechniqueVideoIdForExerciseId } from '../lib/exerciseTechniqueMap';
-import { estimateWorkoutDuration } from '../lib/workoutDuration';
+import { defaultTargetMinutes } from '../lib/volumeProfiles';
 import { useToast } from '../components/ui/Toast';
 
 export const ActiveWorkoutPage = () => {
   const {
+    user,
     activeWorkout,
     workoutDuration,
     updateWorkoutSet,
@@ -214,14 +215,15 @@ export const ActiveWorkoutPage = () => {
       return;
     }
 
+    const volumeProfile = sourceDay.volumeProfile ?? 'standard';
     openWorkoutBuilder(
       {
         programId: sourceProgram.id,
         dayId: sourceDay.id,
         name: sourceDay.name,
         level: sourceProgram.level,
-        volumeProfile: sourceDay.volumeProfile ?? 'standard',
-        targetMinutes: sourceDay.targetMinutes ?? estimateWorkoutDuration(sourceDay.slots).minutes,
+        volumeProfile,
+        targetMinutes: sourceDay.targetMinutes ?? user?.duration ?? defaultTargetMinutes(volumeProfile),
         slots: sourceDay.slots,
       },
       'active-workout',

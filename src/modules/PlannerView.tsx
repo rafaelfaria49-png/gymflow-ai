@@ -7,6 +7,7 @@ import { AlertTriangle, Calendar, Sparkles, Play, RotateCcw, Sliders, Clock, Mov
 import { programDayDisplayLabel } from '../lib/workout-day-naming';
 import { getProgramDays, resolveProgramDays } from '../lib/workout-program-days';
 import { estimateWorkoutDuration } from '../lib/workoutDuration';
+import { defaultTargetMinutes } from '../lib/volumeProfiles';
 
 const hasMissingProgramDayIssue = (day: WeeklyWorkoutDay): boolean =>
   day.planningIssue === 'missing-program-day';
@@ -95,14 +96,15 @@ export const PlannerView = () => {
       return;
     }
 
+    const volumeProfile = sourceDay?.volumeProfile ?? 'standard';
     openWorkoutBuilder(
       {
         programId: sourceProgram?.isCustom ? sourceProgram.id : undefined,
         dayId: sourceProgram?.isCustom ? sourceDay?.id : undefined,
         name: day.isRest ? 'Meu Treino' : day.workoutName,
         level: user?.level ?? 'intermediate',
-        volumeProfile: sourceDay?.volumeProfile ?? 'standard',
-        targetMinutes: day.duration || user?.duration || 60,
+        volumeProfile,
+        targetMinutes: sourceDay?.targetMinutes ?? user?.duration ?? defaultTargetMinutes(volumeProfile),
         slots: sourceDay?.slots ?? []
       },
       'planner'
