@@ -1,11 +1,19 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useReducer, useRef } from 'react';
 import { Check, Info, Plus, Search, X } from 'lucide-react';
 import type { Exercise } from '../../types';
 import type { WorkoutDayBuilderDraft } from '../../types/workout-builder';
-import { filterExercisesByDayFocus } from '../../lib/workout-builder';
 import { dayDisplayName } from '../../lib/workout-builder';
+import {
+  ALL_EXERCISES_TAB_ID,
+  createWorkoutPickerState,
+  getWorkoutPickerTabResult,
+  getWorkoutPickerTabs,
+  groupExercisesForDayFocus,
+  workoutPickerReducer,
+  type WorkoutPickerTabId,
+} from '../../lib/workout-picker';
 
 interface ExercisePickerModalProps {
   isOpen: boolean;
@@ -17,46 +25,73 @@ interface ExercisePickerModalProps {
   onClose: () => void;
 }
 
-type FocusMode = 'focus' | 'all';
+type ExercisePickerContentProps = Omit<ExercisePickerModalProps, 'isOpen'>;
+
+function tabDomId(dayId: string, tabId: WorkoutPickerTabId): string {
+  return `exercise-picker-tab-${dayId}-${tabId}`;
+}
 
 /**
- * GOAL-19A/PART-9: seletor de exercícios com filtro simples de foco.
- *
- * O filtro NÃO ordena, NÃO pontua e NÃO sugere — só restringe a lista ao foco do dia.
- * Ranking, score, substituição inteligente e equipamento disponível são GOAL-20.
+ * GOAL-TF-B: picker por foco, sem ordenar, pontuar ou sugerir exercícios.
+ * O conteúdo é desmontado ao fechar; reabrir reinicia busca e primeira aba sem
+ * acoplar estado ao WorkoutBuilder nem à seleção de exercício.
  */
-export const ExercisePickerModal = ({
-  isOpen,
+const ExercisePickerContent = ({
   day,
   exercises,
   countInDay,
   otherDaysWithExercise,
   onAdd,
   onClose,
-}: ExercisePickerModalProps) => {
-  const [search, setSearch] = useState('');
-  const hasFocus = day.muscleGroupIds.length > 0;
-  const [mode, setMode] = useState<FocusMode>('focus');
-  const effectiveMode: FocusMode = hasFocus ? mode : 'all';
+}: ExercisePickerContentProps) => {
+  const focusGroups = useMemo(
+    () => groupExercisesForDayFocus(exercises, day.muscleGroupIds),
+    [exercises, day.muscleGroupIds],
+  );
+  const tabs = useMemo(() => getWorkoutPickerTabs(day.muscleGroupIds), [day.muscleGroupIds]);
+  const [pickerState, dispatch] = useReducer(
+    workoutPickerReducer,
+    createWorkoutPickerState(day.muscleGroupIds),
+  );
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const hasFocus = focusGroups.length > 0;
+  const activeTabIndex = Math.max(0, tabs.findIndex(({ id }) => id === pickerState.activeTabId));
+  const activeTab = tabs[activeTabIndex] ?? { id: ALL_EXERCISES_TAB_ID, label: 'Todos' };
+  const panelId = `exercise-picker-panel-${day.id}`;
 
-  const { visible, usesLegacyClassification } = useMemo(() => {
-    const filtered = effectiveMode === 'focus'
-      ? filterExercisesByDayFocus(exercises, day.muscleGroupIds)
-      : { exercises: [...exercises], usesLegacyClassification: false };
-    const term = search.trim().toLowerCase();
-    return {
-      visible: term
-        ? filtered.exercises.filter((exercise) => exercise.name.toLowerCase().includes(term))
-        : filtered.exercises,
-      usesLegacyClassification: filtered.usesLegacyClassification,
-    };
-  }, [exercises, day.muscleGroupIds, effectiveMode, search]);
+  const tabResult = useMemo(
+    () => getWorkoutPickerTabResult(
+      exercises,
+      focusGroups,
+      activeTab.id,
+      pickerState.search,
+    ),
+    [activeTab.id, exercises, focusGroups, pickerState.search],
+  );
 
-  if (!isOpen) return null;
+  const selectTabAt = (index: number) => {
+    const nextIndex = (index + tabs.length) % tabs.length;
+    const nextTab = tabs[nextIndex];
+    if (!nextTab) return;
+    dispatch({ type: 'select-tab', tabId: nextTab.id });
+    tabRefs.current[nextIndex]?.focus();
+  };
+
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex: number | undefined;
+    if (event.key === 'ArrowRight') nextIndex = index + 1;
+    if (event.key === 'ArrowLeft') nextIndex = index - 1;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = tabs.length - 1;
+    if (nextIndex === undefined) return;
+
+    event.preventDefault();
+    selectTabAt(nextIndex);
+  };
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-4"
+      className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-4"
       onClick={onClose}
       role="presentation"
     >
@@ -74,6 +109,7 @@ export const ExercisePickerModal = ({
               <p className="text-[10px] text-gym-text-muted truncate">{dayDisplayName(day)}</p>
             </div>
             <button
+              type="button"
               onClick={onClose}
               className="p-2 text-gym-text-muted hover:text-white bg-white/5 rounded-lg tap-target flex-shrink-0"
               aria-label="Fechar"
@@ -86,33 +122,58 @@ export const ExercisePickerModal = ({
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-gym-text-muted" />
             <input
               autoFocus
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar por nome..."
-              className="w-full bg-gym-card border border-white/10 rounded-xl py-2 pl-9 pr-3 text-xs text-white outline-none focus:border-gym-accent"
+              value={pickerState.search}
+              onChange={(event) => dispatch({ type: 'set-search', search: event.target.value })}
+              placeholder="Buscar nesta aba..."
+              aria-label="Buscar exercícios nesta aba"
+              className="w-full bg-gym-card border border-white/10 rounded-xl py-2 pl-9 pr-10 text-xs text-white outline-none focus:border-gym-accent"
             />
+            {pickerState.search && (
+              <button
+                type="button"
+                onClick={() => dispatch({ type: 'clear-search' })}
+                aria-label="Limpar busca"
+                className="absolute right-1.5 top-1.5 p-1 text-gym-text-muted hover:text-white rounded-md"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {hasFocus && (
-            <div className="flex gap-1.5">
-              {([
-                { id: 'focus', label: 'Foco do dia' },
-                { id: 'all', label: 'Todos os exercícios' },
-              ] as const).map((option) => (
-                <button
-                  key={option.id}
-                  onClick={() => setMode(option.id)}
-                  className={`min-h-[36px] py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all ${
-                    effectiveMode === option.id ? 'bg-gym-accent text-gym-dark' : 'bg-white/5 text-gym-text-muted hover:text-white'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+            <div
+              role="tablist"
+              aria-label="Filtrar exercícios pelo foco do dia"
+              className="flex gap-1.5 overflow-x-auto snap-x snap-mandatory pb-1"
+            >
+              {tabs.map((tab, index) => {
+                const selected = activeTab.id === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    ref={(element) => { tabRefs.current[index] = element; }}
+                    id={tabDomId(day.id, tab.id)}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    aria-controls={panelId}
+                    tabIndex={selected ? 0 : -1}
+                    onClick={() => dispatch({ type: 'select-tab', tabId: tab.id })}
+                    onKeyDown={(event) => handleTabKeyDown(event, index)}
+                    className={`flex-shrink-0 snap-start min-h-[36px] py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all ${
+                      selected
+                        ? 'bg-gym-accent text-gym-dark'
+                        : 'bg-white/5 text-gym-text-muted hover:text-white'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
           )}
 
-          {effectiveMode === 'focus' && usesLegacyClassification && (
+          {activeTab.id !== ALL_EXERCISES_TAB_ID && tabResult.usesLegacyClassification && (
             <p className="text-[10px] text-amber-400 flex items-start gap-1.5 leading-relaxed">
               <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
               Alguns exercícios usam classificação legada.
@@ -120,18 +181,24 @@ export const ExercisePickerModal = ({
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-          {visible.length === 0 ? (
+        <div
+          id={panelId}
+          role={hasFocus ? 'tabpanel' : undefined}
+          aria-labelledby={hasFocus ? tabDomId(day.id, activeTab.id) : undefined}
+          className="flex-1 overflow-y-auto p-3 space-y-1.5"
+        >
+          {tabResult.items.length === 0 ? (
             <p className="text-xs text-gym-text-muted text-center py-8">
-              Nenhum exercício encontrado{effectiveMode === 'focus' ? ' para este foco' : ''}.
+              Nenhum exercício encontrado{activeTab.id !== ALL_EXERCISES_TAB_ID ? ' para este foco' : ''}.
             </p>
           ) : (
-            visible.map((exercise) => {
+            tabResult.items.map(({ exercise }) => {
               const inDay = countInDay(exercise.id);
               const alsoIn = otherDaysWithExercise(exercise.id);
               return (
                 <button
                   key={exercise.id}
+                  type="button"
                   onClick={() => onAdd(exercise)}
                   className={`w-full text-left border rounded-xl p-3 flex items-center justify-between transition-all min-h-[44px] ${
                     inDay > 0
@@ -171,8 +238,25 @@ export const ExercisePickerModal = ({
           )}
         </div>
 
-        <div className="p-3 border-t border-white/5 flex-shrink-0">
+        <div className="p-3 border-t border-white/5 flex-shrink-0 space-y-2">
+          {hasFocus && (
+            <div
+              aria-label="Quantidade de exercícios por foco"
+              className="flex gap-1.5 overflow-x-auto snap-x pb-0.5"
+            >
+              {focusGroups.map((group) => (
+                <span
+                  key={group.id}
+                  className="flex-shrink-0 snap-start rounded-full bg-white/5 px-2 py-1 text-[9px] text-gym-text-muted"
+                  aria-label={`${group.label}: ${group.items.length} exercícios`}
+                >
+                  {group.label} <strong className="text-white">{group.items.length}</strong>
+                </span>
+              ))}
+            </div>
+          )}
           <button
+            type="button"
             onClick={onClose}
             className="w-full min-h-[44px] bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2"
           >
@@ -183,4 +267,10 @@ export const ExercisePickerModal = ({
       </div>
     </div>
   );
+};
+
+export const ExercisePickerModal = ({ isOpen, ...props }: ExercisePickerModalProps) => {
+  if (!isOpen) return null;
+
+  return <ExercisePickerContent key={props.day.id} {...props} />;
 };

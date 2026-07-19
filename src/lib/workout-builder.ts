@@ -39,6 +39,7 @@ import {
   normalizeMuscleGroupIds,
   resolveWorkoutDayName,
 } from './workout-day-naming';
+import { buildDayFocusFilterResult } from './workout-picker';
 
 /** Teto defensivo de dias por programa; não é uma recomendação de treino. */
 export const MAX_PROGRAM_DAYS = 7;
@@ -399,16 +400,7 @@ export function filterExercisesByDayFocus(
   exercises: readonly Exercise[],
   focusIds: readonly MuscleGroupId[],
 ): DayFocusFilterResult {
-  if (focusIds.length === 0) {
-    return { exercises: [...exercises], usesLegacyClassification: false };
-  }
-  let usesLegacyClassification = false;
-  const matched = exercises.filter((exercise) => {
-    const match = matchesDayFocus(exercise, focusIds);
-    if (match.matches && match.legacy) usesLegacyClassification = true;
-    return match.matches;
-  });
-  return { exercises: matched, usesLegacyClassification };
+  return buildDayFocusFilterResult(exercises, focusIds);
 }
 
 // ===== Estado não salvo =====

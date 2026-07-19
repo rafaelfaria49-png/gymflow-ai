@@ -294,3 +294,12 @@ Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decis�
 - **Rascunho e commit permanecem separados:** `onValidChange` atualiza somente a apresentação do campo e dos presets; blur/Enter confirmam, Escape restaura.
 - **Compatibilidade legada preservada:** `buildDurationWarning` delega ao novo analisador no modo de limite exato e mantém a mensagem pública anterior.
 - **Nenhuma evolução estrutural foi acoplada:** storage v1, migrações, shape de `ProgramDay`, seeds, progressão, treino ativo e histórico permanecem intocados. O GOAL B não foi iniciado.
+
+## GOAL-TF-B — picker por foco do dia (2026-07-19)
+
+- **Um único resolver alimenta lista, match legado e contadores:** cada foco é resolvido isoladamente por `matchesDayFocus`, com `ExerciseFocusMatch` preservado por item; não existe score, pontuação, ranking ou reordenação da biblioteca.
+- **A taxonomia define as abas:** focos inválidos/duplicados são removidos, a ordem é `MUSCLE_GROUPS` e `Todos` fica sempre por último. Um foco produz `[Foco, Todos]`; zero focos mantém a biblioteca inteira sem tablist adicional.
+- **Busca e aba são estados independentes:** trocar aba preserva a busca; limpar preserva a aba. Fechar desmonta o conteúdo, então reabrir o mesmo dia reinicia busca e primeira aba; mudar `day.id` também remonta o conteúdo.
+- **Tablist segue o padrão acessível:** roving `tabIndex`, `aria-selected`, associação aba/painel, setas com wrap e Home/End. Chips usam scroll e snap horizontal no mobile.
+- **Modal fica acima da navegação móvel:** `z-[100]` evita que o CTA global `Treinar` cubra os contadores do rodapé, conflito observado e revalidado no QA de 360 px.
+- **Compatibilidade pública preservada:** `filterExercisesByDayFocus` mantém a assinatura em `workout-builder.ts` e apenas delega ao novo domínio. `matchesDayFocus`, `handleAddExercise`, storage, seeds e progressão não mudaram. O GOAL C não foi iniciado.

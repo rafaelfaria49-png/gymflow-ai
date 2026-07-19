@@ -1245,3 +1245,40 @@ Próximo passo: **revisão e aprovação do Gate G2 pelo Founder**. Somente depo
 - Recalibrar as heurísticas somente após evidência de uso real e revisão profissional, em GOAL explícito posterior.
 
 ---
+
+## GOAL-TF-B — Picker por foco do dia (2026-07-19)
+
+### Pré-flight e isolamento
+
+- Base exata `b0ddfef57f14a4de7e776f328b16af135f129d56`, coincidente com `master` pós-GOAL A e `origin/master`.
+- Trabalho executado somente no worktree `C:\Projetos\gymflow-goal-tf-b`, branch `feat/gymflow-tf-goalB-picker-foco`.
+- Baseline aprovado: 28 arquivos, 554 testes; TypeScript aprovado. Hashes SHA-256 de exercícios, programas, progressão e `storage*.ts` registrados antes das alterações.
+- O MASTERPLAN físico permanecia ausente, como já registrado no GOAL A; o comando e os contratos 2.5–2.6 fornecidos foram tratados como fonte autorizada, sem redecidir o ADR-TF-004.
+
+### Entrega
+
+- Novo domínio `workout-picker.ts` normaliza focos pela taxonomia e agrupa exercícios por foco, preservando `ExerciseFocusMatch` por item e a ordem de entrada da biblioteca.
+- `filterExercisesByDayFocus` mantém a assinatura pública e delega ao novo domínio; `matchesDayFocus` não foi alterado.
+- O modal ganhou chips por foco + `Todos`, primeira aba no primeiro foco, busca persistente entre abas, limpeza independente e reset de busca/aba ao reabrir.
+- Tablist acessível com roving `tabIndex`, setas, Home/End, associação aba/painel e scroll/snap horizontal no mobile.
+- O rodapé mostra contadores por foco derivados dos mesmos grupos da lista; selecionar exercício continua sem fechar o modal.
+- Um foco produz `[Foco, Todos]`; sem foco, a biblioteca inteira mantém o comportamento anterior de `Todos`.
+
+### Validações
+
+- `npx vitest run`: 29 arquivos, **567 testes** aprovados (554 anteriores + 13 novos).
+- `npx tsc --noEmit`: aprovado.
+- ESLint nos quatro arquivos TypeScript/TSX tocados: zero erros e zero warnings.
+- `npm run build`: aprovado no Next.js 16.2.6/Turbopack.
+- `git diff --check`: aprovado.
+- Todos os hashes protegidos de exercícios, programas, progressão e `storage*.ts` permaneceram idênticos ao pré-flight.
+- QA no navegador: 0/1/2/3 focos; ordem taxonômica; `Todos`; busca por aba; limpar sem trocar; reset ao reabrir; setas; seleção sem fechar; contadores; zero erros de console.
+- QA 360 px: scroll horizontal real (`331 > 281`) com `overflow-x: auto` e snap; documento sem overflow. O overlay passou a `z-[100]` após o QA no navegador revelar que o CTA global `Treinar` cobria os contadores; a correção foi revalidada visualmente.
+- Somente os arquivos autorizados e documentação foram tocados; `handleAddExercise`, seeds, storage, progressão e treino ativo permaneceram intocados.
+- Nenhum push ou merge foi feito; o GOAL C não foi iniciado.
+
+### Continuação
+
+- Curadoria anatômica do catálogo legado e qualquer ranking/sugestão permanecem fora deste GOAL.
+
+---
