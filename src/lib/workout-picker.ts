@@ -37,10 +37,18 @@ export interface WorkoutPickerTab {
   label: string;
 }
 
-export interface WorkoutPickerTabResult {
+export interface WorkoutPickerGroupedTabResult {
+  mode: 'grouped';
   items: DayFocusExerciseItem[];
   usesLegacyClassification: boolean;
 }
+
+export interface WorkoutPickerFlatTabResult {
+  mode: 'flat';
+  items: readonly Exercise[];
+}
+
+export type WorkoutPickerTabResult = WorkoutPickerGroupedTabResult | WorkoutPickerFlatTabResult;
 
 export type WorkoutPickerSectionId = 'primary' | 'secondary' | 'legacy';
 
@@ -86,13 +94,6 @@ function resolveExercisePrimaryGroup(exercise: Exercise) {
     : undefined) ?? resolveLegacyMuscleGroup(exercise.muscleGroup);
 }
 
-function resolveAllExercisesMatch(exercise: Exercise): ExerciseFocusMatch {
-  const primaryGroup = resolveExercisePrimaryGroup(exercise);
-  return primaryGroup
-    ? matchesDayFocus(exercise, [primaryGroup.id])
-    : matchesDayFocus(exercise, []);
-}
-
 function sectionIdForMatch(match: ExerciseFocusMatch): WorkoutPickerSectionId {
   switch (match.kind) {
     case 'secondary':
@@ -108,8 +109,9 @@ function sectionIdForMatch(match: ExerciseFocusMatch): WorkoutPickerSectionId {
 }
 
 /**
- * Particiona por papel sem pontuar ou reordenar dentro de cada seção. `none` só
- * ocorre como fallback honesto na aba Todos e permanece visível em Principais.
+ * Particiona por papel sem pontuar ou reordenar dentro de cada seção. Só é chamada para
+ * abas de foco (a aba Todos usa modo flat); `none` é tratado como Principais mas não
+ * ocorre na prática, pois `groupExercisesForDayFocus` sempre resolve com um foco válido.
  */
 export function getWorkoutPickerSections(
   items: readonly DayFocusExerciseItem[],
@@ -203,8 +205,10 @@ export function workoutPickerReducer(
 }
 
 /**
- * Aplica a busca somente depois de resolver a aba. O aviso legado considera toda a
- * aba, como o filtro anterior, e não desaparece por causa de um termo de busca.
+ * Aplica a busca somente depois de resolver a aba. Todos não tem foco ativo: devolve a
+ * biblioteca inteira filtrada, na ordem original, sem papel, seção ou match artificial —
+ * corretivo GYMFLOW-BUILDER-TF-GOAL-C-TODOS-FLAT-CORRECTIVE-004. O aviso legado das abas
+ * de foco considera toda a aba e não desaparece por causa de um termo de busca.
  */
 export function getWorkoutPickerTabResult(
   exercises: readonly Exercise[],
@@ -213,19 +217,17 @@ export function getWorkoutPickerTabResult(
   search: string,
 ): WorkoutPickerTabResult {
   if (tabId === ALL_EXERCISES_TAB_ID) {
-    const items = exercises
-      .filter((exercise) => matchesExerciseSearch(exercise, search))
-      .map((exercise) => ({ exercise, match: resolveAllExercisesMatch(exercise) }));
     return {
-      items,
-      usesLegacyClassification: items.some(({ match }) => match.legacy),
+      mode: 'flat',
+      items: exercises.filter((exercise) => matchesExerciseSearch(exercise, search)),
     };
   }
 
   const group = groups.find(({ id }) => id === tabId);
-  if (!group) return { items: [], usesLegacyClassification: false };
+  if (!group) return { mode: 'grouped', items: [], usesLegacyClassification: false };
 
   return {
+    mode: 'grouped',
     items: group.items.filter(({ exercise }) => matchesExerciseSearch(exercise, search)),
     usesLegacyClassification: group.usesLegacyClassification,
   };

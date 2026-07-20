@@ -233,9 +233,16 @@ describe('contratos adicionais do picker por foco', () => {
     const inChest = getWorkoutPickerTabResult(input, groups, 'chest', 'rosca direta');
     const inAll = getWorkoutPickerTabResult(input, groups, ALL_EXERCISES_TAB_ID, 'puxada aberta');
 
+    expect(inTriceps.mode).toBe('grouped');
+    expect(inChest.mode).toBe('grouped');
+    expect(inAll.mode).toBe('flat');
+    if (inTriceps.mode !== 'grouped' || inChest.mode !== 'grouped' || inAll.mode !== 'flat') {
+      throw new Error('modo inesperado em "aplica a busca dentro da aba selecionada"');
+    }
+
     expect(inTriceps.items.map(({ exercise: item }) => item.id)).toEqual([supino.id]);
     expect(inChest.items).toEqual([]);
-    expect(inAll.items.map(({ exercise: item }) => item.id)).toEqual([puxada.id]);
+    expect(inAll.items.map((item) => item.id)).toEqual([puxada.id]);
   });
 
   it('mantém a busca ao trocar de aba e limpar não troca a aba', () => {
@@ -264,5 +271,83 @@ describe('contratos adicionais do picker por foco', () => {
       activeTabId: 'chest',
       search: '',
     });
+  });
+});
+
+describe('GYMFLOW-BUILDER-TF-GOAL-C-TODOS-FLAT-CORRECTIVE-004 / P1 — Todos sem agrupamento por papel', () => {
+  it('P1-01: aba Todos devolve modo flat com a biblioteca inteira, na ordem original, sem seções', () => {
+    const result = getWorkoutPickerTabResult(MOCK_EXERCISES, [], ALL_EXERCISES_TAB_ID, '');
+
+    expect(result.mode).toBe('flat');
+    if (result.mode !== 'flat') throw new Error('modo inesperado');
+
+    expect(result.items).toHaveLength(MOCK_EXERCISES.length);
+    expect(result.items).toEqual(MOCK_EXERCISES);
+  });
+
+  it('P1-02: itens da aba Todos não carregam match, papel ou classificação legada', () => {
+    const result = getWorkoutPickerTabResult(MOCK_EXERCISES, [], ALL_EXERCISES_TAB_ID, '');
+
+    expect(result.mode).toBe('flat');
+    if (result.mode !== 'flat') throw new Error('modo inesperado');
+
+    expect(result).not.toHaveProperty('usesLegacyClassification');
+    for (const item of result.items) {
+      expect(item).not.toHaveProperty('match');
+    }
+  });
+
+  it('P1-03: uma aba de foco real continua no modo grouped, com Principais, Sinergistas e Classificação legada, exclusividade e total preservados', () => {
+    const canonicalQuadriceps: Exercise = {
+      ...flexora,
+      id: 'canonical_quadriceps_corretivo_004',
+      primaryMuscleGroupId: 'quadriceps',
+    };
+    const canonicalSynergist: Exercise = {
+      ...supino,
+      id: 'canonical_quadriceps_synergist_corretivo_004',
+      primaryMuscleGroupId: 'chest',
+      secondaryMuscleGroupIds: ['quadriceps'],
+    };
+    const library = [canonicalSynergist, flexora, canonicalQuadriceps];
+    const groups = groupExercisesForDayFocus(library, ['quadriceps']);
+    const result = getWorkoutPickerTabResult(library, groups, 'quadriceps', '');
+
+    expect(result.mode).toBe('grouped');
+    if (result.mode !== 'grouped') throw new Error('modo inesperado');
+
+    const sections = getWorkoutPickerSections(result.items);
+    expect(sections.map(({ id }) => id)).toEqual(['primary', 'secondary', 'legacy']);
+
+    const allIds = sections.flatMap((section) => section.items.map(({ exercise: item }) => item.id));
+    expect(allIds).toHaveLength(library.length);
+    expect(new Set(allIds).size).toBe(library.length);
+  });
+
+  it('P1-04: busca na aba Todos filtra a lista plana', () => {
+    const result = getWorkoutPickerTabResult(MOCK_EXERCISES, [], ALL_EXERCISES_TAB_ID, 'puxada aberta');
+
+    expect(result.mode).toBe('flat');
+    if (result.mode !== 'flat') throw new Error('modo inesperado');
+
+    expect(result.items.map((item) => item.id)).toEqual([puxada.id]);
+  });
+
+  it('P1-05: busca sem resultado na aba Todos produz lista plana vazia', () => {
+    const result = getWorkoutPickerTabResult(MOCK_EXERCISES, [], ALL_EXERCISES_TAB_ID, 'zzz-inexistente-zzz');
+
+    expect(result.mode).toBe('flat');
+    if (result.mode !== 'flat') throw new Error('modo inesperado');
+
+    expect(result.items).toEqual([]);
+  });
+
+  it('P1-06: a resolução da aba Todos não muta a biblioteca original', () => {
+    const input = deepFreeze(structuredClone(MOCK_EXERCISES));
+    const snapshot = structuredClone(input);
+
+    getWorkoutPickerTabResult(input, [], ALL_EXERCISES_TAB_ID, '');
+
+    expect(input).toEqual(snapshot);
   });
 });

@@ -1,31 +1,41 @@
 import { Plus } from 'lucide-react';
 import type { Exercise } from '../../types';
-import {
-  getWorkoutPickerItemMetadata,
-  type DayFocusExerciseItem,
-} from '../../lib/workout-picker';
+
+interface ExercisePickerItemFocusRole {
+  primaryGroupLabel: string;
+  legacy: boolean;
+}
 
 interface ExercisePickerItemProps {
-  item: DayFocusExerciseItem;
+  exercise: Exercise;
+  /**
+   * Ausente na aba Todos: sem foco ativo não existe papel muscular a atribuir
+   * (GYMFLOW-BUILDER-TF-GOAL-C-TODOS-FLAT-CORRECTIVE-004).
+   */
+  focusRole?: ExercisePickerItemFocusRole;
   inDay: number;
   alsoIn: readonly string[];
   onAdd: (exercise: Exercise) => void;
 }
 
 export const ExercisePickerItem = ({
-  item,
+  exercise,
+  focusRole,
   inDay,
   alsoIn,
   onAdd,
 }: ExercisePickerItemProps) => {
-  const { exercise } = item;
-  const metadata = getWorkoutPickerItemMetadata(item);
+  const ariaLabel = [
+    `Adicionar ${exercise.name}.`,
+    focusRole ? `Grupo principal: ${focusRole.primaryGroupLabel}.` : null,
+    `Equipamento: ${exercise.equipment}.`,
+  ].filter(Boolean).join(' ');
 
   return (
     <button
       type="button"
       onClick={() => onAdd(exercise)}
-      aria-label={`Adicionar ${exercise.name}. Grupo principal: ${metadata.primaryGroupLabel}. Equipamento: ${metadata.equipment}.`}
+      aria-label={ariaLabel}
       className={`w-full min-w-0 text-left border rounded-xl p-3 flex items-center justify-between gap-2 transition-all min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gym-accent focus-visible:ring-offset-2 focus-visible:ring-offset-gym-dark ${
         inDay > 0
           ? 'bg-gym-accent/5 border-gym-accent/20 hover:border-gym-accent/40'
@@ -43,19 +53,21 @@ export const ExercisePickerItem = ({
         </div>
 
         <div className="mt-1.5 flex min-w-0 max-w-full items-center gap-1 overflow-hidden">
+          {focusRole && (
+            <span
+              title={focusRole.primaryGroupLabel}
+              className="min-w-0 max-w-[44%] truncate rounded-full border border-gym-accent/25 bg-gym-accent/15 px-1.5 py-0.5 text-[8px] font-bold text-gym-accent"
+            >
+              {focusRole.primaryGroupLabel}
+            </span>
+          )}
           <span
-            title={metadata.primaryGroupLabel}
-            className="min-w-0 max-w-[44%] truncate rounded-full border border-gym-accent/25 bg-gym-accent/15 px-1.5 py-0.5 text-[8px] font-bold text-gym-accent"
-          >
-            {metadata.primaryGroupLabel}
-          </span>
-          <span
-            title={metadata.equipment}
+            title={exercise.equipment}
             className="min-w-0 max-w-[44%] truncate rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-[8px] text-gym-text-muted"
           >
-            {metadata.equipment}
+            {exercise.equipment}
           </span>
-          {metadata.legacy && (
+          {focusRole?.legacy && (
             <span className="flex-shrink-0 rounded-full border border-amber-400/25 bg-amber-400/10 px-1.5 py-0.5 text-[8px] font-black uppercase text-amber-300">
               Legado
             </span>

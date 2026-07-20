@@ -1325,5 +1325,35 @@ Próximo passo: **revisão e aprovação do Gate G2 pelo Founder**. Somente depo
 ### Continuação
 
 - Curadoria anatômica do legado, normalização de equipamento e o toggle de abrangência permanecem para GOALs explícitos posteriores.
+- P1 confirmado por auditoria pós-GOAL C: a aba Todos exibia os 126 exercícios sob "Principais (126)" sem foco ativo. Corrigido em `GYMFLOW-BUILDER-TF-GOAL-C-TODOS-FLAT-CORRECTIVE-004` (a seguir).
+
+---
+
+## GOAL-TF-C-CORRECTIVE-004 — Todos sem agrupamento por papel (2026-07-20)
+
+### Pré-flight e isolamento
+
+- Worktree `C:\Projetos\gymflow-goal-tf-c`, branch `feat/gymflow-tf-goalC-badges-legado`, HEAD `d9de0aa9ded825fdd82664af0ff4c48aa7efe903` sobre `e52f60f49cf0b0b1102ae5a31624bb1b3a952026` (= `origin/master`). Working tree limpa, sem staged, sem stash.
+- Baseline aprovado: 29 arquivos, 572 testes; `npx tsc --noEmit` aprovado.
+
+### P1 corrigido
+
+- Sintoma: na aba Todos, os 126 exercícios apareciam sob "Principais (126)" mesmo sem foco muscular ativo, em 360 px, desktop e após troca de abas.
+- Causa: `resolveAllExercisesMatch` (em `workout-picker.ts`) sintetizava um foco a partir do próprio grupo principal de cada exercício e chamava `matchesDayFocus` com esse foco fabricado, fazendo todo item entrar na seção `primary`. Sem foco ativo não existe base semântica para papel muscular.
+- Correção: `getWorkoutPickerTabResult` agora devolve uma união discriminada — `WorkoutPickerGroupedTabResult` (`mode: 'grouped'`, com seções) para abas de foco reais, e `WorkoutPickerFlatTabResult` (`mode: 'flat'`, `items: Exercise[]`) para `ALL_EXERCISES_TAB_ID`. `resolveAllExercisesMatch` foi removida. `ExercisePickerModal` renderiza `tabResult.items` diretamente para o modo `flat`, sem seção, cabeçalho ou badge de grupo/legado. `ExercisePickerItem` passou a receber `exercise` + `focusRole` opcional (ausente em Todos, presente em abas de foco com grupo + legado).
+
+### Entrega
+
+- Abas de foco continuam idênticas: Principais → Sinergistas → Classificação legada, badges, disclosure, aviso de revisão e `aria-label` inalterados — apenas atrás de `tabResult.mode === 'grouped'`.
+- Aba Todos: lista plana da biblioteca filtrada, ordem original, sem seção/heading/badge de grupo/badge Legado; equipamento raw, nome, "No treino ×N", "Adicionar novamente" e "Já está no {dia}" preservados; `onAdd(exercise)` continua a única inclusão.
+- `handleAddExercise`, `matchesDayFocus`, storage, seeds, progressão, `Navigation` e o toggle de abrangência não foram tocados.
+
+### Validações
+
+- `npx vitest run`: 29 arquivos, **578 testes** (572 + 6 novos em `GYMFLOW-BUILDER-TF-GOAL-C-TODOS-FLAT-CORRECTIVE-004 / P1`), zero falha.
+- `npx tsc --noEmit`: aprovado. ESLint nos 3 arquivos tocados: aprovado. `npm run build`: aprovado no Next.js 16.2.6. `git diff --check`: aprovado.
+- QA de Todos e abas de foco feita por rastreamento estrutural do código e pela suíte de testes; a extensão do Chrome não estava disponível neste ambiente para uma sessão de navegador ao vivo, então nenhuma medição de pixel foi refeita nesta rodada (diferente da QA original do GOAL C, que teve sessão de navegador real).
+- P3 fonte de 8 px, P3 ausência de teste DOM automatizado e P3 dependência circular `workout-builder.ts → workout-picker.ts` permanecem sem alteração — não ampliados, não corrigidos nesta tarefa.
+- Somente os 3 arquivos de código autorizados (`ExercisePickerModal.tsx`, `workout-picker.ts`, `workout-picker.test.ts`) e a documentação já tocada pelo GOAL C foram alterados. Nenhum push, merge, rebase ou cherry-pick. GOAL D não foi iniciado.
 
 ---

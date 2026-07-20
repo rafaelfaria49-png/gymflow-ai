@@ -8,6 +8,7 @@ import { dayDisplayName } from '../../lib/workout-builder';
 import {
   ALL_EXERCISES_TAB_ID,
   createWorkoutPickerState,
+  getWorkoutPickerItemMetadata,
   getWorkoutPickerSections,
   getWorkoutPickerTabResult,
   getWorkoutPickerTabs,
@@ -74,8 +75,8 @@ const ExercisePickerContent = ({
     [activeTab.id, exercises, focusGroups, pickerState.search],
   );
   const sections = useMemo(
-    () => getWorkoutPickerSections(tabResult.items),
-    [tabResult.items],
+    () => (tabResult.mode === 'grouped' ? getWorkoutPickerSections(tabResult.items) : []),
+    [tabResult],
   );
 
   const toggleSecondarySection = () => {
@@ -190,7 +191,7 @@ const ExercisePickerContent = ({
             })}
           </div>
 
-          {activeTab.id !== ALL_EXERCISES_TAB_ID && tabResult.usesLegacyClassification && (
+          {tabResult.mode === 'grouped' && tabResult.usesLegacyClassification && (
             <p className="text-[10px] text-amber-400 flex items-start gap-1.5 leading-relaxed">
               <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
               Alguns exercícios usam classificação legada.
@@ -208,6 +209,16 @@ const ExercisePickerContent = ({
             <p className="text-xs text-gym-text-muted text-center py-8">
               Nenhum exercício encontrado{activeTab.id !== ALL_EXERCISES_TAB_ID ? ' para este foco' : ''}.
             </p>
+          ) : tabResult.mode === 'flat' ? (
+            tabResult.items.map((exercise) => (
+              <ExercisePickerItem
+                key={exercise.id}
+                exercise={exercise}
+                inDay={countInDay(exercise.id)}
+                alsoIn={otherDaysWithExercise(exercise.id)}
+                onAdd={onAdd}
+              />
+            ))
           ) : (
             sections.map((section) => {
               const headingId = `${panelId}-${section.id}-heading`;
@@ -253,15 +264,19 @@ const ExercisePickerContent = ({
 
                   {expanded && (
                     <div id={contentId} className="space-y-1.5">
-                      {section.items.map((item) => (
-                        <ExercisePickerItem
-                          key={item.exercise.id}
-                          item={item}
-                          inDay={countInDay(item.exercise.id)}
-                          alsoIn={otherDaysWithExercise(item.exercise.id)}
-                          onAdd={onAdd}
-                        />
-                      ))}
+                      {section.items.map((item) => {
+                        const metadata = getWorkoutPickerItemMetadata(item);
+                        return (
+                          <ExercisePickerItem
+                            key={item.exercise.id}
+                            exercise={item.exercise}
+                            focusRole={{ primaryGroupLabel: metadata.primaryGroupLabel, legacy: metadata.legacy }}
+                            inDay={countInDay(item.exercise.id)}
+                            alsoIn={otherDaysWithExercise(item.exercise.id)}
+                            onAdd={onAdd}
+                          />
+                        );
+                      })}
                     </div>
                   )}
                 </section>
