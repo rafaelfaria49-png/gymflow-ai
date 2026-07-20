@@ -1291,3 +1291,39 @@ Próximo passo: **revisão e aprovação do Gate G2 pelo Founder**. Somente depo
 - Curadoria anatômica do catálogo legado e qualquer ranking/sugestão permanecem fora deste GOAL.
 
 ---
+
+## GOAL-TF-C — Badges e agrupamento por papel no picker (2026-07-19)
+
+### Pré-flight e isolamento
+
+- Base exata `e52f60f49cf0b0b1102ae5a31624bb1b3a952026`, coincidente com `origin/master` pós-GOAL B; branch `feat/gymflow-tf-goalC-badges-legado`.
+- O untracked preexistente `.claude/settings.local.json` foi preservado e permaneceu fora do stage.
+- Baseline aprovado: 29 arquivos, 569 testes; TypeScript aprovado. Hashes SHA-256 de exercícios, programas e `storage.ts` foram registrados antes das alterações.
+- Os ADRs TF-004/TF-005 aceitos e o comando do GOAL foram consumidos como contrato; nenhuma taxonomia ou classificação nova foi criada.
+
+### Entrega
+
+- O domínio do picker ganhou partição determinística por papel: Principais → Sinergistas → Classificação legada, preservando a ordem da biblioteca dentro de cada seção.
+- Sinergistas é uma seção colapsada por padrão e expansível por aba, sem antecipar o toggle `[Principais|Incluindo sinergistas]`.
+- `legacy-generic` permanece visível e separado, com “Revise o grupo antes de adicionar”; o banner agregado anterior continua como resumo.
+- Cada item mostra grupo principal resolvido, equipamento raw e badge Legado quando `match.legacy`; o `aria-label` anuncia nome, grupo e equipamento.
+- Cabeçalhos de seção usam semântica de heading; disclosure, tabs e itens têm foco visível. O item foi extraído para `ExercisePickerItem.tsx` dentro da allowlist.
+- A aba Todos continua completa e na ordem original, expondo o match primário/legado de cada item sem filtrar, pontuar ou sugerir.
+
+### Validações
+
+- `npx vitest run`: 29 arquivos, **572 testes** aprovados (569 anteriores + PART15 23–25).
+- `npx tsc --noEmit`: aprovado.
+- ESLint nos quatro arquivos TypeScript/TSX tocados: zero erros e zero warnings.
+- `npm run build`: aprovado no Next.js 16.2.6/Turbopack.
+- QA em 360 × 800: documento e diálogo sem overflow horizontal; oito badges longos com truncamento real; todos os itens inspecionados com nome, grupo e equipamento no nome acessível.
+- Quadríceps mostrou 23 exercícios `legs_general` exclusivamente em Classificação legada, todos com badge Legado e aviso de revisão. Tríceps mostrou 11 Principais e 15 Sinergistas, esta última colapsada por padrão; Supino apareceu somente como sinergista.
+- Setas entre tabs, foco visível e expansão do disclosure foram verificados; console sem erros ou warnings.
+- Somente os arquivos autorizados e documentação foram alterados; hashes protegidos foram revalidados, `git diff --check` passou e `.claude/settings.local.json` permaneceu fora do stage.
+- Nenhum push ou merge foi feito; o GOAL D não foi iniciado.
+
+### Continuação
+
+- Curadoria anatômica do legado, normalização de equipamento e o toggle de abrangência permanecem para GOALs explícitos posteriores.
+
+---

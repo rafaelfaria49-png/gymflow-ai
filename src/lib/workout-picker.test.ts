@@ -7,6 +7,8 @@ import {
   ALL_EXERCISES_TAB_ID,
   createWorkoutPickerState,
   getDayFocusGroups,
+  getWorkoutPickerItemMetadata,
+  getWorkoutPickerSections,
   getWorkoutPickerTabResult,
   getWorkoutPickerTabs,
   groupExercisesForDayFocus,
@@ -96,6 +98,67 @@ describe('GOAL-TF-B / PART15 17–22 e 26–27', () => {
     expect(groupExercisesForDayFocus(MOCK_EXERCISES, [])).toEqual([]);
     expect(getWorkoutPickerTabs([])).toEqual([{ id: ALL_EXERCISES_TAB_ID, label: 'Todos' }]);
     expect(createWorkoutPickerState([])).toEqual({ activeTabId: ALL_EXERCISES_TAB_ID, search: '' });
+  });
+});
+
+describe('GOAL-TF-C / PART15 23–25', () => {
+  it('PART15-23: separa a aba em Principais, Sinergistas e Classificação legada', () => {
+    const canonicalQuadriceps: Exercise = {
+      ...flexora,
+      id: 'canonical_quadriceps',
+      primaryMuscleGroupId: 'quadriceps',
+    };
+    const canonicalSynergist: Exercise = {
+      ...supino,
+      id: 'canonical_quadriceps_synergist',
+      primaryMuscleGroupId: 'chest',
+      secondaryMuscleGroupIds: ['quadriceps'],
+    };
+    const [group] = groupExercisesForDayFocus(
+      [canonicalSynergist, flexora, canonicalQuadriceps],
+      ['quadriceps'],
+    );
+    const sections = getWorkoutPickerSections(group.items);
+
+    expect(sections.map(({ id, label, collapsedByDefault }) => ({
+      id,
+      label,
+      collapsedByDefault,
+    }))).toEqual([
+      { id: 'primary', label: 'Principais', collapsedByDefault: false },
+      { id: 'secondary', label: 'Sinergistas', collapsedByDefault: true },
+      { id: 'legacy', label: 'Classificação legada', collapsedByDefault: false },
+    ]);
+    expect(sections[0].items.map(({ exercise: item }) => item.id)).toEqual([canonicalQuadriceps.id]);
+    expect(sections[1].items.map(({ exercise: item }) => item.id)).toEqual([canonicalSynergist.id]);
+    expect(sections[2].items.map(({ exercise: item }) => item.id)).toEqual([flexora.id]);
+    expect(sections[2].reviewMessage).toBe('Revise o grupo antes de adicionar');
+  });
+
+  it('PART15-24: quadríceps mantém legs_general somente na seção legada e marca o item', () => {
+    const [group] = groupExercisesForDayFocus([flexora], ['quadriceps']);
+    const sections = getWorkoutPickerSections(group.items);
+    const item = sections[0].items[0];
+
+    expect(sections).toHaveLength(1);
+    expect(sections[0].id).toBe('legacy');
+    expect(item.match).toEqual({ matches: true, kind: 'legacy-generic', legacy: true });
+    expect(getWorkoutPickerItemMetadata(item)).toEqual({
+      primaryGroupLabel: 'Pernas (legado)',
+      equipment: flexora.equipment,
+      legacy: true,
+    });
+  });
+
+  it('PART15-25: um casamento sinergista nunca aparece em Principais', () => {
+    const [group] = groupExercisesForDayFocus([supino, tricepsCorda], ['triceps']);
+    const sections = getWorkoutPickerSections(group.items);
+    const primary = sections.find(({ id }) => id === 'primary');
+    const secondary = sections.find(({ id }) => id === 'secondary');
+
+    expect(primary?.items.map(({ exercise: item }) => item.id)).toEqual([tricepsCorda.id]);
+    expect(secondary?.items.map(({ exercise: item }) => item.id)).toEqual([supino.id]);
+    expect(primary?.items.some(({ match }) => match.kind === 'secondary' || match.kind === 'legacy-secondary')).toBe(false);
   });
 });
 

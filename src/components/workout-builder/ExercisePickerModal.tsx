@@ -1,19 +1,21 @@
 'use client';
 
-import React, { useMemo, useReducer, useRef } from 'react';
-import { Check, Info, Plus, Search, X } from 'lucide-react';
+import React, { useMemo, useReducer, useRef, useState } from 'react';
+import { Check, ChevronDown, Info, Search, X } from 'lucide-react';
 import type { Exercise } from '../../types';
 import type { WorkoutDayBuilderDraft } from '../../types/workout-builder';
 import { dayDisplayName } from '../../lib/workout-builder';
 import {
   ALL_EXERCISES_TAB_ID,
   createWorkoutPickerState,
+  getWorkoutPickerSections,
   getWorkoutPickerTabResult,
   getWorkoutPickerTabs,
   groupExercisesForDayFocus,
   workoutPickerReducer,
   type WorkoutPickerTabId,
 } from '../../lib/workout-picker';
+import { ExercisePickerItem } from './ExercisePickerItem';
 
 interface ExercisePickerModalProps {
   isOpen: boolean;
@@ -53,6 +55,9 @@ const ExercisePickerContent = ({
     workoutPickerReducer,
     createWorkoutPickerState(day.muscleGroupIds),
   );
+  const [expandedSecondaryTabs, setExpandedSecondaryTabs] = useState<ReadonlySet<WorkoutPickerTabId>>(
+    () => new Set(),
+  );
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const hasFocus = focusGroups.length > 0;
   const activeTabIndex = Math.max(0, tabs.findIndex(({ id }) => id === pickerState.activeTabId));
@@ -68,6 +73,19 @@ const ExercisePickerContent = ({
     ),
     [activeTab.id, exercises, focusGroups, pickerState.search],
   );
+  const sections = useMemo(
+    () => getWorkoutPickerSections(tabResult.items),
+    [tabResult.items],
+  );
+
+  const toggleSecondarySection = () => {
+    setExpandedSecondaryTabs((expandedTabs) => {
+      const next = new Set(expandedTabs);
+      if (next.has(activeTab.id)) next.delete(activeTab.id);
+      else next.add(activeTab.id);
+      return next;
+    });
+  };
 
   const selectTabAt = (index: number) => {
     const nextIndex = (index + tabs.length) % tabs.length;
@@ -160,7 +178,7 @@ const ExercisePickerContent = ({
                   tabIndex={selected ? 0 : -1}
                   onClick={() => dispatch({ type: 'select-tab', tabId: tab.id })}
                   onKeyDown={(event) => handleTabKeyDown(event, index)}
-                  className={`flex-shrink-0 snap-start min-h-[36px] py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all ${
+                  className={`flex-shrink-0 snap-start min-h-[36px] py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gym-accent focus-visible:ring-offset-2 focus-visible:ring-offset-gym-dark ${
                     selected
                       ? 'bg-gym-accent text-gym-dark'
                       : 'bg-white/5 text-gym-text-muted hover:text-white'
@@ -191,47 +209,62 @@ const ExercisePickerContent = ({
               Nenhum exercício encontrado{activeTab.id !== ALL_EXERCISES_TAB_ID ? ' para este foco' : ''}.
             </p>
           ) : (
-            tabResult.items.map(({ exercise }) => {
-              const inDay = countInDay(exercise.id);
-              const alsoIn = otherDaysWithExercise(exercise.id);
+            sections.map((section) => {
+              const headingId = `${panelId}-${section.id}-heading`;
+              const contentId = `${panelId}-${section.id}-content`;
+              const expanded = !section.collapsedByDefault
+                || expandedSecondaryTabs.has(activeTab.id);
+
               return (
-                <button
-                  key={exercise.id}
-                  type="button"
-                  onClick={() => onAdd(exercise)}
-                  className={`w-full text-left border rounded-xl p-3 flex items-center justify-between transition-all min-h-[44px] ${
-                    inDay > 0
-                      ? 'bg-gym-accent/5 border-gym-accent/20 hover:border-gym-accent/40'
-                      : 'bg-white/5 border-white/5 hover:bg-gym-accent/10 hover:border-gym-accent/30'
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <h4 className="text-xs font-bold text-white truncate">{exercise.name}</h4>
-                      {inDay > 0 && (
-                        <span className="flex-shrink-0 text-[8px] font-black uppercase bg-gym-accent/15 text-gym-accent px-1.5 py-0.5 rounded-full">
-                          No treino ×{inDay}
+                <section key={section.id} aria-labelledby={headingId} className="space-y-1.5">
+                  {section.id === 'secondary' ? (
+                    <div id={headingId} role="heading" aria-level={3}>
+                      <button
+                        type="button"
+                        aria-expanded={expanded}
+                        aria-controls={contentId}
+                        onClick={toggleSecondarySection}
+                        className="flex min-h-[36px] w-full items-center justify-between gap-2 rounded-lg px-2 text-left text-[10px] font-black uppercase tracking-wider text-white hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gym-accent focus-visible:ring-offset-2 focus-visible:ring-offset-gym-dark"
+                      >
+                        <span>{section.label} ({section.items.length})</span>
+                        <ChevronDown
+                          aria-hidden="true"
+                          className={`h-3.5 w-3.5 flex-shrink-0 text-gym-text-muted transition-transform ${
+                            expanded ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      id={headingId}
+                      role="heading"
+                      aria-level={3}
+                      className="px-2 pt-1 text-[10px] font-black uppercase tracking-wider text-white"
+                    >
+                      <span>{section.label} ({section.items.length})</span>
+                      {section.reviewMessage && (
+                        <span className="mt-0.5 block normal-case font-medium tracking-normal text-amber-300">
+                          {section.reviewMessage}
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-gym-text-muted capitalize mt-0.5 truncate">
-                      {exercise.muscleGroup} • {exercise.equipment}
-                    </p>
-                    {alsoIn.length > 0 && (
-                      <p className="text-[9px] text-gym-text-muted mt-0.5 truncate">
-                        Já está no {alsoIn.join(', ')}
-                      </p>
-                    )}
-                  </div>
-                  <span className="flex-shrink-0 ml-2 flex items-center gap-1.5">
-                    {inDay > 0 && (
-                      <span className="text-[9px] text-gym-accent font-bold whitespace-nowrap hidden sm:inline">
-                        Adicionar novamente
-                      </span>
-                    )}
-                    <Plus className="w-4 h-4 text-gym-accent" />
-                  </span>
-                </button>
+                  )}
+
+                  {expanded && (
+                    <div id={contentId} className="space-y-1.5">
+                      {section.items.map((item) => (
+                        <ExercisePickerItem
+                          key={item.exercise.id}
+                          item={item}
+                          inDay={countInDay(item.exercise.id)}
+                          alsoIn={otherDaysWithExercise(item.exercise.id)}
+                          onAdd={onAdd}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
               );
             })
           )}

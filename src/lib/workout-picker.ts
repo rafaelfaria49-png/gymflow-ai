@@ -1,7 +1,11 @@
 import type { Exercise } from '../types';
 import type { MuscleGroupId } from '../types/training-taxonomy';
 import { matchesExerciseSearch } from './exerciseSearch';
-import { MUSCLE_GROUPS } from './training-taxonomy';
+import {
+  getMuscleGroupDefinition,
+  MUSCLE_GROUPS,
+  resolveLegacyMuscleGroup,
+} from './training-taxonomy';
 import {
   matchesDayFocus,
   type DayFocusFilterResult,
@@ -38,6 +42,23 @@ export interface WorkoutPickerTabResult {
   usesLegacyClassification: boolean;
 }
 
+export type WorkoutPickerSectionId = 'primary' | 'secondary' | 'legacy';
+
+export interface WorkoutPickerSection {
+  id: WorkoutPickerSectionId;
+  label: 'Principais' | 'Sinergistas' | 'Classificação legada';
+  collapsedByDefault: boolean;
+  reviewMessage?: 'Revise o grupo antes de adicionar';
+  items: DayFocusExerciseItem[];
+}
+
+export interface WorkoutPickerItemMetadata {
+  primaryGroupLabel: string;
+  /** Texto raw do catálogo; não deve ser normalizado para exibição. */
+  equipment: string;
+  legacy: boolean;
+}
+
 export interface WorkoutPickerState {
   activeTabId: WorkoutPickerTabId;
   search: string;
@@ -47,6 +68,76 @@ export type WorkoutPickerAction =
   | { type: 'select-tab'; tabId: WorkoutPickerTabId }
   | { type: 'set-search'; search: string }
   | { type: 'clear-search' };
+
+const PICKER_SECTIONS: readonly Omit<WorkoutPickerSection, 'items'>[] = [
+  { id: 'primary', label: 'Principais', collapsedByDefault: false },
+  { id: 'secondary', label: 'Sinergistas', collapsedByDefault: true },
+  {
+    id: 'legacy',
+    label: 'Classificação legada',
+    collapsedByDefault: false,
+    reviewMessage: 'Revise o grupo antes de adicionar',
+  },
+];
+
+function resolveExercisePrimaryGroup(exercise: Exercise) {
+  return (exercise.primaryMuscleGroupId
+    ? getMuscleGroupDefinition(exercise.primaryMuscleGroupId)
+    : undefined) ?? resolveLegacyMuscleGroup(exercise.muscleGroup);
+}
+
+function resolveAllExercisesMatch(exercise: Exercise): ExerciseFocusMatch {
+  const primaryGroup = resolveExercisePrimaryGroup(exercise);
+  return primaryGroup
+    ? matchesDayFocus(exercise, [primaryGroup.id])
+    : matchesDayFocus(exercise, []);
+}
+
+function sectionIdForMatch(match: ExerciseFocusMatch): WorkoutPickerSectionId {
+  switch (match.kind) {
+    case 'secondary':
+    case 'legacy-secondary':
+      return 'secondary';
+    case 'legacy-generic':
+      return 'legacy';
+    case 'primary':
+    case 'legacy-primary':
+    case 'none':
+      return 'primary';
+  }
+}
+
+/**
+ * Particiona por papel sem pontuar ou reordenar dentro de cada seção. `none` só
+ * ocorre como fallback honesto na aba Todos e permanece visível em Principais.
+ */
+export function getWorkoutPickerSections(
+  items: readonly DayFocusExerciseItem[],
+): WorkoutPickerSection[] {
+  const buckets: Record<WorkoutPickerSectionId, DayFocusExerciseItem[]> = {
+    primary: [],
+    secondary: [],
+    legacy: [],
+  };
+
+  for (const item of items) buckets[sectionIdForMatch(item.match)].push(item);
+
+  return PICKER_SECTIONS
+    .filter(({ id }) => buckets[id].length > 0)
+    .map((section) => ({ ...section, items: buckets[section.id] }));
+}
+
+/** Metadados de exibição; o equipamento legado é devolvido exatamente como veio. */
+export function getWorkoutPickerItemMetadata(
+  item: DayFocusExerciseItem,
+): WorkoutPickerItemMetadata {
+  const primaryGroup = resolveExercisePrimaryGroup(item.exercise);
+  return {
+    primaryGroupLabel: primaryGroup?.label ?? item.exercise.muscleGroup,
+    equipment: item.exercise.equipment,
+    legacy: item.match.legacy,
+  };
+}
 
 /** Remove focos inválidos/duplicados e devolve os válidos na ordem canônica da taxonomia. */
 export function getDayFocusGroups(focusIds: readonly MuscleGroupId[]): DayFocusGroup[] {
@@ -122,11 +213,12 @@ export function getWorkoutPickerTabResult(
   search: string,
 ): WorkoutPickerTabResult {
   if (tabId === ALL_EXERCISES_TAB_ID) {
+    const items = exercises
+      .filter((exercise) => matchesExerciseSearch(exercise, search))
+      .map((exercise) => ({ exercise, match: resolveAllExercisesMatch(exercise) }));
     return {
-      items: exercises
-        .filter((exercise) => matchesExerciseSearch(exercise, search))
-        .map((exercise) => ({ exercise, match: matchesDayFocus(exercise, []) })),
-      usesLegacyClassification: false,
+      items,
+      usesLegacyClassification: items.some(({ match }) => match.legacy),
     };
   }
 
