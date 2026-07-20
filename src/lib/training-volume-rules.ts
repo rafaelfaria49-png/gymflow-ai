@@ -1,5 +1,6 @@
 import type {
   EquipmentCategory,
+  ExerciseMechanics,
   MuscleGroupId,
 } from '../types/training-taxonomy';
 import type {
@@ -176,4 +177,46 @@ export const SESSION_CAPACITY_RULES = Object.freeze({
   } satisfies Record<TrainingExperienceLevel, number>),
   minimumFactor: 0.8,
   maximumFactor: 1.15,
+});
+
+/**
+ * GOAL-20: pesos determinísticos da sugestão assistida (nunca uma proporção fixa
+ * universal). Os pesos de distribuição são ADITIVOS e nomeados: o peso de um grupo em
+ * foco é `baseWeight + groupSizeBonus[classe] + (é o foco principal ? primaryFocusBonus : 0)`.
+ * Os de ranking ordenam os candidatos — compostos antes de isolados, nível apropriado
+ * antes do acima do nível, classificação curada antes da legada. Nenhum peso escolhe
+ * exercício sozinho nem altera o treino: alimentam apenas o preview, que o usuário aplica.
+ */
+export const WORKOUT_SUGGESTION_RULES = Object.freeze({
+  distribution: Object.freeze({
+    /** Peso base de todo grupo que está em foco no dia. */
+    baseWeight: 1,
+    /** Bônus do primeiro foco declarado (o papel principal do dia recebe mais volume). */
+    primaryFocusBonus: 1,
+    /** Bônus por tamanho relativo do grupo — grupos grandes recebem mais que os pequenos. */
+    groupSizeBonus: Object.freeze({
+      large: 2,
+      small: 1,
+      core: 1,
+      whole_body: 2,
+      conditioning: 1,
+      mobility: 1,
+    } satisfies Record<MuscleVolumeClass, number>),
+  }),
+  ranking: Object.freeze({
+    /** Ordem de mecânica no ranking: compostos antes de isolados (menor = mais cedo). */
+    mechanicsOrder: Object.freeze({
+      compound: 0,
+      functional: 1,
+      isolation: 2,
+      cardio: 3,
+      mobility: 4,
+    } satisfies Record<ExerciseMechanics, number>),
+    /** Penalidade por passo de nível ACIMA do nível do usuário (mantém exercícios avançados atrás). */
+    aboveLevelPenalty: 10,
+    /** Penalidade leve por passo de distância de nível (inclusive abaixo), só desempate. */
+    levelDistancePenalty: 1,
+    /** Penalidade para casamento que dependeu de classificação legada (curado vem antes). */
+    legacyClassificationPenalty: 5,
+  }),
 });

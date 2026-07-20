@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, ChevronLeft, Play, Save, Sparkles } from 'lucide-react';
 import { useGymFlow, type AppView } from '../providers/GymFlowContext';
-import type { Exercise, ExerciseSlot, VolumeProfile, WorkoutBuilderDraft, WorkoutProgram } from '../types';
+import type { Exercise, VolumeProfile, WorkoutBuilderDraft, WorkoutProgram } from '../types';
 import type { MuscleGroupId } from '../types/training-taxonomy';
 import type { TrainingExperienceLevel } from '../types/training-profile';
 import type { WorkoutProgramBuilderDraft } from '../types/workout-builder';
@@ -62,7 +62,13 @@ import {
   listWorkoutTemplates,
   type TemplateCompatibilityProfile,
 } from '../lib/workout-templates';
+import {
+  applySuggestionToDay,
+  buildWorkoutSuggestionPreview,
+  createDefaultExerciseSlot,
+} from '../lib/workout-suggestion';
 import { ExercisePickerModal } from '../components/workout-builder/ExercisePickerModal';
+import { WorkoutSuggestionPreview } from '../components/workout-builder/WorkoutSuggestionPreview';
 import { StartDayPicker } from '../components/workout-builder/StartDayPicker';
 import { WorkoutCreationMode } from '../components/workout-builder/WorkoutCreationMode';
 import { WorkoutDaysEditor } from '../components/workout-builder/WorkoutDaysEditor';
@@ -178,6 +184,7 @@ export const WorkoutBuilder = () => {
   const [templateId, setTemplateId] = useState<string | null>(null);
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [suggestionOpen, setSuggestionOpen] = useState(false);
   const [startPickerOpen, setStartPickerOpen] = useState(false);
   const [weekdayPickerVisible, setWeekdayPickerVisible] = useState(false);
   const [pendingNavigationView, setPendingNavigationView] = useState<AppView | null>(null);
@@ -318,19 +325,40 @@ export const WorkoutBuilder = () => {
   // ===== Exercícios =====
 
   const handleAddExercise = (exercise: Exercise) => {
-    // Mesma heurística do GOAL-10.5: sem sinergistas = isolado (mais reps, menos descanso).
-    const isolated = !exercise.secondaryMuscles || exercise.secondaryMuscles.length === 0;
-    const slot: ExerciseSlot = {
-      exerciseId: exercise.id,
-      series: 3,
-      repRange: isolated ? [10, 15] : [8, 10],
-      targetRPE: 8,
-      restSec: isolated ? 75 : 120,
-      progression: 'dupla',
-      incrementKg: isolated ? 1 : 2.5,
-    };
-    setDraft(addSlotToDay(draft, selectedDay.id, slot));
+    // Slot default compartilhado com a sugestão assistida (GOAL-20): sem sinergistas =
+    // isolado (mais reps, menos descanso). Uma única fonte garante preview == adição manual.
+    setDraft(addSlotToDay(draft, selectedDay.id, createDefaultExerciseSlot(exercise)));
     toast.success(`"${exercise.name}" adicionado ao Dia ${selectedDay.dayNumber}.`);
+  };
+
+  // GOAL-20: preview da sugestão só é calculado quando o modal está aberto (determinístico,
+  // puro, sem rede/IA). Aplicar SÓ acrescenta slots; nada mais do dia muda.
+  const suggestionPreview = useMemo(() => {
+    if (!suggestionOpen) return null;
+    return buildWorkoutSuggestionPreview({
+      focusIds: selectedDay.muscleGroupIds,
+      targetMinutes: selectedDay.targetMinutes,
+      volumeProfile: selectedDay.volumeProfile,
+      level: draft.level,
+      goal: user?.goal ?? 'hypertrophy',
+      returnToTraining: user?.returnToTraining ?? null,
+      existingSlots: selectedDay.slots,
+      catalog: exercises,
+      availableEquipment: user?.equipments,
+      restrictions: user?.restrictions,
+      defaultRestSeconds: user?.restTimerDefaultSeconds,
+    });
+  }, [suggestionOpen, selectedDay, draft.level, user, exercises]);
+
+  const handleApplySuggestion = () => {
+    if (!suggestionPreview || suggestionPreview.additions.length === 0) {
+      setSuggestionOpen(false);
+      return;
+    }
+    const count = suggestionPreview.additions.length;
+    setDraft(applySuggestionToDay(draft, selectedDay.id, suggestionPreview));
+    setSuggestionOpen(false);
+    toast.success(`${count} exercício(s) sugerido(s) adicionado(s) ao Dia ${selectedDay.dayNumber}.`);
   };
 
   // ===== Salvamento =====
@@ -609,6 +637,7 @@ export const WorkoutBuilder = () => {
         onDuplicateDay={handleDuplicateDay}
         onRemoveDay={() => setDayPendingRemoval(selectedDay.id)}
         onOpenPicker={() => setPickerOpen(true)}
+        onOpenSuggestion={() => setSuggestionOpen(true)}
         onSlotChange={(index, fields) => setDraft(updateSlotInDay(draft, selectedDay.id, index, fields))}
         onSlotMove={(index, direction) => setDraft(moveSlotInDay(draft, selectedDay.id, index, direction))}
         onSlotDuplicate={(index) => setDraft(duplicateSlotInDay(draft, selectedDay.id, index))}
@@ -730,6 +759,14 @@ export const WorkoutBuilder = () => {
         otherDaysWithExercise={otherDaysWithExercise}
         onAdd={handleAddExercise}
         onClose={() => setPickerOpen(false)}
+      />
+
+      <WorkoutSuggestionPreview
+        isOpen={suggestionOpen}
+        day={selectedDay}
+        preview={suggestionPreview}
+        onApply={handleApplySuggestion}
+        onCancel={() => setSuggestionOpen(false)}
       />
     </div>
   );

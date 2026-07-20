@@ -2,6 +2,20 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL D — Sugestão assistida com preview (2026-07-20)
+
+- **Motor puro e determinístico, sem nova dependência:** `buildWorkoutSuggestionPreview` é o antigo GOAL-20 anunciado em `filterExercisesByDayFocus`; entra como camada de ranking/distribuição sobre `matchesDayFocus`, sem IA, rede, `Math.random` nem alteração automática do treino.
+- **`createDefaultExerciseSlot` é a fonte única do slot default:** `handleAddExercise` foi refatorado para reusá-la, garantindo por construção que "aplicar sugestão" produz slots idênticos aos da adição manual (defaults do GOAL-10.5).
+- **Pesos de distribuição são aditivos e nomeados:** `base + groupSizeBonus[classe] + primaryFocusBonus`; repartição por maior quociente (D'Hondt) com empate pela ordem da taxonomia. Nunca proporção fixa universal — Costas+Bíceps dá peso 4×2 (~4+2).
+- **Foco principal = primeiro foco declarado:** como o dia guarda `muscleGroupIds` já normalizado pela ordem da taxonomia, o primeiro é o de menor ordem (Costas antes de Bíceps), coerente com o QA.
+- **Teto = faixa recomendada + time-fit, e o retorno reduz o teto:** acrescenta um exercício por vez até `analyzeWorkoutTimeFit` entrar em `within-target` (ou antes de estourar); `RETURN_REFERENCE_MODIFIERS` reduz o teto (piso 1) para quem está retornando — daí "retorno reduz teto".
+- **Equipamento só EXCLUI com certeza:** quando o exercício tem equipamento curado (ou resolvido exato/alias) fora do perfil. Classificação legada/genérica ou equipamento desconhecido não exclui — vira aviso honesto de "não confirmado", nunca uma afirmação falsa de disponibilidade.
+- **Restrições não são filtradas, são avisadas:** o catálogo atual (126 exercícios legados, sem contraindicação estruturada) não permite filtrar restrições deterministicamente; o preview avisa e pede revisão em vez de fingir que aplicou.
+- **`already-fits` cobre `within-target` E `over-target`:** um dia já dentro OU acima do tempo disponível não recebe adições; o preview explica que nada será adicionado e "Aplicar" fica desabilitado.
+- **`applySuggestionToDay` só acrescenta:** usa `updateDaySlots` e faz `[...existentes, ...novos]`; nome, foco, tempo, perfil e slots existentes ficam intocados (mesmos objetos). Preview vazio devolve o mesmo draft, sem mutação.
+- **Preview calculado só com o modal aberto (`useMemo` guardado por `suggestionOpen`):** evita recomputar a cada render do Construtor; o botão fica em `WorkoutDaysEditor`, abaixo de "Adicionar".
+- **Sem texto "IA" e sem diálogo nativo:** o modal reusa os tokens do `ExercisePickerModal` (dark + verde-lima, toque 44px); avisos em `amber-400`, coerente com o restante do Construtor.
+
 ## GOAL-19B.2A (2026-07-18)
 
 - **`setActiveView` continua sendo a navegação pública única:** o Context ganhou um guard transitório central, não um segundo sistema de navegação; toda superfície existente fica protegida sem duplicar diálogos em menus.

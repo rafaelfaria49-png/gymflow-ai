@@ -8,6 +8,7 @@ import {
   Copy,
   Dumbbell,
   Plus,
+  Sparkles,
   Trash2,
   Wand2,
 } from 'lucide-react';
@@ -55,6 +56,7 @@ interface WorkoutDaysEditorProps {
   onDuplicateDay: () => void;
   onRemoveDay: () => void;
   onOpenPicker: () => void;
+  onOpenSuggestion: () => void;
   onSlotChange: (index: number, fields: Partial<ExerciseSlot>) => void;
   onSlotMove: (index: number, direction: -1 | 1) => void;
   onSlotDuplicate: (index: number) => void;
@@ -84,6 +86,7 @@ export const WorkoutDaysEditor = ({
   onDuplicateDay,
   onRemoveDay,
   onOpenPicker,
+  onOpenSuggestion,
   onSlotChange,
   onSlotMove,
   onSlotDuplicate,
@@ -254,6 +257,13 @@ export const WorkoutDaysEditor = ({
           <Plus className="w-4 h-4" /> Adicionar
         </button>
       </div>
+
+      <button
+        onClick={onOpenSuggestion}
+        className="w-full min-h-[44px] bg-white/5 hover:bg-white/10 border border-gym-accent/30 text-gym-accent font-bold px-4 rounded-xl text-xs flex items-center justify-center gap-1.5"
+      >
+        <Sparkles className="w-4 h-4" /> Sugerir exercícios para este dia
+      </button>
 
       {day.slots.length === 0 ? (
         <div className="bg-white/5 p-8 text-center rounded-2xl border border-dashed border-white/10 space-y-3 flex flex-col items-center">

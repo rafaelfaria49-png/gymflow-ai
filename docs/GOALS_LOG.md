@@ -4,6 +4,35 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL D — Sugestão assistida determinística com preview (2026-07-20)
+
+### Escopo e decisões
+
+- Trabalho em `feat/gymflow-tf-goalD-sugestao-preview`, base = `master` pós-GOAL C (`1026c12`). É o antigo GOAL-20 (ADR-TF-006): ranking + distribuição sobre o filtro de foco do GOAL B/C, sempre como **preview** que o usuário aplica.
+- Novo motor puro `src/lib/workout-suggestion.ts`: `buildWorkoutSuggestionPreview` (contrato 2.7 — foco, tempo, perfil, nível, objetivo, retorno, slots existentes, catálogo; opcionais equipamentos/restrições), `applySuggestionToDay` (só acrescenta slots) e `createDefaultExerciseSlot` (fonte única do slot default, reusada por `handleAddExercise`).
+- Pesos aditivos nomeados em `training-volume-rules.ts` (`WORKOUT_SUGGESTION_RULES`): distribuição = `base + tamanho do grupo + foco principal`, repartida por maior quociente; ranking = compostos antes de isolados, nível, classificação curada, índice do catálogo. Reusa `estimateWorkoutDurationDetailed`, `analyzeWorkoutTimeFit`, `estimateRecommendedExerciseRange`, `matchesDayFocus` e `RETURN_REFERENCE_MODIFIERS`.
+- Determinístico: sem IA/rede/`Math.random`; duas chamadas idênticas ⇒ saída idêntica. Teto = faixa recomendada + time-fit ("adicionar até caber"); retorno aos treinos reduz o teto. Dia já dentro/acima do tempo ⇒ nada adicionado.
+- UI: `WorkoutSuggestionPreview.tsx` (modal com distribuição, estimativa antes→depois, lista de adições, justificativa e avisos) e o botão "Sugerir exercícios para este dia" em `WorkoutDaysEditor`; fiação em `WorkoutBuilder`. Sem texto "IA", sem diálogo nativo, tokens dark + verde-lima, toque 44px.
+- Slots existentes, nome, foco, tempo e perfil do dia ficam intocados; equipamento só exclui com certeza, restrições viram aviso (catálogo legado não permite filtrá-las).
+
+### Validações
+
+- Baseline (`1026c12`): `npx tsc --noEmit` limpo e **578 testes** aprovados.
+- Resultado: **588 testes** aprovados em 30 arquivos (**10 casos novos**, PART15 29–38), sem excluir testes. `npx tsc --noEmit` limpo; `npm run build` aprovado no Next.js 16.2.6 (Turbopack).
+- ESLint dos arquivos alterados: zero erros. Sem `alert(`/`confirm(` nativo e sem texto "IA" no código novo.
+
+### Como testar
+
+- `npx vitest run src/lib/workout-suggestion.test.ts` cobre determinismo, duplicatas, slots intocados, dia cheio, retorno reduz teto, avisos, distribuição, compostos-antes-de-isolados e catálogo real.
+- No app: Construtor → dia com foco Costas + Bíceps, 60 min, perfil Padrão → "Sugerir exercícios para este dia" → preview ~4+2 com justificativa → Aplicar acrescenta sem apagar; Cancelar não altera nada.
+
+### Arquivos
+
+- Novos: `src/lib/workout-suggestion.ts`, `src/lib/workout-suggestion.test.ts`, `src/components/workout-builder/WorkoutSuggestionPreview.tsx`, `docs/builder/GYMFLOW_WORKOUT_SUGGESTION.md`.
+- Editados: `src/lib/training-volume-rules.ts`, `src/components/workout-builder/WorkoutDaysEditor.tsx`, `src/modules/WorkoutBuilder.tsx`, `docs/DECISOES.md`, `docs/GOALS_LOG.md`.
+
+---
+
 ## GOAL-19B.2A — Merge readiness: dirty-state global e planejamento legado (2026-07-18)
 
 ### Escopo e decisões
