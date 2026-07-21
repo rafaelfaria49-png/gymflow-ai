@@ -2,6 +2,91 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-TF-F — Integração e QA final do lote Tempo–Foco (2026-07-21)
+
+- **GOAL exclusivamente documental e de QA:** consolida A–E sem alterar código.
+  Único commit toca apenas `docs/**`. Qualquer achado em código foi registrado como
+  pendência/follow-up, nunca corrigido aqui.
+- **Base fixada em `origin/master` (`5199c734`), não na `master` local:** o worktree
+  nasceu direto de `origin/master`; a `master` local (`17b5d331`, GOAL D) ficou
+  defasada de propósito e não foi atualizada.
+- **Veredito Classe B, não A:** a QA obrigatória **manual/visual** e a inspeção do
+  "1 Issue" do Next DevTools não puderam ser executadas (extensão do Chrome não
+  conectada). Como Classe A exige QA manual executada + issue identificada, o lote
+  fica em **B** (testes, TypeScript, build web e build mobile verdes; lint global
+  **vermelho** por dívida preexistente; 0 P0/P1 introduzido pelo lote; restante
+  P2/P3). Não se declara QA que não foi feita.
+- **Matriz determinística atribuída a testes automatizados + inspeção estrutural:**
+  conforme §19 do enunciado, cobertura por 600 testes substitui a execução manual
+  das combinações cujas regras já são determinísticas. O que é puramente visual
+  (pixels, safe-area, teclado runtime, overlay do DevTools) ficou como não
+  executável neste ambiente.
+- **Relatório dedicado criado:** `docs/builder/GYMFLOW_TEMPO_FOCO_QA_FINAL.md`. A
+  decisão de criá-lo (em vez de só usar os três docs existentes) é por
+  rastreabilidade — a matriz completa, os gates e a investigação do "1 Issue"
+  concentrados num só lugar mantêm GOALS_LOG/DECISOES/PENDENCIAS enxutos.
+- **ESLint reconciliado sem tocar código:** `npm run lint` (projeto inteiro) é
+  **vermelho** (exit 1) — 12 erros + 6 warnings, todos pré-existentes; provado pelo
+  diff do lote não incluir nenhum dos 8 arquivos com erro nem o nono arquivo
+  (`EvolutionDashboard.tsx`, somente warning de `no-img-element`). A "baseline de 3
+  warnings" citada nos GOALs A–E era o lint **escopado aos arquivos tocados**, não o
+  do projeto inteiro.
+
+### Correspondência dos ADRs Tempo–Foco (TF-001..TF-007)
+
+**Não existe documento físico `ADR-TF-00X` no repositório** — as entradas dos GOALs
+A, B e E registram explicitamente essa ausência ("MASTERPLAN físico ausente", "o
+documento físico do ADR-TF-007 não existe no repositório"). As decisões vivem nas
+seções deste `DECISOES.md` e no `GOALS_LOG.md`. A numeração TF-00X aparece apenas
+como **referência** dentro dos enunciados/entradas. Tabela de correspondência (sem
+renumerar nada, sem inventar ADR ausente):
+
+| ADR | Referência literal no repo | GOAL responsável | Commit(s) | Onde a decisão está registrada |
+|-----|-----------------------------|------------------|-----------|-------------------------------|
+| TF-001 | **não referenciado** | ≈ GOAL-TF-A (tempo disponível canônico) | `dd5f9cc`/`b0ddfef` | DECISOES §GOAL-TF-A (bullet "tempo disponível e duração estimada têm papéis distintos") |
+| TF-002 | **não referenciado** | ≈ GOAL-TF-A (perfil recomendado) | `dd5f9cc`/`b0ddfef` | DECISOES §GOAL-TF-A (bullet "recomendação determinística e apenas textual") |
+| TF-003 | **não referenciado** | ≈ GOAL-TF-A (time-fit / faixa de exercícios) | `dd5f9cc`/`b0ddfef` | DECISOES §GOAL-TF-A + `workout-time-fit.ts`/tests |
+| TF-004 | citado em GOAL-TF-B e -C | GOAL-TF-B (picker por foco) | `28aad29`/`e52f60f` | DECISOES §GOAL-TF-B; `GYMFLOW_WORKOUT_PICKER_BY_FOCUS.md` |
+| TF-005 | citado em GOAL-TF-C | GOAL-TF-C (badges/papel) + CORRECTIVE-004 | `d9de0aa`/`1026c12` | DECISOES §GOAL-TF-C e §GOAL-TF-C-CORRECTIVE-004 |
+| TF-006 | citado em GOAL D ("antigo GOAL-20") | GOAL D (sugestão preview) | `17b5d33` | DECISOES §GOAL D; `GYMFLOW_WORKOUT_SUGGESTION.md` |
+| TF-007 | citado em GOAL-TF-E (doc físico ausente) | GOAL-TF-E (nomes) | `5199c73` | DECISOES §GOAL-TF-E |
+
+Detalhe por ADR (status · decisão-chave · riscos residuais · validação · follow-up):
+
+- **TF-001..003 (GOAL-TF-A, integrado `b0ddfef`):** *status* integrado em
+  `origin/master`. *Decisão:* `ProgramDay.targetMinutes` é entrada canônica com
+  precedência `day.targetMinutes ?? user.duration ?? default(perfil)`; recomendação
+  de perfil/faixa determinística e só textual (±5 min, 1–12 exercícios). *Riscos:*
+  heurísticas de produto pendentes de revisão profissional; **numeração TF-001..003
+  não é literal** (correspondência conceitual). *Validação:* `workout-time-fit.test.ts`
+  (21) + `training-plan-assessment.test.ts` (15). *Follow-up:* recalibrar só após uso
+  real (PENDENCIAS).
+- **TF-004 (GOAL-TF-B, `e52f60f`):** *status* integrado. *Decisão:* picker por foco
+  com um resolver único (lista/legado/contadores), abas pela taxonomia, `Todos` por
+  último, busca e aba independentes; `filterExercisesByDayFocus` mantém assinatura.
+  *Riscos:* dependência circular `workout-builder↔workout-picker` (P3); sem teste DOM
+  (P3). *Validação:* `workout-picker.test.ts` PART15-17..22/26/27. *Follow-up:* toggle
+  de abrangência.
+- **TF-005 (GOAL-TF-C + CORRECTIVE-004, `1026c12`):** *status* integrado, com
+  corretivo P1. *Decisão:* partição por papel (Principais→Sinergistas→Legado) em abas
+  de foco; **aba Todos é lista plana** (união discriminada grouped|flat), sem papel/
+  badge sem foco ativo. *Riscos:* fonte de 8px nas badges (P3); sem teste DOM (P3).
+  *Validação:* `workout-picker.test.ts` PART15-23..25 + P1-01..06. *Follow-up:* toggle
+  de sinergistas; curadoria de equipamento.
+- **TF-006 (GOAL D, `17b5d33`):** *status* integrado. *Decisão:* motor de sugestão
+  puro/determinístico (sem IA/rede/`Math.random`), preview que só acrescenta, teto por
+  time-fit reduzido no retorno, equipamento só exclui com certeza, restrições viram
+  aviso. *Riscos:* rótulo "GOAL D" fora do padrão `GOAL-TF-D` (achado documental do
+  GOAL F). *Validação:* `workout-suggestion.test.ts` #29–#38. *Follow-up:* GOAL-33A
+  para elevar confiança do catálogo.
+- **TF-007 (GOAL-TF-E, `5199c73`):** *status* integrado (= `origin/master`).
+  *Decisão:* `sourceProgramName` separa nome do PROGRAMA do nome do DIA no caminho
+  legado de `createInitialDraft`; sem ele cai em `DEFAULT_PROGRAM_NAME`, nunca no nome
+  do dia. *Riscos:* documento físico do ADR-TF-007 ausente (decisão testada contra o
+  contrato de comportamento, não contra texto). *Validação:*
+  `workout-program-normalization.test.ts` (regras 1–7). *Follow-up:* deduplicação de
+  cópias (GOAL-10.5) permanece fora de escopo.
+
 ## GOAL D — Sugestão assistida com preview (2026-07-20)
 
 - **Motor puro e determinístico, sem nova dependência:** `buildWorkoutSuggestionPreview` é o antigo GOAL-20 anunciado em `filterExercisesByDayFocus`; entra como camada de ranking/distribuição sobre `matchesDayFocus`, sem IA, rede, `Math.random` nem alteração automática do treino.

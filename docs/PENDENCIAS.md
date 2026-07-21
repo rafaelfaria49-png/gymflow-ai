@@ -97,3 +97,94 @@ Problemas encontrados fora do escopo dos GOALs — anotados aqui, não corrigido
 - (2026-07-18, GOAL-19A.1) **GOAL-23A:** projetar uma ação deliberada e revisável para promover diferenças da sessão executada ao programa futuro. Não copiar automaticamente carga, reps, RPE, substituições ou exercícios improvisados.
 - (2026-07-18, GOAL-19A.1) Validar a persistência do último valor digitado também em WebView Android físico, incluindo `pagehide`, app em background e fechamento pelo sistema; o contrato web usa callback imediato + flush centralizado e não adiciona acesso direto ao storage no input.
 - (2026-07-19, GOAL-TF-A) Recalibrar as heurísticas de recomendação de perfil e faixa de exercícios somente após evidência de uso real e revisão profissional. A implementação atual segue os ADRs aceitos e não autoriza adaptação automática do treino; qualquer evolução pertence a um GOAL explícito posterior.
+
+## GOAL-TF-F — Pendências consolidadas do lote Tempo–Foco (2026-07-21)
+
+Consolidação do GOAL de integração/QA (documental, sem código). Itens **novos** são
+descritos por inteiro; itens **já registrados** são referenciados para não duplicar.
+Formato: **ID — título · status · severidade · origem · impacto · reprodução ·
+recomendação · dependências · próximo passo.**
+
+- **TF-F-01 — Toggle de sinergistas no picker.** *Aberto · P3 · GOAL-TF-C.* O toggle
+  `[Principais | Incluindo sinergistas]` foi deliberadamente adiado; hoje sinergistas
+  é só uma seção colapsável por aba. *Impacto:* nenhum funcional; UX de abrangência
+  incompleta. *Reprodução:* abrir picker numa aba de foco → seção "Sinergistas"
+  colapsada, sem controle de abrangência. *Recomendação/próximo passo:* GOAL explícito
+  posterior de abrangência; sem dependência nova.
+- **TF-F-02 — Migração do estimador legado para o detalhado.** *Aberto · P3.*
+  Duplicata de intenção do item já registrado no **GOAL-22** (linha "Decidir
+  futuramente se o Construtor migra da estimativa legada para a detalhada") e no
+  **GOAL-TF-A** (`buildDurationWarning` deprecado que delega ao novo analisador).
+  *Próximo passo:* passe dedicado; a troca altera números visíveis e exige aceite de
+  produto. **Ver GOAL-22 acima — não reaberto aqui.**
+- **TF-F-03 — AI Coach é mock.** *Aberto · P3 · pré-existente.* O AI Coach não faz
+  chamada real de IA/rede; respostas são locais. *Impacto:* nenhum no lote Tempo–Foco
+  (o motor de sugestão é determinístico e explicitamente sem IA). *Recomendação:*
+  quando houver backend/IA real (fora das regras atuais: "não implementar backend"),
+  tratar em GOAL próprio. *Próximo passo:* backlog.
+- **TF-F-04 — GOAL-33A (curadoria da taxonomia dos 126 exercícios).** *Aberto · P2/P3.*
+  **Já registrado** em GOAL-18A, GOAL-19A e GOAL-22. Nenhum exercício resolve para
+  quadríceps/posterior; `legs_general` colapsa 23 exercícios; badges "Legado" e
+  `LEGACY_GENERIC_COVERAGE` são consequência. *Próximo passo:* curar em lotes.
+  **Ver seções acima — não duplicado.**
+- **TF-F-05 — `draft.targetMinutes` no nível do programa.** *Aberto · P3 · GOAL-TF-A.*
+  O tempo-alvo canônico existe por **dia** (`ProgramDay.targetMinutes`); não há alvo no
+  nível do **programa**. *Impacto:* nenhum hoje (a UI opera por dia); um futuro alvo de
+  programa exigiria precedência/rollup explícitos. *Reprodução:* inspecionar
+  `WorkoutBuilderDraft` — sem campo de tempo no programa. *Recomendação/próximo passo:*
+  modelar só quando surgir requisito real de tempo de programa; herda a decisão de
+  papéis distintos do GOAL-TF-A.
+- **TF-F-06 — Dependência circular `workout-builder.ts ↔ workout-picker.ts`.**
+  *Aberto · P3 · GOAL-TF-B.* `filterExercisesByDayFocus` (builder) delega ao picker, e
+  o picker importa tipos/utilidades do builder. *Impacto:* build/testes verdes; risco
+  de manutenção e de ciclo de import mais rígido. *Reprodução:* rastrear imports entre
+  os dois módulos. *Recomendação/próximo passo:* extrair contrato comum para um módulo
+  neutro num passe de saneamento; sem urgência.
+- **TF-F-07 — Ausência de teste DOM automatizado do picker/teclado.** *Aberto · P3.*
+  Todo o domínio é puro e coberto por Vitest em ambiente node; não há
+  Testing Library/DOM para exercitar modal, tablist, foco e teclado. *Impacto:* a
+  camada de interação depende de QA manual (não executável neste ambiente — ver
+  TF-F-10/TF-F-11). *Recomendação/próximo passo:* adotar cobertura de interação quando
+  a infraestrutura DOM existir (pendência recorrente desde GOAL-19A/19B).
+- **TF-F-08 — Badges com fonte de 8px.** *Aberto · P3 · GOAL-TF-C.* Badges do picker
+  usam fonte de 8px. *Impacto:* legibilidade/acessibilidade em telas pequenas.
+  *Reprodução:* inspecionar badge "Legado"/grupo no picker. *Recomendação/próximo
+  passo:* revisar escala tipográfica num passe de UI; não verificado ao vivo neste GOAL.
+- **TF-F-09 — Três warnings históricos do `GymFlowContext`.** *Aberto · P3 ·
+  pré-existente.* `react-hooks/exhaustive-deps` em **859/870/908**. Confirmados
+  idênticos neste GOAL; **já registrados** (GOAL-19B.2A, GOAL-19B). O lote Tempo–Foco
+  não os alterou. *Próximo passo:* passe dedicado de saneamento de efeitos.
+- **TF-F-10 — Smoke visual residual do GOAL E.** *Pendente · P2 · GOAL-TF-E/F.* O smoke
+  de nomes ("ABC Hipertrofia Masculino" × "Dia A — Peito e Tríceps") está **coberto por
+  teste** (`createInitialDraft` regras 1–7), mas o **smoke visual no app não foi
+  refeito** neste GOAL porque a extensão do Chrome não estava conectada. *Reprodução:*
+  editar um dia de programa sugerido e conferir NOME DO PROGRAMA vs NOME DO DIA.
+  *Recomendação/próximo passo:* refazer o smoke visual num ambiente com navegador ativo.
+- **TF-F-11 — "1 Issue" do Next DevTools.** *Não reproduzida (classe D) · P2 ·
+  GOAL-TF-F.* O indicador "1 Issue" é overlay client-side; sem a extensão do Chrome não
+  foi possível ler título/mensagem/arquivo/linha/stack. Investigação sem navegador toda
+  limpa: terminal do dev sem issues; `layout.tsx` sem mismatch de tema e sem
+  `metadataBase`; render da landing sem `Math.random`/`Date`; assets sem 404.
+  *Hipótese (baixa confiança):* issue dev-only de React ligada a padrões legados já
+  sinalizados pelo ESLint (`set-state-in-effect` em GlobalVideoPlayer/
+  TechniqueSequencePlayer; `refs-during-render` em XPBadgeNotification), que só disparam
+  quando esses componentes montam. *Reprodução:* abrir o app com `next dev` + extensão
+  do Chrome e clicar no badge. *Recomendação/próximo passo:* GOAL de follow-up com
+  navegador para capturar e classificar a issue exata. *Dependência:* extensão do
+  Chrome conectada.
+- **TF-F-12 — Deduplicação de programas sugeridos.** *Aberto · P3 · GOAL-10.5.**
+  Reeditar o MESMO dia sugerido em sessões diferentes ainda cria cópias novas em "Meus
+  Treinos". **Já registrado** no GOAL-10.5 (o GOAL-TF-E corrigiu o *nome*, não a
+  dedup). *Próximo passo:* detectar/oferecer "atualizar cópia existente" e/ou exclusão
+  de treinos. **Ver GOAL-10.5 acima — não duplicado.**
+- **TF-F-13 — Novos achados do GOAL-TF-F.** *Aberto · P3 · GOAL-TF-F.*
+  (a) **ESLint de projeto inteiro nunca enumerado:** `npm run lint` mostra 12 erros +
+  6 warnings, todos pré-existentes, mas o rastreamento dos GOALs A–E só citava os "3
+  warnings" do Context (lint escopado aos arquivos tocados). *Próximo passo:* enumerar
+  a dívida de lint num passe de saneamento (não bloqueante; build não roda lint
+  estrito). (b) **Rótulo "GOAL D" fora do padrão:** os demais são `GOAL-TF-X`; o D é
+  "GOAL D" em GOALS_LOG/DECISOES. *Próximo passo:* renomear apenas se e quando houver um
+  passe documental autorizado (não renomeado aqui para não reescrever histórico). (c)
+  **Ordenação do GOALS_LOG:** GOAL D no topo e TF-A..E no fim do arquivo (ordem
+  inconsistente). *Próximo passo:* reordenar num passe documental. (d) **QA visual/
+  DevTools bloqueada pelo ambiente:** ver TF-F-10/TF-F-11.

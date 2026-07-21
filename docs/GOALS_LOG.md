@@ -4,6 +4,95 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-TF-F — Integração e QA final do lote Tempo–Foco (2026-07-21)
+
+### Escopo
+
+GOAL **documental e de QA** (não implementa feature). Consolida o lote Tempo–Foco
+(GOALs A–E) já integrados em `origin/master`, roda todos os gates, atribui a matriz
+de QA, investiga o "1 Issue" do Next DevTools e consolida decisões e pendências, num
+**único commit documental**. Nenhum código foi alterado. Sem push.
+
+- Base: **`5199c734f4ddfad4fc87353662536b99f47f78e1`** (= `origin/master`, GOAL E).
+- Branch: `feat/gymflow-tf-goalF-integra-qa` · Worktree: `C:\Projetos\gymflow-goal-tf-f`.
+- `master` local (`17b5d331`, GOAL D) ficou defasada de propósito; não foi tocada.
+
+### Lote A–E (linear, sem merges)
+
+`dd5f9cc`+`b0ddfef` (A tempo canônico) · `28aad29`+`e52f60f` (B picker foco) ·
+`d9de0aa`+`1026c12` (C badges + Todos-flat corretivo) · `17b5d33` (D sugestão
+preview) · `5199c73` (E nomes). Diff do lote
+`06684ee..5199c734f4ddfad4fc87353662536b99f47f78e1` = 28 arquivos (6 docs
++ 22 código), 0 merge commits.
+
+### Gates — testes/TypeScript/builds verdes; lint global vermelho (preexistente)
+
+- `npx vitest run`: **30 arquivos, 600 testes**, 0 falha, 0 skip (Vitest 4.1.9).
+- `npx tsc --noEmit`: exit 0.
+- `npm run lint` (`eslint`): **vermelho, exit 1** — 18 problemas (**12 erros + 6
+  warnings**), **todos pré-existentes** — os 8 arquivos com erro estão **intocados**
+  pelo lote (diff não os inclui); um nono arquivo, `EvolutionDashboard.tsx`, possui
+  somente warning de `no-img-element` e também está intocado; os 3 warnings do
+  `GymFlowContext` (859/870/908) são os históricos. **Zero problema novo introduzido
+  pelo lote.**
+- `npm run build`: Next.js **16.2.6**, TypeScript + 6/6 rotas OK, exit 0.
+- `npm run build:mobile`: export estático `out/` OK, exit 0. `cap sync`/Android não
+  executados. Working tree limpa após os builds; `android/` intocado.
+
+### Matriz de QA — cobertura
+
+- **Automatizada (600 testes) + estrutural:** focos 1/2/3, tempos 10/30/60/90/240
+  (incl. clamps 10 e 240 + teto 12 exercícios), perfis reduzido/padrão/alto, estados
+  vazio/parcial/cheio/estourado, sugestão determinística, distribuição multi-foco,
+  nomes programa×dia (GOAL E), multi-day, picker (grupos/badges/Todos-flat), busca.
+  Suites-âncora: time-fit 21, picker 24, suggestion 10, normalization 34,
+  plan-assessment 15. Detalhe e rastreabilidade em
+  `docs/builder/GYMFLOW_TEMPO_FOCO_QA_FINAL.md`.
+- **Manual/visual:** **NÃO executada.** A extensão do Chrome (Claude-in-Chrome) não
+  estava conectada neste ambiente (mesma limitação do GOAL-TF-C-CORRECTIVE-004).
+  Renderização/pixels, safe-area/mobile 360px, teclado/foco/acessibilidade em
+  runtime e o console do navegador **não foram inspecionados**. Servidor dev `:3017`
+  ficou **limpo** (rotas 200/200/200/404) e todos os assets responderam 200.
+  Nenhuma combinação da matriz é declarada como aprovada manualmente.
+
+### "1 Issue" do Next DevTools
+
+**Classe D — não reproduzida** (overlay client-side; sem extensão não há como ler
+título/stack). Investigação sem navegador toda limpa: terminal do dev sem issues;
+`layout.tsx` com `dark` fixo (sem mismatch) e sem `openGraph` (sem aviso de
+`metadataBase`); render da landing sem `Math.random`/`Date`; assets sem 404.
+Hipótese de baixa confiança: issue dev-only de React (padrões legados já sinalizados
+pelo ESLint), a confirmar com navegador. Follow-up recomendado.
+
+### P0–P3
+
+- **P0/P1:** nenhum.
+- **P2:** QA visual/interativa e teclado/acessibilidade não executáveis (sem
+  navegador); "1 Issue" não inspecionado (severidade desconhecida, provável dev-only).
+- **P3:** dívida legada pré-existente (12 erros + 6 warnings de ESLint de projeto
+  inteiro; 3 warnings do `GymFlowContext`; badges 8px; sem teste DOM do picker/teclado;
+  dependência circular `workout-builder↔workout-picker`; toggle de sinergistas;
+  migração do estimador legado; `draft.targetMinutes` no programa; AI Coach mock;
+  dedup de programas sugeridos; GOAL-33A). Detalhe em `PENDENCIAS.md`.
+
+### Documentos atualizados
+
+`docs/GOALS_LOG.md`, `docs/DECISOES.md` (seção GOAL-TF-F + tabela de correspondência
+dos ADRs TF-001..007), `docs/PENDENCIAS.md` (pendências consolidadas do lote) e
+`docs/builder/GYMFLOW_TEMPO_FOCO_QA_FINAL.md` (novo — relatório dedicado de QA).
+
+### Resultado
+
+**Classe B — lote aprovado com ressalvas.** Testes, TypeScript, build web e build
+mobile verdes; lint global vermelho por dívida preexistente (neutra ao GOAL F);
+zero P0/P1 introduzido pelo lote; núcleo determinístico coberto por testes; risco
+remanescente restrito à camada
+visual/interativa e ao overlay do DevTools, não exercitáveis neste ambiente
+(P2/P3). Commit local documental único; **sem push, sem PR, sem merge**. Próximo
+passo (publicação e inspeção visual/DevTools pendente) depende do Founder.
+
+---
+
 ## GOAL D — Sugestão assistida determinística com preview (2026-07-20)
 
 ### Escopo e decisões
