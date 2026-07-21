@@ -12,6 +12,11 @@ import type {
   TrainingExperienceLevel,
   TrainingGoal,
 } from './training-profile';
+import type {
+  WorkoutExerciseEntryOrigin,
+  WorkoutExerciseEntryStatus,
+  WorkoutSessionStatus,
+} from './workout-session';
 
 export type {
   EquipmentCategory,
@@ -55,6 +60,17 @@ export type {
   WorkoutDayBuilderDraft,
   WorkoutProgramBuilderDraft,
 } from './workout-builder';
+
+export type {
+  ActiveSession,
+  SessionLog,
+  SessionPlan,
+  SessionPlanEntry,
+  SessionPlanOrigin,
+  WorkoutExerciseEntryOrigin,
+  WorkoutExerciseEntryStatus,
+  WorkoutSessionStatus,
+} from './workout-session';
 
 export type {
   CapacityReference,
@@ -233,6 +249,12 @@ export interface ActiveExercise {
   restSec?: number;
   // GOAL-08: motivo da sugestão do motor de progressão (texto explicativo honesto)
   progressionNote?: string;
+  // GOAL-23A: vínculo com o plano da sessão e separação origem × execução.
+  // Todos opcionais — treinos livres/legados e o snapshot antigo continuam válidos.
+  plannedSlotIndex?: number; // posição 0-based no SessionPlan (ExerciseSlot não tem id)
+  plannedExerciseId?: string; // exercício originalmente planejado (preservado após swap)
+  entryOrigin?: WorkoutExerciseEntryOrigin; // de onde veio: planned | added | swapped
+  entryStatus?: WorkoutExerciseEntryStatus; // o que foi feito: planned | performed | partial | skipped
 }
 
 export interface WorkoutSession {
@@ -250,6 +272,11 @@ export interface WorkoutSession {
   sourceProgramDayId?: string;
   sourceProgramName?: string;
   sourceProgramDayName?: string;
+  // GOAL-23A: ciclo de vida da sessão. Opcionais — o histórico legado sem `status`
+  // é normalizado como `completed`, e a sessão ativa legada como `active`.
+  status?: WorkoutSessionStatus;
+  startedAt?: number; // epoch ms; espelha activeWorkoutStartedAt na sessão ativa
+  endedAt?: number; // epoch ms; definido apenas no registro final
 }
 
 export interface WorkoutProgram {
