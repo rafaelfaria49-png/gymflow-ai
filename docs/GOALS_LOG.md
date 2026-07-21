@@ -1509,3 +1509,110 @@ Próximo passo: **revisão e aprovação do Gate G2 pelo Founder**. Somente depo
 - A pendência do GOAL-10.5 (reeditar o mesmo dia sugerido cria cópias novas a cada sessão) permanece fora de escopo e segue em PENDENCIAS; este GOAL só corrige o nome, não a deduplicação de cópias.
 
 ---
+
+## GOAL-23A — fundação do domínio de sessão (2026-07-21)
+
+Separação de plano da sessão, sessão ativa e registro final; origem planejada ×
+estado real de execução; status `active/completed/partial/abandoned`. Mudança
+aditiva e compatível — sem backend, sem Supabase, sem alterar o storage v1.
+Base: `origin/master` = `ee843c2e50e837fc8860a1c5d4a629a8888f24c1`. Worktree
+dedicado `C:\Projetos\gymflow-goal-23a`, branch
+`feat/gymflow-goal23a-session-domain`. Ver
+[docs/workouts/GYMFLOW_SESSION_DOMAIN.md](workouts/GYMFLOW_SESSION_DOMAIN.md).
+
+### O que mudou
+
+- Tipos novos (`src/types/workout-session.ts`): `WorkoutSessionStatus`,
+  `WorkoutExerciseEntryOrigin`, `WorkoutExerciseEntryStatus`, `SessionPlanEntry`,
+  `SessionPlan`, `ActiveSession`, `SessionLog`. Campos **opcionais** em
+  `WorkoutSession` (`status`/`startedAt`/`endedAt`) e `ActiveExercise`
+  (`plannedSlotIndex`/`plannedExerciseId`/`entryOrigin`/`entryStatus`).
+  `WorkoutSet` intacto.
+- Domínio puro (`src/lib/workout-session-domain.ts`): `buildSessionPlan`,
+  `startActiveSession`, `deriveSessionStatus`, `deriveExerciseEntryStatus`,
+  `markEntrySwapped`, `finalizeSession`, `buildAbandonedSessionLog`.
+- Normalização legada (`src/lib/workout-session-migration.ts`):
+  `normalizeSessionState`, pura e idempotente.
+- Integração cirúrgica no `GymFlowContext`: início (plano + sessão `active` +
+  `startedAt`, exercícios `planned`), adicionar (`added`), substituir (`swapped`,
+  `plannedExerciseId` preservado), finalização (via `finalizeSession`, status
+  explícito no histórico), hidratação (normaliza antes de alimentar o estado).
+- `EvolutionDashboard`: título "Últimos Treinos Concluídos" → "Últimas sessões de
+  treino".
+
+### Comportamento crítico — antes/depois
+
+- **Histórico:** antes o registro final não tinha `status` nem `endedAt`; agora
+  grava `status` explícito derivado das séries (completed/partial/abandoned) e
+  `endedAt`. Histórico legado sem `status` → normalizado como `completed`.
+- **Sessão ativa:** antes sem `status`/`startedAt` no objeto; agora `status:
+  'active'` + `startedAt`. Sessão ativa legada → `status active` e `startedAt`
+  vindo de `activeWorkoutStartedAt`.
+- **Exercícios:** antes sem eixo de origem/execução; agora cada `ActiveExercise`
+  carrega `entryOrigin` (planned/added/swapped) e, no registro final,
+  `entryStatus` (performed/partial/skipped/planned).
+- **Paridade preservada:** volume e PR seguem contando **apenas séries
+  concluídas**; XP mantém a regra atual (`100 + concluídas*5 + (vol>5000?50:0)`);
+  `finalizeSession` **recebe** esses valores prontos e não recalcula; a ordem dos
+  efeitos (streak/achievements/challenges/post) é a mesma. `cancelWorkout`
+  continua descartando sem histórico.
+
+### Validações
+
+- `npx vitest run`: **32 arquivos, 642 testes** aprovados (30 arquivos + 2 novos;
+  600 anteriores + 42 novos: domínio + normalização/idempotência). Zero falha.
+- `npx tsc --noEmit`: aprovado (0 erros).
+- `npm run build` (web) e `npm run build:mobile`: ambos aprovados no
+  Next.js 16.2.6/Turbopack; TypeScript aprovado nos dois.
+- `npm run lint`: **12 erros + 6 warnings**, idêntico à baseline pré-GOAL
+  (TF-F-13); **zero erro/warning novo**. Os arquivos tocados
+  (`GymFlowContext.tsx`, `EvolutionDashboard.tsx` e os 6 novos) ficam limpos.
+  Nota: uma primeira integração introduziu 1 erro `react-hooks/purity`
+  (`Date.now()` em `finishWorkout`); resolvido derivando `endedAt =
+  startedAt + duração_decorrida`, sem leitura de relógio.
+- `git diff --check`: limpo.
+- **Paridade provada por teste:** volume/PR/XP recebidos e gravados sem recálculo;
+  finalização imutável; snapshot com séries incompletas; retomada de sessão ativa
+  e histórico legado por `normalizeSessionState`; storage v1 e
+  `activeWorkoutStartedAt` intactos.
+
+### QA MANUAL
+
+Executada no app rodando a partir do WORKTREE (`npm run dev` em
+`C:\Projetos\gymflow-goal-23a`, porta 3005 — o preview gerenciado aponta para o
+repositório principal, então o worktree foi servido à parte). Login demo →
+programa "ABC Hipertrofia Masculino", "Dia B — Ombros". Estado inspecionado em
+`localStorage['gymflow:state:v1']`.
+
+- **Início:** `activeWorkout.status = 'active'`, `startedAt` presente e igual a
+  `activeWorkoutStartedAt`; 2 exercícios com `entryOrigin = 'planned'`,
+  `entryStatus = 'planned'`, `plannedSlotIndex` 0/1, `plannedExerciseId`
+  correto, `sourceProgramId/DayId` presentes. ✔
+- **Finalizar parcial** (1 de 7 séries): histórico ganha 1 registro com
+  `status = 'partial'`; `startedAt` preservado; `endedAt − startedAt = 301000ms =
+  duration` (301s); `totalVolume = 80` (só a série concluída), `xpEarned = 105`
+  (=100+1×5) → paridade de volume/XP confirmada; exercício 1 `entryStatus =
+  'partial'` (1/3), exercício 2 `entryStatus = 'skipped'` (0/4) preservado no
+  snapshot; `activeWorkout` volta a `null`. ✔
+- **Refresh em sessão ativa:** recarregar retomou a tela "Sessão Ativa" com
+  `status = 'active'` e `startedAt` intactos. ✔
+- **Cancelar:** modal customizado "Cancelar treino atual?" (sem `confirm()`
+  nativo); ao confirmar, `activeWorkout = null`, `activeWorkoutStartedAt = null` e
+  o histórico permanece com 1 registro (a sessão cancelada NÃO foi gravada). ✔
+- **Evolution:** o cabeçalho renderiza "Últimas sessões de treino" (título antigo
+  ausente) e lista a sessão parcial. ✔
+- **Não driven pela UI (cobertos por teste unitário):** finalização *completed* e
+  *abandoned* (a *partial* exercitou a fiação de derivação de status/entryStatus);
+  e o ponto de entrada de **sessão livre** pela biblioteca — o botão "Treinar" do
+  detalhe do exercício não iniciou o treino via clique roteirizado nesta sessão;
+  o caminho `free` está coberto por `buildSessionPlan`/`startActiveSession` nos
+  testes. Screenshots do preview expiravam (renderer pesado); a verificação usou
+  a árvore de acessibilidade + inspeção de estado, não capturas de tela.
+
+### Continuação
+
+- GOAL-23B e GOAL-24 **não iniciados**. Pendências registradas: id canônico do
+  slot, visualização dos status, sessões abandonadas no histórico, motivo de
+  substituição e séries/exercícios pulados na UI (ver PENDENCIAS 23A-01..07).
+
+---

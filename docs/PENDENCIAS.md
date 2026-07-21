@@ -188,3 +188,30 @@ recomendação · dependências · próximo passo.**
   **Ordenação do GOALS_LOG:** GOAL D no topo e TF-A..E no fim do arquivo (ordem
   inconsistente). *Próximo passo:* reordenar num passe documental. (d) **QA visual/
   DevTools bloqueada pelo ambiente:** ver TF-F-10/TF-F-11.
+
+## GOAL-23A — domínio de sessão (registradas, fora de escopo)
+
+- **23A-01 — ID canônico do `ExerciseSlot`.** *Aberto · P2 · GOAL-23A.* Decisão
+  aprovada foi NÃO adicionar id ao slot; a ligação entrada↔plano é posicional
+  (`plannedSlotIndex`). *Próximo passo:* avaliar um id estável de slot se/quando a
+  reordenação de slots ou o diff plano×execução exigir identidade não-posicional.
+- **23A-02 — Visualização dos status na UI.** *Aberto · P2 · GOAL-23A.* `status`
+  (completed/partial/abandoned) e `entryStatus`/`entryOrigin` por exercício já
+  existem no dado, mas nenhuma superfície os mostra. *Próximo passo:* badges de
+  sessão parcial/abandonada e de exercício pulado/substituído (GOAL-23B).
+- **23A-03 — Sessões abandonadas no histórico.** *Aberto · P2 · GOAL-23A.*
+  `cancelWorkout` ainda descarta sem gravar; `buildAbandonedSessionLog` existe mas
+  não está ligado. *Próximo passo:* decidir se cancelar registra um log
+  `abandoned` e como exibi-lo sem poluir métricas.
+- **23A-04 — Motivo de substituição.** *Aberto · P3 · GOAL-23A.*
+  `swapExerciseInActiveWorkout` recebe `reason?` (só toast) e marca
+  `entryOrigin: 'swapped'`, mas o motivo não é persistido na entrada. *Próximo
+  passo:* campo opcional de motivo no `ActiveExercise` quando houver UI para ele.
+- **23A-05 — Exercícios e séries pulados na UI.** *Aberto · P3 · GOAL-23A.* O
+  snapshot preserva séries incompletas e exercícios `skipped`, mas o histórico
+  ainda não os distingue visualmente. *Próximo passo:* diferenciar concluído ×
+  pulado na tela de detalhe do treino.
+- **23A-06 — GOAL-23B (não iniciado).** *Aberto · GOAL-23B.* Consumir os status/
+  origem do domínio na UI (evolução, detalhe de sessão, badges). Não iniciado.
+- **23A-07 — GOAL-24 (não iniciado).** *Aberto · GOAL-24.* Escopo posterior ao
+  domínio de sessão. Não iniciado.

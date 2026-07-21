@@ -303,7 +303,7 @@ export const EvolutionDashboard = () => {
           <div className="glass p-5 rounded-3xl border border-white/5 space-y-4">
             <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-gym-emerald" />
-              Últimos Treinos Concluídos
+              Últimas sessões de treino
             </h3>
             <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
               {workoutHistory.length === 0 ? (

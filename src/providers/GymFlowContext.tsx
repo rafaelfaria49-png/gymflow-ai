@@ -71,6 +71,14 @@ import {
   toggleWorkoutSetCompletion,
   updateWorkoutExerciseNotes,
 } from '../lib/workout-session-mutations';
+import {
+  buildSessionPlan,
+  finalizeSession,
+  markEntrySwapped,
+  startActiveSession,
+  type SessionPlanSource,
+} from '../lib/workout-session-domain';
+import { normalizeSessionState } from '../lib/workout-session-migration';
 import { useToast } from '../components/ui/Toast';
 import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
 
@@ -828,9 +836,16 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       setUser(saved.user);
       setWeeklyPlan(saved.weeklyPlan);
       setCustomPrograms(saved.customPrograms);
-      setActiveWorkout(saved.activeWorkout);
+      // GOAL-23A: normaliza sessão ativa e histórico legados (status/startedAt)
+      // antes de alimentar o estado. activeWorkoutStartedAt segue intacto (compat).
+      const normalizedSession = normalizeSessionState({
+        activeWorkout: saved.activeWorkout,
+        activeWorkoutStartedAt: saved.activeWorkoutStartedAt,
+        workoutHistory: saved.workoutHistory,
+      });
+      setActiveWorkout(normalizedSession.activeWorkout);
       setActiveWorkoutStartedAt(saved.activeWorkoutStartedAt);
-      setWorkoutHistory(saved.workoutHistory);
+      setWorkoutHistory(normalizedSession.workoutHistory);
       setWeightHistory(saved.weightHistory);
       setMeasurementsHistory(saved.measurementsHistory);
       setNutrition(saved.nutrition);
@@ -1088,6 +1103,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       WorkoutSession,
       'sourceProgramId' | 'sourceProgramDayId' | 'sourceProgramName' | 'sourceProgramDayName'
     >> = {};
+    // GOAL-23A: origem do plano da sessão, montada na mesma ordem que activeExs.
+    let planSource: SessionPlanSource | null = null;
 
     // customProgramsRef é atualizado no próprio saveCustomProgram. Assim o fluxo
     // "salvar e iniciar" encontra o programa novo antes do próximo render.
@@ -1137,6 +1154,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       workoutName = customName
         || (resolution.program ? `${resolution.program.name} — ${programDay.name}` : programDay.name);
       sessionOrigin = resolution.origin ?? {};
+      planSource = { kind: 'program-day', name: workoutName, slots: programDay.slots, ...sessionOrigin };
       activeExs = programDay.slots.map((slot, idx) => {
         // Fallback seguro: exercício ausente vira "Exercício Desconhecido",
         // sem crashar (mesmo padrão legado).
@@ -1178,6 +1196,13 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       const legacyProgram = resolution.program;
       workoutName = customName || legacyProgram.name;
       sessionOrigin = resolution.origin;
+      planSource = {
+        kind: 'legacy-program',
+        name: workoutName,
+        exercises: legacyProgram.exercises,
+        sourceProgramId: resolution.origin.sourceProgramId,
+        sourceProgramName: resolution.origin.sourceProgramName,
+      };
       activeExs = legacyProgram.exercises.map((pe, idx) => {
         const ex = exercises.find((e) => e.id === pe.exerciseId);
         const setsCount = pe.sets || 3;
@@ -1206,6 +1231,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     } else {
       // Treino livre inicializado com 1 exercício padrão
       const defaultEx = exercises[0];
+      planSource = { kind: 'free', name: workoutName, exerciseIds: [defaultEx.id] };
       // GOAL-08: ANT real do histórico; sem slot não há sugestão do motor (SUG = —)
       const lastW = lastRecordedWeight(exerciseHistoryFor(defaultEx.id));
       activeExs = [{
@@ -1226,17 +1252,23 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       }];
     }
 
-    setActiveWorkout({
-      id: `session_${Date.now()}`,
+    // GOAL-23A: monta o plano e inicia a sessão ativa (status active + startedAt)
+    // pelo domínio puro. Pré-preenchimento, origem, nomes e navegação preservados;
+    // cada exercício inicial é anotado como entryOrigin/entryStatus = planned.
+    const startedAt = Date.now();
+    const plan = buildSessionPlan(
+      planSource ?? { kind: 'free', name: workoutName, exerciseIds: activeExs.map((ex) => ex.exerciseId) },
+    );
+    const { session } = startActiveSession({
+      plan,
+      sessionId: `session_${startedAt}`,
       name: workoutName,
       date: new Date().toISOString().split('T')[0],
-      duration: 0,
-      calories: 0,
+      startedAt,
       exercises: activeExs,
-      xpEarned: 0,
-      ...sessionOrigin,
     });
-    setActiveWorkoutStartedAt(Date.now());
+    setActiveWorkout(session);
+    setActiveWorkoutStartedAt(startedAt);
     setWorkoutDuration(0);
     setActiveView('active-workout');
   };
@@ -1322,7 +1354,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         name: meta.name,
         muscleGroup: meta.muscleGroup,
         sets,
-        notes: ''
+        notes: '',
+        // GOAL-23A: adicionado durante o treino — sem plannedSlotIndex/plannedExerciseId.
+        entryOrigin: 'added',
+        entryStatus: 'planned',
       };
       return { ...prev, exercises: [...prev.exercises, newExercise] };
     });
@@ -1401,12 +1436,21 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     if (!newEx) return;
     const currentExercise = currentWorkout.exercises[exerciseIndex];
     if (!currentExercise || currentExercise.exerciseId === newExerciseId) return;
-    const nextWorkout = swapWorkoutExercise(currentWorkout, exerciseIndex, newEx);
+    // GOAL-23A: além de trocar o exercício, marca a entrada como swapped. O
+    // plannedExerciseId (exercício originalmente planejado) é preservado pelo
+    // spread interno de swapWorkoutExercise.
+    const applySwap = (workout: WorkoutSession): WorkoutSession => {
+      const swapped = swapWorkoutExercise(workout, exerciseIndex, newEx);
+      if (swapped === workout) return workout;
+      return {
+        ...swapped,
+        exercises: swapped.exercises.map((ex, i) => (i === exerciseIndex ? markEntrySwapped(ex) : ex)),
+      };
+    };
+    const nextWorkout = applySwap(currentWorkout);
     setActiveWorkout((prev) => {
       if (!prev) return prev;
-      return prev === currentWorkout
-        ? nextWorkout
-        : swapWorkoutExercise(prev, exerciseIndex, newEx);
+      return prev === currentWorkout ? nextWorkout : applySwap(prev);
     });
     const reasonMsg = reason ? ` devido a ${reason}` : '';
     addXp(20, 'Substituição de exercício executada');
@@ -1469,14 +1513,22 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    const finalSession: WorkoutSession = {
-      ...workoutToFinish,
+    // GOAL-23A: finalizeSession monta o registro final — status explícito derivado
+    // das séries + endedAt + duração + snapshot completo — recebendo volume/PR/XP
+    // já calculados acima. Não recalcula progressão nem muta a sessão ativa.
+    // endedAt determinístico (início + duração decorrida) — coerente com
+    // startedAt/duration e sem leitura de relógio sinalizada pela regra de pureza.
+    const startedAtMs = workoutToFinish.startedAt ?? activeWorkoutStartedAtRef.current ?? 0;
+    const endedAt = startedAtMs + workoutDuration * 1000;
+    const { session: finalSession } = finalizeSession({
+      session: workoutToFinish,
+      endedAt,
       duration: workoutDuration,
       calories: caloriesBurned,
-      xpEarned: finalXp,
       totalVolume,
-      prsDetected
-    };
+      prsDetected,
+      xpEarned: finalXp,
+    });
 
     setWorkoutHistory((prev) => [finalSession, ...prev]);
     addXp(finalXp, `Treino Concluído! +${caloriesBurned} kcal gastas`);
