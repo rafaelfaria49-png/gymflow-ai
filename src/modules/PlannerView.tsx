@@ -102,6 +102,8 @@ export const PlannerView = () => {
         programId: sourceProgram?.isCustom ? sourceProgram.id : undefined,
         dayId: sourceProgram?.isCustom ? sourceDay?.id : undefined,
         name: day.isRest ? 'Meu Treino' : day.workoutName,
+        // GOAL-E: `name` é o nome do DIA; o programa novo herda o nome do PROGRAMA de origem.
+        sourceProgramName: sourceProgram?.name,
         level: user?.level ?? 'intermediate',
         volumeProfile,
         targetMinutes: sourceDay?.targetMinutes ?? user?.duration ?? defaultTargetMinutes(volumeProfile),

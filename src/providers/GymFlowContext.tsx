@@ -1692,6 +1692,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         programId: derived.id,
         dayId: firstDay?.id,
         name: derived.name,
+        sourceProgramName: derived.name,
         level: derived.level,
         volumeProfile,
         targetMinutes: firstDay?.targetMinutes ?? user?.duration ?? defaultTargetMinutes(volumeProfile),

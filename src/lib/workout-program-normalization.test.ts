@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import type { ExerciseSlot, ProgramDay, WorkoutProgram } from '../types';
+import type { ExerciseSlot, ProgramDay, WorkoutBuilderDraft, WorkoutProgram } from '../types';
 import { MOCK_PROGRAMS } from '../mock/programs';
+import { createInitialDraft } from '../modules/WorkoutBuilder';
 import { createSequentialIdFactory } from './workout-builder-id';
-import { NO_FOCUS_DAY_NAME } from './workout-day-naming';
+import {
+  generateWorkoutDayAutoName,
+  NO_FOCUS_DAY_NAME,
+  resolveWorkoutDayName,
+} from './workout-day-naming';
 import {
   buildWorkoutProgramFromDraft,
+  DEFAULT_PROGRAM_NAME,
   normalizeWorkoutProgramForBuilder,
   parseLegacyRepRange,
 } from './workout-program-normalization';
@@ -330,5 +336,164 @@ describe('parseLegacyRepRange', () => {
     [12, null],
   ])('lê %j como %j', (input, expected) => {
     expect(parseLegacyRepRange(input)).toEqual(expected);
+  });
+});
+
+// GOAL-E (ADR-TF-007): separar o nome do PROGRAMA do nome do DIA na entrada legada.
+// `createInitialDraft`, no caminho legado (editar um dia de um programa sugerido, que
+// gera um custom novo), nunca pode promover o nome do dia a nome do programa.
+function legacyDraft(overrides: Partial<WorkoutBuilderDraft> = {}): WorkoutBuilderDraft {
+  return {
+    name: 'Dia B — Pernas',
+    level: 'intermediate',
+    volumeProfile: 'standard',
+    targetMinutes: 60,
+    slots: [],
+    ...overrides,
+  };
+}
+
+/** Programa custom de um dia com foco/nome controlados (para roundtrip e origem). */
+function oneDayProgram(day: Partial<ProgramDay> & Pick<ProgramDay, 'name'>): WorkoutProgram {
+  return {
+    id: 'custom_goalE',
+    name: 'Programa de Origem',
+    durationWeeks: 0,
+    frequencyDays: 1,
+    level: 'intermediate',
+    objective: 'Objetivo',
+    exercises: [],
+    description: 'desc',
+    repeatWeeks: true,
+    weeks: [{
+      number: 1,
+      days: [{
+        id: 'day_1',
+        slots: [slot('chest_supino_reto')],
+        volumeProfile: 'standard',
+        dayNumber: 1,
+        muscleGroupIds: [],
+        targetMinutes: 60,
+        ...day,
+      }],
+    }],
+    isCustom: true,
+  };
+}
+
+describe('createInitialDraft — nome de programa vs nome de dia (PART 10)', () => {
+  // Regra 1: o nome do programa vem do programa de origem, nunca do dia.
+  it('regra 1: usa sourceProgramName como nome do programa', () => {
+    const draft = createInitialDraft(
+      legacyDraft({ name: 'Dia B — Pernas', sourceProgramName: 'ABC Hipertrofia' }),
+      null,
+    );
+    expect(draft.name).toBe('ABC Hipertrofia');
+  });
+
+  // Regra 2: sem sourceProgramName, cai no padrão honesto — nunca no nome do dia.
+  it('regra 2: sem sourceProgramName cai em DEFAULT_PROGRAM_NAME, não no nome do dia', () => {
+    const draft = createInitialDraft(legacyDraft({ name: 'Dia B — Pernas' }), null);
+    expect(draft.name).toBe(DEFAULT_PROGRAM_NAME);
+    expect(draft.name).not.toBe('Dia B — Pernas');
+  });
+
+  // Regra 3: o nome do dia é preservado, intacto, como customName do Dia 1.
+  it('regra 3: preserva o nome do dia como customName do Dia 1', () => {
+    const draft = createInitialDraft(
+      legacyDraft({ name: 'Dia B — Pernas', sourceProgramName: 'ABC Hipertrofia' }),
+      null,
+    );
+    expect(draft.days[0].customName).toBe('Dia B — Pernas');
+    expect(resolveWorkoutDayName(draft.days[0])).toBe('Dia B — Pernas');
+  });
+
+  // Regra 4: nome de dia em branco não inventa customName (nome automático assume).
+  it('regra 4: nome de dia em branco não vira customName', () => {
+    const draft = createInitialDraft(legacyDraft({ name: '   ', sourceProgramName: 'ABC' }), null);
+    expect(draft.days[0].customName).toBeUndefined();
+    expect(resolveWorkoutDayName(draft.days[0])).toBe(NO_FOCUS_DAY_NAME);
+  });
+
+  // Regra 5: o nome do dia NUNCA é promovido a nome do programa (guarda de regressão).
+  it('regra 5: nome do programa e customName do dia nunca coincidem por promoção', () => {
+    const draft = createInitialDraft(
+      legacyDraft({ name: 'Dia B — Pernas', sourceProgramName: 'ABC Hipertrofia' }),
+      null,
+    );
+    expect(draft.name).not.toBe(draft.days[0].customName);
+  });
+
+  // Regra 6: editar um dia sugerido gera SEMPRE um programa novo (sem programId).
+  it('regra 6: caminho legado nunca herda programId (vira custom novo)', () => {
+    const draft = createInitialDraft(legacyDraft({ sourceProgramName: 'ABC' }), null);
+    expect(draft.programId).toBeUndefined();
+  });
+
+  // Regra 7: sourceProgramName é aparado; só-espaços equivale a ausente.
+  it('regra 7: sourceProgramName é aparado e só-espaços cai no padrão', () => {
+    expect(createInitialDraft(legacyDraft({ sourceProgramName: '  ABC  ' }), null).name).toBe('ABC');
+    expect(createInitialDraft(legacyDraft({ sourceProgramName: '   ' }), null).name).toBe(DEFAULT_PROGRAM_NAME);
+  });
+
+  it('preserva nível e tempo do dia vindos do draft legado', () => {
+    const draft = createInitialDraft(
+      legacyDraft({ level: 'advanced', targetMinutes: 45, sourceProgramName: 'ABC' }),
+      null,
+    );
+    expect(draft.level).toBe('advanced');
+    expect(draft.days[0].targetMinutes).toBe(45);
+  });
+
+  it('clona os slots do dia sem compartilhar referência com o draft legado', () => {
+    const slots = [slot('chest_supino_reto')];
+    const draft = createInitialDraft(legacyDraft({ slots }), null);
+    draft.days[0].slots[0].series = 99;
+    expect(slots[0].series).toBe(3);
+  });
+
+  it('com programa de origem, o nome do programa vem do programa — não do draft legado', () => {
+    const program: WorkoutProgram = { ...oneDayProgram({ name: 'Meu Treino' }), name: 'Full Body Real' };
+    const draft = createInitialDraft(
+      legacyDraft({ name: 'Dia B — Pernas', sourceProgramName: 'ignorado' }),
+      program,
+    );
+    expect(draft.name).toBe('Full Body Real');
+    expect(draft.programId).toBe('custom_goalE');
+  });
+});
+
+describe('nome do dia — roundtrip automático e caso irreproduzível (PART 10)', () => {
+  it('roundtrip: nome persistido igual ao automático não vira customName nem é renomeado', () => {
+    const autoName = generateWorkoutDayAutoName(['chest', 'triceps']);
+    const program = oneDayProgram({ name: autoName, muscleGroupIds: ['chest', 'triceps'] });
+    const draft = normalizeWorkoutProgramForBuilder(program);
+
+    expect(draft.days[0].autoName).toBe(autoName);
+    expect(draft.days[0].customName).toBeUndefined();
+
+    const saved = buildWorkoutProgramFromDraft(draft, program);
+    expect(saved.weeks[0].days[0].name).toBe(autoName);
+    expect(saved.weeks[0].days[0].customName).toBeUndefined();
+  });
+
+  it('A4: nome de dia que o gerador nunca produz é tratado como customizado e sobrevive ao roundtrip', () => {
+    const autoName = generateWorkoutDayAutoName(['quadriceps', 'hamstrings', 'glutes']);
+    const irreproducible = 'Dia B — Pernas';
+    // Pré-condição do caso A4: o rótulo é irreproduzível pelo gerador automático.
+    expect(irreproducible).not.toBe(autoName);
+
+    const program = oneDayProgram({
+      name: irreproducible,
+      muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes'],
+    });
+    const draft = normalizeWorkoutProgramForBuilder(program);
+
+    expect(draft.days[0].autoName).toBe(autoName);
+    expect(draft.days[0].customName).toBe(irreproducible);
+
+    const saved = buildWorkoutProgramFromDraft(draft, program);
+    expect(saved.weeks[0].days[0].name).toBe(irreproducible);
+    expect(saved.weeks[0].days[0].customName).toBe(irreproducible);
   });
 });

@@ -221,6 +221,8 @@ export const ActiveWorkoutPage = () => {
         programId: sourceProgram.id,
         dayId: sourceDay.id,
         name: sourceDay.name,
+        // GOAL-E: `name` é o nome do DIA; o programa herda o nome do PROGRAMA de origem.
+        sourceProgramName: sourceProgram.name,
         level: sourceProgram.level,
         volumeProfile,
         targetMinutes: sourceDay.targetMinutes ?? user?.duration ?? defaultTargetMinutes(volumeProfile),

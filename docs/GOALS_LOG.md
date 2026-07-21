@@ -1386,3 +1386,37 @@ Próximo passo: **revisão e aprovação do Gate G2 pelo Founder**. Somente depo
 - Somente os 3 arquivos de código autorizados (`ExercisePickerModal.tsx`, `workout-picker.ts`, `workout-picker.test.ts`) e a documentação já tocada pelo GOAL C foram alterados. Nenhum push, merge, rebase ou cherry-pick. GOAL D não foi iniciado.
 
 ---
+
+## GOAL-TF-E — Separar nome de programa e nome de dia na entrada legada (2026-07-20)
+
+### Pré-flight e isolamento
+
+- Base exata `17b5d33117015e8646a081cc693f67733ee12352` (master pós-GOAL D), branch `feat/gymflow-tf-goalE-nomes`.
+- A primeira tentativa nasceu sobre base incorreta (`b0ddfef57f14a4de7e776f328b16af135f129d56`, master pós-GOAL A); a recuperação `GYMFLOW-BUILDER-TF-GOAL-E-REBASE-AND-WORKTREE-RECOVERY-002` preservou o commit original em `backup/gymflow-tf-goalE-wrong-base-7f1895f` e reaplicou exclusivamente o delta do GOAL E sobre `17b5d331`, com B/C/D já integrados em `origin/master`. Trabalho no worktree dedicado `C:\Projetos\gymflow-goal-tf-e`, sem push.
+- O documento físico do ADR-TF-007 (PART 10 / PART 15) não existe no repositório; o enunciado do GOAL e o QA MANUAL foram usados como fonte autorizada, sem inventar texto ou numeração ausentes.
+
+### Comportamento — antes/depois (crítico)
+
+- **ANTES:** editar um dia de um programa **sugerido** (caminho legado de `createInitialDraft`, que gera um custom novo) nomeava o programa novo com o nome do **DIA**. QA real: "Dia A — Peito e Tríceps" do programa "ABC Hipertrofia Masculino" abria o Construtor com **NOME DO PROGRAMA = "Dia A — Peito e Tríceps"**.
+- **DEPOIS:** o programa novo herda o nome do **PROGRAMA** de origem. Mesmo fluxo abre com **NOME DO PROGRAMA = "ABC Hipertrofia Masculino"**, e "Dia A — Peito e Tríceps" é preservado como `customName` do Dia 1. Sem `sourceProgramName`, cai em `DEFAULT_PROGRAM_NAME` ("Meu Treino") — nunca no nome do dia.
+
+### Entrega
+
+- `WorkoutBuilderDraft` ganhou o campo aditivo e opcional `sourceProgramName` (nome do PROGRAMA), separado de `name` (nome do DIA).
+- `createInitialDraft` (caminho legado) passou a nomear o programa por `sourceProgramName` aparado `|| DEFAULT_PROGRAM_NAME`, sem promover o nome do dia; a preservação de `legacy.name` como `customName` do Dia 1 continua intacta.
+- Os 6 call-sites que montam draft passam o nome do programa de origem: `Dashboard`, `PlannerView`, `WorkoutsTab` (editar programa e editar dia), `ActiveWorkoutPage` e `GymFlowContext.createProgramFromBase`.
+- `createInitialDraft` foi exportada para teste unitário direto (a função é pura e importa limpa no vitest em ambiente node).
+
+### Validações
+
+- `npx vitest run`: 30 arquivos, **600 testes** aprovados (588 anteriores pós-GOAL D + 12 novos: 7 regras de separação de nome, preservação de nível/tempo, clonagem de slots, guarda de programa de origem, roundtrip `name===autoName` sem `customName` e caso A4 irreproduzível).
+- `npm run build`: aprovado no Next.js 16.2.6/Turbopack; TypeScript aprovado.
+- ESLint nos arquivos tocados: zero erros e zero warnings novos. Permanecem apenas os três warnings preexistentes do Context (linhas 859/870/908), fora dos trechos alterados.
+- QA MANUAL no app rodando (login demo, programa sugerido "ABC Hipertrofia Masculino"): (1) editar "Dia A — Peito e Tríceps" → NOME DO PROGRAMA = "ABC Hipertrofia Masculino", NOME DO DIA = "Dia A — Peito e Tríceps"; (2) trocar foco do dia para Ombros → nome do programa inalterado (o autoName do dia acompanha o foco, o `customName` e o nome do programa não); (3) salvar → aparece em "Meus Treinos" como "ABC Hipertrofia Masculino"; reabrir → nomes idênticos.
+- Guardrails intactos: `resolveWorkoutDayName`, `generateWorkoutDayAutoName` e a heurística de `customName` em `normalizeDay` não foram alterados; nenhuma migração de storage, seed ou renome de programa salvo. Sem push; GOAL F não iniciado.
+
+### Continuação
+
+- A pendência do GOAL-10.5 (reeditar o mesmo dia sugerido cria cópias novas a cada sessão) permanece fora de escopo e segue em PENDENCIAS; este GOAL só corrige o nome, não a deduplicação de cópias.
+
+---

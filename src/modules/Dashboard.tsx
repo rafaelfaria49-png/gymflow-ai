@@ -71,6 +71,8 @@ export const Dashboard = () => {
         programId: sourceProgram?.isCustom ? sourceProgram.id : undefined,
         dayId: sourceProgram?.isCustom ? sourceDay?.id : undefined,
         name: todayPlan.workoutName,
+        // GOAL-E: nome do dia acima; o programa novo herda o nome do PROGRAMA de origem.
+        sourceProgramName: sourceProgram?.name,
         level: user.level,
         volumeProfile,
         targetMinutes: sourceDay?.targetMinutes ?? user.duration ?? defaultTargetMinutes(volumeProfile),

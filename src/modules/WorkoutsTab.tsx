@@ -199,6 +199,7 @@ export const WorkoutsTab = () => {
         programId: program.id,
         dayId: firstDay?.id,
         name: program.name,
+        sourceProgramName: program.name,
         level: program.level,
         volumeProfile,
         targetMinutes: firstDay?.targetMinutes ?? user?.duration ?? defaultTargetMinutes(volumeProfile),
@@ -216,6 +217,8 @@ export const WorkoutsTab = () => {
         programId: program.id,
         dayId: day.id,
         name: day.name,
+        // GOAL-E: `name` é o nome do DIA; o programa mantém o nome do PROGRAMA de origem.
+        sourceProgramName: program.name,
         level: program.level,
         volumeProfile,
         targetMinutes: day.targetMinutes ?? user?.duration ?? defaultTargetMinutes(volumeProfile),

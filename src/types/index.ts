@@ -131,7 +131,10 @@ export interface ProgramDay {
 export interface WorkoutBuilderDraft {
   programId?: string; // presente apenas quando edita um customProgram já existente (upsert em vez de criar novo)
   dayId?: string;
-  name: string;
+  name: string; // nome do DIA de origem (vira o customName do Dia 1 no caminho legado)
+  // GOAL-E: nome do PROGRAMA de origem, separado do nome do dia. No caminho legado
+  // (editar um dia de programa sugerido) é ele — nunca `name` — que nomeia o programa.
+  sourceProgramName?: string;
   level: UserProfile['level'];
   volumeProfile: VolumeProfile;
   targetMinutes: number;

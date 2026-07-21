@@ -88,7 +88,7 @@ type BuilderPhase = 'mode' | 'template-picker' | 'template-preview' | 'editor';
  * legado (um dia só) continua aceito: vira o Dia 1 de um programa novo, que é
  * exatamente o caso de "editar um dia de um programa sugerido" (gera custom novo).
  */
-function createInitialDraft(
+export function createInitialDraft(
   legacy: WorkoutBuilderDraft | null,
   sourceProgram: WorkoutProgram | null,
   profileLevel?: TrainingExperienceLevel,
@@ -100,11 +100,16 @@ function createInitialDraft(
   const base = normalizeWorkoutProgramForBuilder(undefined, options);
   if (!legacy) return base;
 
+  // `legacy.name` é o nome do DIA de origem (ex.: "Dia B — Pernas"); ele preserva o
+  // customName do Dia 1, mas NUNCA nomeia o programa. O nome do programa vem do
+  // programa de origem (`sourceProgramName`) e, na sua ausência, do padrão honesto —
+  // promover o nome do dia a nome do programa era exatamente a regressão do GOAL-E.
   const legacyName = legacy.name?.trim();
+  const programName = legacy.sourceProgramName?.trim() || base.name;
   const targetMinutes = clampTargetMinutes(legacy.targetMinutes ?? base.days[0].targetMinutes);
   return {
     ...base,
-    name: legacyName || base.name,
+    name: programName,
     level: legacy.level ?? base.level,
     targetMinutes,
     days: [{
