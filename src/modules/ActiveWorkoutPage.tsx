@@ -10,6 +10,8 @@ import { matchesExerciseSearch } from '../lib/exerciseSearch';
 import { getTechniqueVideoIdForExerciseId } from '../lib/exerciseTechniqueMap';
 import { defaultTargetMinutes } from '../lib/volumeProfiles';
 import { useToast } from '../components/ui/Toast';
+import { ExerciseOriginBadge, ExerciseExecutionBadge } from '../components/ui/SessionBadges';
+import { deriveExerciseEntryStatus } from '../lib/workout-session-domain';
 
 export const ActiveWorkoutPage = () => {
   const {
@@ -420,14 +422,28 @@ export const ActiveWorkoutPage = () => {
 
       {/* EXERCISES LIST */}
       <div className="space-y-6">
-        {activeWorkout.exercises.map((ex, exIdx) => (
+        {activeWorkout.exercises.map((ex, exIdx) => {
+          // GOAL-23B: estado de execução derivado ao vivo das séries. O
+          // `entryStatus` da sessão ativa fica em `planned` até a finalização,
+          // então a derivação direta reflete o progresso real de cada exercício.
+          const liveEntryStatus = deriveExerciseEntryStatus(ex);
+          return (
           <div key={ex.id} className="glass p-5 rounded-3xl border border-white/5 space-y-4">
             {/* TÍTULO DO EXERCÍCIO */}
             <div className="flex justify-between items-start border-b border-white/5 pb-3">
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
                   <span className="text-gym-accent">#{exIdx + 1}</span>
-                  {ex.name}
+                  <span className="truncate">{ex.name}</span>
+                  {/* GOAL-23B: origem da entrada — destacada só quando não planejada. */}
+                  {(ex.entryOrigin === 'added' || ex.entryOrigin === 'swapped') && (
+                    <ExerciseOriginBadge exercise={ex} />
+                  )}
+                  {/* GOAL-23B: execução ao vivo — só com progresso real, para não
+                      rotular de "Pulado" um exercício ainda não iniciado. */}
+                  {(liveEntryStatus === 'performed' || liveEntryStatus === 'partial') && (
+                    <ExerciseExecutionBadge status={liveEntryStatus} />
+                  )}
                 </h3>
                 <span className="text-[10px] text-gym-text-muted capitalize">
                   {/* GOAL-07: meta real do ExerciseSlot quando o treino vem de um Day de programa */}
@@ -617,7 +633,8 @@ export const ActiveWorkoutPage = () => {
               </button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* ADICIONAR EXERCÍCIO AO TREINO ATIVO (GOAL-15) */}

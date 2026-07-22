@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { SocialShareModal } from '../components/SocialShareModal';
 import { useToast } from '../components/ui/Toast';
+import { SessionStatusBadge } from '../components/ui/SessionBadges';
 import { TrainingProfileSelector } from '../components/TrainingProfileSelector';
 import { TrainingProfileSummary } from '../components/TrainingProfileSummary';
 import { validateTrainingProfile } from '../lib/training-profile';
@@ -322,18 +323,21 @@ export const EvolutionDashboard = () => {
                   </button>
                 </div>
               ) : (
-                workoutHistory.map((sess, idx) => (
+                workoutHistory.map((sess) => (
                   <div
-                    key={idx}
+                    key={sess.id}
                     className="bg-white/5 border border-white/10 p-3 rounded-2xl flex items-center justify-between"
                   >
-                    <div>
-                      <h4 className="text-xs font-bold text-white">{sess.name}</h4>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs font-bold text-white truncate">{sess.name}</h4>
                       <p className="text-[10px] text-gym-text-muted">
                         {sess.date} • {Math.ceil(sess.duration / 60)} min
                       </p>
+                      <div className="mt-1">
+                        <SessionStatusBadge session={sess} />
+                      </div>
                     </div>
-                    <span className="text-[10px] bg-gym-accent/15 text-gym-accent font-mono font-bold px-2 py-1 rounded-lg">
+                    <span className="text-[10px] bg-gym-accent/15 text-gym-accent font-mono font-bold px-2 py-1 rounded-lg flex-shrink-0 ml-2">
                       +{sess.calories} Kcal
                     </span>
                   </div>
