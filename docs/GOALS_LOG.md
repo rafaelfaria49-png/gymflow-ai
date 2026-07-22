@@ -4,6 +4,64 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-24 — Registro estruturado da substituição (2026-07-22)
+
+### Escopo
+
+Persistir, em cada substituição de exercício, **o planejado (original), o executado
+(atual) e o motivo** da troca — de forma **aditiva e compatível** (campos opcionais,
+storage v1, sem mexer em volume/PR/XP/progressão). `discomfort` é só um motivo
+registrado, **sem** adaptação automática.
+
+- Base: **`0962b6a6d0fd3fc8ab791eb65facba87996125ee`** (= `origin/master`, GOAL-23B).
+- Branch: `feat/gymflow-goal24-substitution` · Worktree: `C:\Projetos\gymflow-goal-24`.
+- `master` local (`17b5d33`, GOAL-TF-D) ficou defasada de propósito; não foi tocada.
+
+### Comportamento — antes → depois
+
+- **Antes:** `swapExerciseInActiveWorkout(idx, newId, reason?)` só marcava
+  `entryOrigin: 'swapped'` (via `markEntrySwapped(exercise)`) e usava `reason` no toast;
+  o exercício original, o motivo e a nota **não** eram persistidos.
+- **Depois:** `swapExerciseInActiveWorkout(idx, newId, { reasonCode, reasonNote })`
+  captura o exercício **antes** da troca e chama
+  `markEntrySwapped(exercise, { original, reasonCode, reasonNote, swappedAt })`, que
+  grava o snapshot do original (`plannedExerciseName`/`plannedMuscleGroup`, id no
+  `plannedExerciseId`), o motivo (`swapReasonCode`), a nota normalizada
+  (`swapReasonNote`, ≤120) e `swappedAt`. **Toast e XP inalterados.**
+- **Preservado:** séries/reps/carga/RPE/descanso do exercício; trocas sucessivas
+  mantêm só **original + atual**; `finalizeSession` leva os metadados ao histórico.
+
+### Arquivos
+
+`src/types/workout-session.ts` (+`WorkoutSwapReasonCode`), `src/types/index.ts`
+(re-export + 5 campos opcionais em `ActiveExercise`), `src/lib/workout-session-domain.ts`
+(`markEntrySwapped` reescrito, `normalizeSwapReasonNote`, `MAX_SWAP_REASON_NOTE_LENGTH`),
+`src/lib/workout-session-view.ts` (`SWAP_REASON_LABELS`/`SWAP_REASON_ORDER`/
+`resolveSwapReasonLabel`/`MISSING_ORIGINAL_LABEL`/`buildSwapView`),
+`src/providers/GymFlowContext.tsx` (integração), `src/modules/ActiveWorkoutPage.tsx`
+(chips de motivo + nota + gate + "Substitui …"), `src/components/SessionDetailModal.tsx`
+(detalhe planejado × executado). Testes: `workout-session-domain.test.ts`,
+`workout-session-view.test.ts`, `workout-session-mutations.test.ts`. Docs:
+`GYMFLOW_SESSION_DOMAIN.md`, `DECISOES.md`, `GOALS_LOG.md`, `PENDENCIAS.md`.
+
+### Gates — verdes; lint global vermelho (baseline preexistente)
+
+- `npx vitest run`: **33 arquivos, 693 testes** (+17 sobre a baseline de 676), 0 falha.
+- `npx tsc --noEmit`: **0 erro**. `npm run build` e `npm run build:mobile`: **aprovados**.
+- `npm run lint`: **12 errors, 6 warnings** — idêntico à baseline; **nenhum** problema
+  novo nos arquivos do GOAL. `git diff --check`: limpo.
+
+### Como testar (QA)
+
+Treino ativo → **Trocar**: escolher motivo (chip), opcional nota (obrigatória p/
+"Outro"); substitutos ficam bloqueados até o motivo válido. Após trocar, o card mostra
+**"Substitui &lt;original&gt; • &lt;motivo&gt;"**. Duas trocas seguidas mantêm o
+primeiro original. Trocar um exercício **adicionado** captura o anterior. No histórico
+(Evolução → sessão), entradas substituídas mostram Planejado × Executado + Motivo +
+Nota. Registro legado `swapped` sem snapshot abre com "Original não registrado".
+
+---
+
 ## GOAL-TF-F — Integração e QA final do lote Tempo–Foco (2026-07-21)
 
 ### Escopo

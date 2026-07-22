@@ -1,5 +1,24 @@
 # Pendências
 
+## GOAL-24 — Substituição estruturada
+
+- **Diff posicional avançado plano×execução fica para depois:** o GOAL-24 guarda, por
+  entrada, apenas **original + atual + motivo** (snapshot em `plannedExerciseName`/
+  `plannedMuscleGroup`). Uma comparação da sessão inteira (qual slot planejado virou qual
+  executado, na ordem) e o histórico completo de trocas sucessivas **não** são
+  persistidos — só o primeiro original e a troca atual.
+- **`discomfort` não dispara adaptação:** por decisão de escopo, é só um motivo
+  registrado. Um GOAL futuro poderia usar desconforto recorrente para sugerir troca
+  definitiva ou sinalizar o exercício — hoje não alimenta progressão/sugestão.
+- **Motivo não realimenta o motor de progressão/sugestão:** `swapReasonCode` é gravado
+  mas não influencia carga/volume/PR/XP nem o ranking de substitutos (continua por grupo
+  muscular). Integrar motivo × sugestão é trabalho futuro (dependente do GOAL-20).
+- **UI do treino ativo/histórico sem teste de componente:** chips de motivo, nota, gate
+  de validação (`ActiveWorkoutPage`) e o bloco de detalhe (`SessionDetailModal`) são
+  cobertos indiretamente pela lógica pura (`buildSwapView`, `markEntrySwapped`,
+  `normalizeSwapReasonNote`); a interação em si depende de QA manual no navegador
+  enquanto o projeto não tiver DOM/Testing Library.
+
 ## GOAL-19B.2A — Merge readiness
 
 - **Testes de interação continuam sem DOM/Testing Library:** controller de navegação,

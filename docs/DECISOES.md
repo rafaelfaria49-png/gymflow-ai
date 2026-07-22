@@ -2,6 +2,39 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-24 — Registro estruturado da substituição (2026-07-22)
+
+- **Snapshot do original = `plannedExerciseId` (reusado) + `plannedExerciseName` +
+  `plannedMuscleGroup`:** os dois campos novos guardam nome/grupo; o id continua no
+  `plannedExerciseId` já existente. Só preservado na PRIMEIRA troca.
+- **`markEntrySwapped` recebe um options object** `{ original, reasonCode, reasonNote,
+  swappedAt }`. `original` é o exercício ANTES da troca; `exercise` é o já-executado.
+  Na 1ª troca captura o snapshot; nas seguintes preserva-o e atualiza só motivo/nota/
+  `swappedAt`. `swappedAt` vem de fora (contexto) para manter a função pura.
+- **Nota normalizada no domínio** (`normalizeSwapReasonNote`): `trim`, vazio → ausente,
+  limite de 120 chars. A nota da troca ATUAL sempre substitui a anterior (removida
+  quando a troca atual não tem nota) — não herda nota de troca passada.
+- **Motivo obrigatório na UI; nota obrigatória só p/ `other`.** Os substitutos ficam
+  desabilitados até o motivo (e a nota de `other`) serem válidos. `maxLength=120` no
+  input espelha o limite do domínio.
+- **Chips de motivo com `min-h-[44px]`** (regra de toque de 44px do design system),
+  em vez dos 36px dos chips do Construtor — são o gate principal antes de trocar.
+- **`reasonCode` default `preference` no contexto** como rede defensiva (a UI sempre
+  envia um motivo válido; o default só existe se `swapExerciseInActiveWorkout` for
+  chamado sem meta).
+- **`discomfort` é só um motivo registrado**, sem adaptação automática (nada de mudar
+  volume/carga/progressão) — coerente com "não implementar adaptação por dor".
+- **Toast e XP mantidos:** a substituição continua com `addXp(20, …)` e o mesmo toast
+  ("Substituição aplicada sem alterar o objetivo muscular…"). O texto "Substitui
+  &lt;original&gt; • &lt;motivo&gt;" é elemento SEPARADO no card do treino ativo
+  (via `buildSwapView`), não o toast.
+- **Fallback legado honesto:** `buildSwapView` usa "Original não registrado" quando um
+  registro `swapped` legado (pré-GOAL-24) não tem o nome do original; sem motivo/nota,
+  os campos ficam ausentes — nunca inventa dado.
+- **Detalhe no histórico** (`SessionDetailModal`): bloco âmbar por exercício swapped com
+  Planejado × Executado + Motivo + Nota (quando houver). Storage segue v1 (campos novos
+  opcionais).
+
 ## GOAL-23B — Experiência visual da sessão (2026-07-22)
 
 - **Apenas apresentação, sem mudar o domínio:** nada em `workout-session-domain.ts`/

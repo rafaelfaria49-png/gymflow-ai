@@ -61,8 +61,11 @@ materializa os `ActiveExercise`).
   carimba `status: 'active'` + `startedAt` e herda a origem do plano. **Não**
   recalcula pré-preenchimento (isso segue no contexto).
 - `deriveSessionStatus` / `deriveExerciseEntryStatus` — ver acima.
-- `markEntrySwapped(exercise)` — marca `entryOrigin: 'swapped'` preservando o
-  `plannedExerciseId` original.
+- `markEntrySwapped(exercise, { original, reasonCode, reasonNote, swappedAt })` —
+  marca `entryOrigin: 'swapped'` e registra o snapshot estruturado da troca
+  (GOAL-24). Ver a seção **GOAL-24** abaixo.
+- `normalizeSwapReasonNote(note)` — apara/limita a nota da substituição a
+  `MAX_SWAP_REASON_NOTE_LENGTH` (120) caracteres; vazio → `undefined` (GOAL-24).
 - `finalizeSession(params)` — monta o registro final. Recebe `duration`,
   `endedAt`, `calories`, `totalVolume`, `prsDetected`, `xpEarned` **já calculados**
   e apenas os grava, junto do status derivado e do `entryStatus` por exercício.
@@ -203,3 +206,71 @@ os campos do GOAL-23A:
 - **Dor/desconforto** fica fora deste GOAL.
 - **Sessões abandonadas no histórico** continuam fora: `cancelWorkout` descarta;
   `buildAbandonedSessionLog` segue não ligado.
+
+## GOAL-24 — Registro estruturado da substituição
+
+O GOAL-24 preserva, em cada substituição, **o exercício planejado (original), o
+executado (atual) e o motivo** da troca. É **aditivo e compatível**: os campos novos
+de `ActiveExercise` são opcionais, o storage segue v1 e **nada** muda em volume/PR/XP/
+progressão. `discomfort` é apenas um motivo registrado — **sem** adaptação automática.
+
+- Motivo: [`WorkoutSwapReasonCode`](../../src/types/workout-session.ts)
+- Domínio: [`markEntrySwapped` / `normalizeSwapReasonNote`](../../src/lib/workout-session-domain.ts)
+- Apresentação: [`buildSwapView` / `SWAP_REASON_LABELS`](../../src/lib/workout-session-view.ts)
+- Treino ativo: [`ActiveWorkoutPage`](../../src/modules/ActiveWorkoutPage.tsx)
+- Histórico: [`SessionDetailModal`](../../src/components/SessionDetailModal.tsx)
+
+### Motivo (`WorkoutSwapReasonCode`)
+
+`equipment-occupied | equipment-unavailable | discomfort | preference | technique-fit
+| other`. O **motivo é obrigatório**; a **nota é obrigatória apenas para `other`**,
+limitada a **120 caracteres** e normalizada (`normalizeSwapReasonNote`: apara pontas,
+vazio → ausente, corta em 120).
+
+### Campos novos de `ActiveExercise` (opcionais)
+
+- `plannedExerciseName` / `plannedMuscleGroup` — nome e grupo do exercício **original**
+  (snapshot), preservados na **primeira** troca. O id do original continua no
+  `plannedExerciseId` já existente.
+- `swapReasonCode` / `swapReasonNote` — motivo e nota da **última** troca.
+- `swappedAt` — epoch ms da última troca (recebido de fora; a função é pura).
+
+### `markEntrySwapped(exercise, { original, reasonCode, reasonNote, swappedAt })`
+
+`exercise` é a entrada **já** com o exercício executado atual; `original` é a entrada
+como estava **antes** desta troca. Comportamento:
+
+- **Primeira troca** (`original.entryOrigin !== 'swapped'`): captura id/nome/grupo do
+  original no snapshot e carimba `entryOrigin: 'swapped'`. Vale para uma entrada
+  `planned` **ou** `added` (o exercício adicionado que estava ali vira o original).
+- **Trocas seguintes** (`original.entryOrigin === 'swapped'`): **mantém** o snapshot do
+  primeiro original e atualiza **apenas** exercício executado, motivo, nota e
+  `swappedAt`. Só se guardam **original + atual** — o histórico intermediário não é
+  acumulado.
+- A **nota reflete sempre a troca atual**: gravada quando há texto, **removida** quando
+  a troca atual não tem nota (não herda a nota de uma troca anterior).
+- **Não** altera séries/reps/carga/RPE/descanso nem recalcula volume/PR/XP/progressão.
+
+### Integração no contexto
+
+`swapExerciseInActiveWorkout(exerciseIndex, newExerciseId, { reasonCode, reasonNote })`
+captura o exercício antes da troca, executa `swapWorkoutExercise` (troca a identidade
+preservando séries) e aplica `markEntrySwapped` com o original, o motivo e um
+`swappedAt = Date.now()`. **Toast e XP** (`addXp(20, …)`) permanecem idênticos ao
+fluxo anterior. A finalização preserva os metadados no snapshot do histórico (só
+deriva `entryStatus`).
+
+### Apresentação e fallback legado
+
+`buildSwapView(exercise)` monta `{ planned, hasOriginal, performed, reasonCode?,
+reasonLabel?, note? }`. Registros `swapped` **legados** (pré-GOAL-24) sem snapshot usam
+**"Original não registrado"** no planejado; sem motivo/nota, os campos ficam ausentes —
+nunca inventa dado. No treino ativo o card mostra **"Substitui &lt;original&gt; •
+&lt;motivo&gt;"**; no histórico o `SessionDetailModal` mostra Planejado × Executado +
+Motivo + Nota por exercício substituído.
+
+### Compatibilidade
+
+Registros antigos continuam abrindo: `swapped` sem nome original, `swapped` sem motivo,
+sessões anteriores ao GOAL-24 e exercícios `added` depois substituídos. Campos novos
+opcionais, storage v1 inalterado.
