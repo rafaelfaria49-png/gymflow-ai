@@ -3,8 +3,10 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { SocialShareModal } from '../components/SocialShareModal';
+import { SessionDetailModal } from '../components/SessionDetailModal';
 import { useToast } from '../components/ui/Toast';
 import { SessionStatusBadge } from '../components/ui/SessionBadges';
+import type { WorkoutSession } from '../types';
 import { TrainingProfileSelector } from '../components/TrainingProfileSelector';
 import { TrainingProfileSummary } from '../components/TrainingProfileSummary';
 import { validateTrainingProfile } from '../lib/training-profile';
@@ -60,6 +62,9 @@ export const EvolutionDashboard = () => {
   // Social Share states
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareData, setShareData] = useState<React.ComponentProps<typeof SocialShareModal>['shareData']>(null);
+
+  // GOAL-23B: sessão selecionada para o modal de detalhe.
+  const [selectedSession, setSelectedSession] = useState<WorkoutSession | null>(null);
 
   const handleWeightSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -326,7 +331,16 @@ export const EvolutionDashboard = () => {
                 workoutHistory.map((sess) => (
                   <div
                     key={sess.id}
-                    className="bg-white/5 border border-white/10 p-3 rounded-2xl flex items-center justify-between"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedSession(sess)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedSession(sess);
+                      }
+                    }}
+                    className="bg-white/5 border border-white/10 p-3 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-white/10 hover:border-gym-accent/30 transition-all"
                   >
                     <div className="min-w-0 flex-1">
                       <h4 className="text-xs font-bold text-white truncate">{sess.name}</h4>
@@ -581,6 +595,12 @@ export const EvolutionDashboard = () => {
         isOpen={shareModalOpen}
         onClose={() => setShareModalOpen(false)}
         shareData={shareData}
+      />
+
+      {/* GOAL-23B: DETALHE DA SESSÃO */}
+      <SessionDetailModal
+        session={selectedSession}
+        onClose={() => setSelectedSession(null)}
       />
     </div>
   );

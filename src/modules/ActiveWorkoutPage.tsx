@@ -10,8 +10,9 @@ import { matchesExerciseSearch } from '../lib/exerciseSearch';
 import { getTechniqueVideoIdForExerciseId } from '../lib/exerciseTechniqueMap';
 import { defaultTargetMinutes } from '../lib/volumeProfiles';
 import { useToast } from '../components/ui/Toast';
-import { ExerciseOriginBadge, ExerciseExecutionBadge } from '../components/ui/SessionBadges';
+import { ExerciseOriginBadge, ExerciseExecutionBadge, SessionStatusBadge } from '../components/ui/SessionBadges';
 import { deriveExerciseEntryStatus } from '../lib/workout-session-domain';
+import { buildSessionPreview } from '../lib/workout-session-view';
 
 export const ActiveWorkoutPage = () => {
   const {
@@ -130,6 +131,11 @@ export const ActiveWorkoutPage = () => {
   };
 
   const calculatedPrs = getPrs();
+
+  // GOAL-23B: prévia do status da sessão no resumo final — deriva das séries
+  // (ignora o `status: 'active'` armazenado) para mostrar o que a sessão vai se
+  // tornar ao concluir: completed / partial / abandoned.
+  const finishPreview = buildSessionPreview(activeWorkout);
 
   const formatTime = (totalSeconds: number) => {
     const hrs = Math.floor(totalSeconds / 3600);
@@ -864,6 +870,36 @@ export const ActiveWorkoutPage = () => {
               <div className="text-center">
                 <span className="text-[9px] text-gym-text-muted uppercase font-bold">Séries OK</span>
                 <p className="text-sm font-bold text-white mt-0.5">{completedSetsCount}</p>
+              </div>
+            </div>
+
+            {/* GOAL-23B: PRÉVIA DO STATUS DA SESSÃO */}
+            <div className="text-left bg-white/5 border border-white/5 rounded-2xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] text-gym-text-muted font-bold uppercase tracking-wider">
+                  Status da sessão
+                </span>
+                <SessionStatusBadge status={finishPreview.status} />
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="bg-gym-dark/40 rounded-xl p-2">
+                  <span className="text-gym-text-muted text-[9px] uppercase font-bold block">Exercícios</span>
+                  <p className="text-white font-bold mt-0.5">
+                    {finishPreview.performedExercises} concluído{finishPreview.performedExercises === 1 ? '' : 's'}
+                    {finishPreview.skippedExercises > 0 && (
+                      <span className="text-gym-rose"> · {finishPreview.skippedExercises} pulado{finishPreview.skippedExercises === 1 ? '' : 's'}</span>
+                    )}
+                  </p>
+                </div>
+                <div className="bg-gym-dark/40 rounded-xl p-2">
+                  <span className="text-gym-text-muted text-[9px] uppercase font-bold block">Séries</span>
+                  <p className="text-white font-bold mt-0.5">
+                    {finishPreview.completedSets} concluída{finishPreview.completedSets === 1 ? '' : 's'}
+                    {finishPreview.incompleteSets > 0 && (
+                      <span className="text-gym-text-muted"> · {finishPreview.incompleteSets} incompleta{finishPreview.incompleteSets === 1 ? '' : 's'}</span>
+                    )}
+                  </p>
+                </div>
               </div>
             </div>
 

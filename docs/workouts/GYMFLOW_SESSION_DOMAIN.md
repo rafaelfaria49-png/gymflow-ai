@@ -127,3 +127,79 @@ são opcionais e o storage não mudou, estados gravados durante o GOAL-23A (com
 - **Não** implementa motivo de substituição.
 - **Não** trata exercícios/séries pulados na UI.
 - **Não** inicia GOAL-23B nem GOAL-24.
+
+## GOAL-23B — Apresentação na UI (experiência visual)
+
+O GOAL-23B consome o domínio do GOAL-23A para tornar visíveis, sem inventar dados,
+o status da sessão, a origem e o estado de execução de cada exercício, as séries
+concluídas/incompletas, os exercícios pulados, as notas e o detalhe completo da
+sessão. **Não** altera a finalização, o cancelamento (continua descartando), o
+Context, o storage v1 nem o cálculo de volume/PR/XP.
+
+- Apresentação: [`src/lib/workout-session-view.ts`](../../src/lib/workout-session-view.ts)
+- Badges: [`src/components/ui/SessionBadges.tsx`](../../src/components/ui/SessionBadges.tsx)
+- Detalhe: [`src/components/SessionDetailModal.tsx`](../../src/components/SessionDetailModal.tsx)
+
+### O que passou a ser visível
+
+- **Histórico (Evolução):** cada sessão mostra um badge de status
+  (Concluída/Parcial/Abandonada); o card é clicável e abre o detalhe da sessão num
+  modal. A chave do card trocou de `key={idx}` para `key={sess.id}` (estável).
+  Cálculos, métricas, gráficos e ordenação atuais foram preservados.
+- **Detalhe da sessão (modal):** nome, data, duração e status; por exercício, origem
+  e execução (badges), séries concluídas/incompletas, exercícios pulados, reps/peso/
+  RPE por série e notas; volume, calorias, XP e PRs quando disponíveis.
+- **Treino ativo:** badge `Adicionado`/`Substituído` quando a origem não é
+  `planned`; estado de execução derivado ao vivo (`Realizado`/`Parcial`) por
+  exercício; o botão `+ Adicionar Série` (duplica a última) foi mantido.
+- **Resumo final (finalização):** prévia do status (`completed`/`partial`/
+  `abandoned`) derivada das séries, com contagem de exercícios e séries concluídos
+  ou pulados/incompletos. A finalização em si não mudou.
+
+### Fallbacks legados (defensivos, sem inventar dados)
+
+A camada de apresentação resolve tudo de forma segura quando o dado legado não tem
+os campos do GOAL-23A:
+
+- **Sessão sem `status`** → `resolveSessionStatus` deriva por `deriveSessionStatus`
+  (conta as séries). A normalização do GOAL-23A já carimba `status` na hidratação
+  para a maioria dos casos; a derivação é rede de segurança para dado não-normalizado.
+- **Exercício sem `entryStatus`** → `resolveEntryStatus` deriva por
+  `deriveExerciseEntryStatus`. Para sessões finalizadas o `entryStatus` gravado pela
+  finalização é exatamente o derivado, logo ler o campo ou derivar dá o mesmo
+  resultado.
+- **Exercício sem `entryOrigin`** → `planned` (todo exercício pré-GOAL-23A veio do
+  plano inicial).
+
+### Decisões de apresentação
+
+- **Sessão ativa: `entryStatus` é derivado ao vivo, não lido do campo.** O contexto
+  carimba `entryStatus: 'planned'` no início e só regrava na finalização; ler o
+  campo armazenado mostraria "Planejado" mesmo com séries concluídas. Os badges de
+  execução do treino ativo usam `deriveExerciseEntryStatus` direto; o badge
+  `ExerciseExecutionBadge` aceita um `status` explícito para isso.
+- **"Pulado" só aparece após finalização.** No treino ativo, um exercício com séries
+  mas nenhuma concluída ainda não foi "pulado" — apenas não foi iniciado. Por isso o
+  badge de execução ao vivo só renderiza para `performed`/`partial`. O `skipped`
+  aparece no detalhe do histórico e na prévia do resumo final.
+- **Contagens sempre derivam das séries** (`countPerformedExercises`/
+  `countSkippedExercises` usam `deriveExerciseEntryStatus`), funcionando nos dois
+  contextos (ativa e histórico) sem depender do campo armazenado.
+- **Prévia do resumo final usa `buildSessionPreview`**, que ignora o `status:
+  'active'` armazenado e deriva o status final das séries — refletindo o que a
+  sessão vai se tornar ao concluir.
+- **Detalhe é um modal** (`SessionDetailModal`), com ESC/overlay para fechar, body
+  rolável e tokens dark + verde-lima. Volume/PRs só aparecem quando disponíveis
+  (campos opcionais); calorias/XP sempre (campos obrigatórios).
+- **Origem destacada só quando não-planejada.** No treino ativo o badge de origem
+  só aparece para `added`/`swapped` (não polui com "Planejado" em todo exercício).
+
+### Fora de escopo (GOAL-24)
+
+- **Motivo de substituição** não é persistido nem exibido (`swapExerciseInActiveWorkout`
+  recebe `reason?` só para toast).
+- **Diff avançado plano×execução** (qual exercício planejado virou qual, comparação
+  posicional detalhada) fica para o GOAL-24.
+- **Dor/desconforto** fica fora deste GOAL.
+- **Sessões abandonadas no histórico** continuam fora: `cancelWorkout` descarta;
+  `buildAbandonedSessionLog` segue não ligado.

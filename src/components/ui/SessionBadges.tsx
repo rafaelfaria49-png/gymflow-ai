@@ -5,9 +5,11 @@ import type {
   ActiveExercise,
   WorkoutExerciseEntryStatus,
   WorkoutSession,
+  WorkoutSessionStatus,
 } from '../../types';
 import {
   ENTRY_STATUS_STYLES,
+  SESSION_STATUS_STYLES,
   entryOriginStyle,
   entryStatusStyle,
   sessionStatusStyle,
@@ -34,17 +36,26 @@ function Badge({ style, showDot = true, className }: BadgeProps) {
   );
 }
 
-/** Badge do status da sessão (Concluída / Parcial / Abandonada / Em andamento). */
+/**
+ * Badge do status da sessão (Concluída / Parcial / Abandonada / Em andamento).
+ * Por padrão resolve do `session`. Para a prévia da finalização do treino ativo
+ * (onde `session.status` ainda é `active`), passe `status` derivado por
+ * `deriveSessionStatus`/`buildSessionPreview`.
+ */
 export function SessionStatusBadge({
   session,
+  status,
   showDot = true,
   className,
 }: {
-  session: WorkoutSession;
+  session?: WorkoutSession;
+  status?: WorkoutSessionStatus;
   showDot?: boolean;
   className?: string;
 }) {
-  return <Badge style={sessionStatusStyle(session)} showDot={showDot} className={className} />;
+  const style =
+    status !== undefined ? SESSION_STATUS_STYLES[status] : sessionStatusStyle(session as WorkoutSession);
+  return <Badge style={style} showDot={showDot} className={className} />;
 }
 
 /** Badge da origem do exercício (Planejado / Adicionado / Substituído). */

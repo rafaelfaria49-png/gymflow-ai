@@ -195,10 +195,10 @@ recomendação · dependências · próximo passo.**
   aprovada foi NÃO adicionar id ao slot; a ligação entrada↔plano é posicional
   (`plannedSlotIndex`). *Próximo passo:* avaliar um id estável de slot se/quando a
   reordenação de slots ou o diff plano×execução exigir identidade não-posicional.
-- **23A-02 — Visualização dos status na UI.** *Aberto · P2 · GOAL-23A.* `status`
-  (completed/partial/abandoned) e `entryStatus`/`entryOrigin` por exercício já
-  existem no dado, mas nenhuma superfície os mostra. *Próximo passo:* badges de
-  sessão parcial/abandonada e de exercício pulado/substituído (GOAL-23B).
+- ~~**23A-02 — Visualização dos status na UI.**~~ — **resolvido no GOAL-23B:**
+  badges de status (Concluída/Parcial/Abandonada/Em andamento), origem
+  (Planejado/Adicionado/Substituído) e execução (Realizado/Parcial/Pulado) agora
+  aparecem no histórico, no detalhe da sessão e no treino ativo.
 - **23A-03 — Sessões abandonadas no histórico.** *Aberto · P2 · GOAL-23A.*
   `cancelWorkout` ainda descarta sem gravar; `buildAbandonedSessionLog` existe mas
   não está ligado. *Próximo passo:* decidir se cancelar registra um log
@@ -206,12 +206,36 @@ recomendação · dependências · próximo passo.**
 - **23A-04 — Motivo de substituição.** *Aberto · P3 · GOAL-23A.*
   `swapExerciseInActiveWorkout` recebe `reason?` (só toast) e marca
   `entryOrigin: 'swapped'`, mas o motivo não é persistido na entrada. *Próximo
-  passo:* campo opcional de motivo no `ActiveExercise` quando houver UI para ele.
-- **23A-05 — Exercícios e séries pulados na UI.** *Aberto · P3 · GOAL-23A.* O
-  snapshot preserva séries incompletas e exercícios `skipped`, mas o histórico
-  ainda não os distingue visualmente. *Próximo passo:* diferenciar concluído ×
-  pulado na tela de detalhe do treino.
-- **23A-06 — GOAL-23B (não iniciado).** *Aberto · GOAL-23B.* Consumir os status/
-  origem do domínio na UI (evolução, detalhe de sessão, badges). Não iniciado.
+  passo:* campo opcional de motivo no `ActiveExercise` quando houver UI para ele
+  (GOAL-24).
+- ~~**23A-05 — Exercícios e séries pulados na UI.**~~ — **resolvido no GOAL-23B:**
+  o detalhe da sessão distingue concluído × incompleto × pulado (badges de execução
+  + contagens por exercício/série); a prévia do resumo final mostra pulados.
+- ~~**23A-06 — GOAL-23B.**~~ — **executado no GOAL-23B** (2026-07-22).
 - **23A-07 — GOAL-24 (não iniciado).** *Aberto · GOAL-24.* Escopo posterior ao
   domínio de sessão. Não iniciado.
+
+## GOAL-23B — experiência visual da sessão (2026-07-22)
+
+- **23B-01 — Motivo de substituição (GOAL-24).** *Aberto · P3.* O badge
+  `Substituído` aparece, mas o motivo não é persistido nem exibido. *Próximo
+  passo:* campo opcional de motivo + UI (GOAL-24).
+- **23B-02 — Diff avançado plano×execução (GOAL-24).** *Aberto · P2.* O detalhe
+  mostra origem e execução por entrada, mas não compara posicionalmente "qual
+  exercício planejado virou qual" nem destaca as trocas como diff. *Próximo passo:*
+  diff plano×execução no GOAL-24 (exige decidir se `ExerciseSlot` ganha id — ver
+  23A-01).
+- **23B-03 — Sessões abandonadas no histórico.** *Aberto · P2.* Duplicata intencional
+  do 23A-03: o badge `Abandonada` existe e renderiza, mas `cancelWorkout` ainda
+  descarta, então nenhuma sessão abandonada chega ao histórico hoje. *Próximo
+  passo:* decidir política de registro de cancelamento.
+- **23B-04 — QA visual/interativa pendente.** *Aberto · P2.* A camada de
+  apresentação é pura e coberta por testes (34 em `workout-session-view.test.ts`),
+  mas a inspeção visual no navegador (abertura/fechamento do modal, badges em
+  desktop/mobile 360px, teclado/Enter/Espaço no card clicável) depende de sessão
+  manual com navegador — não executada neste ambiente. *Próximo passo:* repetir a
+  matriz QA do GOAL-23B num ambiente com navegador ativo.
+- **23B-05 — Teste DOM automatizado do modal/badges.** *Aberto · P3.* O projeto
+  não tem Testing Library/DOM; a interação (ESC, overlay, foco, tablist) segue
+  coberta por revisão de código + testes puros. *Próximo passo:* adotar cobertura
+  de interação quando a infraestrutura DOM existir (pendência recorrente).

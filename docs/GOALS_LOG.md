@@ -1616,3 +1616,64 @@ programa "ABC Hipertrofia Masculino", "Dia B — Ombros". Estado inspecionado em
   substituição e séries/exercícios pulados na UI (ver PENDENCIAS 23A-01..07).
 
 ---
+
+## GOAL-23B — Experiência visual da sessão (2026-07-22)
+
+Camada de apresentação que consome o domínio do GOAL-23A e torna visíveis (sem
+inventar dados) status da sessão, origem e execução de cada exercício, séries
+concluídas/incompletas, exercícios pulados, notas e o detalhe completo da sessão.
+**Não** altera finalização, cancelamento (continua descartando), Context, storage
+v1 nem volume/PR/XP. Base: `origin/master` = `445de0ecabf5491174211dffdc2edc0a99b92cf8`
+(= GOAL-23A). Worktree `C:\Projetos\gymflow-goal-23b`, branch
+`feat/gymflow-goal23b-session-experience`.
+
+### Entrega (dois commits)
+
+- **Commit 1 — `feat(session): adicionar apresentacao e badges de sessao`:**
+  `workout-session-view.ts` (helpers puros: labels/estilos de status/origem/execução,
+  contagens, `buildSessionSummary`, fallbacks legados) + `workout-session-view.test.ts`
+  (34 testes); `SessionBadges.tsx` (`SessionStatusBadge`/`ExerciseOriginBadge`/
+  `ExerciseExecutionBadge`); badges no histórico (`EvolutionDashboard`) e no treino
+  ativo (`ActiveWorkoutPage` — origem `added`/`swapped` + execução derivada ao vivo).
+- **Commit 2 — `feat(session): adicionar detalhe e resumo visual da sessao`:**
+  `SessionDetailModal.tsx` (nome/data/duração/status, exercícios com origem+execução,
+  séries concluídas/incompletas, reps/peso/RPE, notas, volume/calorias/XP/PRs);
+  integração do detalhe (card clicável + chave estável `sess.id`); prévia do status
+  no resumo final (`buildSessionPreview` — completed/partial/abandoned + contagens);
+  documentação (DECISOES, GOALS_LOG, PENDENCIAS, GYMFLOW_SESSION_DOMAIN).
+
+### Decisões-chave
+
+- Sessão ativa deriva execução ao vivo (`deriveExerciseEntryStatus` direto, não o
+  `entryStatus` armazenado em `planned`); "Pulado" só após finalizar; prévia do
+  resumo usa `buildSessionPreview` (ignora `status: 'active'`); detalhe é modal;
+  origem destacada só se não-planejada. Ver `docs/DECISOES.md` (GOAL-23B) e
+  `docs/workouts/GYMFLOW_SESSION_DOMAIN.md` (seção GOAL-23B).
+
+### Validações
+
+- `npx vitest run`: **33 arquivos, 676 testes** aprovados (642 anteriores + 34
+  novos em `workout-session-view.test.ts`). Zero falha.
+- `npx tsc --noEmit`: aprovado (0 erros).
+- `npm run build` (web) e `npm run build:mobile`: aprovados no Next.js 16.2.6.
+- `npm run lint`: **12 erros + 6 warnings**, idêntico à baseline pré-GOAL
+  (TF-F-13); **zero erro/warning novo** — os arquivos tocados ficam limpos (o único
+  warning em `EvolutionDashboard.tsx` é o `no-img-element` preexistente nas fotos de
+  evolução, fora do trecho alterado).
+- `git diff --check`: limpo.
+
+### QA MANUAL
+
+A matriz QA (badge completed/partial/abandoned, sessão legada sem status,
+abertura/fechamento do detalhe, exercício skipped, séries incompletas, notas,
+exercício added/swapped, prévia do status no resumo final, desktop e mobile) é
+**coberta por testes puros + revisão de código**. A inspeção visual no navegador
+não foi executada neste ambiente (sem navegador ativo); fica como pendência 23B-04.
+
+### Continuação
+
+- GOAL-24 **não iniciado**: motivo de substituição e diff avançado plano×execução
+  seguem fora de escopo. Sessões abandonadas no histórico (23A-03/23B-03) seguem
+  abertas. Ver PENDENCIAS 23B-01..05.
+
+---

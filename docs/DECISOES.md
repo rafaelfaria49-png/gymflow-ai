@@ -2,6 +2,38 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-23B — Experiência visual da sessão (2026-07-22)
+
+- **Apenas apresentação, sem mudar o domínio:** nada em `workout-session-domain.ts`/
+  `migration.ts`/`Context`/storage foi alterado. A camada nova (`workout-session-view.ts`)
+  é pura e só traduz status/origem/execução em labels/estilos/contagens/resumo.
+- **Fallback deriva, não inventa:** sessão sem `status` → `deriveSessionStatus`;
+  exercício sem `entryStatus` → `deriveExerciseEntryStatus`; sem `entryOrigin` →
+  `planned`. Para finalizadas, campo armazenado === derivado (a finalização deriva),
+  então ler ou derivar dá o mesmo; para ativas, só derivar reflete o progresso real.
+- **Sessão ativa deriva execução ao vivo:** o `entryStatus` fica em `planned` até a
+  finalização, então os badges/contagens do treino ativo usam `deriveExerciseEntryStatus`
+  direto (não `resolveEntryStatus`). `ExerciseExecutionBadge`/`SessionStatusBadge`
+  aceitam `status` explícito para a prévia da finalização.
+- **"Pulado" só após finalizar:** no treino ativo, séries presentes mas nenhuma
+  concluída é "ainda não iniciado", não "puladoo". O badge de execução ao vivo só
+  renderiza `performed`/`partial`; `skipped` aparece no detalhe do histórico e na
+  prévia do resumo final.
+- **Prévia do resumo final usa `buildSessionPreview`:** ignora o `status: 'active'`
+  armazenado e deriva `completed`/`partial`/`abandoned` das séries — o que a sessão
+  vai se tornar ao concluir. A finalização em si não mudou.
+- **Detalhe é modal:** `SessionDetailModal` (ESC/overlay fecha, body rolável, dark +
+  verde-lima). Volume/PRs só quando disponíveis (opcionais); calorias/XP sempre.
+  Renderiza legado sem quebrar nem inventar dados.
+- **Histórico clicável + chave estável:** card vira `role=button` (Enter/Espaço +
+  clique) abrindo o detalhe; `key={idx}` → `key={sess.id}`. Cálculos/métricas/
+  gráficos/ordenação preservados.
+- **Origem destacada só se não-planejada:** no treino ativo o badge de origem só
+  aparece para `added`/`swapped` (evita ruído de "Planejado" em todo exercício).
+- **Botão `+ Adicionar Série` mantido** (duplica a última); cancelamento continua
+  descartando; dor/desconforto fora; motivo de substituição e diff plano×execução
+  avançado ficam para o GOAL-24.
+
 ## GOAL-TF-F — Integração e QA final do lote Tempo–Foco (2026-07-21)
 
 - **GOAL exclusivamente documental e de QA:** consolida A–E sem alterar código.

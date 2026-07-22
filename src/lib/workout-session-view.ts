@@ -154,6 +154,13 @@ export function entryStatusStyle(exercise: ActiveExercise): BadgeStyle {
 }
 
 // --- Contagem de séries e exercícios ------------------------------------
+//
+// As contagens usam `deriveExerciseEntryStatus` (sempre derivado das séries), não
+// `resolveEntryStatus`. Motivo: na sessão ATIVA o `entryStatus` fica em `planned`
+// desde o início (mesmo com séries presentes), então o resolver retornaria
+// `planned` e não refletiria o progresso real. Para sessões finalizadas o
+// `entryStatus` gravado pela finalização é exatamente `deriveExerciseEntryStatus`,
+// logo derivar direto produz o mesmo resultado — funciona nos dois contextos.
 
 /** Total de séries (concluídas + incompletas) de todos os exercícios. */
 export function countTotalSets(exercises: ActiveExercise[]): number {
@@ -175,12 +182,12 @@ export function countIncompleteSets(exercises: ActiveExercise[]): number {
 
 /** Exercícios totalmente realizados (todas as séries concluídas e há séries). */
 export function countPerformedExercises(exercises: ActiveExercise[]): number {
-  return exercises.filter((ex) => resolveEntryStatus(ex) === 'performed').length;
+  return exercises.filter((ex) => deriveExerciseEntryStatus(ex) === 'performed').length;
 }
 
 /** Exercícios pulados (têm séries mas nenhuma concluída). */
 export function countSkippedExercises(exercises: ActiveExercise[]): number {
-  return exercises.filter((ex) => resolveEntryStatus(ex) === 'skipped').length;
+  return exercises.filter((ex) => deriveExerciseEntryStatus(ex) === 'skipped').length;
 }
 
 // --- Resumo da sessão ---------------------------------------------------
@@ -205,6 +212,26 @@ export function buildSessionSummary(session: WorkoutSession): SessionSummary {
   return {
     status: resolveSessionStatus(session),
     statusStyle: sessionStatusStyle(session),
+    totalExercises: exercises.length,
+    performedExercises: countPerformedExercises(exercises),
+    skippedExercises: countSkippedExercises(exercises),
+    totalSets: countTotalSets(exercises),
+    completedSets: countCompletedSets(exercises),
+    incompleteSets: countIncompleteSets(exercises),
+  };
+}
+
+/**
+ * Monta o resumo de PRÉVIA da finalização (treino ativo): ignora o `status`
+ * armazenado (`active`) e deriva o status final a partir das séries, refletindo
+ * o que a sessão vai se tornar ao concluir. Usado no resumo final do treino ativo.
+ */
+export function buildSessionPreview(session: WorkoutSession): SessionSummary {
+  const exercises = session.exercises;
+  const status = deriveSessionStatus(exercises);
+  return {
+    status,
+    statusStyle: SESSION_STATUS_STYLES[status],
     totalExercises: exercises.length,
     performedExercises: countPerformedExercises(exercises),
     skippedExercises: countSkippedExercises(exercises),

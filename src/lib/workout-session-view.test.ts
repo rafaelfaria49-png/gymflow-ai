@@ -6,6 +6,7 @@ import type {
 } from '../types';
 import {
   buildSessionSummary,
+  buildSessionPreview,
   countCompletedSets,
   countIncompleteSets,
   countPerformedExercises,
@@ -272,5 +273,59 @@ describe('buildSessionSummary', () => {
     const summary = buildSessionSummary(session);
     expect(summary.status).toBe('active');
     expect(summary.completedSets).toBe(0);
+  });
+});
+
+describe('contagem no treino ativo (entryStatus preso em planned)', () => {
+  // Na sessão ativa o contexto carimba entryStatus: 'planned' no início e só
+  // regrava na finalização. As contagens precisam derivar das séries, não ler o
+  // campo armazenado, para refletir o progresso real.
+  it('conta performed/skipped derivando das series mesmo com entryStatus planned', () => {
+    const exercises = [
+      makeExercise('a', [true, true], { entryOrigin: 'planned', entryStatus: 'planned' }),
+      makeExercise('b', [false, false], { entryOrigin: 'added', entryStatus: 'planned' }),
+    ];
+    expect(countPerformedExercises(exercises)).toBe(1);
+    expect(countSkippedExercises(exercises)).toBe(1);
+    expect(countCompletedSets(exercises)).toBe(2);
+    expect(countIncompleteSets(exercises)).toBe(2);
+  });
+});
+
+describe('buildSessionPreview — prévia da finalização (treino ativo)', () => {
+  it('deriva completed ignorando o status active armazenado', () => {
+    const session = makeSession(
+      [makeExercise('a', [true, true]), makeExercise('b', [true])],
+      { status: 'active' },
+    );
+    const preview = buildSessionPreview(session);
+    expect(preview.status).toBe('completed');
+    expect(preview.statusStyle.label).toBe('Concluída');
+    expect(preview.completedSets).toBe(3);
+    expect(preview.incompleteSets).toBe(0);
+    expect(preview.performedExercises).toBe(2);
+  });
+
+  it('deriva partial quando ha serie incompleta', () => {
+    const session = makeSession(
+      [makeExercise('a', [true, false]), makeExercise('b', [false, false])],
+      { status: 'active' },
+    );
+    const preview = buildSessionPreview(session);
+    expect(preview.status).toBe('partial');
+    expect(preview.skippedExercises).toBe(1);
+    expect(preview.completedSets).toBe(1);
+    expect(preview.incompleteSets).toBe(3);
+  });
+
+  it('deriva abandoned quando nenhuma serie concluida', () => {
+    const session = makeSession(
+      [makeExercise('a', [false, false])],
+      { status: 'active' },
+    );
+    const preview = buildSessionPreview(session);
+    expect(preview.status).toBe('abandoned');
+    expect(preview.statusStyle.label).toBe('Abandonada');
+    expect(preview.completedSets).toBe(0);
   });
 });
