@@ -505,3 +505,29 @@ Detalhe por ADR (status · decisão-chave · riscos residuais · validação · 
 - **Import type circular `types/index` ↔ `types/workout-session`:** mesmo padrão já usado por `workout-builder.ts`/`workout-templates.ts` (só tipos, apagado em runtime); zero erro de lint/tsc.
 - **`markEntrySwapped` só altera `entryOrigin`:** o `plannedExerciseId` (exercício originalmente planejado) é preservado pelo spread interno de `swapWorkoutExercise`, que não toca nesse campo. Motivo da substituição fica fora do escopo (PENDENCIAS).
 - **Treino livre: o exercício padrão inicial é `planned` (`plannedSlotIndex` 0):** consistência — todo exercício com que a sessão começa é "planejado"; só o que é adicionado durante o treino vira `added`.
+
+## GOAL-17B-002A — fundação IndexedDB do histórico (2026-07-22)
+
+- **Opção C aprovada, com corte estrito:** somente `workoutHistory` irá para
+  IndexedDB; perfil, planejamento, programas e sessão ativa permanecem fora desta
+  fundação. IndexedDB para todo o estado continua rejeitado.
+- **Fundação desconectada:** `storage-adapter.ts` e `storage-indexeddb.ts` não são
+  importados pelo Context, não acessam `localStorage` e não alteram hidratação,
+  autosave, import/export ou comportamento visível.
+- **Geração é a unidade de substituição:** `replaceHistory` grava uma geração
+  inteira e `activeGeneration` na mesma transação. O ponteiro só muda no commit;
+  qualquer falha mantém a geração anterior ativa e legível.
+- **Sessão usa identidade, ordem usa posição explícita:** `session.id` compõe o
+  índice único da geração e `order` reproduz o array. Datas nunca identificam nem
+  ordenam registros. Append incremental usa ordens negativas para preservar o
+  comportamento newest-first sem reescrever o histórico.
+- **Rollback nasce verificável:** o store `legacySnapshots` mantém uma janela
+  fixa do envelope v1 bruto, checksum SHA-256, instante e flag de verificação. A
+  fundação não lê, grava ou apaga o v1 real.
+- **Limpeza é deliberada:** apenas geração inativa nomeada pode ser removida; a
+  ativa é recusada. Não há garbage collection implícito nesta etapa.
+- **Testabilidade é parte do contrato:** `IDBFactory`, nome de banco, gerador de
+  geração e relógio são injetáveis. `fake-indexeddb` existe somente em
+  `devDependencies`.
+- **Rollout continua bloqueado:** 002B migra v1, 002C integra o Context e 002D
+  integra export/import/rollback. Validação em WebView físico segue obrigatória.

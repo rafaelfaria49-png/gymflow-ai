@@ -18,7 +18,9 @@ O GymFlow continua local-first e offline. A única fonte de verdade é:
 - Versão atual: `CURRENT_STORAGE_VERSION = 1`
 - Backend físico: `localStorage`
 
-Não há `v: 2`, IndexedDB, sincronização remota ou mudança no shape de treino.
+Não há `v: 2`, sincronização remota ou mudança no shape de treino. A fundação
+IndexedDB do GOAL-17B-002A existe de forma desconectada, mas ainda não participa
+da hidratação, do autosave, do backup ou da fonte de verdade do aplicativo.
 
 ## Contratos de load e save
 
@@ -125,6 +127,51 @@ Conclusões:
 1. `localStorage` continua aceitável para o GOAL-17A.
 2. As três fixtures não demonstram necessidade de particionamento imediato.
 3. GOAL-17B deve reavaliar particionamento/IndexedDB após o GOAL-23A estabilizar o schema de sessão, incluindo benchmark em WebViews físicos.
+
+## Fundação IndexedDB desconectada (GOAL-17B-002A)
+
+A opção C foi aprovada: a arquitetura híbrida futura manterá o estado pequeno no
+backend atual e moverá somente `workoutHistory` para IndexedDB. Esta etapa cria
+contratos e implementação testável, sem migrar dados e sem conectar o adapter ao
+`GymFlowContext`.
+
+- Banco: `gymflow-persistence`, versão 1.
+- `workoutHistory`: um registro por sessão, com `sessionId`, `generationId`,
+  `order` e o snapshot completo `session`.
+- `metadata`: chave/valor para `activeGeneration`, `schemaVersion`,
+  `migrationStatus`, `migratedAt` e `sourceStorageVersion`.
+- `legacySnapshots`: janela de rollback do envelope v1 bruto, com SHA-256,
+  `createdAt` e sinal de verificação.
+
+`replaceHistory` grava registros, cursor interno de ordem e troca de geração na
+mesma transação. A nova geração só se torna ativa no commit; constraint error,
+falha de structured clone ou abort preserva integralmente a anterior. Gerações
+inativas só são removidas por ID explícito e a ativa é protegida. IDs de sessão,
+nunca datas, definem identidade; `order` preserva deterministicamente o array.
+O contrato público de `writeMetadata` não aceita `activeGeneration`; somente o
+commit transacional de `replaceHistory` pode trocar esse ponteiro.
+
+`appendSession` insere no início lógico do histórico, em paridade com o array
+atual (`[novaSessão, ...histórico]`), usando ordem negativa para não reescrever os
+registros existentes. Update e delete consultam apenas a geração ativa.
+
+Benchmark informativo com `fake-indexeddb` (uma execução local; sem threshold):
+
+| Sessões | replaceHistory | readActiveHistory | appendSession |
+|---:|---:|---:|---:|
+| 100 | 11,44 ms | 4,24 ms | 0,30 ms |
+| 500 | 117,24 ms | 46,77 ms | 0,47 ms |
+| 1.000 | 463,72 ms | 245,38 ms | 1,07 ms |
+
+Os números medem o emulador em Node e não predizem WebView físico. O ganho
+arquitetural validado nesta fundação é a escrita incremental; desempenho e
+durabilidade em aparelho continuam gate de rollout.
+
+Continuação planejada:
+
+1. GOAL-17B-002B: migração verificada do envelope v1 e criação da primeira geração;
+2. GOAL-17B-002C: integração assíncrona no Context e escrita incremental;
+3. GOAL-17B-002D: import/export híbrido, rollback e recuperação.
 
 ## Recuperação manual
 

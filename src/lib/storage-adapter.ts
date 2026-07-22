@@ -1,0 +1,35 @@
+import type { WorkoutSession } from '../types';
+
+export type HistoryMigrationStatus = 'not-started' | 'in-progress' | 'completed' | 'failed';
+
+export interface HistoryStorageMetadata {
+  activeGeneration: string | null;
+  schemaVersion: number;
+  migrationStatus: HistoryMigrationStatus;
+  migratedAt: string | null;
+  sourceStorageVersion: number | null;
+}
+
+export interface LegacyHistorySnapshot {
+  raw: string;
+  checksum: string;
+  createdAt: string;
+  verified: boolean;
+}
+
+export interface WorkoutHistoryStorageAdapter {
+  open(): Promise<void>;
+  close(): Promise<void>;
+  isAvailable(): Promise<boolean>;
+  readActiveHistory(): Promise<WorkoutSession[]>;
+  replaceHistory(history: readonly WorkoutSession[]): Promise<string>;
+  appendSession(session: WorkoutSession): Promise<void>;
+  updateSession(session: WorkoutSession): Promise<boolean>;
+  deleteSession(sessionId: string): Promise<boolean>;
+  count(): Promise<number>;
+  readMetadata(): Promise<HistoryStorageMetadata>;
+  writeMetadata(metadata: Partial<Omit<HistoryStorageMetadata, 'activeGeneration'>>): Promise<void>;
+  saveLegacySnapshot(raw: string, verified: boolean): Promise<LegacyHistorySnapshot>;
+  readLegacySnapshot(): Promise<LegacyHistorySnapshot | null>;
+  clearInactiveGeneration(generationId: string): Promise<number>;
+}

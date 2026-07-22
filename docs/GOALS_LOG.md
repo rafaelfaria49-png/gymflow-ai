@@ -4,6 +4,57 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002A — Fundação IndexedDB do workoutHistory (2026-07-22)
+
+Criada a base desconectada do futuro storage híbrido, sem alterar a fonte de
+verdade atual. O contrato assíncrono cobre abertura, disponibilidade, leitura e
+substituição por gerações, append/update/delete, contagem, metadata, snapshot v1
+e limpeza explícita de geração inativa.
+
+### Entrega
+
+- `storage-adapter.ts`: contrato tipado para histórico e rollback.
+- `storage-indexeddb.ts`: banco `gymflow-persistence` v1 com stores
+  `workoutHistory`, `metadata` e `legacySnapshots`.
+- `storage-indexeddb.test.ts`: 23 testes focados, incluindo 0/100/500/1.000
+  sessões, ordem, abort/rollback, duplicidade, reabertura, isolamento e campos dos
+  GOALs 23A/23B/24.
+- `fake-indexeddb` 6.2.5 adicionado somente em `devDependencies`.
+
+### Invariantes
+
+- troca de geração e seus registros pertencem a uma única transação;
+- geração anterior continua ativa diante de constraint error ou DataCloneError;
+- append/update/delete operam exclusivamente na geração ativa;
+- índice único `[generationId, sessionId]`; `order` preserva o array sem usar data;
+- snapshot v1 usa SHA-256 e releitura invalida `verified` se o conteúdo divergir;
+- nenhuma API desta fundação acessa `localStorage`.
+
+### Benchmark informativo
+
+Em `fake-indexeddb`: replace/read/append de 100 sessões = 11,44/4,24/0,30 ms;
+500 = 117,24/46,77/0,47 ms; 1.000 = 463,72/245,38/1,07 ms. Sem threshold de
+aprovação; aparelho físico continua gate.
+
+### Continuação
+
+- 002B: migração v1;
+- 002C: integração do Context;
+- 002D: import/export e rollback híbridos.
+
+Esta etapa não altera `gymflow:state:v1`, Context, autosave, import/export ou UI.
+
+### Validação
+
+- `npx vitest run`: 34 arquivos, 716 testes aprovados;
+- `npx tsc --noEmit`: aprovado;
+- `npm run build` e `npm run build:mobile`: aprovados no Next.js 16.2.6;
+- `npm run lint`: baseline preservada em 12 erros e 6 warnings; arquivos novos
+  aprovados em lint escopado;
+- `git diff --check`: aprovado.
+
+---
+
 ## GOAL-24 — Registro estruturado da substituição (2026-07-22)
 
 ### Escopo

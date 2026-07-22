@@ -258,3 +258,22 @@ recomendação · dependências · próximo passo.**
   não tem Testing Library/DOM; a interação (ESC, overlay, foco, tablist) segue
   coberta por revisão de código + testes puros. *Próximo passo:* adotar cobertura
   de interação quando a infraestrutura DOM existir (pendência recorrente).
+
+## GOAL-17B-002A — fundação IndexedDB (2026-07-22)
+
+- **17B-002B — Migração v1.** *Pendente · P1.* Copiar o `workoutHistory` atual em
+  lotes, salvar snapshot bruto, verificar contagem/checksum e só então ativar a
+  primeira geração. Nenhuma chave legada pode ser apagada antes do commit.
+- **17B-002C — Integração do Context.** *Pendente · P1.* Introduzir hidratação
+  assíncrona, append incremental e tratamento de indisponibilidade sem criar duas
+  fontes de verdade silenciosas. O adapter ainda está totalmente desconectado.
+- **17B-002D — Import/export e rollback.** *Pendente · P1.* Agregar localStorage e
+  IndexedDB no arquivo lógico, revisar o limite de 5 MiB e definir downgrade/
+  rollback sem reintroduzir o save integral em cada sessão.
+- **17B-002A-PHYSICAL — Gate de aparelho.** *Pendente · P1.* Medir Android WebView
+  de entrada: migração 100/500/1.000, cold start, background/kill, update por
+  `adb install -r`, quota e recuperação. Benchmark de `fake-indexeddb` é somente
+  informativo.
+- **17B-002A-CONCURRENCY — Escritores concorrentes.** *Pendente · P2.* As
+  transações protegem atomicidade dentro do banco, mas a integração futura deve
+  definir coordenação entre abas/WebViews antes de ativar escrita real.
