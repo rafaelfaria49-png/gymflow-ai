@@ -10,7 +10,7 @@ export interface HistoryStorageMetadata {
   sourceStorageVersion: number | null;
 }
 
-export interface LegacyHistorySnapshot {
+export interface LegacySnapshotRecord {
   raw: string;
   checksum: string;
   createdAt: string;
@@ -29,7 +29,7 @@ export interface WorkoutHistoryStorageAdapter {
   count(): Promise<number>;
   readMetadata(): Promise<HistoryStorageMetadata>;
   writeMetadata(metadata: Partial<Omit<HistoryStorageMetadata, 'activeGeneration'>>): Promise<void>;
-  saveLegacySnapshot(raw: string, verified: boolean): Promise<LegacyHistorySnapshot>;
-  readLegacySnapshot(): Promise<LegacyHistorySnapshot | null>;
+  saveLegacySnapshot(raw: string): Promise<LegacySnapshotRecord>;
+  readLegacySnapshot(): Promise<LegacySnapshotRecord | null>;
   clearInactiveGeneration(generationId: string): Promise<number>;
 }

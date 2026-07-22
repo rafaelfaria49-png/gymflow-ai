@@ -1,7 +1,7 @@
 import type { WorkoutSession } from '../types';
 import type {
   HistoryStorageMetadata,
-  LegacyHistorySnapshot,
+  LegacySnapshotRecord,
   WorkoutHistoryStorageAdapter,
 } from './storage-adapter';
 
@@ -39,7 +39,7 @@ interface MetadataRecord {
   value: unknown;
 }
 
-interface LegacySnapshotRecord extends LegacyHistorySnapshot {
+interface StoredLegacySnapshotRecord extends LegacySnapshotRecord {
   snapshotId: string;
 }
 
@@ -48,7 +48,7 @@ export interface IndexedDbHistoryStorageOptions {
   databaseName?: string;
   generationIdFactory?: () => string;
   now?: () => Date;
-  subtleCrypto?: SubtleCrypto;
+  subtleCrypto?: SubtleCrypto | null;
 }
 
 export class IndexedDbUnavailableError extends Error {
@@ -62,6 +62,23 @@ export class IndexedDbNotOpenError extends Error {
   constructor() {
     super('O adapter IndexedDB precisa ser aberto antes da operação.');
     this.name = 'IndexedDbNotOpenError';
+  }
+}
+
+export class LegacySnapshotCryptoUnavailableError extends Error {
+  constructor() {
+    super('Web Crypto indisponível para calcular o checksum do snapshot.');
+    this.name = 'LegacySnapshotCryptoUnavailableError';
+  }
+}
+
+export class LegacySnapshotIntegrityError extends Error {
+  readonly originalError: unknown;
+
+  constructor(message: string, originalError?: unknown) {
+    super(message);
+    this.name = 'LegacySnapshotIntegrityError';
+    this.originalError = originalError;
   }
 }
 
@@ -109,9 +126,9 @@ function bytesToHex(bytes: Uint8Array): string {
 
 export async function checksumLegacySnapshot(
   raw: string,
-  subtleCrypto: SubtleCrypto | undefined = globalThis.crypto?.subtle,
+  subtleCrypto: SubtleCrypto | null | undefined = globalThis.crypto?.subtle,
 ): Promise<string> {
-  if (!subtleCrypto) throw new Error('Web Crypto indisponível para calcular o checksum do snapshot.');
+  if (!subtleCrypto) throw new LegacySnapshotCryptoUnavailableError();
   const digest = await subtleCrypto.digest('SHA-256', new TextEncoder().encode(raw));
   return `sha256:${bytesToHex(new Uint8Array(digest))}`;
 }
@@ -121,7 +138,7 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
   private readonly databaseName: string;
   private readonly generationIdFactory: () => string;
   private readonly now: () => Date;
-  private readonly subtleCrypto: SubtleCrypto | undefined;
+  private readonly subtleCrypto: SubtleCrypto | null | undefined;
   private database: IDBDatabase | null = null;
 
   constructor(options: IndexedDbHistoryStorageOptions = {}) {
@@ -129,7 +146,9 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
     this.databaseName = options.databaseName ?? GYMFLOW_INDEXEDDB_NAME;
     this.generationIdFactory = options.generationIdFactory ?? defaultGenerationId;
     this.now = options.now ?? (() => new Date());
-    this.subtleCrypto = options.subtleCrypto ?? globalThis.crypto?.subtle;
+    this.subtleCrypto = options.subtleCrypto === null
+      ? null
+      : options.subtleCrypto ?? globalThis.crypto?.subtle;
   }
 
   async isAvailable(): Promise<boolean> {
@@ -388,32 +407,56 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
     await completed;
   }
 
-  async saveLegacySnapshot(raw: string, verified: boolean): Promise<LegacyHistorySnapshot> {
-    const snapshot: LegacyHistorySnapshot = {
+  async saveLegacySnapshot(raw: string): Promise<LegacySnapshotRecord> {
+    const snapshot: LegacySnapshotRecord = {
       raw,
       checksum: await checksumLegacySnapshot(raw, this.subtleCrypto),
       createdAt: this.now().toISOString(),
-      verified,
+      verified: false,
     };
-    const database = this.requireDatabase();
-    const transaction = database.transaction(LEGACY_SNAPSHOTS_STORE, 'readwrite');
-    const completed = transactionResult(transaction);
-    await requestResult(transaction.objectStore(LEGACY_SNAPSHOTS_STORE).put({
+
+    await this.writeLegacySnapshotRecord({
       snapshotId: LEGACY_SNAPSHOT_ID,
       ...snapshot,
-    } satisfies LegacySnapshotRecord));
-    await completed;
-    return snapshot;
+    });
+
+    try {
+      const persisted = await this.readLegacySnapshotRecord();
+      if (!persisted) {
+        throw new LegacySnapshotIntegrityError('Snapshot legado não encontrado após a primeira gravação.');
+      }
+
+      const recalculatedChecksum = await checksumLegacySnapshot(persisted.raw, this.subtleCrypto);
+      if (
+        persisted.raw !== raw
+        || persisted.checksum !== snapshot.checksum
+        || recalculatedChecksum !== persisted.checksum
+      ) {
+        throw new LegacySnapshotIntegrityError('Falha de integridade no readback do snapshot legado.');
+      }
+
+      const verifiedSnapshot: StoredLegacySnapshotRecord = {
+        ...persisted,
+        verified: true,
+      };
+      await this.writeLegacySnapshotRecord(verifiedSnapshot);
+      return {
+        raw: verifiedSnapshot.raw,
+        checksum: verifiedSnapshot.checksum,
+        createdAt: verifiedSnapshot.createdAt,
+        verified: verifiedSnapshot.verified,
+      };
+    } catch (error) {
+      if (error instanceof LegacySnapshotIntegrityError) throw error;
+      throw new LegacySnapshotIntegrityError(
+        'Não foi possível verificar a integridade do snapshot legado.',
+        error,
+      );
+    }
   }
 
-  async readLegacySnapshot(): Promise<LegacyHistorySnapshot | null> {
-    const database = this.requireDatabase();
-    const transaction = database.transaction(LEGACY_SNAPSHOTS_STORE, 'readonly');
-    const completed = transactionResult(transaction);
-    const record = await requestResult(
-      transaction.objectStore(LEGACY_SNAPSHOTS_STORE).get(LEGACY_SNAPSHOT_ID),
-    ) as LegacySnapshotRecord | undefined;
-    await completed;
+  async readLegacySnapshot(): Promise<LegacySnapshotRecord | null> {
+    const record = await this.readLegacySnapshotRecord();
     if (!record) return null;
 
     const actualChecksum = await checksumLegacySnapshot(record.raw, this.subtleCrypto);
@@ -463,6 +506,39 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
       transaction.objectStore(METADATA_STORE).get(key),
     ) as MetadataRecord | undefined;
     return record?.value as T | undefined;
+  }
+
+  private async readLegacySnapshotRecord(): Promise<StoredLegacySnapshotRecord | undefined> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(LEGACY_SNAPSHOTS_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+
+    try {
+      const record = await requestResult(
+        transaction.objectStore(LEGACY_SNAPSHOTS_STORE).get(LEGACY_SNAPSHOT_ID),
+      ) as StoredLegacySnapshotRecord | undefined;
+      await completed;
+      return record;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  private async writeLegacySnapshotRecord(record: StoredLegacySnapshotRecord): Promise<void> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(LEGACY_SNAPSHOTS_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+
+    try {
+      await requestResult(transaction.objectStore(LEGACY_SNAPSHOTS_STORE).put(record));
+      await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
   }
 
   private async requireActiveGeneration(transaction: IDBTransaction): Promise<string> {

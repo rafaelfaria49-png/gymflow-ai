@@ -261,6 +261,18 @@ recomendação · dependências · próximo passo.**
 
 ## GOAL-17B-002A — fundação IndexedDB (2026-07-22)
 
+- **17B-004 — Integridade pós-write/readback.** *Encerrado em 2026-07-22.* O
+  adapter, e não o chamador, calcula `verified`; somente conteúdo e checksums
+  confirmados após o primeiro commit permitem a segunda transação marcar `true`.
+- **17B-002A-BLOCKED — Sucesso tardio após abertura bloqueada.** *Pendente · P2.*
+  Fechar explicitamente uma conexão que conclua `onsuccess` depois de `onblocked`
+  já ter rejeitado a abertura, evitando conexão órfã.
+- **17B-002A-METADATA-GUARD — Proteção runtime do ponteiro ativo.** *Pendente ·
+  P2.* Rejeitar `activeGeneration` dentro da implementação de `writeMetadata`,
+  além da exclusão já imposta pelo tipo TypeScript.
+- **17B-002A-ENV-COVERAGE — Coberturas adicionais.** *Pendente · P2.* Cobrir
+  `blocked`, `versionchange`, erro de abertura, operações sem geração ativa e
+  append após delete. O corretivo 004 cobreu Web Crypto e falhas do snapshot.
 - **17B-002B — Migração v1.** *Pendente · P1.* Copiar o `workoutHistory` atual em
   lotes, salvar snapshot bruto, verificar contagem/checksum e só então ativar a
   primeira geração. Nenhuma chave legada pode ser apagada antes do commit.

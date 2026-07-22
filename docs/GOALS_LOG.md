@@ -4,6 +4,27 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-004 — corretivo de integridade do snapshot legado (2026-07-22)
+
+Encerrado o P1 da auditoria de merge readiness. `saveLegacySnapshot` não recebe
+mais um booleano do chamador: o adapter grava o snapshot inicialmente com
+`verified: false`, aguarda o commit, relê o registro, recalcula o SHA-256 sobre os
+bytes UTF-8 e compara conteúdo e checksums antes de uma segunda transação marcar
+`verified: true`.
+
+Falha de comparação ou da segunda transação rejeita com erro explícito de
+integridade e preserva o snapshot não verificado, sem tocar em metadata ou
+`workoutHistory`. A leitura continua recalculando o checksum e nunca confia
+somente no flag persistido.
+
+Foram adicionados testes para as duas fases, corrupção de conteúdo/checksum,
+abort da segunda transação, reabertura, isolamento da limpeza e ausência de Web
+Crypto. Permanecem pendentes os P2 de abertura `blocked`, proteção runtime de
+`activeGeneration` em `writeMetadata` e coberturas adicionais de ambiente. A
+fundação continua totalmente desconectada do aplicativo, Context e storage v1.
+
+---
+
 ## GOAL-17B-002A — Fundação IndexedDB do workoutHistory (2026-07-22)
 
 Criada a base desconectada do futuro storage híbrido, sem alterar a fonte de

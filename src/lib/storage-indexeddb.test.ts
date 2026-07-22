@@ -1,4 +1,4 @@
-import { IDBFactory } from 'fake-indexeddb';
+import { IDBFactory, IDBObjectStore as FakeIDBObjectStore } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import type { WorkoutSession } from '../types';
 import {
@@ -6,6 +6,8 @@ import {
   IndexedDbUnavailableError,
   IndexedDbWorkoutHistoryStorage,
   LEGACY_SNAPSHOTS_STORE,
+  LegacySnapshotCryptoUnavailableError,
+  LegacySnapshotIntegrityError,
   METADATA_STORE,
   WORKOUT_HISTORY_STORE,
   checksumLegacySnapshot,
@@ -64,7 +66,11 @@ function makeSession(index: number, overrides: Partial<WorkoutSession> = {}): Wo
   };
 }
 
-function createHarness(factory = new IDBFactory(), databaseName?: string) {
+function createHarness(
+  factory = new IDBFactory(),
+  databaseName?: string,
+  options: { subtleCrypto?: SubtleCrypto | null } = {},
+) {
   const name = databaseName ?? `gymflow-idb-test-${databaseSequence += 1}`;
   let generation = 0;
   const adapter = new IndexedDbWorkoutHistoryStorage({
@@ -72,8 +78,17 @@ function createHarness(factory = new IDBFactory(), databaseName?: string) {
     databaseName: name,
     generationIdFactory: () => `generation-${generation += 1}`,
     now: () => new Date('2026-07-22T15:00:00.000Z'),
+    ...options,
   });
   return { adapter, factory, name };
+}
+
+interface StoredSnapshotForTest {
+  snapshotId: string;
+  raw: string;
+  checksum: string;
+  createdAt: string;
+  verified: boolean;
 }
 
 function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
@@ -97,6 +112,50 @@ function transactionResult(transaction: IDBTransaction): Promise<void> {
     transaction.onabort = () => reject(transaction.error);
     transaction.onerror = () => undefined;
   });
+}
+
+async function readStoredSnapshot(
+  factory: IDBFactory,
+  name: string,
+): Promise<StoredSnapshotForTest | undefined> {
+  const database = await openDatabase(factory, name);
+  const transaction = database.transaction(LEGACY_SNAPSHOTS_STORE, 'readonly');
+  const completed = transactionResult(transaction);
+  const record = await requestResult(
+    transaction.objectStore(LEGACY_SNAPSHOTS_STORE).get('v1-rollback'),
+  ) as StoredSnapshotForTest | undefined;
+  await completed;
+  database.close();
+  return record;
+}
+
+async function updateStoredSnapshot(
+  factory: IDBFactory,
+  name: string,
+  changes: Partial<StoredSnapshotForTest>,
+): Promise<void> {
+  const database = await openDatabase(factory, name);
+  const transaction = database.transaction(LEGACY_SNAPSHOTS_STORE, 'readwrite');
+  const completed = transactionResult(transaction);
+  const store = transaction.objectStore(LEGACY_SNAPSHOTS_STORE);
+  const record = await requestResult(store.get('v1-rollback')) as StoredSnapshotForTest | undefined;
+  if (!record) throw new Error('Snapshot de teste não encontrado.');
+  await requestResult(store.put({ ...record, ...changes }));
+  await completed;
+  database.close();
+}
+
+function createInterceptedSubtleCrypto(
+  onDigest: (call: number, digest: ArrayBuffer) => void | ArrayBuffer | Promise<void | ArrayBuffer>,
+): SubtleCrypto {
+  let calls = 0;
+  return {
+    async digest(algorithm: AlgorithmIdentifier, data: BufferSource): Promise<ArrayBuffer> {
+      calls += 1;
+      const digest = await globalThis.crypto.subtle.digest(algorithm, data);
+      return await onDigest(calls, digest) ?? digest;
+    },
+  } as SubtleCrypto;
 }
 
 describe('fundação IndexedDB do workoutHistory', () => {
@@ -285,34 +344,104 @@ describe('fundação IndexedDB do workoutHistory', () => {
     await adapter.close();
   });
 
-  it('salva snapshot v1 bruto com SHA-256, data e verificação', async () => {
+  it('expõe saveLegacySnapshot sem parâmetro de verificação', () => {
     const { adapter } = createHarness();
+    expect(adapter.saveLegacySnapshot).toHaveLength(1);
+  });
+
+  it('só verifica o snapshot após commit, readback e comparação integral', async () => {
+    const factory = new IDBFactory();
+    const name = `gymflow-idb-test-${databaseSequence += 1}`;
+    let observedUnverifiedPhase = false;
+    const subtleCrypto = createInterceptedSubtleCrypto(async (call) => {
+      if (call !== 2) return;
+      const stored = await readStoredSnapshot(factory, name);
+      expect(stored).toMatchObject({ verified: false });
+      observedUnverifiedPhase = true;
+    });
+    const { adapter } = createHarness(factory, name, { subtleCrypto });
     await adapter.open();
     const raw = '{"v":1,"savedAt":"2026-07-22T12:00:00.000Z","data":{}}';
-    const saved = await adapter.saveLegacySnapshot(raw, true);
+    const saved = await adapter.saveLegacySnapshot(raw);
     expect(saved).toEqual({
       raw,
       checksum: await checksumLegacySnapshot(raw),
       createdAt: '2026-07-22T15:00:00.000Z',
       verified: true,
     });
+    expect(observedUnverifiedPhase).toBe(true);
+    expect(await readStoredSnapshot(factory, name)).toEqual({
+      snapshotId: 'v1-rollback',
+      ...saved,
+    });
     expect(await adapter.readLegacySnapshot()).toEqual(saved);
     await adapter.close();
   });
 
-  it('derruba verified quando o conteúdo não corresponde mais ao checksum', async () => {
+  it('mantém verified false quando a comparação entre as duas fases falha', async () => {
+    const factory = new IDBFactory();
+    const name = `gymflow-idb-test-${databaseSequence += 1}`;
+    const subtleCrypto = createInterceptedSubtleCrypto((call, digest) => {
+      if (call !== 2) return;
+      const corrupted = digest.slice(0);
+      new Uint8Array(corrupted)[0] ^= 0xff;
+      return corrupted;
+    });
+    const { adapter } = createHarness(factory, name, { subtleCrypto });
+    await adapter.open();
+
+    await expect(adapter.saveLegacySnapshot('{"v":1}'))
+      .rejects.toBeInstanceOf(LegacySnapshotIntegrityError);
+    expect(await readStoredSnapshot(factory, name)).toMatchObject({
+      raw: '{"v":1}',
+      verified: false,
+    });
+    await adapter.close();
+  });
+
+  it('não retorna sucesso quando a segunda transação é abortada', async () => {
+    const originalPut = FakeIDBObjectStore.prototype.put;
+    const failingVerifiedPut = function (
+      this: IDBObjectStore,
+      value: unknown,
+      key?: IDBValidKey,
+    ): IDBRequest<IDBValidKey> {
+      const request = originalPut.call(this, value, key);
+      const snapshot = value as Partial<StoredSnapshotForTest>;
+      if (snapshot.snapshotId === 'v1-rollback' && snapshot.verified === true) {
+        this.transaction.abort();
+      }
+      return request;
+    };
+    FakeIDBObjectStore.prototype.put = failingVerifiedPut;
+
+    const { adapter, factory, name } = createHarness();
+    try {
+      await adapter.open();
+      await expect(adapter.saveLegacySnapshot('{"v":1}'))
+        .rejects.toBeInstanceOf(LegacySnapshotIntegrityError);
+      expect(await readStoredSnapshot(factory, name)).toMatchObject({ verified: false });
+      await adapter.close();
+    } finally {
+      FakeIDBObjectStore.prototype.put = originalPut;
+    }
+  });
+
+  it('não aceita flag true persistido quando o conteúdo foi adulterado', async () => {
     const { adapter, factory, name } = createHarness();
     await adapter.open();
-    await adapter.saveLegacySnapshot('{"v":1}', true);
+    await adapter.saveLegacySnapshot('{"v":1}');
+    await updateStoredSnapshot(factory, name, { raw: '{"v":1,"alterado":true}' });
 
-    const database = await openDatabase(factory, name);
-    const transaction = database.transaction(LEGACY_SNAPSHOTS_STORE, 'readwrite');
-    const completed = transactionResult(transaction);
-    const store = transaction.objectStore(LEGACY_SNAPSHOTS_STORE);
-    const record = await requestResult(store.get('v1-rollback'));
-    await requestResult(store.put({ ...record, raw: '{"v":1,"alterado":true}' }));
-    await completed;
-    database.close();
+    expect((await adapter.readLegacySnapshot())?.verified).toBe(false);
+    await adapter.close();
+  });
+
+  it('detecta corrupção do checksum persistido', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    await adapter.saveLegacySnapshot('{"v":1}');
+    await updateStoredSnapshot(factory, name, { checksum: `sha256:${'0'.repeat(64)}` });
 
     expect((await adapter.readLegacySnapshot())?.verified).toBe(false);
     await adapter.close();
@@ -322,19 +451,31 @@ describe('fundação IndexedDB do workoutHistory', () => {
     const { adapter, factory, name } = createHarness();
     await adapter.open();
     await adapter.replaceHistory([makeSession(7)]);
-    await adapter.saveLegacySnapshot('snapshot-v1', false);
+    await adapter.saveLegacySnapshot('snapshot-v1');
     await adapter.close();
 
     const reopened = new IndexedDbWorkoutHistoryStorage({ factory, databaseName: name });
     await reopened.open();
     expect((await reopened.readActiveHistory()).map((session) => session.id)).toEqual(['session-7']);
-    expect(await reopened.readLegacySnapshot()).toMatchObject({ raw: 'snapshot-v1', verified: false });
+    expect(await reopened.readLegacySnapshot()).toMatchObject({ raw: 'snapshot-v1', verified: true });
     await reopened.close();
+  });
+
+  it('retorna erro explícito e não grava snapshot sem Web Crypto', async () => {
+    const factory = new IDBFactory();
+    const { adapter, name } = createHarness(factory, undefined, { subtleCrypto: null });
+    await adapter.open();
+
+    await expect(adapter.saveLegacySnapshot('{"v":1}'))
+      .rejects.toBeInstanceOf(LegacySnapshotCryptoUnavailableError);
+    expect(await readStoredSnapshot(factory, name)).toBeUndefined();
+    await adapter.close();
   });
 
   it('limpa somente a geração inativa explicitamente solicitada', async () => {
     const { adapter } = createHarness();
     await adapter.open();
+    await adapter.saveLegacySnapshot('snapshot-preservado');
     const first = await adapter.replaceHistory([makeSession(1), makeSession(2)]);
     const active = await adapter.replaceHistory([makeSession(3)]);
 
@@ -342,6 +483,10 @@ describe('fundação IndexedDB do workoutHistory', () => {
     expect(await adapter.clearInactiveGeneration(first)).toBe(0);
     await expect(adapter.clearInactiveGeneration(active)).rejects.toThrow('geração ativa');
     expect((await adapter.readActiveHistory()).map((session) => session.id)).toEqual(['session-3']);
+    expect(await adapter.readLegacySnapshot()).toMatchObject({
+      raw: 'snapshot-preservado',
+      verified: true,
+    });
     await adapter.close();
   });
 
