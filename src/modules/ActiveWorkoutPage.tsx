@@ -11,8 +11,9 @@ import { getTechniqueVideoIdForExerciseId } from '../lib/exerciseTechniqueMap';
 import { defaultTargetMinutes } from '../lib/volumeProfiles';
 import { useToast } from '../components/ui/Toast';
 import { ExerciseOriginBadge, ExerciseExecutionBadge, SessionStatusBadge } from '../components/ui/SessionBadges';
-import { deriveExerciseEntryStatus } from '../lib/workout-session-domain';
-import { buildSessionPreview } from '../lib/workout-session-view';
+import { deriveExerciseEntryStatus, MAX_SWAP_REASON_NOTE_LENGTH } from '../lib/workout-session-domain';
+import { buildSessionPreview, buildSwapView, SWAP_REASON_LABELS, SWAP_REASON_ORDER } from '../lib/workout-session-view';
+import type { WorkoutSwapReasonCode } from '../types';
 
 export const ActiveWorkoutPage = () => {
   const {
@@ -49,6 +50,9 @@ export const ActiveWorkoutPage = () => {
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [swapIndex, setSwapIndex] = useState<number | null>(null);
+  // GOAL-24: motivo obrigatório + nota opcional (obrigatória p/ `other`) da troca.
+  const [swapReasonCode, setSwapReasonCode] = useState<WorkoutSwapReasonCode | null>(null);
+  const [swapNote, setSwapNote] = useState('');
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addSearch, setAddSearch] = useState('');
@@ -159,15 +163,30 @@ export const ActiveWorkoutPage = () => {
 
   const openSwapModal = (idx: number) => {
     setSwapIndex(idx);
+    setSwapReasonCode(null);
+    setSwapNote('');
     setShowSwapModal(true);
   };
 
+  const closeSwapModal = () => {
+    setShowSwapModal(false);
+    setSwapIndex(null);
+    setSwapReasonCode(null);
+    setSwapNote('');
+  };
+
+  // GOAL-24: motivo obrigatório; nota obrigatória apenas quando o motivo é `other`.
+  const swapNoteTrimmed = swapNote.trim();
+  const swapReasonValid =
+    swapReasonCode !== null && (swapReasonCode !== 'other' || swapNoteTrimmed.length > 0);
+
   const handleSwap = (newExId: string) => {
-    if (swapIndex !== null) {
-      swapExerciseInActiveWorkout(swapIndex, newExId);
-      setShowSwapModal(false);
-      setSwapIndex(null);
-    }
+    if (swapIndex === null || swapReasonCode === null || !swapReasonValid) return;
+    swapExerciseInActiveWorkout(swapIndex, newExId, {
+      reasonCode: swapReasonCode,
+      reasonNote: swapNoteTrimmed.length > 0 ? swapNoteTrimmed : undefined,
+    });
+    closeSwapModal();
   };
 
   // GOAL-15: adicionar exercício ao Treino Ativo pela busca (persiste de verdade,
@@ -433,6 +452,8 @@ export const ActiveWorkoutPage = () => {
           // `entryStatus` da sessão ativa fica em `planned` até a finalização,
           // então a derivação direta reflete o progresso real de cada exercício.
           const liveEntryStatus = deriveExerciseEntryStatus(ex);
+          // GOAL-24: após a troca, o card mostra "Substitui <original> • <motivo>".
+          const swapView = ex.entryOrigin === 'swapped' ? buildSwapView(ex) : null;
           return (
           <div key={ex.id} className="glass p-5 rounded-3xl border border-white/5 space-y-4">
             {/* TÍTULO DO EXERCÍCIO */}
@@ -461,6 +482,13 @@ export const ActiveWorkoutPage = () => {
                 {ex.progressionNote && (
                   <span className="block text-[9px] text-gym-accent/80 normal-case mt-0.5 leading-snug">
                     Progressão recomendada: {ex.progressionNote}
+                  </span>
+                )}
+                {/* GOAL-24: substituição — planejado (original) → executado + motivo */}
+                {swapView && (
+                  <span className="block text-[9px] text-amber-400/90 normal-case mt-0.5 leading-snug">
+                    Substitui {swapView.planned}
+                    {swapView.reasonLabel ? ` • ${swapView.reasonLabel}` : ''}
                   </span>
                 )}
               </div>
@@ -752,27 +780,96 @@ export const ActiveWorkoutPage = () => {
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-gym-dark border border-white/10 rounded-3xl w-full max-w-md p-6 relative max-h-[80vh] overflow-y-auto">
             <button
-              onClick={() => setShowSwapModal(false)}
+              onClick={closeSwapModal}
               className="absolute top-4 right-4 text-gym-text-muted hover:text-white rounded-lg bg-white/5 tap-target flex items-center justify-center"
               aria-label="Fechar"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-sm font-bold text-gym-accent uppercase tracking-wider mb-2">Substitutos IA Coach</h3>
+            <h3 className="text-sm font-bold text-gym-accent uppercase tracking-wider mb-2">Substituir exercício</h3>
             <h2 className="text-base font-bold text-white mb-4">
               Substituir &quot;{activeWorkout.exercises[swapIndex]?.name}&quot;
             </h2>
 
+            {/* GOAL-24: motivo da troca (obrigatório) */}
+            <div className="mb-4">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-gym-text-muted mb-1.5">
+                Motivo da troca
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {SWAP_REASON_ORDER.map((code) => {
+                  const active = swapReasonCode === code;
+                  return (
+                    <button
+                      key={code}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setSwapReasonCode(code)}
+                      className={`min-h-[44px] px-3.5 rounded-xl text-[11px] font-bold border transition-all ${
+                        active
+                          ? 'bg-gym-accent/15 border-gym-accent text-gym-accent'
+                          : 'bg-white/5 border-white/5 text-gym-text-muted hover:text-white hover:border-white/20'
+                      }`}
+                    >
+                      {SWAP_REASON_LABELS[code]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* GOAL-24: nota — opcional, exceto para "Outro"; limitada a 120 caracteres */}
+            <div className="mb-4">
+              <label
+                htmlFor="swap-note"
+                className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gym-text-muted mb-1.5"
+              >
+                <span>Nota {swapReasonCode === 'other' ? '(obrigatória)' : '(opcional)'}</span>
+                <span className="text-gym-text-muted/70 normal-case tracking-normal">
+                  {swapNote.length}/{MAX_SWAP_REASON_NOTE_LENGTH}
+                </span>
+              </label>
+              <input
+                id="swap-note"
+                type="text"
+                value={swapNote}
+                maxLength={MAX_SWAP_REASON_NOTE_LENGTH}
+                onChange={(e) => setSwapNote(e.target.value)}
+                placeholder={
+                  swapReasonCode === 'other'
+                    ? 'Descreva o motivo da troca...'
+                    : 'Detalhe opcional (ex.: barra ocupada, ombro sensível)...'
+                }
+                className="w-full min-h-[44px] bg-gym-card border border-white/10 focus:border-gym-accent rounded-2xl px-3.5 py-2.5 text-sm text-white placeholder-gym-text-muted/50 outline-none transition-all"
+              />
+              {swapReasonCode === 'other' && swapNoteTrimmed.length === 0 && (
+                <p className="text-[10px] text-amber-400/90 mt-1.5">
+                  Para o motivo &quot;Outro&quot;, descreva o motivo na nota.
+                </p>
+              )}
+            </div>
+
+            {/* SUBSTITUTOS — bloqueados até o motivo obrigatório ser válido */}
             <div className="space-y-2">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-gym-text-muted mb-0.5">
+                Escolha o substituto
+              </span>
+              {!swapReasonValid && (
+                <p className="text-[10px] text-gym-text-muted mb-1">
+                  Selecione um motivo{swapReasonCode === 'other' ? ' e preencha a nota' : ''} para liberar a troca.
+                </p>
+              )}
               {getSubstitutes(swapIndex).length === 0 ? (
                 <p className="text-xs text-gym-text-muted text-center py-4">Nenhum exercício similar encontrado.</p>
               ) : (
                 getSubstitutes(swapIndex).map((subEx) => (
                   <button
                     key={subEx.id}
+                    type="button"
+                    disabled={!swapReasonValid}
                     onClick={() => handleSwap(subEx.id)}
-                    className="w-full text-left bg-gym-card/50 border border-white/5 hover:border-gym-accent/30 p-3 rounded-2xl flex items-center justify-between transition-all"
+                    className="w-full text-left bg-gym-card/50 border border-white/5 hover:border-gym-accent/30 p-3 rounded-2xl flex items-center justify-between transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <div>
                       <h4 className="text-xs font-bold text-white">{subEx.name}</h4>

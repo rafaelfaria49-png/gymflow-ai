@@ -16,7 +16,8 @@ import {
   WeeklyWorkoutDay,
   TechniqueTrail,
   ProgramDay,
-  WorkoutBuilderDraft
+  WorkoutBuilderDraft,
+  WorkoutSwapReasonCode
 } from '../types';
 import {
   MOCK_EXERCISES,
@@ -211,7 +212,11 @@ interface GymFlowContextType {
   removeSetFromActiveExercise: (exerciseIndex: number) => void;
   addExerciseToActiveWorkout: (exerciseId: string) => void;
   removeExerciseFromActiveWorkout: (exerciseIndex: number) => void;
-  swapExerciseInActiveWorkout: (exerciseIndex: number, newExerciseId: string, reason?: string) => void;
+  swapExerciseInActiveWorkout: (
+    exerciseIndex: number,
+    newExerciseId: string,
+    swapMeta?: { reasonCode: WorkoutSwapReasonCode; reasonNote?: string },
+  ) => void;
   finishWorkout: (rpe: number) => void;
   cancelWorkout: () => void;
   workoutDuration: number;
@@ -1429,22 +1434,35 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     setRestTimerLabel(null);
   };
 
-  const swapExerciseInActiveWorkout = (exerciseIndex: number, newExerciseId: string, reason?: string) => {
+  const swapExerciseInActiveWorkout = (
+    exerciseIndex: number,
+    newExerciseId: string,
+    swapMeta?: { reasonCode: WorkoutSwapReasonCode; reasonNote?: string },
+  ) => {
     const currentWorkout = activeWorkoutRef.current;
     if (!currentWorkout) return;
     const newEx = exercises.find((e) => e.id === newExerciseId);
     if (!newEx) return;
     const currentExercise = currentWorkout.exercises[exerciseIndex];
     if (!currentExercise || currentExercise.exerciseId === newExerciseId) return;
-    // GOAL-23A: além de trocar o exercício, marca a entrada como swapped. O
-    // plannedExerciseId (exercício originalmente planejado) é preservado pelo
-    // spread interno de swapWorkoutExercise.
+    // GOAL-24: registra o snapshot estruturado da substituição. Captura o exercício
+    // ANTES da troca (original), executa a troca atual e aplica markEntrySwapped com
+    // original + motivo + nota + timestamp. O timestamp é lido aqui (fora do domínio
+    // puro) e repassado; markEntrySwapped preserva id/nome/grupo do original.
+    const reasonCode: WorkoutSwapReasonCode = swapMeta?.reasonCode ?? 'preference';
+    const reasonNote = swapMeta?.reasonNote;
+    const swappedAt = Date.now();
     const applySwap = (workout: WorkoutSession): WorkoutSession => {
+      const original = workout.exercises[exerciseIndex];
       const swapped = swapWorkoutExercise(workout, exerciseIndex, newEx);
       if (swapped === workout) return workout;
       return {
         ...swapped,
-        exercises: swapped.exercises.map((ex, i) => (i === exerciseIndex ? markEntrySwapped(ex) : ex)),
+        exercises: swapped.exercises.map((ex, i) => (
+          i === exerciseIndex
+            ? markEntrySwapped(ex, { original, reasonCode, reasonNote, swappedAt })
+            : ex
+        )),
       };
     };
     const nextWorkout = applySwap(currentWorkout);
@@ -1452,9 +1470,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       if (!prev) return prev;
       return prev === currentWorkout ? nextWorkout : applySwap(prev);
     });
-    const reasonMsg = reason ? ` devido a ${reason}` : '';
     addXp(20, 'Substituição de exercício executada');
-    toast.success(`Substituição aplicada sem alterar o objetivo muscular do treino: ${currentExercise.name} -> ${newEx.name}${reasonMsg}.`);
+    toast.success(`Substituição aplicada sem alterar o objetivo muscular do treino: ${currentExercise.name} -> ${newEx.name}.`);
   };
 
   const adaptActiveWorkoutForCrowdedGym = () => {
