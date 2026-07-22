@@ -19,6 +19,7 @@ import type {
   WorkoutExerciseEntryStatus,
   WorkoutSession,
   WorkoutSessionStatus,
+  WorkoutSwapReasonCode,
 } from '../types';
 import {
   deriveExerciseEntryStatus,
@@ -238,5 +239,71 @@ export function buildSessionPreview(session: WorkoutSession): SessionSummary {
     totalSets: countTotalSets(exercises),
     completedSets: countCompletedSets(exercises),
     incompleteSets: countIncompleteSets(exercises),
+  };
+}
+
+// --- Substituição de exercício (GOAL-24) --------------------------------
+
+/** Rótulos legíveis de cada motivo de substituição. */
+export const SWAP_REASON_LABELS: Record<WorkoutSwapReasonCode, string> = {
+  'equipment-occupied': 'Equipamento ocupado',
+  'equipment-unavailable': 'Equipamento indisponível',
+  discomfort: 'Desconforto',
+  preference: 'Preferência',
+  'technique-fit': 'Ajuste técnico',
+  other: 'Outro',
+};
+
+/** Ordem de apresentação dos motivos (chips do treino ativo). */
+export const SWAP_REASON_ORDER: WorkoutSwapReasonCode[] = [
+  'equipment-occupied',
+  'equipment-unavailable',
+  'discomfort',
+  'preference',
+  'technique-fit',
+  'other',
+];
+
+/** Rótulo do motivo da troca; `undefined` quando não há motivo (registro legado). */
+export function resolveSwapReasonLabel(code: WorkoutSwapReasonCode | undefined): string | undefined {
+  return code ? SWAP_REASON_LABELS[code] : undefined;
+}
+
+/** Texto usado quando um registro `swapped` legado não tem o nome do original. */
+export const MISSING_ORIGINAL_LABEL = 'Original não registrado';
+
+/** Visão de apresentação de uma substituição: planejado × executado + motivo. */
+export interface SwapView {
+  /** Nome do exercício originalmente planejado, ou `MISSING_ORIGINAL_LABEL`. */
+  planned: string;
+  /** `false` quando o snapshot do original não está registrado (legado). */
+  hasOriginal: boolean;
+  /** Nome do exercício executado atual. */
+  performed: string;
+  /** Código do motivo, quando registrado. */
+  reasonCode?: WorkoutSwapReasonCode;
+  /** Rótulo do motivo, quando registrado. */
+  reasonLabel?: string;
+  /** Nota livre, quando registrada. */
+  note?: string;
+}
+
+/**
+ * Monta a visão de uma substituição: exercício planejado (original, por snapshot),
+ * exercício executado (atual) e motivo/nota. Defensivo: registros `swapped` legados
+ * sem snapshot usam `MISSING_ORIGINAL_LABEL` no planejado; sem motivo/nota, esses
+ * campos ficam ausentes — nunca inventa dado.
+ */
+export function buildSwapView(exercise: ActiveExercise): SwapView {
+  const originalName = exercise.plannedExerciseName;
+  const hasOriginal = !!originalName && originalName.length > 0;
+  const reasonCode = exercise.swapReasonCode;
+  const note = exercise.swapReasonNote;
+  return {
+    planned: hasOriginal ? originalName : MISSING_ORIGINAL_LABEL,
+    hasOriginal,
+    performed: exercise.name,
+    ...(reasonCode ? { reasonCode, reasonLabel: SWAP_REASON_LABELS[reasonCode] } : {}),
+    ...(note ? { note } : {}),
   };
 }

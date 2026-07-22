@@ -42,6 +42,25 @@ export type WorkoutExerciseEntryOrigin = 'planned' | 'added' | 'swapped';
  */
 export type WorkoutExerciseEntryStatus = 'planned' | 'performed' | 'partial' | 'skipped';
 
+/**
+ * GOAL-24: motivo estruturado de uma substituição de exercício. Registrado no
+ * momento da troca (não altera volume/PR/XP/progressão).
+ * - `equipment-occupied`    → o equipamento planejado está ocupado agora;
+ * - `equipment-unavailable` → o equipamento não existe/quebrou na academia;
+ * - `discomfort`            → desconforto ao executar (apenas registrado, sem
+ *   adaptação automática — a decisão de progressão continua manual);
+ * - `preference`            → preferência pessoal pelo substituto;
+ * - `technique-fit`         → o substituto cai melhor na técnica/execução do dia;
+ * - `other`                 → outro motivo (exige nota livre descrevendo).
+ */
+export type WorkoutSwapReasonCode =
+  | 'equipment-occupied'
+  | 'equipment-unavailable'
+  | 'discomfort'
+  | 'preference'
+  | 'technique-fit'
+  | 'other';
+
 export type SessionPlanOrigin = 'program-day' | 'legacy-program' | 'free';
 
 /**

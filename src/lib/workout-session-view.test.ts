@@ -7,6 +7,7 @@ import type {
 import {
   buildSessionSummary,
   buildSessionPreview,
+  buildSwapView,
   countCompletedSets,
   countIncompleteSets,
   countPerformedExercises,
@@ -17,10 +18,14 @@ import {
   resolveEntryOrigin,
   resolveEntryStatus,
   resolveSessionStatus,
+  resolveSwapReasonLabel,
   sessionStatusStyle,
   SESSION_STATUS_STYLES,
   ENTRY_ORIGIN_STYLES,
   ENTRY_STATUS_STYLES,
+  MISSING_ORIGINAL_LABEL,
+  SWAP_REASON_LABELS,
+  SWAP_REASON_ORDER,
 } from './workout-session-view';
 
 function makeSet(completed: boolean, id = `set_${Math.random()}`): WorkoutSet {
@@ -327,5 +332,89 @@ describe('buildSessionPreview — prévia da finalização (treino ativo)', () =
     expect(preview.status).toBe('abandoned');
     expect(preview.statusStyle.label).toBe('Abandonada');
     expect(preview.completedSets).toBe(0);
+  });
+});
+
+describe('SWAP_REASON_LABELS / SWAP_REASON_ORDER / resolveSwapReasonLabel', () => {
+  const CODES = [
+    'equipment-occupied',
+    'equipment-unavailable',
+    'discomfort',
+    'preference',
+    'technique-fit',
+    'other',
+  ] as const;
+
+  it('tem um rótulo não-vazio para todos os 6 motivos', () => {
+    for (const code of CODES) {
+      expect(SWAP_REASON_LABELS[code].length).toBeGreaterThan(0);
+    }
+    expect(Object.keys(SWAP_REASON_LABELS)).toHaveLength(6);
+  });
+
+  it('SWAP_REASON_ORDER lista exatamente os 6 códigos, sem repetição', () => {
+    expect(SWAP_REASON_ORDER).toHaveLength(6);
+    expect(new Set(SWAP_REASON_ORDER).size).toBe(6);
+    expect([...SWAP_REASON_ORDER].sort()).toEqual([...CODES].sort());
+  });
+
+  it('resolveSwapReasonLabel resolve o código e trata ausência de motivo', () => {
+    expect(resolveSwapReasonLabel('discomfort')).toBe(SWAP_REASON_LABELS.discomfort);
+    expect(resolveSwapReasonLabel(undefined)).toBeUndefined();
+  });
+});
+
+describe('buildSwapView', () => {
+  it('monta planejado × executado + motivo + nota de uma troca completa', () => {
+    const ex = makeExercise('a', [true], {
+      exerciseId: 'crucifixo',
+      name: 'Crucifixo',
+      muscleGroup: 'chest',
+      entryOrigin: 'swapped',
+      plannedExerciseId: 'supino',
+      plannedExerciseName: 'Supino',
+      plannedMuscleGroup: 'chest',
+      swapReasonCode: 'equipment-occupied',
+      swapReasonNote: 'barra ocupada',
+    });
+    const view = buildSwapView(ex);
+    expect(view.planned).toBe('Supino');
+    expect(view.hasOriginal).toBe(true);
+    expect(view.performed).toBe('Crucifixo');
+    expect(view.reasonCode).toBe('equipment-occupied');
+    expect(view.reasonLabel).toBe(SWAP_REASON_LABELS['equipment-occupied']);
+    expect(view.note).toBe('barra ocupada');
+  });
+
+  it('fallback legado: swapped sem snapshot usa "Original não registrado"', () => {
+    const ex = makeExercise('a', [true], {
+      exerciseId: 'crucifixo',
+      name: 'Crucifixo',
+      muscleGroup: 'chest',
+      entryOrigin: 'swapped',
+      // sem plannedExerciseName / swapReasonCode / swapReasonNote (registro pré-GOAL-24)
+    });
+    const view = buildSwapView(ex);
+    expect(view.planned).toBe(MISSING_ORIGINAL_LABEL);
+    expect(view.hasOriginal).toBe(false);
+    expect(view.performed).toBe('Crucifixo');
+    expect(view.reasonCode).toBeUndefined();
+    expect(view.reasonLabel).toBeUndefined();
+    expect(view).not.toHaveProperty('note');
+  });
+
+  it('troca com motivo mas sem nota não expõe note', () => {
+    const ex = makeExercise('a', [true], {
+      name: 'Crucifixo',
+      entryOrigin: 'swapped',
+      plannedExerciseName: 'Supino',
+      plannedMuscleGroup: 'chest',
+      swapReasonCode: 'preference',
+    });
+    const view = buildSwapView(ex);
+    expect(view.planned).toBe('Supino');
+    expect(view.hasOriginal).toBe(true);
+    expect(view.reasonLabel).toBe(SWAP_REASON_LABELS.preference);
+    expect(view).not.toHaveProperty('note');
   });
 });

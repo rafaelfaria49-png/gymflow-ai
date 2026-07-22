@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ActiveExercise, ExerciseSlot, WorkoutSession, WorkoutSet } from '../types';
+import type { ActiveExercise, ExerciseSlot, WorkoutSession, WorkoutSet, WorkoutSwapReasonCode } from '../types';
 import {
   buildAbandonedSessionLog,
   buildSessionPlan,
@@ -7,6 +7,8 @@ import {
   deriveSessionStatus,
   finalizeSession,
   markEntrySwapped,
+  MAX_SWAP_REASON_NOTE_LENGTH,
+  normalizeSwapReasonNote,
   startActiveSession,
 } from './workout-session-domain';
 
@@ -215,20 +217,162 @@ describe('deriveSessionStatus', () => {
   });
 });
 
-describe('markEntrySwapped', () => {
-  it('marca a entrada como swapped preservando o plannedExerciseId original', () => {
-    const planned = makeExercise('a', [false], {
-      exerciseId: 'novo',
-      entryOrigin: 'planned',
-      plannedExerciseId: 'original',
-    });
-    const swapped = markEntrySwapped(planned);
-    expect(swapped.entryOrigin).toBe('swapped');
-    expect(swapped.plannedExerciseId).toBe('original');
+describe('normalizeSwapReasonNote', () => {
+  it('undefined, vazio ou só espaços viram undefined', () => {
+    expect(normalizeSwapReasonNote(undefined)).toBeUndefined();
+    expect(normalizeSwapReasonNote('')).toBeUndefined();
+    expect(normalizeSwapReasonNote('    ')).toBeUndefined();
   });
-  it('é idempotente para entradas já swapped (mesma referência)', () => {
-    const already = makeExercise('a', [false], { entryOrigin: 'swapped' });
-    expect(markEntrySwapped(already)).toBe(already);
+  it('apara espaços das pontas', () => {
+    expect(normalizeSwapReasonNote('  ombro sensível  ')).toBe('ombro sensível');
+  });
+  it('mantém nota dentro do limite intacta', () => {
+    expect(normalizeSwapReasonNote('barra ocupada')).toBe('barra ocupada');
+  });
+  it('limita a MAX_SWAP_REASON_NOTE_LENGTH caracteres', () => {
+    const normalized = normalizeSwapReasonNote('a'.repeat(200));
+    expect(normalized).toHaveLength(MAX_SWAP_REASON_NOTE_LENGTH);
+    expect(normalized).toBe('a'.repeat(MAX_SWAP_REASON_NOTE_LENGTH));
+  });
+});
+
+describe('markEntrySwapped', () => {
+  // Simula o fluxo do contexto: troca a identidade (como swapWorkoutExercise) e
+  // depois aplica markEntrySwapped com o exercício ORIGINAL (antes da troca).
+  function performSwap(
+    original: ActiveExercise,
+    replacement: { exerciseId: string; name: string; muscleGroup: string },
+    meta: { reasonCode: WorkoutSwapReasonCode; reasonNote?: string; swappedAt: number },
+  ): ActiveExercise {
+    const afterSwap: ActiveExercise = { ...original, ...replacement };
+    return markEntrySwapped(afterSwap, { original, ...meta });
+  }
+
+  const planned = makeExercise('active_a', [true, false], {
+    exerciseId: 'supino',
+    name: 'Supino',
+    muscleGroup: 'chest',
+    entryOrigin: 'planned',
+    plannedSlotIndex: 0,
+    plannedExerciseId: 'supino',
+  });
+
+  it('primeira troca salva o snapshot do original e o motivo', () => {
+    const swapped = performSwap(
+      planned,
+      { exerciseId: 'crucifixo', name: 'Crucifixo', muscleGroup: 'chest' },
+      { reasonCode: 'equipment-occupied', swappedAt: 1000 },
+    );
+    expect(swapped.entryOrigin).toBe('swapped');
+    expect(swapped.exerciseId).toBe('crucifixo');
+    expect(swapped.name).toBe('Crucifixo');
+    // snapshot do original preservado
+    expect(swapped.plannedExerciseId).toBe('supino');
+    expect(swapped.plannedExerciseName).toBe('Supino');
+    expect(swapped.plannedMuscleGroup).toBe('chest');
+    // motivo + timestamp registrados; sem nota
+    expect(swapped.swapReasonCode).toBe('equipment-occupied');
+    expect(swapped.swappedAt).toBe(1000);
+    expect(swapped).not.toHaveProperty('swapReasonNote');
+  });
+
+  it('grava e normaliza a nota da troca', () => {
+    const swapped = performSwap(
+      planned,
+      { exerciseId: 'crucifixo', name: 'Crucifixo', muscleGroup: 'chest' },
+      { reasonCode: 'other', reasonNote: `  ${'x'.repeat(200)}  `, swappedAt: 1 },
+    );
+    expect(swapped.swapReasonNote).toHaveLength(MAX_SWAP_REASON_NOTE_LENGTH);
+  });
+
+  it('trocas sucessivas preservam o PRIMEIRO original e atualizam motivo/nota/timestamp', () => {
+    const first = performSwap(
+      planned,
+      { exerciseId: 'crucifixo', name: 'Crucifixo', muscleGroup: 'chest' },
+      { reasonCode: 'equipment-occupied', reasonNote: 'barra ocupada', swappedAt: 1000 },
+    );
+    const second = performSwap(
+      first,
+      { exerciseId: 'peck', name: 'Peck Deck', muscleGroup: 'chest' },
+      { reasonCode: 'preference', swappedAt: 2000 },
+    );
+    // o snapshot continua sendo o do PRIMEIRO original
+    expect(second.plannedExerciseId).toBe('supino');
+    expect(second.plannedExerciseName).toBe('Supino');
+    expect(second.plannedMuscleGroup).toBe('chest');
+    // executado, motivo e timestamp atualizados
+    expect(second.exerciseId).toBe('peck');
+    expect(second.name).toBe('Peck Deck');
+    expect(second.swapReasonCode).toBe('preference');
+    expect(second.swappedAt).toBe(2000);
+    // a nota da troca ATUAL (ausente) substitui a anterior
+    expect(second).not.toHaveProperty('swapReasonNote');
+  });
+
+  it('troca de exercício ADDED captura o exercício anterior como original', () => {
+    const added = makeExercise('active_x', [false], {
+      exerciseId: 'rosca',
+      name: 'Rosca Direta',
+      muscleGroup: 'biceps',
+      entryOrigin: 'added',
+    });
+    expect(added.plannedExerciseId).toBeUndefined();
+    const swapped = performSwap(
+      added,
+      { exerciseId: 'martelo', name: 'Rosca Martelo', muscleGroup: 'biceps' },
+      { reasonCode: 'technique-fit', swappedAt: 500 },
+    );
+    expect(swapped.entryOrigin).toBe('swapped');
+    expect(swapped.plannedExerciseId).toBe('rosca');
+    expect(swapped.plannedExerciseName).toBe('Rosca Direta');
+    expect(swapped.plannedMuscleGroup).toBe('biceps');
+    expect(swapped.exerciseId).toBe('martelo');
+  });
+
+  it('preserva séries, reps, carga, RPE e descanso do exercício', () => {
+    const withSets = makeExercise('active_s', [], {
+      exerciseId: 'supino',
+      name: 'Supino',
+      muscleGroup: 'chest',
+      entryOrigin: 'planned',
+      plannedExerciseId: 'supino',
+      restSec: 90,
+      targetRPE: 8,
+      repRange: [8, 12],
+      sets: [
+        { id: 's1', reps: 10, weight: 80, completed: true, rpe: 8 },
+        { id: 's2', reps: 9, weight: 82.5, completed: false, rpe: 9 },
+      ],
+    });
+    const swapped = performSwap(
+      withSets,
+      { exerciseId: 'crucifixo', name: 'Crucifixo', muscleGroup: 'chest' },
+      { reasonCode: 'preference', swappedAt: 10 },
+    );
+    expect(swapped.sets).toEqual(withSets.sets);
+    expect(swapped.restSec).toBe(90);
+    expect(swapped.targetRPE).toBe(8);
+    expect(swapped.repRange).toEqual([8, 12]);
+  });
+
+  it('não muta o exercício original recebido', () => {
+    const original = makeExercise('active_f', [false], {
+      exerciseId: 'supino',
+      name: 'Supino',
+      muscleGroup: 'chest',
+      entryOrigin: 'planned',
+      plannedExerciseId: 'supino',
+    });
+    deepFreeze(original);
+    expect(() =>
+      performSwap(
+        original,
+        { exerciseId: 'crucifixo', name: 'Crucifixo', muscleGroup: 'chest' },
+        { reasonCode: 'preference', swappedAt: 1 },
+      ),
+    ).not.toThrow();
+    expect(original.entryOrigin).toBe('planned');
+    expect(original).not.toHaveProperty('plannedExerciseName');
   });
 });
 
@@ -305,6 +449,35 @@ describe('finalizeSession', () => {
       ...finalizeParams,
     });
     expect(abandoned.session.status).toBe('abandoned');
+  });
+
+  it('preserva os metadados de substituição (GOAL-24) no histórico', () => {
+    const swappedExercise = makeExercise('a', [true, true], {
+      exerciseId: 'crucifixo',
+      name: 'Crucifixo',
+      muscleGroup: 'chest',
+      entryOrigin: 'swapped',
+      entryStatus: 'planned',
+      plannedExerciseId: 'supino',
+      plannedExerciseName: 'Supino',
+      plannedMuscleGroup: 'chest',
+      swapReasonCode: 'equipment-occupied',
+      swapReasonNote: 'barra ocupada',
+      swappedAt: 1234,
+    });
+    const { session } = finalizeSession({
+      session: { ...activeSession(), exercises: [swappedExercise] },
+      ...finalizeParams,
+    });
+    const ex = session.exercises[0];
+    expect(ex.entryOrigin).toBe('swapped');
+    expect(ex.entryStatus).toBe('performed'); // derivado das séries na finalização
+    expect(ex.plannedExerciseId).toBe('supino');
+    expect(ex.plannedExerciseName).toBe('Supino');
+    expect(ex.plannedMuscleGroup).toBe('chest');
+    expect(ex.swapReasonCode).toBe('equipment-occupied');
+    expect(ex.swapReasonNote).toBe('barra ocupada');
+    expect(ex.swappedAt).toBe(1234);
   });
 });
 

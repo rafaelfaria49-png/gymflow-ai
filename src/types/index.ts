@@ -16,6 +16,7 @@ import type {
   WorkoutExerciseEntryOrigin,
   WorkoutExerciseEntryStatus,
   WorkoutSessionStatus,
+  WorkoutSwapReasonCode,
 } from './workout-session';
 
 export type {
@@ -70,6 +71,7 @@ export type {
   WorkoutExerciseEntryOrigin,
   WorkoutExerciseEntryStatus,
   WorkoutSessionStatus,
+  WorkoutSwapReasonCode,
 } from './workout-session';
 
 export type {
@@ -255,6 +257,13 @@ export interface ActiveExercise {
   plannedExerciseId?: string; // exercício originalmente planejado (preservado após swap)
   entryOrigin?: WorkoutExerciseEntryOrigin; // de onde veio: planned | added | swapped
   entryStatus?: WorkoutExerciseEntryStatus; // o que foi feito: planned | performed | partial | skipped
+  // GOAL-24: snapshot estruturado da substituição. Opcionais — registros pré-GOAL-24
+  // (swapped sem snapshot/motivo) e sessões livres/legadas continuam válidos.
+  plannedExerciseName?: string; // nome do exercício original preservado na 1ª troca
+  plannedMuscleGroup?: string; // grupo muscular do exercício original preservado na 1ª troca
+  swapReasonCode?: WorkoutSwapReasonCode; // motivo da última troca
+  swapReasonNote?: string; // nota livre (obrigatória só p/ `other`; normalizada, ≤120 chars)
+  swappedAt?: number; // epoch ms da última troca
 }
 
 export interface WorkoutSession {

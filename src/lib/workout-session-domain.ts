@@ -19,6 +19,7 @@ import type {
   WorkoutExerciseEntryStatus,
   WorkoutSession,
   WorkoutSessionStatus,
+  WorkoutSwapReasonCode,
 } from '../types';
 
 /** Situação de uma sessão já finalizada (nunca `active`). */
@@ -171,9 +172,86 @@ export function startActiveSession(params: StartActiveSessionParams): ActiveSess
   return { plan, session };
 }
 
-/** Marca uma entrada como substituída, preservando o `plannedExerciseId` original. */
-export function markEntrySwapped(exercise: ActiveExercise): ActiveExercise {
-  return exercise.entryOrigin === 'swapped' ? exercise : { ...exercise, entryOrigin: 'swapped' };
+/** GOAL-24: limite de caracteres da nota livre de uma substituição. */
+export const MAX_SWAP_REASON_NOTE_LENGTH = 120;
+
+/**
+ * Normaliza a nota livre da substituição (GOAL-24): apara espaços nas pontas,
+ * trata nota vazia como ausente (`undefined`) e limita ao máximo de caracteres.
+ * Pura — sem efeitos colaterais.
+ */
+export function normalizeSwapReasonNote(note: string | undefined): string | undefined {
+  if (note === undefined) return undefined;
+  const trimmed = note.trim();
+  if (trimmed.length === 0) return undefined;
+  return trimmed.length > MAX_SWAP_REASON_NOTE_LENGTH
+    ? trimmed.slice(0, MAX_SWAP_REASON_NOTE_LENGTH)
+    : trimmed;
+}
+
+export interface MarkEntrySwappedParams {
+  /** Exercício que ocupava o slot ANTES desta troca — vira o snapshot na 1ª troca. */
+  original: ActiveExercise;
+  /** Motivo obrigatório da substituição. */
+  reasonCode: WorkoutSwapReasonCode;
+  /** Nota livre (obrigatória só p/ `other`) — normalizada/limitada aqui. */
+  reasonNote?: string;
+  /** Epoch ms da troca — recebido de fora para manter a função pura. */
+  swappedAt: number;
+}
+
+/**
+ * Campos do snapshot do exercício ORIGINAL preservado numa substituição.
+ * `plannedExerciseId` já existente continua sendo o id do original.
+ */
+function originalSnapshot(
+  original: ActiveExercise,
+): Partial<Pick<ActiveExercise, 'plannedExerciseId' | 'plannedExerciseName' | 'plannedMuscleGroup'>> {
+  // Troca sucessiva: o `original` já é uma entrada substituída e carrega o snapshot
+  // da PRIMEIRA troca — preserva-se exatamente (inclusive parcial, em legado 23A).
+  if (original.entryOrigin === 'swapped') {
+    return {
+      ...(original.plannedExerciseId !== undefined ? { plannedExerciseId: original.plannedExerciseId } : {}),
+      ...(original.plannedExerciseName !== undefined ? { plannedExerciseName: original.plannedExerciseName } : {}),
+      ...(original.plannedMuscleGroup !== undefined ? { plannedMuscleGroup: original.plannedMuscleGroup } : {}),
+    };
+  }
+  // Primeira troca: o exercício que estava aqui (planned OU added) vira o original.
+  return {
+    plannedExerciseId: original.plannedExerciseId ?? original.exerciseId,
+    plannedExerciseName: original.name,
+    plannedMuscleGroup: original.muscleGroup,
+  };
+}
+
+/**
+ * Marca uma entrada como substituída registrando o snapshot estruturado da troca
+ * (GOAL-24). `exercise` é a entrada JÁ com o exercício executado atual; `original`
+ * é a entrada como estava ANTES desta troca. Na primeira troca preserva id/nome/
+ * grupo do original e carimba `entryOrigin: 'swapped'`; nas trocas seguintes mantém
+ * o snapshot original e atualiza apenas motivo, nota e `swappedAt`. Não altera
+ * séries/reps/carga/RPE/descanso nem recalcula volume/PR/XP/progressão.
+ */
+export function markEntrySwapped(
+  exercise: ActiveExercise,
+  { original, reasonCode, reasonNote, swappedAt }: MarkEntrySwappedParams,
+): ActiveExercise {
+  const note = normalizeSwapReasonNote(reasonNote);
+  const next: ActiveExercise = {
+    ...exercise,
+    ...originalSnapshot(original),
+    entryOrigin: 'swapped',
+    swapReasonCode: reasonCode,
+    swappedAt,
+  };
+  // A nota reflete SEMPRE a troca atual: gravada quando há texto, removida quando a
+  // troca atual não tem nota (não herda a nota de uma substituição anterior).
+  if (note !== undefined) {
+    next.swapReasonNote = note;
+  } else {
+    delete next.swapReasonNote;
+  }
+  return next;
 }
 
 /**

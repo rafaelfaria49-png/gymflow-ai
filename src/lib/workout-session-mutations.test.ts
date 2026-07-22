@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { Exercise, WorkoutSession } from '../types';
+import type { Exercise, WorkoutSession, WorkoutSwapReasonCode } from '../types';
 import {
   adaptWorkoutForCrowdedGym,
   swapWorkoutExercise,
   toggleWorkoutSetCompletion,
   updateWorkoutExerciseNotes,
 } from './workout-session-mutations';
+import { markEntrySwapped } from './workout-session-domain';
 
 function makeExercise(
   id: string,
@@ -126,5 +127,70 @@ describe('mutações puras da sessão ativa', () => {
     const result = toggleWorkoutSetCompletion(workout, 0, 99);
     expect(result.changed).toBe(false);
     expect(result.workout).toBe(workout);
+  });
+});
+
+describe('substituição estruturada (GOAL-24): swapWorkoutExercise + markEntrySwapped', () => {
+  // Reproduz o applySwap do GymFlowContext: troca a identidade preservando séries e
+  // registra o snapshot estruturado (original + motivo + nota + timestamp).
+  function applySwap(
+    workout: WorkoutSession,
+    index: number,
+    replacement: Pick<Exercise, 'id' | 'name' | 'muscleGroup'>,
+    meta: { reasonCode: WorkoutSwapReasonCode; reasonNote?: string; swappedAt: number },
+  ): WorkoutSession {
+    const original = workout.exercises[index];
+    const swapped = swapWorkoutExercise(workout, index, replacement);
+    return {
+      ...swapped,
+      exercises: swapped.exercises.map((ex, i) => (
+        i === index ? markEntrySwapped(ex, { original, ...meta }) : ex
+      )),
+    };
+  }
+
+  it('preserva séries, reps, carga, RPE e descanso ao registrar a troca', () => {
+    const workout = makeWorkout();
+    const before = workout.exercises[0];
+    const after = applySwap(workout, 0, catalog[1], {
+      reasonCode: 'equipment-occupied',
+      reasonNote: 'barra ocupada',
+      swappedAt: 1000,
+    }).exercises[0];
+
+    // identidade trocada + snapshot do original
+    expect(after.exerciseId).toBe('dumbbell-chest');
+    expect(after.name).toBe('Supino com halteres');
+    expect(after.entryOrigin).toBe('swapped');
+    expect(after.plannedExerciseId).toBe('machine-chest');
+    expect(after.plannedExerciseName).toBe('Supino máquina');
+    expect(after.plannedMuscleGroup).toBe('chest');
+    expect(after.swapReasonCode).toBe('equipment-occupied');
+    expect(after.swapReasonNote).toBe('barra ocupada');
+    expect(after.swappedAt).toBe(1000);
+
+    // séries/reps/carga/RPE/descanso intactos
+    expect(after.sets).toEqual(before.sets);
+    expect(after.restSec).toBe(before.restSec);
+  });
+
+  it('trocas sucessivas mantêm o PRIMEIRO original e atualizam o motivo', () => {
+    const workout = makeWorkout();
+    const first = applySwap(workout, 0, catalog[1], {
+      reasonCode: 'equipment-occupied',
+      swappedAt: 1,
+    });
+    const third: Pick<Exercise, 'id' | 'name' | 'muscleGroup'> = {
+      id: 'cable-chest',
+      name: 'Crossover na polia',
+      muscleGroup: 'chest',
+    };
+    const second = applySwap(first, 0, third, { reasonCode: 'preference', swappedAt: 2 });
+
+    expect(second.exercises[0].exerciseId).toBe('cable-chest');
+    expect(second.exercises[0].name).toBe('Crossover na polia');
+    // o snapshot continua sendo o do primeiro original
+    expect(second.exercises[0].plannedExerciseName).toBe('Supino máquina');
+    expect(second.exercises[0].swapReasonCode).toBe('preference');
   });
 });
