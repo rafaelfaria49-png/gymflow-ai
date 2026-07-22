@@ -10,10 +10,12 @@ import {
   Dumbbell,
   Check,
   StickyNote,
+  RefreshCw,
 } from 'lucide-react';
 import type { ActiveExercise, WorkoutSession, WorkoutSet } from '../types';
 import {
   buildSessionSummary,
+  buildSwapView,
 } from '../lib/workout-session-view';
 import {
   ExerciseOriginBadge,
@@ -72,6 +74,8 @@ function SetRow({ set, index }: { set: WorkoutSet; index: number }) {
 function ExerciseBlock({ exercise, index }: { exercise: ActiveExercise; index: number }) {
   const completed = exercise.sets.filter((s) => s.completed).length;
   const total = exercise.sets.length;
+  // GOAL-24: entradas substituídas mostram planejado × executado + motivo/nota.
+  const swap = exercise.entryOrigin === 'swapped' ? buildSwapView(exercise) : null;
   return (
     <div className="bg-gym-card/60 border border-white/5 rounded-2xl p-3.5 space-y-2.5">
       <div className="flex items-start justify-between gap-2">
@@ -89,6 +93,47 @@ function ExerciseBlock({ exercise, index }: { exercise: ActiveExercise; index: n
           <ExerciseExecutionBadge exercise={exercise} />
         </div>
       </div>
+
+      {swap && (
+        <div className="bg-amber-400/5 border border-amber-400/15 rounded-xl p-2.5 space-y-1.5">
+          <span className="text-[9px] font-bold text-amber-400/90 uppercase tracking-wider flex items-center gap-1">
+            <RefreshCw className="w-3 h-3" /> Substituição
+          </span>
+          <div className="space-y-1">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[9px] text-gym-text-muted font-bold uppercase tracking-wider w-16 flex-shrink-0">
+                Planejado
+              </span>
+              <span
+                className={`text-[11px] font-semibold break-words ${
+                  swap.hasOriginal ? 'text-white' : 'text-gym-text-muted italic'
+                }`}
+              >
+                {swap.planned}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[9px] text-gym-text-muted font-bold uppercase tracking-wider w-16 flex-shrink-0">
+                Executado
+              </span>
+              <span className="text-[11px] text-white font-semibold break-words">{swap.performed}</span>
+            </div>
+            {swap.reasonLabel && (
+              <div className="flex items-baseline gap-2">
+                <span className="text-[9px] text-gym-text-muted font-bold uppercase tracking-wider w-16 flex-shrink-0">
+                  Motivo
+                </span>
+                <span className="text-[11px] text-amber-400/90 font-semibold">{swap.reasonLabel}</span>
+              </div>
+            )}
+          </div>
+          {swap.note && (
+            <p className="text-[11px] text-white/90 leading-relaxed break-words border-t border-amber-400/10 pt-1.5">
+              {swap.note}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center justify-between text-[10px] text-gym-text-muted font-bold uppercase tracking-wider">
         <span>Séries</span>
