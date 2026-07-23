@@ -638,3 +638,42 @@ Detalhe por ADR (status · decisão-chave · riscos residuais · validação · 
   segue até o fim. O runtime conta retenções e drena operações pendentes em
   `close()`, então o cleanup da primeira montagem do Strict Mode não fecha um
   adapter ainda em uso pela segunda.
+
+## GOAL-17B-002C corretivo C06 — recuperação pendente até novo boot (2026-07-23)
+
+- **Falha do core não é recuperável na mesma montagem:** quando a transação do
+  append/receipt já foi confirmada e a gravação do `coreEnvelopeAfter` falha, a
+  montagem inteira entra em recuperação necessária. Uma gravação posterior
+  bem-sucedida não é evidência de que o protocolo terminou: o receipt continua
+  pendente, o `pendingCompletionCore` continua ativo e `storageHealth` fica em
+  `write-error`/`blocked` até um novo boot. Recuperação completa na mesma
+  montagem foi descartada por ser exatamente a suposição que gerou o P2.
+- **Autosave suspenso em vez de silencioso:** `saveCore` recusa (`blocked`)
+  enquanto houver conclusão pendente, em vez de reescrever o snapshot da
+  conclusão a cada `saveCore`. Antes, o autosave "funcionava" gravando sempre o
+  mesmo core pós-conclusão — o usuário via sucesso enquanto as edições feitas
+  depois da falha não iam para lugar nenhum. Agora nada é anunciado como salvo.
+- **`flushPendingCompletionCore` explícito:** o ciclo de vida (`pagehide`/
+  `visibilitychange`) ganha um caminho próprio que grava **somente** o
+  `pendingCompletionCore`. Nenhum core derivado dos refs renderizados pode
+  substituir o snapshot de conclusão, e o sucesso não liquida o receipt nem
+  limpa o estado pendente.
+- **`reportWriteResult` não promove para ready:** enquanto
+  `completionRecoveryRequiredRef` estiver ativo, um resultado `ok` não restaura
+  `storageHealth`. `markHistoryCommitHealthy` tem a mesma guarda.
+- **Segunda finalização recusada nas duas camadas:** `finishWorkout` retorna
+  cedo e o runtime lança `HybridStorageIntegrityError` em `commitCompletion`
+  enquanto `hasPendingCompletion()` for verdadeiro. Nenhuma segunda sessão,
+  recompensa ou receipt nasce. A duplicidade "conteúdo idêntico com receipt
+  pendente vira recuperação" foi substituída por essa recusa: reprocessar o
+  receipt é atribuição do boot, não de uma nova chamada de conclusão.
+- **Mensagem honesta e única:** o Provider informa que o aplicativo precisa ser
+  reaberto para finalizar a recuperação, uma única vez por montagem
+  (`completionRecoveryMessageShownRef`), sem toast de "salvo" nem de recuperação
+  concluída, e nada é emitido após o unmount.
+- **Comentário de `recordDigests` corrigido:** o texto afirmava que `null` é
+  sempre divergência. O comportamento real tolera digests individuais ausentes
+  em registros legados — o `orderedDigest` recalculado sobre o conteúdo completo
+  continua verificando a integridade, e manifest ausente ou divergente continua
+  bloqueando. Algoritmo, digests, separador, constantes e formato persistido
+  intocados.

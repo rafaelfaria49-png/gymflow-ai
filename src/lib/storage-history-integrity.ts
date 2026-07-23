@@ -56,8 +56,10 @@ export interface HistoryGenerationSnapshot {
   present: boolean;
   manifest: HistoryGenerationManifest | null;
   sessions: WorkoutSession[];
-  // Digest gravado junto de cada registro. `null` marca registro sem digest
-  // persistido (geração escrita antes do manifest) e é sempre divergência.
+  // Digest gravado junto de cada registro. `null` marca registro legado sem
+  // digest individual persistido: é tolerado, pois o orderedDigest recalculado
+  // sobre o conteúdo completo continua verificando a integridade. Manifesto
+  // ausente ou divergente continua bloqueando.
   recordDigests: (string | null)[];
 }
 

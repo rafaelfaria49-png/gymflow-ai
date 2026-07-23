@@ -322,11 +322,36 @@ metade: a transação inteira aborta.
 ### Pagehide imediato
 
 Entre o commit do append e a liquidação do receipt, o runtime guarda o snapshot
-pós-conclusão e **toda** gravação do core passa a sair dele. Um `pagehide`
-imediato não ressuscita treino ativo, XP, streak, planejamento, desafios nem
-conquistas antigas. A gravação não depende de render intermediário, de
-`persistedStateRef` atualizado por efeito, de um `pagehide` futuro nem do
-debounce de 500 ms.
+pós-conclusão. O autosave normal é **recusado** (`blocked`) nessa janela e o
+ciclo de vida grava esse snapshot por um caminho próprio
+(`flushPendingCompletionCore`). Um `pagehide` imediato não ressuscita treino
+ativo, XP, streak, planejamento, desafios nem conquistas antigas. A gravação não
+depende de render intermediário, de `persistedStateRef` atualizado por efeito, de
+um `pagehide` futuro nem do debounce de 500 ms.
+
+### Falha do core: recuperação só no próximo boot
+
+Se a transação já foi confirmada mas a gravação do `coreEnvelopeAfter` falha, a
+política é conservadora — a montagem atual **não** tenta se recuperar:
+
+1. o receipt permanece pendente e o `pendingCompletionCore` permanece ativo;
+2. `storageHealth` fica em `write-error`/`blocked` e não volta para `ready`
+   nessa montagem, nem mesmo depois de uma gravação posterior bem-sucedida;
+3. o autosave normal fica suspenso: nenhuma edição posterior do usuário é
+   persistida **nem anunciada como salva**;
+4. `pagehide`/`visibilitychange` podem repetir apenas o `pendingCompletionCore`;
+   o sucesso não liquida o receipt nem limpa o estado pendente;
+5. `finishWorkout` recusa uma segunda execução — nenhuma segunda sessão,
+   recompensa ou receipt é criado;
+6. o Provider informa uma única vez que o aplicativo precisa ser reaberto para
+   finalizar a recuperação; não há toast de "salvo" nem de recuperação concluída,
+   e nada é emitido após o unmount.
+
+O boot seguinte localiza o receipt pendente, valida sessão, manifest, digest e
+`coreEnvelopeAfter`, grava ou confirma o core, liquida o receipt, limpa o estado
+pendente, hidrata o Provider e só então marca `storageHealth` como `ready`,
+liberando autosave e nova finalização. XP, streak, planejamento, desafios,
+conquistas e sessão não duplicam; a postagem segue a política já documentada.
 
 ### Recuperação após kill
 
@@ -344,8 +369,9 @@ integridade. XP, streak, desafios, conquistas e sessão vivem no core (nunca
 duplicam); a postagem é materializada uma única vez por ciclo do Provider.
 
 Duplicidade da mesma sessão: conteúdo idêntico com receipt concluído é retomada;
-conteúdo idêntico com receipt pendente é recuperação (o receipt durável original
-é a fonte); conteúdo divergente ou receipt divergente bloqueiam.
+conteúdo divergente ou receipt divergente bloqueiam. Uma nova conclusão enquanto
+há receipt ou core de conclusão pendente é recusada por integridade —
+reprocessar o receipt é atribuição do boot, nunca de uma nova chamada.
 
 ### Ciclo de vida e Strict Mode
 

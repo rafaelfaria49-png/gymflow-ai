@@ -721,6 +721,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // durável já iniciada continua e o receipt permanece retomável.
   const mountedRef = useRef(true);
   const pendingFinalizationPromiseRef = useRef<Promise<void> | null>(null);
+  const completionRecoveryRequiredRef = useRef(false);
+  const completionRecoveryMessageShownRef = useRef(false);
 
   const persistedState: PersistedState = {
     user,
@@ -750,6 +752,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
   const reportWriteResult = (result: StorageWriteResult<unknown>) => {
     if (result.ok) {
+      if (completionRecoveryRequiredRef.current) return;
       if (lastWriteErrorRef.current) {
         lastWriteErrorRef.current = null;
         setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
@@ -771,6 +774,35 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           : 'Não foi possível confirmar o salvamento local.',
       );
     }
+  };
+
+  const showCompletionRecoveryRequired = () => {
+    if (!mountedRef.current || completionRecoveryMessageShownRef.current) return;
+    completionRecoveryMessageShownRef.current = true;
+    toast.error(
+      'O treino foi confirmado, mas a recuperação do armazenamento está pendente. '
+      + 'Reabra o aplicativo para finalizar antes de continuar.',
+    );
+  };
+
+  const markCompletionRecoveryRequired = (
+    result: Extract<StorageWriteResult<unknown>, { ok: false }>,
+  ) => {
+    if (!mountedRef.current) return;
+    completionRecoveryRequiredRef.current = true;
+    if (pendingSaveRef.current) {
+      clearTimeout(pendingSaveRef.current);
+      pendingSaveRef.current = null;
+    }
+    const message = 'A conclusão do treino está pendente. Reabra o aplicativo para finalizar a recuperação; '
+      + `alterações posteriores ainda não foram salvas. Falha original: ${result.error}`;
+    lastWriteErrorRef.current = `completion-recovery:${result.reason}:${result.error}`;
+    setStorageHealth({
+      status: 'write-error',
+      hasBackup: hasValidBackup(),
+      issue: { kind: result.reason, message },
+    });
+    showCompletionRecoveryRequired();
   };
 
   // Os refs são atualizados no próprio evento de edição. Assim pagehide/
@@ -810,6 +842,20 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           storageBlockedRef.current,
         );
     reportWriteResult(result);
+    return result;
+  };
+
+  const flushPendingCompletionCoreNow = () => {
+    const result = hybridRuntimeRef.current?.flushPendingCompletionCore() ?? {
+      ok: false as const,
+      reason: 'blocked' as const,
+      error: 'O runtime híbrido não está disponível para gravar a conclusão pendente.',
+    };
+    if (!result.ok && result.reason !== 'blocked') {
+      markCompletionRecoveryRequired(result);
+    } else {
+      reportWriteResult(result);
+    }
     return result;
   };
 
@@ -1013,7 +1059,11 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
   // Debounce normal de 500 ms; o resultado discriminado alimenta a UI de erro.
   useEffect(() => {
-    if (!hydrated || storageBlockedRef.current) return;
+    if (
+      !hydrated
+      || storageBlockedRef.current
+      || completionRecoveryRequiredRef.current
+    ) return;
     const handle = setTimeout(savePersistedStateNow, 500);
     pendingSaveRef.current = handle;
     return () => {
@@ -1046,7 +1096,11 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       const now = Date.now();
       if (now - lastLifecycleFlushRef.current < 100) return;
       lastLifecycleFlushRef.current = now;
-      savePersistedStateNow();
+      if (completionRecoveryRequiredRef.current) {
+        flushPendingCompletionCoreNow();
+      } else {
+        savePersistedStateNow();
+      }
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') lifecycleFlush();
@@ -1606,6 +1660,13 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
   const finishWorkout = (rpe: number) => {
     if (finishWorkoutInProgressRef.current) return;
+    if (
+      completionRecoveryRequiredRef.current
+      || hybridRuntimeRef.current?.hasPendingCompletion()
+    ) {
+      showCompletionRecoveryRequired();
+      return;
+    }
     const workoutToFinish = activeWorkoutRef.current;
     if (!workoutToFinish || !user) return;
 
@@ -1667,6 +1728,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const markHistoryCommitHealthy = () => {
+      if (completionRecoveryRequiredRef.current) return;
       lastWriteErrorRef.current = null;
       setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
     };
@@ -1769,12 +1831,13 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         result.session,
       );
       if (result.coreWrite.ok) {
-        markHistoryCommitHealthy();
         await runtime.settleCompletion(result.receiptId);
+        if (mountedRef.current) markHistoryCommitHealthy();
       } else {
-        // O core não foi confirmado: o receipt continua pendente para que o
-        // próximo boot grave o snapshot pós-conclusão.
-        reportWriteResult(result.coreWrite);
+        // O core não foi confirmado: autosave permanece suspenso e somente
+        // pagehide/visibilitychange podem repetir o snapshot da conclusão. O
+        // receipt só será liquidado por uma nova montagem.
+        markCompletionRecoveryRequired(result.coreWrite);
       }
     }).catch((error) => {
       if (!mountedRef.current) return;

@@ -1928,3 +1928,76 @@ administrativos via Context e operações antigas não sobrescrevendo o v2.
   PENDENCIAS 17B-002C-C01..C05.
 
 ---
+
+## GOAL-17B-002C corretivo 017 — recuperação pendente até novo boot (2026-07-23)
+
+Corrige o **P2 17B-002C-C06** da auditoria final do corretivo 002C: depois de uma
+falha na gravação do core de conclusão, o `pendingCompletionCore` continuava
+ativo, mas uma gravação posterior bem-sucedida devolvia `storageHealth` para
+`ready` enquanto o receipt seguia pendente — e as edições feitas pelo usuário
+depois da falha não estavam sendo persistidas, embora o app as anunciasse como
+salvas. Corrige também o comentário desatualizado de `recordDigests`. Base:
+`origin/master` = `5d2965008916ea951b7c6b537d4d427e84d9ba2d`. Os seis commits
+anteriores foram preservados sem reescrita (sexto = `84d82ae`).
+
+### Entrega (um commit corretivo)
+
+- **Commit 7 — `fix(storage): manter recuperacao pendente ate novo boot`:**
+  `hasPendingCompletion()` e `flushPendingCompletionCore()` no runtime híbrido;
+  `saveCore` recusando (`blocked`) enquanto houver conclusão pendente;
+  `commitCompletion` recusando uma segunda conclusão por integridade;
+  `completionRecoveryRequiredRef`/`markCompletionRecoveryRequired` no Provider,
+  com autosave suspenso, `reportWriteResult` e `markHistoryCommitHealthy`
+  impedidos de promover para `ready`, ciclo de vida gravando apenas o snapshot
+  pendente e `finishWorkout` bloqueado; comentário de `recordDigests` corrigido.
+
+### Comportamento crítico — antes/depois
+
+- **Antes:** core falha → receipt pendente, mas qualquer `saveCore` posterior
+  regravava o snapshot pós-conclusão e `reportWriteResult` marcava `ready`. O
+  usuário via "salvo" enquanto suas edições posteriores não iam para lugar
+  nenhum, e uma nova conclusão era tratada como recuperação.
+- **Depois:** core falha → recuperação necessária pela montagem inteira. Autosave
+  recusado, `storageHealth` preso em `write-error`, `pagehide`/
+  `visibilitychange` gravando somente o `pendingCompletionCore` (sem liquidar o
+  receipt nem limpar o estado pendente), `finishWorkout` recusado e uma mensagem
+  única e honesta pedindo a reabertura do aplicativo. Só o boot seguinte valida,
+  grava/confirma o core, liquida o receipt, hidrata e libera `ready` e autosave.
+
+### Decisões-chave
+
+Política conservadora: recuperação completa na mesma montagem foi descartada por
+ser exatamente a suposição que gerou o P2. Nenhuma edição posterior é
+silenciosamente declarada persistida. Ver `docs/DECISOES.md`
+(GOAL-17B-002C corretivo C06) e `docs/storage/GYMFLOW_STORAGE_V1_SAFE.md`
+("Falha do core: recuperação só no próximo boot").
+
+### Cobertura adicionada
+
+- `storage-hybrid.test.ts`: falha inicial do core após append + receipt, autosave
+  recusado, flush posterior bem-sucedido sem liquidar o receipt, segunda
+  conclusão recusada, boot seguinte recuperando/liquidando e autosave liberado.
+- `GymFlowContext.storage.test.tsx` (Provider real): `storageHealth` preso em
+  `write-error`, edição posterior só em memória, `pagehide` usando apenas o
+  snapshot pendente, segunda finalização bloqueada sem duplicar XP, streak,
+  planejamento, desafios, conquistas ou sessão, unmount sem callback, novo boot
+  ficando `ready` com o receipt liquidado e o autosave de volta.
+- Os digests golden de `storage-history-integrity.test.ts` seguem idênticos.
+
+### Validações
+
+- `npx vitest run`: **39 arquivos, 875 testes** aprovados (873 anteriores + 2
+  novos). Zero falha.
+- `npx tsc --noEmit`: aprovado (0 erros).
+- `npm run build` (web) e `npm run build:mobile`: aprovados.
+- `npm run lint`: **12 erros + 6 warnings**, idêntico à baseline (TF-F-13);
+  zero ocorrência nova.
+- `git diff --check`: limpo.
+
+### Continuação
+
+- GOAL-17B-002D **não iniciado**: import/export e rollback híbridos seguem fora
+  de escopo. Validação em WebView físico continua gate obrigatório. Ver
+  PENDENCIAS 17B-002C-C01..C05 (C06 encerrado).
+
+---

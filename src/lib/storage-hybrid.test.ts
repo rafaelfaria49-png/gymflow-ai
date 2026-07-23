@@ -957,8 +957,11 @@ describe('conclusão híbrida recuperável', () => {
     });
     if (result.status === 'resumed') throw new Error('esperado commit');
 
-    // Flush de ciclo de vida com o estado ainda pré-conclusão em memória.
-    const flush = harness.runtime.saveCore(staleStateWithActiveWorkout(session));
+    // Autosave normal é bloqueado enquanto há receipt; o ciclo de vida usa
+    // explicitamente o snapshot pós-conclusão.
+    const autosave = harness.runtime.saveCore(staleStateWithActiveWorkout(session));
+    expect(autosave).toMatchObject({ ok: false, reason: 'blocked' });
+    const flush = harness.runtime.flushPendingCompletionCore();
     expect(flush.ok).toBe(true);
     const core = persistedCore(harness.storage);
     expect(core.activeWorkout).toBeNull();
@@ -971,6 +974,69 @@ describe('conclusão híbrida recuperável', () => {
     expect(harness.runtime.saveCore(completionState(session)).ok).toBe(true);
     expect(persistedCore(harness.storage).favoriteExercises).toEqual(['pos-conclusao']);
     await harness.runtime.close();
+  });
+
+  it('mantém receipt e snapshot pendentes após falha do core e flush posterior', async () => {
+    const harness = await hydratedHarness();
+    const session = makeSession(1);
+    const rawBefore = harness.storage.getItem(KEY);
+    harness.storage.failNextV2MainWrite = true;
+
+    const result = await harness.runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('1'),
+      receiptId: 'receipt-1',
+    });
+    if (result.status === 'resumed') throw new Error('esperado commit');
+
+    expect(result.coreWrite.ok).toBe(false);
+    expect(harness.runtime.hasPendingCompletion()).toBe(true);
+    expect(harness.storage.getItem(KEY)).toBe(rawBefore);
+    expect((await harness.adapter.readPendingCompletionReceipts()).map((item) => item.receiptId))
+      .toEqual(['receipt-1']);
+
+    const editedAfterFailure = {
+      ...completionState(session),
+      favoriteExercises: ['edicao-posterior'],
+    };
+    expect(harness.runtime.saveCore(editedAfterFailure))
+      .toMatchObject({ ok: false, reason: 'blocked' });
+    expect(harness.storage.getItem(KEY)).toBe(rawBefore);
+
+    // Um flush de ciclo de vida bem-sucedido não liquida nem limpa o estado.
+    expect(harness.runtime.flushPendingCompletionCore().ok).toBe(true);
+    expect(persistedCore(harness.storage).favoriteExercises).toEqual(['pos-conclusao']);
+    expect(harness.runtime.hasPendingCompletion()).toBe(true);
+    expect((await harness.adapter.readPendingCompletionReceipts()).map((item) => item.receiptId))
+      .toEqual(['receipt-1']);
+    expect(harness.runtime.saveCore(editedAfterFailure))
+      .toMatchObject({ ok: false, reason: 'blocked' });
+
+    const secondSession = makeSession(2);
+    await expect(harness.runtime.commitCompletion({
+      session: secondSession,
+      state: completionState(secondSession),
+      effects: completionEffects('2'),
+      receiptId: 'receipt-2',
+    })).rejects.toBeInstanceOf(HybridStorageIntegrityError);
+    expect(await harness.adapter.count()).toBe(1);
+    expect(await harness.adapter.readPendingCompletionReceipts()).toHaveLength(1);
+
+    await harness.runtime.close();
+
+    const reloaded = reloadRuntime(harness);
+    const recovered = await reloaded.hydrate();
+    expect(recovered).toMatchObject({
+      mode: 'hybrid-v2',
+      recoveredCompletions: [{ receiptId: 'receipt-1' }],
+    });
+    expect(await harness.adapter.readPendingCompletionReceipts()).toHaveLength(1);
+    await reloaded.settleCompletion('receipt-1');
+    expect(await harness.adapter.readPendingCompletionReceipts()).toEqual([]);
+    expect(reloaded.saveCore(editedAfterFailure).ok).toBe(true);
+    expect(persistedCore(harness.storage).favoriteExercises).toEqual(['edicao-posterior']);
+    await reloaded.close();
   });
 
   it('recupera kill após append e antes do core gravando o coreEnvelopeAfter', async () => {
@@ -1154,7 +1220,7 @@ describe('conclusão híbrida recuperável', () => {
     await reloaded.close();
   });
 
-  it('trata duplicidade: conteúdo idêntico com receipt pendente vira recuperação', async () => {
+  it('recusa nova conclusão enquanto o receipt anterior permanece pendente', async () => {
     const harness = await hydratedHarness();
     const session = makeSession(1);
     const first = await harness.runtime.commitCompletion({
@@ -1165,17 +1231,12 @@ describe('conclusão híbrida recuperável', () => {
     });
     if (first.status === 'resumed') throw new Error('esperado commit');
 
-    const second = await harness.runtime.commitCompletion({
+    await expect(harness.runtime.commitCompletion({
       session,
       state: completionState(session),
       effects: completionEffects('nova-tentativa'),
       receiptId: 'receipt-2',
-    });
-    expect(second.status).toBe('recovered');
-    if (second.status === 'resumed') throw new Error('esperado recovered');
-    // O receipt durável original é a fonte, não a nova tentativa.
-    expect(second.receiptId).toBe('receipt-1');
-    expect(second.effects.communityPost.id).toBe('post-1');
+    })).rejects.toBeInstanceOf(HybridStorageIntegrityError);
     expect((await harness.adapter.readPendingCompletionReceipts()).map((item) => item.receiptId))
       .toEqual(['receipt-1']);
     expect(await harness.adapter.count()).toBe(1);

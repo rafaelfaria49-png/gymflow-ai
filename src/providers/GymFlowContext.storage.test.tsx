@@ -42,6 +42,7 @@ function todayDayName(): string {
 class MemoryLocalStorage {
   readonly values = new Map<string, string>();
   readonly mainKeyWrites: string[] = [];
+  readonly mainKeyWriteAttempts: string[] = [];
   failMainKeyWrites = false;
 
   getItem(key: string): string | null {
@@ -49,6 +50,7 @@ class MemoryLocalStorage {
   }
 
   setItem(key: string, value: string): void {
+    if (key === STORAGE_KEY) this.mainKeyWriteAttempts.push(value);
     if (this.failMainKeyWrites && key === STORAGE_KEY) {
       throw new Error('falha induzida na gravação do core');
     }
@@ -258,6 +260,7 @@ function seedV1Envelope(overrides: Record<string, unknown> = {}): void {
     },
   }));
   storage.mainKeyWrites.length = 0;
+  storage.mainKeyWriteAttempts.length = 0;
 }
 
 // ===== Montagem do Provider real =====
@@ -606,6 +609,100 @@ describe('GymFlowProvider real — finalização e recuperação', () => {
     expect(persistedCore().user?.xp).toBe(380);
     expect(persistedCore().activeWorkout).toBeNull();
     expect(await readPendingReceipts()).toEqual([]);
+  });
+
+  it('mantém recuperação pendente após falha do core até um novo boot', async () => {
+    seedV1Envelope();
+    const first = await mountHydrated();
+    storage.mainKeyWrites.length = 0;
+    storage.mainKeyWriteAttempts.length = 0;
+
+    storage.failMainKeyWrites = true;
+    await finishActiveWorkout(first);
+
+    const afterFailure = first.context();
+    expect(afterFailure.storageHealth.status).toBe('write-error');
+    expect(afterFailure.storageHealth.issue?.message).toContain('Reabra o aplicativo');
+    expect(afterFailure.activeWorkout).toBeNull();
+    expect(afterFailure.workoutHistory.map((session) => session.id)).toEqual(['session-ativa']);
+    expect(afterFailure.user?.xp).toBe(380);
+    expect(afterFailure.user?.streak).toBe(4);
+    expect((await readPendingReceipts()).map((receipt) => receipt.sessionId))
+      .toEqual(['session-ativa']);
+    expect(storage.mainKeyWriteAttempts).toHaveLength(1);
+    expect(storage.mainKeyWrites).toEqual([]);
+
+    // Uma edição posterior permanece apenas em memória: o autosave normal fica
+    // suspenso e não tenta substituir o snapshot da conclusão. O commit ganha
+    // fronteira de act própria para que o debounce chegue mesmo a ser agendado.
+    await act(async () => {
+      first.context().toggleFavoriteExercise('edicao-posterior');
+    });
+    await settle(5);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    });
+    expect(first.context().favoriteExercises).toContain('edicao-posterior');
+    expect(storage.mainKeyWriteAttempts).toHaveLength(1);
+    expect(persistedCore().activeWorkout?.id).toBe('session-ativa');
+
+    // Um pagehide posterior pode repetir somente o pendingCompletionCore. Mesmo
+    // após o sucesso, o Provider continua em erro e o receipt não é liquidado.
+    storage.failMainKeyWrites = false;
+    await act(async () => {
+      windowStub.dispatchEvent(new Event('pagehide'));
+      await new Promise((resolve) => setTimeout(resolve, 110));
+    });
+    expect(storage.mainKeyWriteAttempts).toHaveLength(2);
+    expect(storage.mainKeyWrites).toHaveLength(1);
+    expect(persistedCore().activeWorkout).toBeNull();
+    expect(persistedCore().user?.xp).toBe(380);
+    expect(persistedCore().favoriteExercises).not.toContain('edicao-posterior');
+    expect(first.context().storageHealth.status).toBe('write-error');
+    expect((await readPendingReceipts()).map((receipt) => receipt.sessionId))
+      .toEqual(['session-ativa']);
+
+    // Nova finalização é recusada: nenhuma sessão, recompensa ou receipt nasce.
+    await act(async () => {
+      first.context().finishWorkout(8);
+    });
+    await settle(10);
+    expect(first.context().workoutHistory).toHaveLength(1);
+    expect(first.context().user?.xp).toBe(380);
+    expect(first.context().user?.streak).toBe(4);
+    expect(first.context().weeklyPlan.filter((day) => day.trained)).toHaveLength(1);
+    expect(first.context().challenges.find((challenge) => challenge.id === 'chal_1')?.progress)
+      .toBe(25);
+    expect(first.context().achievements.find((achievement) => achievement.id === 'ach_1')?.unlocked)
+      .toBe(true);
+    expect(await readPendingReceipts()).toHaveLength(1);
+
+    await first.unmount();
+
+    // Somente a nova montagem confirma o core, liquida o receipt e libera save.
+    const second = await mountHydrated();
+    expect(second.context().storageHealth.status).toBe('ready');
+    expect(second.context().workoutHistory.map((session) => session.id)).toEqual(['session-ativa']);
+    expect(second.context().user?.xp).toBe(380);
+    expect(second.context().user?.streak).toBe(4);
+    expect(second.context().communityPosts.filter((post) => post.content.includes('Treino finalizado!')))
+      .toHaveLength(1);
+    expect(await readPendingReceipts()).toEqual([]);
+
+    storage.mainKeyWrites.length = 0;
+    storage.mainKeyWriteAttempts.length = 0;
+    // O toggle precisa de uma fronteira de act própria: só depois do commit os
+    // refs de persistência enxergam a edição e o debounce é reagendado.
+    await act(async () => {
+      second.context().toggleFavoriteExercise('apos-recuperacao');
+    });
+    await settle(5);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    });
+    expect(storage.mainKeyWrites.length).toBeGreaterThan(0);
+    expect(persistedCore().favoriteExercises).toContain('apos-recuperacao');
+    expect(second.context().storageHealth.status).toBe('ready');
   });
 
   it('não duplica efeitos quando o mesmo receipt é reprocessado em vários boots', async () => {

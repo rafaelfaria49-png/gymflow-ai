@@ -109,6 +109,8 @@ export interface HybridStorageRuntimeOptions {
 export interface HybridStorageRuntime {
   hydrate(): Promise<HybridHydrationResult>;
   saveCore(state: PersistedState): StorageWriteResult<PersistedCoreState>;
+  flushPendingCompletionCore(): StorageWriteResult<PersistedCoreState>;
+  hasPendingCompletion(): boolean;
   appendSession(session: WorkoutSession): Promise<HybridAppendResult>;
   commitCompletion(request: HybridCompletionRequest): Promise<HybridCompletionResult>;
   settleCompletion(receiptId: string): Promise<void>;
@@ -706,13 +708,41 @@ class HybridStorageRuntimeImpl implements HybridStorageRuntime {
         error: 'O core v2 só pode ser salvo depois da hidratação híbrida.',
       };
     }
-    // Depois do commit do append e antes da liquidação do receipt, o estado
-    // renderizado ainda é o pré-conclusão. Gravar o snapshot pós-conclusão
-    // impede que um pagehide imediato ressuscite treino ativo, XP, streak,
-    // planejamento, desafios ou conquistas antigos.
-    const core = this.pendingCompletionCore
-      ?? toPersistedCoreState(state, this.generationId);
-    return saveHybridCoreResult(this.key, core, this.storage, this.now);
+    if (this.hasPendingCompletion()) {
+      return {
+        ok: false,
+        reason: 'blocked',
+        error: 'O autosave está suspenso até o próximo boot concluir a recuperação do treino.',
+      };
+    }
+    return saveHybridCoreResult(
+      this.key,
+      toPersistedCoreState(state, this.generationId),
+      this.storage,
+      this.now,
+    );
+  }
+
+  flushPendingCompletionCore(): StorageWriteResult<PersistedCoreState> {
+    if (this.mode !== 'hybrid-v2' || !this.generationId || !this.pendingCompletionCore) {
+      return {
+        ok: false,
+        reason: 'blocked',
+        error: 'Não existe um core de conclusão pendente para gravar.',
+      };
+    }
+    // Somente eventos de ciclo de vida podem repetir este snapshot. Mesmo com
+    // sucesso, o receipt e o estado pendente permanecem até um novo boot.
+    return saveHybridCoreResult(
+      this.key,
+      this.pendingCompletionCore,
+      this.storage,
+      this.now,
+    );
+  }
+
+  hasPendingCompletion(): boolean {
+    return this.pendingCompletionCore !== null || this.pendingCompletionReceiptId !== null;
   }
 
   retain(): void {
@@ -751,6 +781,11 @@ class HybridStorageRuntimeImpl implements HybridStorageRuntime {
   async commitCompletion(request: HybridCompletionRequest): Promise<HybridCompletionResult> {
     if (this.mode !== 'hybrid-v2' || !this.generationId) {
       throw new HybridStorageIntegrityError('Conclusão recusada fora do modo híbrido.');
+    }
+    if (this.hasPendingCompletion()) {
+      throw new HybridStorageIntegrityError(
+        'Uma conclusão anterior ainda exige recuperação em um novo boot.',
+      );
     }
     const generationId = this.generationId;
     return this.track((async (): Promise<HybridCompletionResult> => {

@@ -305,6 +305,15 @@ recomendação · dependências · próximo passo.**
 - **17B-002C-P1-C — Callbacks após unmount.** *Encerrado em 2026-07-23.*
   `mountedRef`, `pendingFinalizationPromiseRef`, rastreamento de operações
   duráveis e contagem de retenções no runtime.
+- **17B-002C-C06 — Core de conclusão falho voltava a ready.** *Encerrado em
+  2026-07-23.* Com o receipt já confirmado e a gravação do `coreEnvelopeAfter`
+  falhando, o `pendingCompletionCore` continuava ativo, mas uma gravação
+  posterior bem-sucedida devolvia `storageHealth` para `ready` enquanto o receipt
+  seguia pendente — e as edições feitas depois da falha não estavam sendo
+  persistidas, embora o app anunciasse "salvo". Política conservadora adotada: a
+  montagem inteira permanece em recuperação necessária, o autosave normal fica
+  suspenso, `reportWriteResult` não promove para `ready`, `finishWorkout` recusa
+  uma segunda execução e só um novo boot liquida o receipt.
 - **17B-002C-C01 — Geração legada sem manifest bloqueia.** *Aberto · P2.* Um
   banco físico na versão 1 preserva os registros, mas não tem manifest e entra
   em `blocked`. Nenhum usuário real está nessa situação (o 002C nunca foi
