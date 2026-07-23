@@ -273,12 +273,13 @@ recomendação · dependências · próximo passo.**
 - **17B-002A-ENV-COVERAGE — Coberturas adicionais.** *Pendente · P2.* Cobrir
   `blocked`, `versionchange`, erro de abertura, operações sem geração ativa e
   append após delete. O corretivo 004 cobreu Web Crypto e falhas do snapshot.
-- **17B-002B — Migração v1.** *Pendente · P1.* Copiar o `workoutHistory` atual em
-  lotes, salvar snapshot bruto, verificar contagem/checksum e só então ativar a
-  primeira geração. Nenhuma chave legada pode ser apagada antes do commit.
+- **17B-002B — Migração v1.** *Concluída em 2026-07-22.* O mecanismo desconectado
+  valida e normaliza o envelope recebido por parâmetro, salva snapshot, prepara
+  geração inativa e confirma contagem/ordem/conteúdo/checksum antes de ativar.
+  Retomada usa `migrationGeneration`; nenhuma chave v1 é lida ou apagada.
 - **17B-002C — Integração do Context.** *Pendente · P1.* Introduzir hidratação
   assíncrona, append incremental e tratamento de indisponibilidade sem criar duas
-  fontes de verdade silenciosas. O adapter ainda está totalmente desconectado.
+  fontes de verdade silenciosas. Adapter e migração ainda estão desconectados.
 - **17B-002D — Import/export e rollback.** *Pendente · P1.* Agregar localStorage e
   IndexedDB no arquivo lógico, revisar o limite de 5 MiB e definir downgrade/
   rollback sem reintroduzir o save integral em cada sessão.

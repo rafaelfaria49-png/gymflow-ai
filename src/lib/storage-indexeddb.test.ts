@@ -324,6 +324,20 @@ describe('fundação IndexedDB do workoutHistory', () => {
     await adapter.close();
   });
 
+  it('recusa segundo staging enquanto já existe geração preparada', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const prepared = await adapter.prepareHistoryGeneration([makeSession(1)]);
+
+    await expect(adapter.prepareHistoryGeneration([makeSession(2)]))
+      .rejects.toThrow('já está preparada');
+    expect((await adapter.readMetadata()).migrationGeneration).toBe(prepared);
+    expect((await adapter.readHistoryGeneration(prepared)).map((session) => session.id))
+      .toEqual(['session-1']);
+    expect(await adapter.readHistoryGeneration('generation-2')).toEqual([]);
+    await adapter.close();
+  });
+
   it('rejeita ativação de geração que não foi preparada', async () => {
     const { adapter } = createHarness();
     await adapter.open();

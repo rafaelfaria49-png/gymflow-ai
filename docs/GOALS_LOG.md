@@ -4,6 +4,32 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002B — migração v1 verificada do workoutHistory (2026-07-22)
+
+Implementado o mecanismo desconectado `migrateWorkoutHistoryFromV1`, que recebe o
+envelope bruto por parâmetro, reutiliza validação/normalização existentes, salva
+o snapshot verificável e prepara uma geração inativa antes de qualquer ativação.
+
+O staging preserva ordem e conteúdo e registra `migrationGeneration` na mesma
+transação. Readback, contagem, IDs, serialização canônica e SHA-256 precisam
+coincidir antes de `activateHistoryGeneration`. A ativação é seguida por nova
+leitura da geração ativa e somente então metadata recebe `completed`,
+`migratedAt` e `sourceStorageVersion: 1`.
+
+Reexecuções distinguem `migrated`, `already-completed`, `resumed`, `no-history` e
+`failed`. Interrupções após snapshot, staging, verificação ou ativação reutilizam
+estado válido sem duplicar gerações; staging inativo divergente é o único dado
+que pode ser descartado. O erro original, snapshot e gerações anteriores são
+preservados.
+
+Foram adicionados testes com 1/100/500/1.000 sessões, normalização legada, campos
+dos GOALs 23A/23B/24, duplicidade, corrupções, divergências e falhas em cada fase.
+A suíte completa possui 35 arquivos e 756 testes. A implementação não acessa
+`localStorage` nem é importada pelo aplicativo: 002C continua responsável pela
+integração e 002D por import/export/rollback; validação física segue como gate.
+
+---
+
 ## GOAL-17B-004 — corretivo de integridade do snapshot legado (2026-07-22)
 
 Encerrado o P1 da auditoria de merge readiness. `saveLegacySnapshot` não recebe

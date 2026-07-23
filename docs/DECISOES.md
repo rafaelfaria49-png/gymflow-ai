@@ -531,3 +531,29 @@ Detalhe por ADR (status · decisão-chave · riscos residuais · validação · 
   `devDependencies`.
 - **Rollout continua bloqueado:** 002B migra v1, 002C integra o Context e 002D
   integra export/import/rollback. Validação em WebView físico segue obrigatória.
+
+## GOAL-17B-002B — migração v1 verificada do histórico (2026-07-22)
+
+- **002A está concluída e permanece a fundação:** o adapter ganhou somente as
+  primitivas mínimas `prepareHistoryGeneration`, `readHistoryGeneration` e
+  `activateHistoryGeneration`; `replaceHistory` e sua atomicidade original não
+  foram alterados.
+- **Staging precede ativação:** uma nova geração e `migrationGeneration` são
+  gravadas atomicamente sem trocar `activeGeneration`. A ativação só ocorre após
+  readback, contagem, identidade, ordem, conteúdo completo e checksum.
+- **Pipeline v1 é reutilizado:** a migração recebe o envelope bruto, usa
+  `parseEnvelope`/`validateEnvelope` e `normalizeSessionState`; não existe parser,
+  normalizador ou acesso a `localStorage` paralelo.
+- **Checksum do histórico é canônico:** chaves de objetos são ordenadas, arrays
+  preservam a ordem e o SHA-256 usa os bytes UTF-8 da serialização. Data atual,
+  generationId e metadata não participam do digest nem da identidade.
+- **Recuperação é orientada por metadata:** `migrationGeneration` permite retomar
+  uma geração preparada, concluir uma ativação já confirmada ou descartar apenas
+  staging inativo comprovadamente divergente. Migração concluída é revalidada e
+  não cria outra geração.
+- **Falha não promove dados incompletos:** o erro original é retornado,
+  `migrationStatus` vai para `failed` quando seguro, snapshot e gerações anteriores
+  permanecem, e nenhuma chave v1 é apagada.
+- **Ainda desconectada:** 002B não é importada pelo Context. O v1 continua fonte
+  de verdade; 002C fará integração e 002D tratará import/export e rollback. O
+  aparelho físico permanece gate antes do rollout.

@@ -138,8 +138,8 @@ contratos e implementação testável, sem migrar dados e sem conectar o adapter
 - Banco: `gymflow-persistence`, versão 1.
 - `workoutHistory`: um registro por sessão, com `sessionId`, `generationId`,
   `order` e o snapshot completo `session`.
-- `metadata`: chave/valor para `activeGeneration`, `schemaVersion`,
-  `migrationStatus`, `migratedAt` e `sourceStorageVersion`.
+- `metadata`: chave/valor para `activeGeneration`, `migrationGeneration`,
+  `schemaVersion`, `migrationStatus`, `migratedAt` e `sourceStorageVersion`.
 - `legacySnapshots`: janela de rollback do envelope v1 bruto, com SHA-256,
   `createdAt` e sinal de verificação.
 
@@ -172,6 +172,36 @@ Continuação planejada:
 1. GOAL-17B-002B: migração verificada do envelope v1 e criação da primeira geração;
 2. GOAL-17B-002C: integração assíncrona no Context e escrita incremental;
 3. GOAL-17B-002D: import/export híbrido, rollback e recuperação.
+
+## Migração v1 desconectada (GOAL-17B-002B)
+
+`migrateWorkoutHistoryFromV1` recebe o texto bruto do envelope v1; não procura a
+chave no navegador. O fluxo reutiliza `parseEnvelope` e `normalizeSessionState`,
+salva/verifica o snapshot bruto e registra `migrationStatus: in-progress` antes
+de preparar o histórico.
+
+`prepareHistoryGeneration` grava todos os registros e `migrationGeneration` na
+mesma transação, sem tocar em `activeGeneration`. A geração permanece inativa
+enquanto a migração relê e compara:
+
+1. quantidade;
+2. IDs na mesma ordem;
+3. conteúdo completo por serialização canônica;
+4. SHA-256 dos bytes UTF-8 dessa serialização.
+
+Chaves de objetos são ordenadas para o checksum, mas arrays mantêm a ordem. O
+digest não contém data da migração, geração ou metadata e não substitui
+`session.id` como identidade.
+
+Somente uma geração aprovada pode ser ativada. Depois da ativação há outro
+readback da geração ativa; metadata vira `completed` apenas ao final. Se o
+processo parar, `migrationGeneration` permite retomar staging/verificação ou
+reconciliar uma ativação já feita. Apenas staging inativo comprovadamente inválido
+pode ser removido; snapshot e gerações anteriores permanecem.
+
+Esta API continua sem consumidor no aplicativo. `gymflow:state:v1` segue como
+fonte de verdade até o GOAL-17B-002C. O GOAL-17B-002D continua responsável por
+import/export e rollback híbridos, e WebView físico permanece gate de rollout.
 
 ## Recuperação manual
 

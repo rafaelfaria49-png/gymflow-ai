@@ -294,7 +294,10 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
       if (generationId === activeGeneration) {
         throw new Error('A geração preparada precisa ser diferente da geração ativa.');
       }
-      if (generationId === migrationGeneration || existingMarker !== undefined || existingRecords > 0) {
+      if (migrationGeneration) {
+        throw new Error(`A geração ${migrationGeneration} já está preparada.`);
+      }
+      if (existingMarker !== undefined || existingRecords > 0) {
         throw new Error(`A geração ${generationId} já existe.`);
       }
 
