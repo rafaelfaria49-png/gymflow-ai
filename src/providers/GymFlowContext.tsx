@@ -1768,9 +1768,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         result.effects,
         result.session,
       );
-      if (result.coreWrite.ok) markHistoryCommitHealthy();
-      else reportWriteResult(result.coreWrite);
-      await runtime.settleCompletion(result.receiptId);
+      if (result.coreWrite.ok) {
+        markHistoryCommitHealthy();
+        await runtime.settleCompletion(result.receiptId);
+      } else {
+        // O core não foi confirmado: o receipt continua pendente para que o
+        // próximo boot grave o snapshot pós-conclusão.
+        reportWriteResult(result.coreWrite);
+      }
     }).catch((error) => {
       if (!mountedRef.current) return;
       const integrityFailure = error instanceof HybridStorageIntegrityError;

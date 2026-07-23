@@ -291,3 +291,50 @@ recomendação · dependências · próximo passo.**
 - **17B-002A-CONCURRENCY — Escritores concorrentes.** *Pendente · P2.* As
   transações protegem atomicidade dentro do banco, mas a integração futura deve
   definir coordenação entre abas/WebViews antes de ativar escrita real.
+
+## GOAL-17B-002C corretivo 014 (2026-07-23)
+
+- **17B-002C-P1-A — Geração ausente hidratada como vazia.** *Encerrado em
+  2026-07-23.* Manifest verificado por geração com digest ordenado encadeado.
+  Geração ausente, manifest ausente, perda parcial/total, registro extra, ordem
+  divergente e manifest adulterado bloqueiam por integridade.
+- **17B-002C-P1-B — Efeitos perdidos após append confirmado.** *Encerrado em
+  2026-07-23.* Receipt durável e idempotente na mesma transação da sessão e do
+  manifest; `coreEnvelopeAfter` gravado e verificado antes de qualquer estado
+  React; recuperação processada antes de liberar o autosave.
+- **17B-002C-P1-C — Callbacks após unmount.** *Encerrado em 2026-07-23.*
+  `mountedRef`, `pendingFinalizationPromiseRef`, rastreamento de operações
+  duráveis e contagem de retenções no runtime.
+- **17B-002C-C01 — Geração legada sem manifest bloqueia.** *Aberto · P2.* Um
+  banco físico na versão 1 preserva os registros, mas não tem manifest e entra
+  em `blocked`. Nenhum usuário real está nessa situação (o 002C nunca foi
+  publicado). *Próximo passo:* decidir no 002D se vale um backfill explícito de
+  manifest, com verificação, ou se o caminho é sempre recuperação manual.
+- **17B-002C-C02 — Base otimista do append.** *Aberto · P2.* O digest encadeado
+  é calculado fora da transação (o `crypto.subtle` desativaria a transação
+  IndexedDB) e a transação de escrita reconfere a base. Isso é suficiente para
+  um único escritor; escritores concorrentes entre abas continuam sendo
+  17B-002A-CONCURRENCY. *Próximo passo:* definir a coordenação entre abas antes
+  de ativar escrita real.
+- **17B-002C-C03 — Postagem recuperada é materializada uma vez só.** *Aberto ·
+  P3.* Após a liquidação do receipt, a postagem não é replicada em boots
+  seguintes — ela nunca foi persistida (o feed é `MOCK_COMMUNITY` em memória).
+  *Próximo passo:* reavaliar quando o feed tiver persistência real.
+- **17B-002C-C04 — Notificação de level up fora do updater.** *Aberto · P3.* O
+  helper puro emite a notificação de level up antes da notificação de XP
+  correspondente; no código anterior ela era empilhada dentro do updater de
+  `setUser` e aparecia depois. Diferença apenas visual e de ordenação.
+  *Próximo passo:* confirmar a ordem desejada em QA visual.
+- **17B-002C-C05 — QA visual do fluxo de conclusão.** *Aberto · P2.* A matriz
+  visual (toast de recuperação, card de XP, feed, navegação para o dashboard)
+  segue coberta por testes de integração do Provider e revisão de código; a
+  inspeção no navegador não foi executada neste ambiente. *Próximo passo:*
+  repetir a matriz com navegador ativo.
+- **17B-002D — Import/export e rollback.** *Pendente · P1.* Continua **não
+  iniciado**. Agregar `localStorage` e IndexedDB no arquivo lógico, revisar o
+  limite de 5 MiB e definir downgrade/rollback. Exportação, importação,
+  restauração e reset antigos seguem bloqueados em modo híbrido.
+- **17B-002A-PHYSICAL — Gate de aparelho.** *Pendente · P1.* Continua
+  obrigatório: medir Android WebView de entrada (migração 100/500/1.000, cold
+  start, background/kill, update por `adb install -r`, quota e recuperação)
+  antes de qualquer ativação para usuários. `fake-indexeddb` é informativo.
