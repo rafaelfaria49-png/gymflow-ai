@@ -33,10 +33,18 @@ import {
   clearStateResult,
   flushState,
   loadBackupResult,
-  loadStateResult,
   restoreBackup,
   saveEnvelopeResult,
 } from '../lib/storage';
+import {
+  HybridStorageIntegrityError,
+  canUseLegacyAdminOperations,
+  commitHybridWorkoutSession,
+  createHybridStorageRuntime,
+  type HybridStorageMode,
+  type HybridStorageRuntime,
+} from '../lib/storage-hybrid';
+import { IndexedDbWorkoutHistoryStorage } from '../lib/storage-indexeddb';
 import { commitStorageImport, createRawRecoveryExport, downloadTextFile } from '../lib/storage-export';
 import { mergePersistedState, migrateLegacyState } from '../lib/storage-migrations';
 import type {
@@ -294,6 +302,8 @@ interface GymFlowContextType {
 
   // Persistência local segura (GOAL-17A)
   storageHealth: StorageHealth;
+  storageMode: HybridStorageMode;
+  legacyStorageOperationsAllowed: boolean;
   applyStorageImport: (backup: GymFlowBackupFile<PersistedState>) => StorageWriteResult<PersistedState>;
   restoreStorageBackup: () => StorageWriteResult<PersistedState>;
   startFreshStorage: () => StorageWriteResult<PersistedState>;
@@ -498,6 +508,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // Active workout
   const [activeWorkout, setActiveWorkoutState] = useState<WorkoutSession | null>(null);
   const activeWorkoutRef = useRef<WorkoutSession | null>(null);
+  const finishWorkoutInProgressRef = useRef(false);
   const setActiveWorkout: React.Dispatch<React.SetStateAction<WorkoutSession | null>> = (action) => {
     const next = resolveStateAction(activeWorkoutRef.current, action);
     activeWorkoutRef.current = next;
@@ -690,6 +701,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     status: 'loading',
     hasBackup: false,
   });
+  const [storageMode, setStorageMode] = useState<HybridStorageMode>('blocked');
+  const storageModeRef = useRef<HybridStorageMode>('blocked');
+  const [legacyStorageOperationsAllowed, setLegacyStorageOperationsAllowed] = useState(false);
+  const legacyStorageOperationsAllowedRef = useRef(false);
+  const historyAdapterRef = useRef<IndexedDbWorkoutHistoryStorage | null>(null);
+  const hybridRuntimeRef = useRef<HybridStorageRuntime | null>(null);
   const storageBlockedRef = useRef(false);
   const pendingSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastWriteErrorRef = useRef<string | null>(null);
@@ -766,116 +783,150 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         : null,
     };
     persistedStateRef.current = latestState;
-    const result = flushState<StoragePersistedState>(
-      STORAGE_KEY,
-      latestState,
-      storageBlockedRef.current,
-    );
+    const result = storageModeRef.current === 'hybrid-v2'
+      ? hybridRuntimeRef.current?.saveCore(latestState) ?? {
+          ok: false as const,
+          reason: 'blocked' as const,
+          error: 'O runtime híbrido não está disponível para salvar o core.',
+        }
+      : flushState<StoragePersistedState>(
+          STORAGE_KEY,
+          latestState,
+          storageBlockedRef.current,
+        );
     reportWriteResult(result);
     return result;
   };
 
   useEffect(() => {
+    let cancelled = false;
     const defaults = initialPersistedStateRef.current;
-    const loaded = loadStateResult<StoragePersistedState>(STORAGE_KEY);
-    let saved: PersistedState | null = null;
 
-    if (loaded.status === 'ok' || loaded.status === 'legacy') {
-      saved = mergePersistedState(defaults, loaded.value) as PersistedState;
-    } else if (loaded.status === 'empty') {
+    const hydrateStorage = async () => {
       try {
-        const migration = migrateLegacyState(STORAGE_KEY, defaults, window.localStorage);
-        if (migration.status === 'migrated' || migration.status === 'already-current') {
-          saved = mergePersistedState(defaults, migration.value) as PersistedState;
-          if (migration.status === 'migrated' && migration.cleanupWarning) {
-            toast.info(migration.cleanupWarning);
+        if (window.localStorage.getItem(STORAGE_KEY) === null) {
+          const legacyMigration = migrateLegacyState(STORAGE_KEY, defaults, window.localStorage);
+          if (legacyMigration.status === 'migrated' && legacyMigration.cleanupWarning) {
+            toast.info(legacyMigration.cleanupWarning);
+          } else if (
+            legacyMigration.status !== 'migrated'
+            && legacyMigration.status !== 'already-current'
+            && legacyMigration.status !== 'no-legacy'
+          ) {
+            const error = legacyMigration.status === 'write-failed' && !legacyMigration.result.ok
+              ? legacyMigration.result.error
+              : 'error' in legacyMigration
+                ? legacyMigration.error
+                : 'Não foi possível migrar os dados locais antigos.';
+            const kind = legacyMigration.status === 'write-failed' && !legacyMigration.result.ok
+              ? legacyMigration.result.reason
+              : legacyMigration.status === 'unavailable'
+                ? 'unavailable'
+                : 'corrupt';
+            if (!cancelled) {
+              storageBlockedRef.current = true;
+              storageModeRef.current = 'blocked';
+              setStorageMode('blocked');
+              legacyStorageOperationsAllowedRef.current = true;
+              setLegacyStorageOperationsAllowed(true);
+              setStorageHealth({
+                status: 'blocked',
+                hasBackup: hasValidBackup(),
+                issue: { kind, message: error },
+              });
+              setHydrated(true);
+            }
+            return;
           }
-        } else if (migration.status !== 'no-legacy') {
+        }
+
+        historyAdapterRef.current ??= new IndexedDbWorkoutHistoryStorage();
+        hybridRuntimeRef.current ??= createHybridStorageRuntime({
+          key: STORAGE_KEY,
+          storage: window.localStorage,
+          adapter: historyAdapterRef.current,
+          defaults,
+        });
+        const hydration = await hybridRuntimeRef.current.hydrate();
+        if (cancelled) return;
+
+        storageModeRef.current = hydration.mode;
+        setStorageMode(hydration.mode);
+        const legacyOperationsAllowed = canUseLegacyAdminOperations(
+          hydration.mode,
+          hydration.physicalVersion,
+        );
+        legacyStorageOperationsAllowedRef.current = legacyOperationsAllowed;
+        setLegacyStorageOperationsAllowed(legacyOperationsAllowed);
+
+        if (hydration.mode === 'blocked') {
           storageBlockedRef.current = true;
-          const error = migration.status === 'write-failed' && !migration.result.ok
-            ? migration.result.error
-            : 'error' in migration
-              ? migration.error
-              : 'Não foi possível migrar os dados locais antigos.';
-          const kind = migration.status === 'write-failed' && !migration.result.ok
-            ? migration.result.reason
-            : migration.status === 'unavailable'
-              ? 'unavailable'
-              : 'corrupt';
           setStorageHealth({
             status: 'blocked',
             hasBackup: hasValidBackup(),
-            issue: { kind, message: error },
+            issue: hydration.issue,
           });
+          setHydrated(true);
+          return;
         }
+
+        const saved = mergePersistedState(defaults, hydration.state) as PersistedState;
+        storageBlockedRef.current = false;
+        lastWriteErrorRef.current = null;
+        setUser(saved.user);
+        setWeeklyPlan(saved.weeklyPlan);
+        setCustomPrograms(saved.customPrograms);
+        const normalizedSession = normalizeSessionState({
+          activeWorkout: saved.activeWorkout,
+          activeWorkoutStartedAt: saved.activeWorkoutStartedAt,
+          workoutHistory: saved.workoutHistory,
+        });
+        setActiveWorkout(normalizedSession.activeWorkout);
+        setActiveWorkoutStartedAt(saved.activeWorkoutStartedAt);
+        setWorkoutHistory(normalizedSession.workoutHistory);
+        setWeightHistory(saved.weightHistory);
+        setMeasurementsHistory(saved.measurementsHistory);
+        setNutrition(saved.nutrition);
+        setAchievements(saved.achievements);
+        setChallenges(saved.challenges);
+        setFavoriteExercises(saved.favoriteExercises);
+        setRecentlyViewedVideoIds(saved.recentlyViewedVideoIds);
+
+        if (saved.activeWorkout && saved.activeWorkoutStartedAt) {
+          setWorkoutDuration(Math.max(0, Math.floor((Date.now() - saved.activeWorkoutStartedAt) / 1000)));
+        }
+        if (saved.restTimerEndAt && saved.restTimerEndAt > Date.now()) {
+          setRestTimerEndAt(saved.restTimerEndAt);
+          setRestTimerTotalSeconds(saved.restTimerTotalSeconds);
+          setRestTimerLabel(saved.restTimerLabel);
+        }
+        if (saved.user) {
+          setActiveView(saved.activeWorkout && saved.activeWorkoutStartedAt ? 'active-workout' : 'dashboard');
+        }
+        setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
+        setHydrated(true);
       } catch (error) {
+        if (cancelled) return;
         storageBlockedRef.current = true;
+        storageModeRef.current = 'blocked';
+        setStorageMode('blocked');
         setStorageHealth({
           status: 'blocked',
           hasBackup: hasValidBackup(),
           issue: {
             kind: 'unavailable',
-            message: error instanceof Error ? error.message : 'localStorage indisponível.',
+            message: error instanceof Error ? error.message : 'Falha ao hidratar o armazenamento local.',
           },
         });
+        setHydrated(true);
       }
-    } else {
-      storageBlockedRef.current = true;
-      setStorageHealth({
-        status: 'blocked',
-        hasBackup: hasValidBackup(),
-        issue: loaded.status === 'unsupported-version'
-          ? {
-              kind: 'unsupported-version',
-              message: `A versão local ${String(loaded.version)} não é suportada por este app.`,
-              raw: loaded.raw,
-              version: loaded.version,
-            }
-          : loaded.status === 'corrupt'
-            ? { kind: 'corrupt', message: loaded.error, raw: loaded.raw }
-            : { kind: 'unavailable', message: loaded.error },
-      });
-    }
+    };
 
-    if (saved) {
-      setUser(saved.user);
-      setWeeklyPlan(saved.weeklyPlan);
-      setCustomPrograms(saved.customPrograms);
-      // GOAL-23A: normaliza sessão ativa e histórico legados (status/startedAt)
-      // antes de alimentar o estado. activeWorkoutStartedAt segue intacto (compat).
-      const normalizedSession = normalizeSessionState({
-        activeWorkout: saved.activeWorkout,
-        activeWorkoutStartedAt: saved.activeWorkoutStartedAt,
-        workoutHistory: saved.workoutHistory,
-      });
-      setActiveWorkout(normalizedSession.activeWorkout);
-      setActiveWorkoutStartedAt(saved.activeWorkoutStartedAt);
-      setWorkoutHistory(normalizedSession.workoutHistory);
-      setWeightHistory(saved.weightHistory);
-      setMeasurementsHistory(saved.measurementsHistory);
-      setNutrition(saved.nutrition);
-      setAchievements(saved.achievements);
-      setChallenges(saved.challenges);
-      setFavoriteExercises(saved.favoriteExercises);
-      setRecentlyViewedVideoIds(saved.recentlyViewedVideoIds);
-
-      if (saved.activeWorkout && saved.activeWorkoutStartedAt) {
-        setWorkoutDuration(Math.max(0, Math.floor((Date.now() - saved.activeWorkoutStartedAt) / 1000)));
-      }
-      if (saved.restTimerEndAt && saved.restTimerEndAt > Date.now()) {
-        setRestTimerEndAt(saved.restTimerEndAt);
-        setRestTimerTotalSeconds(saved.restTimerTotalSeconds);
-        setRestTimerLabel(saved.restTimerLabel);
-      }
-      if (saved.user) {
-        setActiveView(saved.activeWorkout && saved.activeWorkoutStartedAt ? 'active-workout' : 'dashboard');
-      }
-    }
-
-    if (!storageBlockedRef.current) {
-      setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
-    }
-    setHydrated(true);
+    void hydrateStorage();
+    return () => {
+      cancelled = true;
+      void hybridRuntimeRef.current?.close();
+    };
   }, [setActiveView]);
 
   // Debounce normal de 500 ms; o resultado discriminado alimenta a UI de erro.
@@ -897,7 +948,6 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     restTimerEndAt,
     restTimerTotalSeconds,
     restTimerLabel,
-    workoutHistory,
     weightHistory,
     measurementsHistory,
     nutrition,
@@ -1064,8 +1114,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       setRestTimerTotalSeconds(null);
       setRestTimerLabel(null);
       commitActiveView('landing');
-      const cleared = clearStateResult(STORAGE_KEY);
-      if (!cleared.ok) toast.error('Não foi possível remover os dados locais deste aparelho.');
+      if (storageModeRef.current === 'hybrid-v2') {
+        toast.info('Sessão encerrada. Os dados híbridos locais foram preservados neste aparelho.');
+      } else {
+        const cleared = clearStateResult(STORAGE_KEY);
+        if (!cleared.ok) toast.error('Não foi possível remover os dados locais deste aparelho.');
+      }
     });
   };
 
@@ -1494,47 +1548,45 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const finishWorkout = (rpe: number) => {
+    if (finishWorkoutInProgressRef.current) return;
     const workoutToFinish = activeWorkoutRef.current;
     if (!workoutToFinish || !user) return;
 
     const minutes = Math.ceil(workoutDuration / 60);
     const kcalPerMinute = rpe >= 8 ? 8.5 : rpe >= 5 ? 6.5 : 4.5;
     const caloriesBurned = Math.round(minutes * kcalPerMinute);
+    const completedSetsCount = workoutToFinish.exercises.reduce((acc, ex) => (
+      acc + ex.sets.filter((set) => set.completed).length
+    ), 0);
+    const totalVolume = workoutToFinish.exercises.reduce((acc, ex) => (
+      acc + ex.sets
+        .filter((set) => set.completed)
+        .reduce((setVolume, set) => setVolume + set.reps * set.weight, 0)
+    ), 0);
+    const finalXp = 100 + completedSetsCount * 5 + (totalVolume > 5000 ? 50 : 0);
 
-    const completedSetsCount = workoutToFinish.exercises.reduce((acc, ex) => {
-      return acc + ex.sets.filter((s) => s.completed).length;
-    }, 0);
-
-    // Calcular volume levantado
-    const totalVolume = workoutToFinish.exercises.reduce((acc, ex) => {
-      return acc + ex.sets.filter(s => s.completed).reduce((sAcc, s) => sAcc + (s.reps * s.weight), 0);
-    }, 0);
-
-    const finalXp = 100 + (completedSetsCount * 5) + (totalVolume > 5000 ? 50 : 0);
-
-    // Detecção de PRs fictícios
+    // PRs e conquistas são apenas calculados aqui. Nenhum efeito de sucesso ocorre
+    // antes do commit IndexedDB no modo híbrido.
     const prsDetected: string[] = [];
-    workoutToFinish.exercises.forEach(ex => {
-      const bestSet = ex.sets.filter(s => s.completed).reduce((best, s) => s.weight > best ? s.weight : best, 0);
-      if (bestSet >= 100 && ex.exerciseId === 'chest_supino_reto') {
+    const prAchievementIds: string[] = [];
+    workoutToFinish.exercises.forEach((exercise) => {
+      const bestSet = exercise.sets
+        .filter((set) => set.completed)
+        .reduce((best, set) => (set.weight > best ? set.weight : best), 0);
+      if (bestSet >= 100 && exercise.exerciseId === 'chest_supino_reto') {
         prsDetected.push('Supino Reto 100kg');
-        unlockAchievement('ach_2');
+        prAchievementIds.push('ach_2');
       }
-      if (bestSet >= 140 && ex.exerciseId === 'legs_agachamento_barra') {
+      if (bestSet >= 140 && exercise.exerciseId === 'legs_agachamento_barra') {
         prsDetected.push('Agachamento 140kg');
-        unlockAchievement('ach_7');
+        prAchievementIds.push('ach_7');
       }
-      if (bestSet >= 100 && ex.exerciseId === 'glutes_elevacao_pelvica') {
+      if (bestSet >= 100 && exercise.exerciseId === 'glutes_elevacao_pelvica') {
         prsDetected.push('Elevação Pélvica 100kg');
-        unlockAchievement('ach_8');
+        prAchievementIds.push('ach_8');
       }
     });
 
-    // GOAL-23A: finalizeSession monta o registro final — status explícito derivado
-    // das séries + endedAt + duração + snapshot completo — recebendo volume/PR/XP
-    // já calculados acima. Não recalcula progressão nem muta a sessão ativa.
-    // endedAt determinístico (início + duração decorrida) — coerente com
-    // startedAt/duration e sem leitura de relógio sinalizada pela regra de pureza.
     const startedAtMs = workoutToFinish.startedAt ?? activeWorkoutStartedAtRef.current ?? 0;
     const endedAt = startedAtMs + workoutDuration * 1000;
     const { session: finalSession } = finalizeSession({
@@ -1547,64 +1599,114 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       xpEarned: finalXp,
     });
 
-    setWorkoutHistory((prev) => [finalSession, ...prev]);
-    addXp(finalXp, `Treino Concluído! +${caloriesBurned} kcal gastas`);
+    const clearFinishedWorkout = () => {
+      setActiveWorkout(null);
+      setActiveWorkoutStartedAt(null);
+      setWorkoutDuration(0);
+      setRestTimerEndAt(null);
+      setRestTimerTotalSeconds(null);
+      setRestTimerLabel(null);
+      setActiveView('dashboard');
+    };
 
-    // Marcar no planejador semanal que treinou hoje
-    markDayTrained(getTodayDayName());
+    const markHistoryCommitHealthy = () => {
+      lastWriteErrorRef.current = null;
+      setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
+    };
 
-    // Atualiza o streak do usuário
-    const todayStr = new Date().toISOString().split('T')[0];
-    setUser((prev) => {
-      if (!prev) return null;
-      let newStreak = prev.streak;
-      if (prev.lastWorkoutDate !== todayStr) {
-        newStreak = prev.streak + 1;
-      }
-      return {
-        ...prev,
-        streak: newStreak,
-        lastWorkoutDate: todayStr
-      };
-    });
+    const applyConfirmedEffects = () => {
+      setWorkoutHistory((previous) => [finalSession, ...previous]);
+      addXp(finalXp, `Treino Concluído! +${caloriesBurned} kcal gastas`);
+      markDayTrained(getTodayDayName());
 
-    // Conquistas
-    unlockAchievement('ach_1');
-    if (totalVolume >= 10000) {
-      unlockAchievement('ach_18');
+      const todayStr = new Date().toISOString().split('T')[0];
+      setUser((previous) => {
+        if (!previous) return null;
+        return {
+          ...previous,
+          streak: previous.lastWorkoutDate === todayStr ? previous.streak : previous.streak + 1,
+          lastWorkoutDate: todayStr,
+        };
+      });
+
+      for (const achievementId of prAchievementIds) unlockAchievement(achievementId);
+      unlockAchievement('ach_1');
+      if (totalVolume >= 10000) unlockAchievement('ach_18');
+
+      setChallenges((previous) => previous.map((challenge) => {
+        if (challenge.id === 'chal_1') {
+          const progress = Math.min(100, challenge.progress + 15);
+          return { ...challenge, progress, completed: progress >= 100 };
+        }
+        if (challenge.id === 'chal_4') {
+          const progress = Math.min(
+            100,
+            challenge.progress + Math.round((caloriesBurned / 3000) * 100),
+          );
+          return { ...challenge, progress, completed: progress >= 100 };
+        }
+        if (challenge.id === 'chal_5') {
+          const progress = Math.min(
+            100,
+            challenge.progress + Math.round((totalVolume / 5000) * 100),
+          );
+          return { ...challenge, progress, completed: progress >= 100 };
+        }
+        return challenge;
+      }));
+
+      addPost(
+        `Treino finalizado! Concluí "${workoutToFinish.name}" em ${minutes} minutos. Volume total: ${totalVolume}kg. ${prsDetected.length > 0 ? `🚀 PRs Batidos: ${prsDetected.join(', ')}!` : ''} 🔥 #GymFlow #Fitness`,
+        'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600&auto=format&fit=crop',
+      );
+      clearFinishedWorkout();
+      markHistoryCommitHealthy();
+    };
+
+    if (storageModeRef.current === 'legacy-v1') {
+      applyConfirmedEffects();
+      return;
+    }
+    if (storageModeRef.current !== 'hybrid-v2' || !hybridRuntimeRef.current) {
+      toast.error('O armazenamento do histórico não está pronto para confirmar este treino.');
+      return;
     }
 
-    // Progresso dos desafios
-    setChallenges((prev) =>
-      prev.map((c) => {
-        if (c.id === 'chal_1') {
-          const newProgress = Math.min(100, c.progress + 15);
-          return { ...c, progress: newProgress, completed: newProgress >= 100 };
-        }
-        if (c.id === 'chal_4') {
-          const newProgress = Math.min(100, c.progress + Math.round((caloriesBurned / 3000) * 100));
-          return { ...c, progress: newProgress, completed: newProgress >= 100 };
-        }
-        if (c.id === 'chal_5') {
-          const newProgress = Math.min(100, c.progress + Math.round((totalVolume / 5000) * 100));
-          return { ...c, progress: newProgress, completed: newProgress >= 100 };
-        }
-        return c;
-      })
-    );
-
-    addPost(
-      `Treino finalizado! Concluí "${workoutToFinish.name}" em ${minutes} minutos. Volume total: ${totalVolume}kg. ${prsDetected.length > 0 ? `🚀 PRs Batidos: ${prsDetected.join(', ')}!` : ''} 🔥 #GymFlow #Fitness`,
-      'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600&auto=format&fit=crop'
-    );
-
-    setActiveWorkout(null);
-    setActiveWorkoutStartedAt(null);
-    setWorkoutDuration(0);
-    setRestTimerEndAt(null);
-    setRestTimerTotalSeconds(null);
-    setRestTimerLabel(null);
-    setActiveView('dashboard');
+    finishWorkoutInProgressRef.current = true;
+    void commitHybridWorkoutSession(hybridRuntimeRef.current, finalSession, {
+      onAppended: applyConfirmedEffects,
+      onResumed: (existingSession) => {
+        setWorkoutHistory((previous) => (
+          previous.some((session) => session.id === existingSession.id)
+            ? previous
+            : [existingSession, ...previous]
+        ));
+        clearFinishedWorkout();
+        savePersistedStateNow();
+        markHistoryCommitHealthy();
+        toast.info('Este treino já estava confirmado e foi reconciliado sem duplicar recompensas.');
+      },
+    }).catch((error) => {
+      const integrityFailure = error instanceof HybridStorageIntegrityError;
+      if (integrityFailure) {
+        storageBlockedRef.current = true;
+        storageModeRef.current = 'blocked';
+        setStorageMode('blocked');
+      }
+      const message = error instanceof Error ? error.message : 'Falha ao gravar a sessão no histórico.';
+      lastWriteErrorRef.current = `history-append:${message}`;
+      setStorageHealth({
+        status: integrityFailure ? 'blocked' : 'write-error',
+        hasBackup: hasValidBackup(),
+        issue: {
+          kind: integrityFailure ? 'verification' : 'unavailable',
+          message,
+        },
+      });
+      toast.error('O treino não foi confirmado. Ele permanece aberto para você tentar novamente.');
+    }).finally(() => {
+      finishWorkoutInProgressRef.current = false;
+    });
   };
 
   const cancelWorkout = () => {
@@ -2247,29 +2349,47 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     return result as StorageWriteResult<PersistedState>;
   };
 
+  const rejectLegacyStorageOperation = (): StorageWriteResult<PersistedState> => {
+    const error = 'Esta operação será reativada pelo GOAL-17B-002D com suporte ao storage híbrido.';
+    toast.info(error);
+    return { ok: false, reason: 'blocked', error };
+  };
+
   const applyStorageImport = (
     backup: GymFlowBackupFile<PersistedState>,
-  ): StorageWriteResult<PersistedState> => finishConfirmedStorageOperation(
-    () => commitStorageImport(STORAGE_KEY, backup as GymFlowBackupFile<StoragePersistedState>),
-    'Backup importado e verificado. Recarregando os dados...',
+  ): StorageWriteResult<PersistedState> => (
+    legacyStorageOperationsAllowedRef.current
+      ? finishConfirmedStorageOperation(
+          () => commitStorageImport(STORAGE_KEY, backup as GymFlowBackupFile<StoragePersistedState>),
+          'Backup importado e verificado. Recarregando os dados...',
+        )
+      : rejectLegacyStorageOperation()
   );
 
-  const restoreStorageBackup = (): StorageWriteResult<PersistedState> => finishConfirmedStorageOperation(
-    () => restoreBackup<StoragePersistedState>(STORAGE_KEY),
-    'Backup local restaurado e verificado.',
+  const restoreStorageBackup = (): StorageWriteResult<PersistedState> => (
+    legacyStorageOperationsAllowedRef.current
+      ? finishConfirmedStorageOperation(
+          () => restoreBackup<StoragePersistedState>(STORAGE_KEY),
+          'Backup local restaurado e verificado.',
+        )
+      : rejectLegacyStorageOperation()
   );
 
-  const startFreshStorage = (): StorageWriteResult<PersistedState> => finishConfirmedStorageOperation(
-    () => saveEnvelopeResult<StoragePersistedState>(
-      STORAGE_KEY,
-      {
-        v: CURRENT_STORAGE_VERSION,
-        savedAt: new Date().toISOString(),
-        data: initialPersistedStateRef.current,
-      },
-      { allowOverwriteInvalid: true, source: 'fresh' },
-    ),
-    'Novo estado local criado com segurança.',
+  const startFreshStorage = (): StorageWriteResult<PersistedState> => (
+    legacyStorageOperationsAllowedRef.current
+      ? finishConfirmedStorageOperation(
+          () => saveEnvelopeResult<StoragePersistedState>(
+            STORAGE_KEY,
+            {
+              v: CURRENT_STORAGE_VERSION,
+              savedAt: new Date().toISOString(),
+              data: initialPersistedStateRef.current,
+            },
+            { allowOverwriteInvalid: true, source: 'fresh' },
+          ),
+          'Novo estado local criado com segurança.',
+        )
+      : rejectLegacyStorageOperation()
   );
 
   const downloadStorageRecovery = () => {
@@ -2391,6 +2511,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         clearChat,
 
         storageHealth,
+        storageMode,
+        legacyStorageOperationsAllowed,
         applyStorageImport,
         restoreStorageBackup,
         startFreshStorage,

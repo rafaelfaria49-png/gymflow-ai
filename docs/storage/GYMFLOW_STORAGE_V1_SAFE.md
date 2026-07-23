@@ -203,6 +203,42 @@ Esta API continua sem consumidor no aplicativo. `gymflow:state:v1` segue como
 fonte de verdade até o GOAL-17B-002C. O GOAL-17B-002D continua responsável por
 import/export e rollback híbridos, e WebView físico permanece gate de rollout.
 
+## Envelope físico híbrido v2 (GOAL-17B-002C)
+
+A chave continua sendo `gymflow:state:v1`, mas agora aceita dois formatos físicos:
+
+- **v1 monolítico:** contém o estado completo e `workoutHistory`; continua legível
+  para migração e é o fallback quando IndexedDB está indisponível antes do
+  cutover.
+- **v2 híbrido:** contém somente o core pequeno e
+  `historyStorage: { backend: 'indexeddb', schemaVersion: 1, generationId }`.
+  `workoutHistory`, listas resumidas e cópias de IDs são proibidos.
+
+O parser v1 rejeita v2 como versão incompatível. Assim um downgrade antigo não
+abre o core como se o usuário tivesse histórico vazio.
+
+No cutover, o raw v1 completo é preservado no snapshot IndexedDB e no backup local
+antes da troca da chave. Metadata `completed`, geração ativa, marcador da geração
+e readback integral são confirmados; depois o v2 é gravado e relido. Qualquer
+falha anterior mantém v1 na chave ou bloqueia autosave sem apagar snapshot,
+backup ou geração.
+
+No boot v2, o Context aguarda core, metadata, geração e histórico antes de marcar
+a hidratação como concluída. O histórico é combinado ao core somente em memória.
+Autosave e eventos de ciclo de vida serializam apenas o core; novas sessões usam
+append incremental e aparecem no início sem ordenação por datas.
+
+A conclusão de treino só aplica XP, streak, planejamento, desafios, postagem,
+limpeza e navegação após o commit do append. Se o aplicativo encerrar entre o
+append e a atualização do core, o próximo boot reconhece a sessão terminal pelo
+`session.id`, confirma o conteúdo e limpa o treino ativo residual sem repetir
+recompensas. ID igual com conteúdo diferente bloqueia por integridade.
+
+Exportação, importação, restauração e reset v1 ficam temporariamente bloqueados
+em modo híbrido. O GOAL-17B-002D permanece responsável pelo formato lógico
+híbrido e rollback completo. Concorrência entre múltiplos escritores permanece
+P2 e validação em WebView físico continua gate obrigatório.
+
 ## Recuperação manual
 
 Na seção **Painel administrativo → Dados locais**:

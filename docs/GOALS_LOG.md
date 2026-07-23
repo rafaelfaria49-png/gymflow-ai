@@ -4,6 +4,26 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002C — integração híbrida do Context (2026-07-23)
+
+O `GymFlowContext` agora hidrata de forma assíncrona por um runtime com modos
+`legacy-v1`, `hybrid-v2` e `blocked`. O cutover preserva snapshot e backup bruto
+v1, confirma metadata/geração/readback e só então grava e relê o envelope físico
+v2. O core v2 não contém histórico; a lista é materializada somente em memória a
+partir da geração ativa do IndexedDB.
+
+Novas sessões usam append incremental newest-first. Os efeitos de conclusão
+ocorrem apenas depois do commit IndexedDB. A janela em que o append foi confirmado
+mas o core ainda contém `activeWorkout` é reconciliada no próximo boot sem
+duplicar sessão, XP ou demais efeitos. React Strict Mode compartilha o mesmo
+cutover em andamento e o adapter é reutilizado durante a vida do Provider.
+
+Enquanto o GOAL-17B-002D não implementar backup lógico híbrido, exportação,
+importação, restauração e reset ficam bloqueados somente no modo v2. O fallback
+v1 continua funcional quando IndexedDB está indisponível antes do cutover.
+
+---
+
 ## GOAL-17B-002B — migração v1 verificada do workoutHistory (2026-07-22)
 
 Implementado o mecanismo desconectado `migrateWorkoutHistoryFromV1`, que recebe o

@@ -10,7 +10,12 @@ import {
 } from './storage-types';
 import { errorMessage, parseEnvelope, validateEnvelope } from './storage-validation';
 
-export { CURRENT_STORAGE_VERSION } from './storage-types';
+export {
+  CURRENT_STORAGE_VERSION,
+  EXTERNAL_BACKUP_FORMAT_VERSION,
+  HYBRID_STORAGE_VERSION,
+  MONOLITHIC_STORAGE_VERSION,
+} from './storage-types';
 export type { StorageEnvelope, StorageLike, StorageLoadResult, StorageWriteResult } from './storage-types';
 
 export const STORAGE_BACKUP_SUFFIX = ':backup';

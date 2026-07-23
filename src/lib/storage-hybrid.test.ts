@@ -25,12 +25,27 @@ let databaseSequence = 0;
 class MemoryStorage implements StorageLike {
   readonly values = new Map<string, string>();
   failNextV2MainWrite = false;
+  failNextLegacyBackupWrite = false;
+  corruptNextV2Readback = false;
 
   getItem(key: string): string | null {
-    return this.values.get(key) ?? null;
+    const value = this.values.get(key) ?? null;
+    if (
+      this.corruptNextV2Readback
+      && key === KEY
+      && value?.includes(`"v":${HYBRID_STORAGE_VERSION}`)
+    ) {
+      this.corruptNextV2Readback = false;
+      return '{"v":2,"readback":"corrompido"}';
+    }
+    return value;
   }
 
   setItem(key: string, value: string): void {
+    if (this.failNextLegacyBackupWrite && key === `${KEY}${STORAGE_BACKUP_SUFFIX}`) {
+      this.failNextLegacyBackupWrite = false;
+      throw new Error('falha induzida no backup v1');
+    }
     if (
       this.failNextV2MainWrite
       && key === KEY
@@ -231,6 +246,43 @@ describe('runtime híbrido v2', () => {
     await resumedRuntime.close();
   });
 
+  it('mantém v1 principal quando o backup bruto falha', async () => {
+    const { storage, runtime } = createHarness();
+    const raw = v1Envelope(defaults([makeSession(1)]));
+    storage.setItem(KEY, raw);
+    storage.failNextLegacyBackupWrite = true;
+
+    await expect(runtime.hydrate()).resolves.toMatchObject({ mode: 'blocked' });
+    expect(storage.getItem(KEY)).toBe(raw);
+    expect(storage.getItem(`${KEY}${STORAGE_BACKUP_SUFFIX}`)).toBeNull();
+    await runtime.close();
+  });
+
+  it('faz rollback para v1 quando o readback v2 diverge', async () => {
+    const { storage, runtime } = createHarness();
+    const raw = v1Envelope(defaults([makeSession(1)]));
+    storage.setItem(KEY, raw);
+    storage.corruptNextV2Readback = true;
+
+    await expect(runtime.hydrate()).resolves.toMatchObject({ mode: 'blocked' });
+    expect(storage.getItem(KEY)).toBe(raw);
+    expect(storage.getItem(`${KEY}${STORAGE_BACKUP_SUFFIX}`)).toBe(raw);
+    await runtime.close();
+  });
+
+  it('mantém v1 e bloqueia quando a migração rejeita IDs duplicados', async () => {
+    const { storage, runtime } = createHarness();
+    const raw = v1Envelope(defaults([
+      makeSession(1, { id: 'duplicada' }),
+      makeSession(2, { id: 'duplicada' }),
+    ]));
+    storage.setItem(KEY, raw);
+
+    await expect(runtime.hydrate()).resolves.toMatchObject({ mode: 'blocked' });
+    expect(storage.getItem(KEY)).toBe(raw);
+    await runtime.close();
+  });
+
   it('inicializa instalação nova em v2 sem fabricar snapshot v1', async () => {
     const { storage, adapter, runtime } = createHarness();
     const result = await runtime.hydrate();
@@ -322,6 +374,30 @@ describe('runtime híbrido v2', () => {
       physicalVersion: 2,
     });
     await reloaded.close();
+  });
+
+  it('bloqueia envelope v2 sem generationId', async () => {
+    const { storage, runtime } = createHarness();
+    storage.setItem(KEY, JSON.stringify({
+      v: HYBRID_STORAGE_VERSION,
+      savedAt: '2026-07-23T12:00:00.000Z',
+      data: {
+        ...defaults(),
+        workoutHistory: undefined,
+        historyStorage: {
+          backend: 'indexeddb',
+          schemaVersion: 1,
+          generationId: '',
+        },
+      },
+    }));
+
+    await expect(runtime.hydrate()).resolves.toMatchObject({
+      mode: 'blocked',
+      physicalVersion: 2,
+      issue: { kind: 'corrupt' },
+    });
+    await runtime.close();
   });
 
   it('bloqueia v2 quando a leitura do histórico falha', async () => {

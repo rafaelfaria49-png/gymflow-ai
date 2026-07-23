@@ -557,3 +557,31 @@ Detalhe por ADR (status · decisão-chave · riscos residuais · validação · 
 - **Ainda desconectada:** 002B não é importada pelo Context. O v1 continua fonte
   de verdade; 002C fará integração e 002D tratará import/export e rollback. O
   aparelho físico permanece gate antes do rollout.
+
+## GOAL-17B-002C — cutover físico v2 e integração do Context (2026-07-23)
+
+- **Versões físicas explícitas:** v1 continua sendo o envelope monolítico legível
+  para migração e fallback; v2 permanece na mesma chave, contém apenas o core e
+  uma referência de geração IndexedDB. O backup externo continua no formato 1.
+- **Uma fonte por modo:** antes do cutover, `legacy-v1` mantém o comportamento
+  atual. Depois do readback v2, `hybrid-v2` grava o core no armazenamento local e
+  usa IndexedDB como fonte exclusiva de `workoutHistory`. Falhas v2 entram em
+  `blocked` e nunca fabricam histórico vazio.
+- **Downgrade falha fechado:** aplicativos que entendem somente v1 recebem
+  `unsupported-version` ao encontrar v2, em vez de interpretar o core sem
+  histórico como um estado válido.
+- **Cutover verificável:** snapshot e backup bruto v1 são confirmados antes da
+  troca da chave. A geração, metadata e readback do histórico são verificados
+  antes do commit e o v2 é relido antes de ativar o modo híbrido.
+- **Finalização durável:** append da sessão e `transaction.oncomplete` precedem
+  histórico em memória, XP, streak, planejamento, desafios, postagem, limpeza e
+  navegação. Duplicidade idêntica reconcilia sem repetir recompensas; divergência
+  bloqueia por integridade.
+- **Janela de kill reconciliada:** se a sessão terminal já estiver no IndexedDB e
+  o core ainda guardar o treino ativo correspondente, o boot limpa apenas o
+  residual e confirma o core sem duplicar efeitos.
+- **Admin temporariamente restrito:** exportação, importação, restauração e reset
+  antigos ficam bloqueados em v2 até o GOAL-17B-002D. O download do raw
+  problemático continua disponível.
+- **Gates de rollout permanecem:** múltiplos escritores continuam P2 e validação
+  em WebView físico continua obrigatória antes de ativação para usuários.

@@ -277,9 +277,10 @@ recomendação · dependências · próximo passo.**
   valida e normaliza o envelope recebido por parâmetro, salva snapshot, prepara
   geração inativa e confirma contagem/ordem/conteúdo/checksum antes de ativar.
   Retomada usa `migrationGeneration`; nenhuma chave v1 é lida ou apagada.
-- **17B-002C — Integração do Context.** *Pendente · P1.* Introduzir hidratação
-  assíncrona, append incremental e tratamento de indisponibilidade sem criar duas
-  fontes de verdade silenciosas. Adapter e migração ainda estão desconectados.
+- **17B-002C — Integração do Context.** *Concluída em 2026-07-23.* O cutover
+  verificável grava o core físico v2 somente após snapshot, backup, geração e
+  readback; hidratação assíncrona, append incremental e reconciliação pós-kill
+  mantêm uma única fonte de histórico por modo.
 - **17B-002D — Import/export e rollback.** *Pendente · P1.* Agregar localStorage e
   IndexedDB no arquivo lógico, revisar o limite de 5 MiB e definir downgrade/
   rollback sem reintroduzir o save integral em cada sessão.
