@@ -10,7 +10,14 @@ import {
   createHybridStorageRuntime,
   parsePhysicalEnvelope,
 } from './storage-hybrid';
-import { IndexedDbWorkoutHistoryStorage } from './storage-indexeddb';
+import {
+  GENERATION_MANIFESTS_STORE,
+  GYMFLOW_INDEXEDDB_VERSION,
+  IndexedDbWorkoutHistoryStorage,
+  METADATA_STORE,
+  WORKOUT_HISTORY_STORE,
+} from './storage-indexeddb';
+import { EMPTY_GENERATION_DIGEST } from './storage-history-integrity';
 import {
   HYBRID_STORAGE_VERSION,
   MONOLITHIC_STORAGE_VERSION,
@@ -149,9 +156,10 @@ function createHarness(options: {
 } = {}) {
   const storage = options.storage ?? new MemoryStorage();
   const factory = options.factory ?? new IDBFactory();
+  const name = `gymflow-hybrid-${databaseSequence += 1}`;
   const adapter = new IndexedDbWorkoutHistoryStorage({
     factory,
-    databaseName: `gymflow-hybrid-${databaseSequence += 1}`,
+    databaseName: name,
     generationIdFactory: options.generationIdFactory ?? (() => 'generation-1'),
     now: () => new Date('2026-07-23T11:00:00.000Z'),
   });
@@ -162,7 +170,51 @@ function createHarness(options: {
     defaults: defaults(),
     now: () => new Date('2026-07-23T12:00:00.000Z'),
   });
-  return { storage, factory, adapter, runtime };
+  return { storage, factory, name, adapter, runtime };
+}
+
+function openRawDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
+  const request = factory.open(name, GYMFLOW_INDEXEDDB_VERSION);
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function rawRequest<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// Corrompe o banco por fora do adapter para simular perda física real.
+async function mutateRawDatabase(
+  factory: IDBFactory,
+  name: string,
+  stores: string[],
+  mutate: (transaction: IDBTransaction) => Promise<void>,
+): Promise<void> {
+  const database = await openRawDatabase(factory, name);
+  const transaction = database.transaction(stores, 'readwrite');
+  const completed = new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () => reject(transaction.error);
+    transaction.onerror = () => undefined;
+  });
+  await mutate(transaction);
+  await completed;
+  database.close();
+}
+
+function reloadRuntime(harness: ReturnType<typeof createHarness>) {
+  return createHybridStorageRuntime({
+    key: KEY,
+    storage: harness.storage,
+    adapter: harness.adapter,
+    defaults: defaults(),
+    now: () => new Date('2026-07-23T12:00:00.000Z'),
+  });
 }
 
 function expectV2WithoutHistory(raw: string | null, expectedGeneration?: string) {
@@ -405,7 +457,7 @@ describe('runtime híbrido v2', () => {
     storage.setItem(KEY, v1Envelope(defaults([makeSession(1)])));
     expect((await runtime.hydrate()).mode).toBe('hybrid-v2');
     await runtime.close();
-    vi.spyOn(adapter, 'readHistoryGeneration').mockRejectedValueOnce(new Error('leitura falhou'));
+    vi.spyOn(adapter, 'readHistoryGenerationSnapshot').mockRejectedValueOnce(new Error('leitura falhou'));
 
     const reloaded = createHybridStorageRuntime({
       key: KEY,
@@ -417,6 +469,131 @@ describe('runtime híbrido v2', () => {
       mode: 'blocked',
       issue: { kind: 'verification' },
     });
+    await reloaded.close();
+  });
+
+  it('bloqueia quando a geração some fisicamente em vez de hidratar histórico vazio', async () => {
+    const harness = createHarness();
+    harness.storage.setItem(KEY, v1Envelope(defaults([makeSession(2), makeSession(1)])));
+    expect((await harness.runtime.hydrate()).mode).toBe('hybrid-v2');
+    await harness.runtime.close();
+
+    await mutateRawDatabase(
+      harness.factory,
+      harness.name,
+      [WORKOUT_HISTORY_STORE, METADATA_STORE, GENERATION_MANIFESTS_STORE],
+      async (transaction) => {
+        const historyStore = transaction.objectStore(WORKOUT_HISTORY_STORE);
+        const keys = await rawRequest(historyStore.index('byGeneration').getAllKeys('generation-1'));
+        await Promise.all(keys.map((key) => rawRequest(historyStore.delete(key))));
+        await rawRequest(transaction.objectStore(GENERATION_MANIFESTS_STORE).delete('generation-1'));
+        await rawRequest(transaction.objectStore(METADATA_STORE)
+          .delete('generationNextOrder:generation-1'));
+      },
+    );
+
+    const reloaded = reloadRuntime(harness);
+    const result = await reloaded.hydrate();
+    expect(result).toMatchObject({ mode: 'blocked', physicalVersion: 2 });
+    if (result.mode === 'blocked') {
+      expect(result.issue.message).toContain('generation-absent');
+    }
+    await reloaded.close();
+  });
+
+  it('bloqueia quando parte dos registros da geração se perde', async () => {
+    const harness = createHarness();
+    harness.storage.setItem(KEY, v1Envelope(defaults([makeSession(3), makeSession(2), makeSession(1)])));
+    expect((await harness.runtime.hydrate()).mode).toBe('hybrid-v2');
+    await harness.runtime.close();
+
+    await mutateRawDatabase(
+      harness.factory,
+      harness.name,
+      [WORKOUT_HISTORY_STORE],
+      async (transaction) => {
+        const historyStore = transaction.objectStore(WORKOUT_HISTORY_STORE);
+        const keys = await rawRequest(historyStore.index('byGeneration').getAllKeys('generation-1'));
+        await rawRequest(historyStore.delete(keys[0]));
+      },
+    );
+
+    const reloaded = reloadRuntime(harness);
+    const result = await reloaded.hydrate();
+    expect(result).toMatchObject({ mode: 'blocked', physicalVersion: 2 });
+    if (result.mode === 'blocked') {
+      expect(result.issue.message).toContain('session-count-mismatch');
+    }
+    await reloaded.close();
+  });
+
+  it('bloqueia quando o manifest da geração some', async () => {
+    const harness = createHarness();
+    harness.storage.setItem(KEY, v1Envelope(defaults([makeSession(1)])));
+    expect((await harness.runtime.hydrate()).mode).toBe('hybrid-v2');
+    await harness.runtime.close();
+
+    await mutateRawDatabase(
+      harness.factory,
+      harness.name,
+      [GENERATION_MANIFESTS_STORE],
+      async (transaction) => {
+        await rawRequest(transaction.objectStore(GENERATION_MANIFESTS_STORE).delete('generation-1'));
+      },
+    );
+
+    const reloaded = reloadRuntime(harness);
+    const result = await reloaded.hydrate();
+    expect(result).toMatchObject({ mode: 'blocked', physicalVersion: 2 });
+    if (result.mode === 'blocked') {
+      expect(result.issue.message).toContain('manifest-absent');
+    }
+    await reloaded.close();
+  });
+
+  it('bloqueia quando o manifest é adulterado', async () => {
+    const harness = createHarness();
+    harness.storage.setItem(KEY, v1Envelope(defaults([makeSession(2), makeSession(1)])));
+    expect((await harness.runtime.hydrate()).mode).toBe('hybrid-v2');
+    await harness.runtime.close();
+
+    await mutateRawDatabase(
+      harness.factory,
+      harness.name,
+      [GENERATION_MANIFESTS_STORE],
+      async (transaction) => {
+        const store = transaction.objectStore(GENERATION_MANIFESTS_STORE);
+        const manifest = await rawRequest(store.get('generation-1')) as Record<string, unknown>;
+        await rawRequest(store.put({ ...manifest, orderedDigest: 'sha256:adulterado' }));
+      },
+    );
+
+    const reloaded = reloadRuntime(harness);
+    const result = await reloaded.hydrate();
+    expect(result).toMatchObject({ mode: 'blocked', physicalVersion: 2 });
+    if (result.mode === 'blocked') {
+      expect(result.issue.message).toContain('ordered-digest-mismatch');
+    }
+    await reloaded.close();
+  });
+
+  it('hidrata geração vazia válida com manifest verificado', async () => {
+    const harness = createHarness();
+    harness.storage.setItem(KEY, v1Envelope(defaults([])));
+    expect((await harness.runtime.hydrate()).mode).toBe('hybrid-v2');
+    await harness.runtime.close();
+
+    await harness.adapter.open();
+    expect(await harness.adapter.readGenerationManifest('generation-1')).toMatchObject({
+      sessionCount: 0,
+      orderedDigest: EMPTY_GENERATION_DIGEST,
+      verified: true,
+    });
+
+    const reloaded = reloadRuntime(harness);
+    const result = await reloaded.hydrate();
+    expect(result).toMatchObject({ mode: 'hybrid-v2', generationId: 'generation-1' });
+    if (result.mode === 'hybrid-v2') expect(result.state.workoutHistory).toEqual([]);
     await reloaded.close();
   });
 

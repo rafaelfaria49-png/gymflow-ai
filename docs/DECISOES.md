@@ -585,3 +585,25 @@ Detalhe por ADR (status · decisão-chave · riscos residuais · validação · 
   problemático continua disponível.
 - **Gates de rollout permanecem:** múltiplos escritores continuam P2 e validação
   em WebView físico continua obrigatória antes de ativação para usuários.
+
+## GOAL-17B-002C corretivo P1-A — manifest verificado por geração (2026-07-23)
+
+- **Manifest, não marcador:** cada geração tem `generationId`, `sessionCount`,
+  `orderedDigest`, `createdAt`, `updatedAt` e `verified` num store próprio
+  (`generationManifests`). Só um manifest confirmado torna a geração válida.
+- **Ausente ≠ vazia:** `readHistoryGenerationSnapshot` devolve presença física,
+  manifest e registros juntos. Geração vazia exige `sessionCount = 0` e o digest
+  vazio canônico; geração ausente bloqueia. `[]` nunca é fabricado.
+- **Digest encadeado do mais antigo para o mais novo:** a ordem newest-first faz
+  parte da identidade e prefixar uma sessão custa um único passo de
+  encadeamento — o append normal não relê nem reserializa o histórico.
+- **Digest fora da transação:** `crypto.subtle` resolve em outra tarefa e
+  desativaria a transação IndexedDB. O digest é calculado antes e a transação de
+  escrita reconfere a base (geração ativa, contagem e digest anteriores).
+- **Serialização canônica centralizada:** saiu da migração para
+  `storage-history-integrity.ts`, então migração, manifest e verificação de
+  hidratação compartilham a mesma definição de "conteúdo idêntico".
+- **Upgrade físico idempotente:** banco na versão 2 apenas cria stores novos.
+  Gerações escritas antes do manifest preservam os registros e bloqueiam por
+  `manifest-absent` em vez de hidratar histórico vazio. `schemaVersion` lógico
+  do metadata e do core v2 continua 1.

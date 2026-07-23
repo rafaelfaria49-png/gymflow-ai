@@ -1,4 +1,10 @@
 import type { WorkoutSession } from '../types';
+import type {
+  HistoryGenerationManifest,
+  HistoryGenerationSnapshot,
+} from './storage-history-integrity';
+
+export type { HistoryGenerationManifest, HistoryGenerationSnapshot };
 
 export type HistoryMigrationStatus = 'not-started' | 'in-progress' | 'completed' | 'failed';
 
@@ -27,6 +33,8 @@ export interface WorkoutHistoryStorageAdapter {
   prepareHistoryGeneration(history: readonly WorkoutSession[]): Promise<string>;
   readHistoryGeneration(generationId: string): Promise<WorkoutSession[]>;
   hasHistoryGeneration(generationId: string): Promise<boolean>;
+  readGenerationManifest(generationId: string): Promise<HistoryGenerationManifest | null>;
+  readHistoryGenerationSnapshot(generationId: string): Promise<HistoryGenerationSnapshot>;
   activateHistoryGeneration(generationId: string): Promise<void>;
   appendSession(session: WorkoutSession): Promise<void>;
   updateSession(session: WorkoutSession): Promise<boolean>;

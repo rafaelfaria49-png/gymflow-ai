@@ -12,9 +12,10 @@ import {
   checksumLegacySnapshot,
 } from './storage-indexeddb';
 import {
-  migrateWorkoutHistoryFromV1,
   serializeWorkoutHistoryDeterministically,
-} from './storage-history-migration';
+  verifyHistoryGeneration,
+} from './storage-history-integrity';
+import { migrateWorkoutHistoryFromV1 } from './storage-history-migration';
 import { mergePersistedState } from './storage-migrations';
 import {
   HYBRID_STORAGE_VERSION,
@@ -473,15 +474,29 @@ async function verifySnapshot(raw: string, adapter: WorkoutHistoryStorageAdapter
   }
 }
 
+// Fonte única de "esta geração existe fisicamente e está íntegra": manifest
+// confirmado, contagem coerente, digest ordenado coerente e registros completos.
+// Geração ausente nunca vira `[]`.
+async function loadVerifiedGeneration(
+  adapter: WorkoutHistoryStorageAdapter,
+  generationId: string,
+): Promise<WorkoutSession[]> {
+  const snapshot = await adapter.readHistoryGenerationSnapshot(generationId);
+  const verification = await verifyHistoryGeneration(generationId, snapshot);
+  if (verification.status === 'invalid') {
+    throw new HybridStorageIntegrityError(
+      `Integridade física da geração ${generationId} recusada (${verification.reason}): ${verification.message}`,
+    );
+  }
+  return verification.sessions;
+}
+
 async function verifyGeneration(
   adapter: WorkoutHistoryStorageAdapter,
   generationId: string,
   expected: readonly WorkoutSession[],
 ): Promise<WorkoutSession[]> {
-  if (!await adapter.hasHistoryGeneration(generationId)) {
-    throw new HybridStorageIntegrityError(`A geração ${generationId} não existe no IndexedDB.`);
-  }
-  const history = await adapter.readHistoryGeneration(generationId);
+  const history = await loadVerifiedGeneration(adapter, generationId);
   if (!historiesMatch(expected, history)) {
     throw new HybridStorageIntegrityError(`A geração ${generationId} diverge do histórico esperado.`);
   }
@@ -841,10 +856,7 @@ class HybridStorageRuntimeImpl implements HybridStorageRuntime {
       ) {
         throw new HybridStorageIntegrityError('Metadata não confirmou o cutover v1.');
       }
-      if (!await this.adapter.hasHistoryGeneration(generationId)) {
-        throw new HybridStorageIntegrityError('A geração referenciada pelo core v2 não existe.');
-      }
-      const history = await this.adapter.readHistoryGeneration(generationId);
+      const history = await loadVerifiedGeneration(this.adapter, generationId);
       if (!historiesMatch(normalizedSessionState.workoutHistory, history)) {
         throw new HybridStorageIntegrityError('O histórico relido divergiu do envelope v1 normalizado.');
       }
@@ -903,7 +915,7 @@ class HybridStorageRuntimeImpl implements HybridStorageRuntime {
           'O generationId do core v2 não coincide com a geração ativa confirmada.',
         );
       }
-      const history = await this.adapter.readHistoryGeneration(generationId);
+      const history = await loadVerifiedGeneration(this.adapter, generationId);
       const reconciled = reconcileResidualActiveWorkout(envelope.data, history);
       if (reconciled.reconciled) {
         const saved = saveHybridCoreResult(this.key, reconciled.core, this.storage, this.now);

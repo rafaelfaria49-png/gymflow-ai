@@ -3,6 +3,7 @@ import type {
   LegacySnapshotRecord,
   WorkoutHistoryStorageAdapter,
 } from './storage-adapter';
+import { serializeWorkoutHistoryDeterministically } from './storage-history-integrity';
 import { checksumLegacySnapshot } from './storage-indexeddb';
 import type { PersistedState } from './storage-types';
 import { parseEnvelope } from './storage-validation';
@@ -43,36 +44,9 @@ export class HistoryMigrationValidationError extends Error {
   }
 }
 
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => {
-      const normalized = canonicalize(item);
-      return normalized === undefined ? null : normalized;
-    });
-  }
-  if (value !== null && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    return Object.fromEntries(
-      Object.keys(record)
-        .sort()
-        .flatMap((key) => {
-          const normalized = canonicalize(record[key]);
-          return normalized === undefined ? [] : [[key, normalized]];
-        }),
-    );
-  }
-  if (typeof value === 'number' && !Number.isFinite(value)) return null;
-  if (typeof value === 'undefined' || typeof value === 'function' || typeof value === 'symbol') {
-    return undefined;
-  }
-  return value;
-}
-
-export function serializeWorkoutHistoryDeterministically(
-  history: readonly WorkoutSession[],
-): string {
-  return JSON.stringify(canonicalize(history));
-}
+// A serialização canônica mora em storage-history-integrity — a mesma definição
+// de "conteúdo idêntico" vale para migração, manifest de geração e receipts.
+export { serializeWorkoutHistoryDeterministically };
 
 export async function checksumWorkoutHistory(
   history: readonly WorkoutSession[],

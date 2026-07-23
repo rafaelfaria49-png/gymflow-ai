@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { WorkoutSession } from '../types';
 import type { WorkoutHistoryStorageAdapter } from './storage-adapter';
 import {
+  GYMFLOW_INDEXEDDB_VERSION,
   LEGACY_SNAPSHOTS_STORE,
   IndexedDbWorkoutHistoryStorage,
 } from './storage-indexeddb';
@@ -111,6 +112,8 @@ function overrideAdapter(
     prepareHistoryGeneration: (history) => adapter.prepareHistoryGeneration(history),
     readHistoryGeneration: (generationId) => adapter.readHistoryGeneration(generationId),
     hasHistoryGeneration: (generationId) => adapter.hasHistoryGeneration(generationId),
+    readGenerationManifest: (generationId) => adapter.readGenerationManifest(generationId),
+    readHistoryGenerationSnapshot: (generationId) => adapter.readHistoryGenerationSnapshot(generationId),
     activateHistoryGeneration: (generationId) => adapter.activateHistoryGeneration(generationId),
     appendSession: (session) => adapter.appendSession(session),
     updateSession: (session) => adapter.updateSession(session),
@@ -126,7 +129,7 @@ function overrideAdapter(
 }
 
 function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
-  const request = factory.open(name, 1);
+  const request = factory.open(name, GYMFLOW_INDEXEDDB_VERSION);
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);

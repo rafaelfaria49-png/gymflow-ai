@@ -4,13 +4,31 @@ import type {
   LegacySnapshotRecord,
   WorkoutHistoryStorageAdapter,
 } from './storage-adapter';
+import {
+  type HistoryGenerationManifest,
+  type HistoryGenerationSnapshot,
+  chainGenerationDigest,
+  computeOrderedDigestFromSessionDigests,
+  createGenerationManifest,
+  digestWorkoutSession,
+  digestWorkoutSessions,
+  isHistoryGenerationManifest,
+  sha256Checksum,
+} from './storage-history-integrity';
 
 export const GYMFLOW_INDEXEDDB_NAME = 'gymflow-persistence';
-export const GYMFLOW_INDEXEDDB_VERSION = 1;
+// v2 adiciona os stores de manifest e de receipts da conclusão. O upgrade é
+// idempotente e preserva todos os stores e registros já existentes.
+export const GYMFLOW_INDEXEDDB_VERSION = 2;
+
+// Versão lógica do schema de histórico exposta em metadata e no core físico v2.
+// Continua 1: nenhum formato observável pelo envelope mudou.
+export const HISTORY_METADATA_SCHEMA_VERSION = 1;
 
 export const WORKOUT_HISTORY_STORE = 'workoutHistory';
 export const METADATA_STORE = 'metadata';
 export const LEGACY_SNAPSHOTS_STORE = 'legacySnapshots';
+export const GENERATION_MANIFESTS_STORE = 'generationManifests';
 
 const BY_GENERATION_INDEX = 'byGeneration';
 const BY_GENERATION_SESSION_INDEX = 'byGenerationSession';
@@ -20,7 +38,7 @@ const INTERNAL_NEXT_ORDER_PREFIX = 'generationNextOrder:';
 const METADATA_DEFAULTS: HistoryStorageMetadata = {
   activeGeneration: null,
   migrationGeneration: null,
-  schemaVersion: GYMFLOW_INDEXEDDB_VERSION,
+  schemaVersion: HISTORY_METADATA_SCHEMA_VERSION,
   migrationStatus: 'not-started',
   migratedAt: null,
   sourceStorageVersion: null,
@@ -33,6 +51,8 @@ interface HistoryRecord {
   generationId: string;
   order: number;
   session: WorkoutSession;
+  // Digest canônico do conteúdo, gravado na mesma transação do registro.
+  digest: string;
 }
 
 interface MetadataRecord {
@@ -83,6 +103,13 @@ export class LegacySnapshotIntegrityError extends Error {
   }
 }
 
+export class HistoryManifestIntegrityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'HistoryManifestIntegrityError';
+  }
+}
+
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -121,17 +148,12 @@ function assertSessionIdentity(session: WorkoutSession): void {
   }
 }
 
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 export async function checksumLegacySnapshot(
   raw: string,
   subtleCrypto: SubtleCrypto | null | undefined = globalThis.crypto?.subtle,
 ): Promise<string> {
   if (!subtleCrypto) throw new LegacySnapshotCryptoUnavailableError();
-  const digest = await subtleCrypto.digest('SHA-256', new TextEncoder().encode(raw));
-  return `sha256:${bytesToHex(new Uint8Array(digest))}`;
+  return sha256Checksum(raw, subtleCrypto);
 }
 
 export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdapter {
@@ -188,6 +210,13 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
       if (!database.objectStoreNames.contains(LEGACY_SNAPSHOTS_STORE)) {
         database.createObjectStore(LEGACY_SNAPSHOTS_STORE, { keyPath: 'snapshotId' });
       }
+
+      // v2: manifest por geração. Criado sem tocar nos registros existentes —
+      // gerações antigas ficam sem manifest e são bloqueadas por integridade em
+      // vez de virarem histórico vazio.
+      if (!database.objectStoreNames.contains(GENERATION_MANIFESTS_STORE)) {
+        database.createObjectStore(GENERATION_MANIFESTS_STORE, { keyPath: 'generationId' });
+      }
     };
 
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -230,75 +259,58 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
   }
 
   async replaceHistory(history: readonly WorkoutSession[]): Promise<string> {
-    for (const session of history) assertSessionIdentity(session);
-
-    const database = this.requireDatabase();
-    const generationId = this.generationIdFactory();
-    if (!generationId) throw new Error('A geração precisa de um id estável.');
-
-    const transaction = database.transaction([WORKOUT_HISTORY_STORE, METADATA_STORE], 'readwrite');
-    const completed = transactionResult(transaction);
-    const historyStore = transaction.objectStore(WORKOUT_HISTORY_STORE);
-    const metadataStore = transaction.objectStore(METADATA_STORE);
-    const writes: Promise<unknown>[] = [];
-
-    try {
-      history.forEach((session, order) => {
-        writes.push(requestResult(historyStore.add({
-          sessionId: session.id,
-          generationId,
-          order,
-          session,
-        } satisfies HistoryRecord)));
-      });
-      writes.push(requestResult(metadataStore.put({
-        key: `${INTERNAL_NEXT_ORDER_PREFIX}${generationId}`,
-        value: -1,
-      } satisfies MetadataRecord)));
-      writes.push(requestResult(metadataStore.put({
-        key: 'activeGeneration',
-        value: generationId,
-      } satisfies MetadataRecord)));
-
-      await Promise.all(writes);
-      await completed;
-      return generationId;
-    } catch (error) {
-      abortQuietly(transaction);
-      await Promise.allSettled(writes);
-      await completed.catch(() => undefined);
-      throw error;
-    }
+    return this.stageGeneration(history, 'activeGeneration');
   }
 
   async prepareHistoryGeneration(history: readonly WorkoutSession[]): Promise<string> {
+    return this.stageGeneration(history, 'migrationGeneration');
+  }
+
+  // Staging e replace gravam registros, digests, manifest e metadata na mesma
+  // transação: a geração só existe quando o manifest confirmado a acompanha.
+  private async stageGeneration(
+    history: readonly WorkoutSession[],
+    pointer: 'activeGeneration' | 'migrationGeneration',
+  ): Promise<string> {
     for (const session of history) assertSessionIdentity(session);
 
     const database = this.requireDatabase();
     const generationId = this.generationIdFactory();
     if (!generationId) throw new Error('A geração precisa de um id estável.');
 
-    const transaction = database.transaction([WORKOUT_HISTORY_STORE, METADATA_STORE], 'readwrite');
+    // Os digests são calculados fora da transação: `crypto.subtle` resolve em
+    // outra tarefa e desativaria a transação IndexedDB no meio do caminho.
+    const digests = await digestWorkoutSessions(history, this.subtleCrypto);
+    const orderedDigest = await computeOrderedDigestFromSessionDigests(digests, this.subtleCrypto);
+    const createdAt = this.now().toISOString();
+
+    const transaction = database.transaction(
+      [WORKOUT_HISTORY_STORE, METADATA_STORE, GENERATION_MANIFESTS_STORE],
+      'readwrite',
+    );
     const completed = transactionResult(transaction);
     const historyStore = transaction.objectStore(WORKOUT_HISTORY_STORE);
     const metadataStore = transaction.objectStore(METADATA_STORE);
+    const manifestStore = transaction.objectStore(GENERATION_MANIFESTS_STORE);
     const writes: Promise<unknown>[] = [];
 
     try {
-      const [activeGeneration, migrationGeneration, existingMarker, existingRecords] = await Promise.all([
-        this.readMetadataValue<string | null>(transaction, 'activeGeneration'),
-        this.readMetadataValue<string | null>(transaction, 'migrationGeneration'),
-        this.readMetadataValue<number>(transaction, `${INTERNAL_NEXT_ORDER_PREFIX}${generationId}`),
-        requestResult(historyStore.index(BY_GENERATION_INDEX).count(generationId)),
-      ]);
-      if (generationId === activeGeneration) {
-        throw new Error('A geração preparada precisa ser diferente da geração ativa.');
-      }
-      if (migrationGeneration) {
-        throw new Error(`A geração ${migrationGeneration} já está preparada.`);
-      }
-      if (existingMarker !== undefined || existingRecords > 0) {
-        throw new Error(`A geração ${generationId} já existe.`);
+      if (pointer === 'migrationGeneration') {
+        const [activeGeneration, migrationGeneration, existingMarker, existingRecords] = await Promise.all([
+          this.readMetadataValue<string | null>(transaction, 'activeGeneration'),
+          this.readMetadataValue<string | null>(transaction, 'migrationGeneration'),
+          this.readMetadataValue<number>(transaction, `${INTERNAL_NEXT_ORDER_PREFIX}${generationId}`),
+          requestResult(historyStore.index(BY_GENERATION_INDEX).count(generationId)),
+        ]);
+        if (generationId === activeGeneration) {
+          throw new Error('A geração preparada precisa ser diferente da geração ativa.');
+        }
+        if (migrationGeneration) {
+          throw new Error(`A geração ${migrationGeneration} já está preparada.`);
+        }
+        if (existingMarker !== undefined || existingRecords > 0) {
+          throw new Error(`A geração ${generationId} já existe.`);
+        }
       }
 
       history.forEach((session, order) => {
@@ -307,14 +319,21 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
           generationId,
           order,
           session,
+          digest: digests[order],
         } satisfies HistoryRecord)));
       });
+      writes.push(requestResult(manifestStore.put(createGenerationManifest({
+        generationId,
+        sessionCount: history.length,
+        orderedDigest,
+        createdAt,
+      }))));
       writes.push(requestResult(metadataStore.put({
         key: `${INTERNAL_NEXT_ORDER_PREFIX}${generationId}`,
         value: -1,
       } satisfies MetadataRecord)));
       writes.push(requestResult(metadataStore.put({
-        key: 'migrationGeneration',
+        key: pointer,
         value: generationId,
       } satisfies MetadataRecord)));
 
@@ -343,6 +362,45 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
     return records
       .sort((left, right) => left.order - right.order)
       .map((record) => record.session);
+  }
+
+  async readGenerationManifest(generationId: string): Promise<HistoryGenerationManifest | null> {
+    if (!generationId) throw new Error('A leitura do manifest exige um generationId.');
+    const database = this.requireDatabase();
+    const transaction = database.transaction(GENERATION_MANIFESTS_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    const manifest = await this.readManifestRecord(transaction, generationId);
+    await completed;
+    return manifest;
+  }
+
+  // Leitura única usada pela hidratação: presença física, manifest e registros
+  // (com os digests gravados) saem da mesma transação consistente.
+  async readHistoryGenerationSnapshot(generationId: string): Promise<HistoryGenerationSnapshot> {
+    if (!generationId) throw new Error('A leitura da geração exige um generationId.');
+    const database = this.requireDatabase();
+    const transaction = database.transaction(
+      [METADATA_STORE, WORKOUT_HISTORY_STORE, GENERATION_MANIFESTS_STORE],
+      'readonly',
+    );
+    const completed = transactionResult(transaction);
+    const [marker, manifest, records] = await Promise.all([
+      this.readMetadataValue<number>(transaction, `${INTERNAL_NEXT_ORDER_PREFIX}${generationId}`),
+      this.readManifestRecord(transaction, generationId),
+      requestResult(
+        transaction.objectStore(WORKOUT_HISTORY_STORE)
+          .index(BY_GENERATION_INDEX)
+          .getAll(generationId),
+      ) as Promise<HistoryRecord[]>,
+    ]);
+    await completed;
+    const ordered = [...records].sort((left, right) => left.order - right.order);
+    return {
+      present: marker !== undefined || manifest !== null || ordered.length > 0,
+      manifest,
+      sessions: ordered.map((record) => record.session),
+      recordDigests: ordered.map((record) => record.digest ?? null),
+    };
   }
 
   async hasHistoryGeneration(generationId: string): Promise<boolean> {
@@ -384,14 +442,50 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
     }
   }
 
+  // Append incremental: lê apenas o manifest, serializa apenas a sessão nova e
+  // encadeia um único passo de digest. Registro, manifest, contagem e
+  // orderedDigest entram na mesma transação.
   async appendSession(session: WorkoutSession): Promise<void> {
+    await this.commitAppend(session);
+  }
+
+  protected async commitAppend(
+    session: WorkoutSession,
+    extraWrite?: (transaction: IDBTransaction) => Promise<unknown>,
+    extraStores: string[] = [],
+  ): Promise<void> {
     assertSessionIdentity(session);
     const database = this.requireDatabase();
-    const transaction = database.transaction([METADATA_STORE, WORKOUT_HISTORY_STORE], 'readwrite');
+
+    const base = await this.readActiveGenerationBase();
+    const sessionDigest = await digestWorkoutSession(session, this.subtleCrypto);
+    const nextOrderedDigest = await chainGenerationDigest(
+      base.manifest.orderedDigest,
+      sessionDigest,
+      this.subtleCrypto,
+    );
+    const updatedAt = this.now().toISOString();
+
+    const transaction = database.transaction(
+      [METADATA_STORE, WORKOUT_HISTORY_STORE, GENERATION_MANIFESTS_STORE, ...extraStores],
+      'readwrite',
+    );
     const completed = transactionResult(transaction);
 
     try {
       const generationId = await this.requireActiveGeneration(transaction);
+      if (generationId !== base.generationId) {
+        throw new HistoryManifestIntegrityError('A geração ativa mudou durante o append.');
+      }
+      const manifest = await this.readManifestRecord(transaction, generationId);
+      if (
+        !manifest
+        || manifest.orderedDigest !== base.manifest.orderedDigest
+        || manifest.sessionCount !== base.manifest.sessionCount
+      ) {
+        throw new HistoryManifestIntegrityError('O manifest mudou durante o append.');
+      }
+
       const historyStore = transaction.objectStore(WORKOUT_HISTORY_STORE);
       const duplicateKey = await requestResult(
         historyStore.index(BY_GENERATION_SESSION_INDEX).getKey([generationId, session.id]),
@@ -405,11 +499,22 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
         generationId,
         order: nextOrder,
         session,
+        digest: sessionDigest,
       } satisfies HistoryRecord));
+      await requestResult(transaction.objectStore(GENERATION_MANIFESTS_STORE).put(
+        createGenerationManifest({
+          generationId,
+          sessionCount: manifest.sessionCount + 1,
+          orderedDigest: nextOrderedDigest,
+          createdAt: manifest.createdAt,
+          updatedAt,
+        }),
+      ));
       await requestResult(transaction.objectStore(METADATA_STORE).put({
         key: nextOrderKey,
         value: nextOrder - 1,
       } satisfies MetadataRecord));
+      if (extraWrite) await extraWrite(transaction);
       await completed;
     } catch (error) {
       abortQuietly(transaction);
@@ -418,54 +523,84 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
     }
   }
 
+  // Update e delete recalculam a cadeia inteira: são operações raras e a ordem
+  // pode mudar em qualquer posição.
   async updateSession(session: WorkoutSession): Promise<boolean> {
     assertSessionIdentity(session);
-    const database = this.requireDatabase();
-    const transaction = database.transaction([METADATA_STORE, WORKOUT_HISTORY_STORE], 'readwrite');
-    const completed = transactionResult(transaction);
-
-    try {
-      const generationId = await this.requireActiveGeneration(transaction);
-      const historyStore = transaction.objectStore(WORKOUT_HISTORY_STORE);
-      const key = await requestResult(
-        historyStore.index(BY_GENERATION_SESSION_INDEX).getKey([generationId, session.id]),
-      );
-      if (key === undefined) {
-        await completed;
-        return false;
-      }
-      const record = await requestResult(historyStore.get(key)) as HistoryRecord | undefined;
-      if (!record) {
-        await completed;
-        return false;
-      }
-      await requestResult(historyStore.put({ ...record, session } satisfies HistoryRecord));
-      await completed;
-      return true;
-    } catch (error) {
-      abortQuietly(transaction);
-      await completed.catch(() => undefined);
-      throw error;
-    }
+    return this.rewriteActiveGeneration((sessions) => {
+      const index = sessions.findIndex((candidate) => candidate.id === session.id);
+      if (index === -1) return null;
+      const next = [...sessions];
+      next[index] = session;
+      return next;
+    });
   }
 
   async deleteSession(sessionId: string): Promise<boolean> {
     if (!sessionId) throw new Error('A exclusão exige um sessionId.');
+    return this.rewriteActiveGeneration((sessions) => {
+      const index = sessions.findIndex((candidate) => candidate.id === sessionId);
+      if (index === -1) return null;
+      return sessions.filter((_, position) => position !== index);
+    });
+  }
+
+  private async rewriteActiveGeneration(
+    mutate: (sessions: WorkoutSession[]) => WorkoutSession[] | null,
+  ): Promise<boolean> {
     const database = this.requireDatabase();
-    const transaction = database.transaction([METADATA_STORE, WORKOUT_HISTORY_STORE], 'readwrite');
+    const base = await this.readActiveGenerationBase();
+    const current = await this.readHistoryGeneration(base.generationId);
+    const next = mutate(current);
+    if (!next) return false;
+
+    const digests = await digestWorkoutSessions(next, this.subtleCrypto);
+    const orderedDigest = await computeOrderedDigestFromSessionDigests(digests, this.subtleCrypto);
+    const updatedAt = this.now().toISOString();
+
+    const transaction = database.transaction(
+      [METADATA_STORE, WORKOUT_HISTORY_STORE, GENERATION_MANIFESTS_STORE],
+      'readwrite',
+    );
     const completed = transactionResult(transaction);
 
     try {
       const generationId = await this.requireActiveGeneration(transaction);
-      const historyStore = transaction.objectStore(WORKOUT_HISTORY_STORE);
-      const key = await requestResult(
-        historyStore.index(BY_GENERATION_SESSION_INDEX).getKey([generationId, sessionId]),
-      );
-      if (key === undefined) {
-        await completed;
-        return false;
+      if (generationId !== base.generationId) {
+        throw new HistoryManifestIntegrityError('A geração ativa mudou durante a reescrita.');
       }
-      await requestResult(historyStore.delete(key));
+      const manifest = await this.readManifestRecord(transaction, generationId);
+      if (
+        !manifest
+        || manifest.orderedDigest !== base.manifest.orderedDigest
+        || manifest.sessionCount !== base.manifest.sessionCount
+      ) {
+        throw new HistoryManifestIntegrityError('O manifest mudou durante a reescrita.');
+      }
+
+      const historyStore = transaction.objectStore(WORKOUT_HISTORY_STORE);
+      const keys = await requestResult(historyStore.index(BY_GENERATION_INDEX).getAllKeys(generationId));
+      await Promise.all(keys.map((key) => requestResult(historyStore.delete(key))));
+      await Promise.all(next.map((session, order) => requestResult(historyStore.add({
+        sessionId: session.id,
+        generationId,
+        order,
+        session,
+        digest: digests[order],
+      } satisfies HistoryRecord))));
+      await requestResult(transaction.objectStore(GENERATION_MANIFESTS_STORE).put(
+        createGenerationManifest({
+          generationId,
+          sessionCount: next.length,
+          orderedDigest,
+          createdAt: manifest.createdAt,
+          updatedAt,
+        }),
+      ));
+      await requestResult(transaction.objectStore(METADATA_STORE).put({
+        key: `${INTERNAL_NEXT_ORDER_PREFIX}${generationId}`,
+        value: -1,
+      } satisfies MetadataRecord));
       await completed;
       return true;
     } catch (error) {
@@ -585,7 +720,10 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
   async clearInactiveGeneration(generationId: string): Promise<number> {
     if (!generationId) throw new Error('A limpeza exige um generationId.');
     const database = this.requireDatabase();
-    const transaction = database.transaction([METADATA_STORE, WORKOUT_HISTORY_STORE], 'readwrite');
+    const transaction = database.transaction(
+      [METADATA_STORE, WORKOUT_HISTORY_STORE, GENERATION_MANIFESTS_STORE],
+      'readwrite',
+    );
     const completed = transactionResult(transaction);
 
     try {
@@ -601,6 +739,7 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
         historyStore.index(BY_GENERATION_INDEX).getAllKeys(generationId),
       );
       await Promise.all(keys.map((key) => requestResult(historyStore.delete(key))));
+      await requestResult(transaction.objectStore(GENERATION_MANIFESTS_STORE).delete(generationId));
       await requestResult(transaction.objectStore(METADATA_STORE).delete(
         `${INTERNAL_NEXT_ORDER_PREFIX}${generationId}`,
       ));
@@ -622,6 +761,56 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
   private requireDatabase(): IDBDatabase {
     if (!this.database) throw new IndexedDbNotOpenError();
     return this.database;
+  }
+
+  private async readManifestRecord(
+    transaction: IDBTransaction,
+    generationId: string,
+  ): Promise<HistoryGenerationManifest | null> {
+    const record = await requestResult(
+      transaction.objectStore(GENERATION_MANIFESTS_STORE).get(generationId),
+    ) as unknown;
+    if (record === undefined || record === null) return null;
+    if (!isHistoryGenerationManifest(record)) {
+      throw new HistoryManifestIntegrityError(
+        `O manifest da geração ${generationId} está com formato inválido.`,
+      );
+    }
+    return record;
+  }
+
+  // Base otimista do append/reescrita: o digest encadeado precisa ser calculado
+  // fora da transação, então a transação de escrita reconfere esta base.
+  private async readActiveGenerationBase(): Promise<{
+    generationId: string;
+    manifest: HistoryGenerationManifest;
+  }> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(
+      [METADATA_STORE, GENERATION_MANIFESTS_STORE],
+      'readonly',
+    );
+    const completed = transactionResult(transaction);
+    try {
+      const generationId = await this.requireActiveGeneration(transaction);
+      const manifest = await this.readManifestRecord(transaction, generationId);
+      await completed;
+      if (!manifest) {
+        throw new HistoryManifestIntegrityError(
+          `A geração ativa ${generationId} não possui manifest durável.`,
+        );
+      }
+      if (!manifest.verified) {
+        throw new HistoryManifestIntegrityError(
+          `O manifest da geração ativa ${generationId} não está confirmado.`,
+        );
+      }
+      return { generationId, manifest };
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
   }
 
   private async readMetadataValue<T>(transaction: IDBTransaction, key: string): Promise<T | undefined> {

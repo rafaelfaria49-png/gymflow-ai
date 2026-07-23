@@ -239,6 +239,57 @@ em modo híbrido. O GOAL-17B-002D permanece responsável pelo formato lógico
 híbrido e rollback completo. Concorrência entre múltiplos escritores permanece
 P2 e validação em WebView físico continua gate obrigatório.
 
+## Manifest verificado por geração (GOAL-17B-002C corretivo)
+
+O banco interno passou para a **versão física 2**. O upgrade é idempotente: cria
+o store `generationManifests` sem tocar em `workoutHistory`, `metadata`,
+`legacySnapshots` nem em nenhum registro existente. A versão lógica exposta em
+`metadata.schemaVersion` e em `historyStorage.schemaVersion` continua **1** — o
+envelope físico v2 e o backup externo versão 1 não mudaram.
+
+Cada geração passou a ter um manifest durável com, no mínimo, `generationId`,
+`sessionCount`, `orderedDigest`, `createdAt` e `verified`. Não é um marcador de
+existência: sem manifest confirmado a geração não é considerada válida.
+
+### Digest ordenado encadeado
+
+`storage-history-integrity.ts` concentra a serialização canônica (antes só
+existia dentro da migração) e o digest determinístico:
+
+- cada sessão tem o digest SHA-256 do próprio conteúdo canônico;
+- o digest da geração encadeia do registro mais antigo para o mais novo, então
+  a ordem física newest-first é parte da identidade;
+- geração vazia tem digest canônico explícito (`gymflow:history-digest:v1:empty`),
+  que nunca colide com um digest calculado;
+- prefixar uma sessão custa **um** passo de encadeamento sobre o digest anterior;
+- `createdAt`, `updatedAt` e `generationId` não entram no digest — datas não são
+  identidade.
+
+O digest detecta registro ausente, registro extra, ordem divergente, conteúdo
+divergente, perda total dos registros e manifest adulterado.
+
+### Escrita atômica
+
+`prepareHistoryGeneration` e `replaceHistory` gravam registros, digest de cada
+registro, manifest confirmado e metadata na mesma transação. O append normal
+grava registro, manifest, contagem e `orderedDigest` juntos — lê apenas o
+manifest e serializa apenas a sessão nova, nunca o histórico inteiro. `update` e
+`delete` recalculam a cadeia completa, por serem operações raras.
+
+Como `crypto.subtle` resolve fora da tarefa da transação IndexedDB, o digest é
+calculado antes de abrir a transação de escrita, e a transação reconfere a base
+(geração ativa, `sessionCount` e `orderedDigest` anteriores) antes de gravar.
+
+### Hidratação
+
+Hidratar v2 exige manifest existente, `verified` verdadeiro, `sessionCount`
+coerente, `orderedDigest` coerente, geração ativa existente e registros
+completos. Geração vazia só é válida com manifest verificado, `sessionCount = 0`
+e o digest vazio canônico. Geração ausente, manifest ausente ou qualquer
+divergência resultam em `blocked` — ausência física **nunca** é convertida em
+`[]`. Gerações criadas antes do manifest (banco na versão física 1) mantêm os
+registros intactos e bloqueiam por `manifest-absent`.
+
 ## Recuperação manual
 
 Na seção **Painel administrativo → Dados locais**:
