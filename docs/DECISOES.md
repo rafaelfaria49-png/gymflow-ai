@@ -607,3 +607,34 @@ Detalhe por ADR (status · decisão-chave · riscos residuais · validação · 
   Gerações escritas antes do manifest preservam os registros e bloqueiam por
   `manifest-absent` em vez de hidratar histórico vazio. `schemaVersion` lógico
   do metadata e do core v2 continua 1.
+
+## GOAL-17B-002C corretivo P1-B/P1-C — conclusão recuperável e ciclo de vida (2026-07-23)
+
+- **Receipt no lugar de confiança no append:** o append confirmado só provava a
+  sessão. Agora sessão, manifest e receipt pendente entram na mesma transação
+  (`appendSessionWithCompletionReceipt`), e o receipt carrega o resultado final
+  completo da conclusão. Banco interno na versão física 3, upgrade idempotente.
+- **Snapshot puro, não render:** `deriveWorkoutCompletion` deriva XP, level up,
+  streak, dia treinado, conquistas, desafios, postagem e limpeza do treino a
+  partir dos refs, preservando exatamente as regras dos callbacks anteriores. O
+  `coreEnvelopeAfter` sai desse snapshot — nenhum render React participa.
+- **Estados React saem do snapshot persistido:** em vez de reaplicar callbacks
+  (`addXp`/`unlockAchievement`/`addPost`) depois do commit, o Provider aplica o
+  core já gravado. Memória e `localStorage` não podem divergir, e a recuperação
+  no boot usa exatamente o mesmo caminho.
+- **Janela de conclusão manda no autosave:** entre o commit do append e a
+  liquidação do receipt, o runtime grava o snapshot pós-conclusão em qualquer
+  `saveCore`. Um `pagehide` imediato não ressuscita treino ativo, XP, streak,
+  planejamento, desafios ou conquistas antigos.
+- **Recuperação antes de `hydrated`:** receipts pendentes são verificados,
+  o core é gravado ou confirmado, os efeitos fora do core são materializados e o
+  receipt é liquidado antes de liberar o autosave. Idempotente em reinícios
+  repetidos; qualquer divergência bloqueia por integridade.
+- **Receipt pendente é a fonte na duplicidade:** reenvio da mesma sessão com
+  receipt pendente devolve o receipt durável original (não a nova tentativa),
+  então efeitos não são recalculados nem duplicados.
+- **Ciclo de vida explícito:** `mountedRef` e `pendingFinalizationPromiseRef`
+  impedem setState/toast/navegação após o unmount, enquanto a operação durável
+  segue até o fim. O runtime conta retenções e drena operações pendentes em
+  `close()`, então o cleanup da primeira montagem do Strict Mode não fecha um
+  adapter ainda em uso pela segunda.

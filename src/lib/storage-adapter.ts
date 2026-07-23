@@ -1,4 +1,5 @@
 import type { WorkoutSession } from '../types';
+import type { WorkoutCompletionReceipt } from './storage-completion-receipt';
 import type {
   HistoryGenerationManifest,
   HistoryGenerationSnapshot,
@@ -37,6 +38,13 @@ export interface WorkoutHistoryStorageAdapter {
   readHistoryGenerationSnapshot(generationId: string): Promise<HistoryGenerationSnapshot>;
   activateHistoryGeneration(generationId: string): Promise<void>;
   appendSession(session: WorkoutSession): Promise<void>;
+  appendSessionWithCompletionReceipt(
+    session: WorkoutSession,
+    receipt: WorkoutCompletionReceipt,
+  ): Promise<void>;
+  readPendingCompletionReceipts(): Promise<WorkoutCompletionReceipt[]>;
+  readCompletionReceiptForSession(sessionId: string): Promise<WorkoutCompletionReceipt | null>;
+  settleCompletionReceipt(receiptId: string): Promise<boolean>;
   updateSession(session: WorkoutSession): Promise<boolean>;
   deleteSession(sessionId: string): Promise<boolean>;
   count(): Promise<number>;

@@ -290,6 +290,77 @@ divergência resultam em `blocked` — ausência física **nunca** é convertida
 `[]`. Gerações criadas antes do manifest (banco na versão física 1) mantêm os
 registros intactos e bloqueiam por `manifest-absent`.
 
+## Receipt transacional da finalização (GOAL-17B-002C corretivo)
+
+O banco interno foi para a **versão física 3**, criando o store
+`completionReceipts` (índice por `status`) — de novo sem tocar em nenhum store ou
+registro existente. Um receipt pendente contém `receiptId`, `sessionId`,
+`generationId`, `sessionDigest`, `finalSession`, `coreEnvelopeAfter`, os efeitos
+não pertencentes ao core, `createdAt` e `status`.
+
+`coreEnvelopeAfter` é o resultado final e determinístico da conclusão, sem
+`workoutHistory`: treino ativo, `activeWorkoutStartedAt` e timers removidos; XP,
+pontos, streak, `lastWorkoutDate`, `weeklyPlan`, desafios e conquistas
+atualizados; demais campos do core preservados. Ele é produzido por
+`deriveWorkoutCompletion` (helper puro em `storage-completion-receipt.ts`), a
+partir dos refs — **nenhum render React participa** da construção do snapshot.
+
+### Fluxo obrigatório
+
+1. construir a `finalSession`;
+2. derivar `coreEnvelopeAfter` e os efeitos, sem aplicar callbacks;
+3. gravar sessão + manifest + receipt pendente **numa única transação**
+   (`appendSessionWithCompletionReceipt`);
+4. aguardar `transaction.oncomplete`;
+5. gravar e reler o `coreEnvelopeAfter` no `localStorage`;
+6. só então atualizar estados React e efeitos visuais;
+7. liquidar o receipt depois do processamento seguro.
+
+Nunca existe sessão sem receipt, receipt sem sessão nem manifest atualizado pela
+metade: a transação inteira aborta.
+
+### Pagehide imediato
+
+Entre o commit do append e a liquidação do receipt, o runtime guarda o snapshot
+pós-conclusão e **toda** gravação do core passa a sair dele. Um `pagehide`
+imediato não ressuscita treino ativo, XP, streak, planejamento, desafios nem
+conquistas antigas. A gravação não depende de render intermediário, de
+`persistedStateRef` atualizado por efeito, de um `pagehide` futuro nem do
+debounce de 500 ms.
+
+### Recuperação após kill
+
+No boot v2, os receipts pendentes são processados antes de liberar o autosave:
+confirma-se a sessão e o `sessionDigest`, confirma-se o manifest da geração,
+grava-se ou confirma-se o `coreEnvelopeAfter`, o core é combinado ao histórico,
+os efeitos fora do core são materializados, o receipt é liquidado e só então
+`hydrated` é definido.
+
+O protocolo é idempotente e cobre kill após o append e antes do core, kill após
+o core e antes dos estados React, kill após os estados React e antes de liquidar
+o receipt, e reinícios repetidos com o mesmo receipt. Receipt sem sessão, sessão
+divergente, treino ativo residual divergente ou receipt adulterado bloqueiam por
+integridade. XP, streak, desafios, conquistas e sessão vivem no core (nunca
+duplicam); a postagem é materializada uma única vez por ciclo do Provider.
+
+Duplicidade da mesma sessão: conteúdo idêntico com receipt concluído é retomada;
+conteúdo idêntico com receipt pendente é recuperação (o receipt durável original
+é a fonte); conteúdo divergente ou receipt divergente bloqueiam.
+
+### Ciclo de vida e Strict Mode
+
+O Provider mantém `mountedRef` e `pendingFinalizationPromiseRef`. Depois do
+unmount não há `setState`, toast, navegação nem efeito visual; a operação durável
+já iniciada conclui receipt e core normalmente e, se os callbacks não puderem ser
+aplicados, o receipt permanece retomável no próximo boot. O `finally` só mexe em
+refs.
+
+O runtime rastreia operações pendentes e conta retenções: `close()` aguarda a
+hidratação e drena as operações duráveis antes de fechar o adapter, e o cleanup
+da primeira montagem do Strict Mode não fecha uma conexão ainda retida pela
+segunda. Hidratação/cutover e recuperação de receipts acontecem uma única vez por
+runtime; não há listener, append nem conclusão paralela duplicada.
+
 ## Recuperação manual
 
 Na seção **Painel administrativo → Dados locais**:

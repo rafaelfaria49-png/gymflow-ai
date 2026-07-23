@@ -39,11 +39,16 @@ import {
 import {
   HybridStorageIntegrityError,
   canUseLegacyAdminOperations,
-  commitHybridWorkoutSession,
+  combineCoreWithHistory,
   createHybridStorageRuntime,
   type HybridStorageMode,
   type HybridStorageRuntime,
+  type RecoveredCompletion,
 } from '../lib/storage-hybrid';
+import {
+  deriveWorkoutCompletion,
+  type WorkoutCompletionEffects,
+} from '../lib/storage-completion-receipt';
 import { IndexedDbWorkoutHistoryStorage } from '../lib/storage-indexeddb';
 import { commitStorageImport, createRawRecoveryExport, downloadTextFile } from '../lib/storage-export';
 import { mergePersistedState, migrateLegacyState } from '../lib/storage-migrations';
@@ -711,6 +716,11 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const pendingSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastWriteErrorRef = useRef<string | null>(null);
   const lastLifecycleFlushRef = useRef(0);
+  // GOAL-17B-002C corretivo P1-C: ciclo de vida explícito. Depois do unmount
+  // nenhum setState, toast, navegação ou efeito visual pode rodar — a operação
+  // durável já iniciada continua e o receipt permanece retomável.
+  const mountedRef = useRef(true);
+  const pendingFinalizationPromiseRef = useRef<Promise<void> | null>(null);
 
   const persistedState: PersistedState = {
     user,
@@ -763,15 +773,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const savePersistedStateNow = () => {
-    if (pendingSaveRef.current) {
-      clearTimeout(pendingSaveRef.current);
-      pendingSaveRef.current = null;
-    }
-    // Os refs são atualizados no próprio evento de edição. Assim pagehide/visibilitychange
-    // não dependem de um render intermediário para enxergar o último valor válido.
+  // Os refs são atualizados no próprio evento de edição. Assim pagehide/
+  // visibilitychange e a finalização não dependem de um render intermediário
+  // para enxergar o último valor válido.
+  const currentPersistedState = (): PersistedState => {
     const renderedState = persistedStateRef.current;
-    const latestState: PersistedState = {
+    return {
       ...renderedState,
       weeklyPlan: weeklyPlanRef.current,
       customPrograms: customProgramsRef.current,
@@ -782,6 +789,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         ? { ...renderedState.user, weeklyPlan: weeklyPlanRef.current }
         : null,
     };
+  };
+
+  const savePersistedStateNow = () => {
+    if (pendingSaveRef.current) {
+      clearTimeout(pendingSaveRef.current);
+      pendingSaveRef.current = null;
+    }
+    const latestState = currentPersistedState();
     persistedStateRef.current = latestState;
     const result = storageModeRef.current === 'hybrid-v2'
       ? hybridRuntimeRef.current?.saveCore(latestState) ?? {
@@ -798,9 +813,64 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     return result;
   };
 
+  // GOAL-15: empilha uma notificação de XP com limite e consolidação.
+  // Eventos de XP repetidos e recentes (mesmo texto, ex.: "Série concluída!")
+  // são agrupados num único card ("4 séries concluídas · +40 XP") em vez de
+  // renderizar 4 cards gigantes. Level up nunca consolida (comemoração distinta).
+  const pushXpNotification = (kind: XpNotification['kind'], text: string, xp: number) => {
+    setXpNotifications((prev) => {
+      const now = Date.now();
+      if (kind === 'xp' && prev.length > 0) {
+        const last = prev[prev.length - 1];
+        if (last.kind === 'xp' && last.text === text && now - last.createdAt < XP_CONSOLIDATE_WINDOW_MS) {
+          const merged: XpNotification = {
+            ...last,
+            xp: last.xp + xp,
+            count: last.count + 1,
+            createdAt: now // renova o auto-dismiss enquanto o usuário segue marcando
+          };
+          return [...prev.slice(0, -1), merged];
+        }
+      }
+      const next: XpNotification = { id: ++xpNotifIdRef.current, kind, text, xp, count: 1, createdAt: now };
+      // No máximo MAX_XP_NOTIFICATIONS visíveis — descarta os mais antigos.
+      return [...prev, next].slice(-MAX_XP_NOTIFICATIONS);
+    });
+  };
+
+  // Materializa em memória os efeitos que não pertencem ao core (postagem e
+  // notificações). Idempotente por id dentro do mesmo ciclo do Provider.
+  const materializeRecoveredCompletions = (recovered: readonly RecoveredCompletion[]) => {
+    if (!mountedRef.current || recovered.length === 0) return;
+    setCommunityPosts((previous) => {
+      const known = new Set(previous.map((post) => post.id));
+      const additions = recovered
+        .map((item) => item.effects.communityPost)
+        .filter((post) => Boolean(post?.id) && !known.has(post.id));
+      return additions.length === 0 ? previous : [...additions.reverse(), ...previous];
+    });
+    for (const item of recovered) {
+      for (const notification of item.effects.xpNotifications) {
+        pushXpNotification(notification.kind, notification.text, notification.xp);
+      }
+    }
+  };
+
   useEffect(() => {
+    mountedRef.current = true;
     let cancelled = false;
     const defaults = initialPersistedStateRef.current;
+    historyAdapterRef.current ??= new IndexedDbWorkoutHistoryStorage();
+    hybridRuntimeRef.current ??= createHybridStorageRuntime({
+      key: STORAGE_KEY,
+      storage: window.localStorage,
+      adapter: historyAdapterRef.current,
+      defaults,
+    });
+    const runtime = hybridRuntimeRef.current;
+    // Uma retenção por montagem: o cleanup da primeira montagem do Strict Mode
+    // não pode fechar um adapter ainda usado pela execução compartilhada.
+    runtime.retain();
 
     const hydrateStorage = async () => {
       try {
@@ -823,7 +893,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
               : legacyMigration.status === 'unavailable'
                 ? 'unavailable'
                 : 'corrupt';
-            if (!cancelled) {
+            if (!cancelled && mountedRef.current) {
               storageBlockedRef.current = true;
               storageModeRef.current = 'blocked';
               setStorageMode('blocked');
@@ -840,15 +910,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        historyAdapterRef.current ??= new IndexedDbWorkoutHistoryStorage();
-        hybridRuntimeRef.current ??= createHybridStorageRuntime({
-          key: STORAGE_KEY,
-          storage: window.localStorage,
-          adapter: historyAdapterRef.current,
-          defaults,
-        });
-        const hydration = await hybridRuntimeRef.current.hydrate();
-        if (cancelled) return;
+        const hydration = await runtime.hydrate();
+        if (cancelled || !mountedRef.current) return;
 
         storageModeRef.current = hydration.mode;
         setStorageMode(hydration.mode);
@@ -903,10 +966,25 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         if (saved.user) {
           setActiveView(saved.activeWorkout && saved.activeWorkoutStartedAt ? 'active-workout' : 'dashboard');
         }
+
+        // Receipts pendentes: o core já foi gravado/confirmado pelo runtime.
+        // Aqui só faltam os efeitos que não pertencem a ele; o receipt é
+        // liquidado antes de liberar o autosave (hydrated).
+        if (hydration.mode === 'hybrid-v2' && hydration.recoveredCompletions.length > 0) {
+          materializeRecoveredCompletions(hydration.recoveredCompletions);
+          for (const recovered of hydration.recoveredCompletions) {
+            await runtime.settleCompletion(recovered.receiptId);
+          }
+          if (!cancelled && mountedRef.current) {
+            toast.info('Um treino confirmado antes do encerramento foi recuperado sem duplicar recompensas.');
+          }
+        }
+        if (cancelled || !mountedRef.current) return;
+
         setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
         setHydrated(true);
       } catch (error) {
-        if (cancelled) return;
+        if (cancelled || !mountedRef.current) return;
         storageBlockedRef.current = true;
         storageModeRef.current = 'blocked';
         setStorageMode('blocked');
@@ -925,7 +1003,11 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     void hydrateStorage();
     return () => {
       cancelled = true;
-      void hybridRuntimeRef.current?.close();
+      mountedRef.current = false;
+      // `close()` aguarda a hidratação e as operações duráveis pendentes antes
+      // de fechar: nenhuma conexão em uso por append, core commit ou receipt é
+      // encerrada no meio do caminho.
+      void runtime.close();
     };
   }, [setActiveView]);
 
@@ -976,31 +1058,6 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [hydrated]);
-
-  // GOAL-15: empilha uma notificação de XP com limite e consolidação.
-  // Eventos de XP repetidos e recentes (mesmo texto, ex.: "Série concluída!")
-  // são agrupados num único card ("4 séries concluídas · +40 XP") em vez de
-  // renderizar 4 cards gigantes. Level up nunca consolida (comemoração distinta).
-  const pushXpNotification = (kind: XpNotification['kind'], text: string, xp: number) => {
-    setXpNotifications((prev) => {
-      const now = Date.now();
-      if (kind === 'xp' && prev.length > 0) {
-        const last = prev[prev.length - 1];
-        if (last.kind === 'xp' && last.text === text && now - last.createdAt < XP_CONSOLIDATE_WINDOW_MS) {
-          const merged: XpNotification = {
-            ...last,
-            xp: last.xp + xp,
-            count: last.count + 1,
-            createdAt: now // renova o auto-dismiss enquanto o usuário segue marcando
-          };
-          return [...prev.slice(0, -1), merged];
-        }
-      }
-      const next: XpNotification = { id: ++xpNotifIdRef.current, kind, text, xp, count: 1, createdAt: now };
-      // No máximo MAX_XP_NOTIFICATIONS visíveis — descarta os mais antigos.
-      return [...prev, next].slice(-MAX_XP_NOTIFICATIONS);
-    });
-  };
 
   // XP trigger helper
   const addXp = (amount: number, reason: string) => {
@@ -1614,79 +1671,108 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
     };
 
-    const applyConfirmedEffects = () => {
-      setWorkoutHistory((previous) => [finalSession, ...previous]);
-      addXp(finalXp, `Treino Concluído! +${caloriesBurned} kcal gastas`);
-      markDayTrained(getTodayDayName());
+    // Resultado final e determinístico da conclusão, derivado por helper puro a
+    // partir dos refs — sem depender de nenhum render intermediário.
+    const outcome = deriveWorkoutCompletion({
+      state: currentPersistedState(),
+      finalSession,
+      finalXp,
+      caloriesBurned,
+      totalVolume,
+      minutes,
+      prsDetected,
+      prAchievementIds,
+      todayDayName: getTodayDayName(),
+      todayIso: new Date().toISOString().split('T')[0],
+      postId: `post_${Date.now()}`,
+      postAuthorName: user.name,
+      postImage: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600&auto=format&fit=crop',
+    });
 
-      const todayStr = new Date().toISOString().split('T')[0];
-      setUser((previous) => {
-        if (!previous) return null;
-        return {
-          ...previous,
-          streak: previous.lastWorkoutDate === todayStr ? previous.streak : previous.streak + 1,
-          lastWorkoutDate: todayStr,
-        };
-      });
-
-      for (const achievementId of prAchievementIds) unlockAchievement(achievementId);
-      unlockAchievement('ach_1');
-      if (totalVolume >= 10000) unlockAchievement('ach_18');
-
-      setChallenges((previous) => previous.map((challenge) => {
-        if (challenge.id === 'chal_1') {
-          const progress = Math.min(100, challenge.progress + 15);
-          return { ...challenge, progress, completed: progress >= 100 };
-        }
-        if (challenge.id === 'chal_4') {
-          const progress = Math.min(
-            100,
-            challenge.progress + Math.round((caloriesBurned / 3000) * 100),
-          );
-          return { ...challenge, progress, completed: progress >= 100 };
-        }
-        if (challenge.id === 'chal_5') {
-          const progress = Math.min(
-            100,
-            challenge.progress + Math.round((totalVolume / 5000) * 100),
-          );
-          return { ...challenge, progress, completed: progress >= 100 };
-        }
-        return challenge;
-      }));
-
-      addPost(
-        `Treino finalizado! Concluí "${workoutToFinish.name}" em ${minutes} minutos. Volume total: ${totalVolume}kg. ${prsDetected.length > 0 ? `🚀 PRs Batidos: ${prsDetected.join(', ')}!` : ''} 🔥 #GymFlow #Fitness`,
-        'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600&auto=format&fit=crop',
-      );
+    // Estados React e efeitos visuais saem do snapshot já persistido: memória e
+    // core gravado não podem divergir.
+    const applyCompletionOutcome = (
+      state: PersistedState,
+      effects: WorkoutCompletionEffects,
+      appendedSession: WorkoutSession,
+    ) => {
+      if (!mountedRef.current) return;
+      const history = workoutHistoryRef.current.some((session) => session.id === appendedSession.id)
+        ? workoutHistoryRef.current
+        : [appendedSession, ...workoutHistoryRef.current];
+      setWorkoutHistory(history);
+      setUser(state.user);
+      setWeeklyPlan(state.weeklyPlan);
+      setAchievements(state.achievements);
+      setChallenges(state.challenges);
+      setCommunityPosts((previous) => (
+        previous.some((post) => post.id === effects.communityPost.id)
+          ? previous
+          : [effects.communityPost, ...previous]
+      ));
+      for (const notification of effects.xpNotifications) {
+        pushXpNotification(notification.kind, notification.text, notification.xp);
+      }
       clearFinishedWorkout();
-      markHistoryCommitHealthy();
+      persistedStateRef.current = {
+        ...persistedStateRef.current,
+        user: state.user,
+        weeklyPlan: state.weeklyPlan,
+        achievements: state.achievements,
+        challenges: state.challenges,
+        activeWorkout: null,
+        activeWorkoutStartedAt: null,
+        restTimerEndAt: null,
+        restTimerTotalSeconds: null,
+        restTimerLabel: null,
+        workoutHistory: history,
+      };
     };
 
     if (storageModeRef.current === 'legacy-v1') {
-      applyConfirmedEffects();
+      applyCompletionOutcome(outcome.state, outcome.effects, finalSession);
+      markHistoryCommitHealthy();
       return;
     }
-    if (storageModeRef.current !== 'hybrid-v2' || !hybridRuntimeRef.current) {
+    const runtime = hybridRuntimeRef.current;
+    if (storageModeRef.current !== 'hybrid-v2' || !runtime) {
       toast.error('O armazenamento do histórico não está pronto para confirmar este treino.');
       return;
     }
 
     finishWorkoutInProgressRef.current = true;
-    void commitHybridWorkoutSession(hybridRuntimeRef.current, finalSession, {
-      onAppended: applyConfirmedEffects,
-      onResumed: (existingSession) => {
+    const finalization = runtime.commitCompletion({
+      session: finalSession,
+      state: outcome.state,
+      effects: outcome.effects,
+      receiptId: `receipt_${finalSession.id}_${Date.now()}`,
+    }).then(async (result) => {
+      if (result.status === 'resumed') {
+        if (!mountedRef.current) return;
         setWorkoutHistory((previous) => (
-          previous.some((session) => session.id === existingSession.id)
+          previous.some((session) => session.id === result.session.id)
             ? previous
-            : [existingSession, ...previous]
+            : [result.session, ...previous]
         ));
         clearFinishedWorkout();
         savePersistedStateNow();
         markHistoryCommitHealthy();
         toast.info('Este treino já estava confirmado e foi reconciliado sem duplicar recompensas.');
-      },
+        return;
+      }
+      // Sessão, manifest, receipt e core já são duráveis. Se o Provider foi
+      // desmontado, nenhum callback visual roda e o receipt segue retomável.
+      if (!mountedRef.current) return;
+      applyCompletionOutcome(
+        combineCoreWithHistory(result.core, workoutHistoryRef.current),
+        result.effects,
+        result.session,
+      );
+      if (result.coreWrite.ok) markHistoryCommitHealthy();
+      else reportWriteResult(result.coreWrite);
+      await runtime.settleCompletion(result.receiptId);
     }).catch((error) => {
+      if (!mountedRef.current) return;
       const integrityFailure = error instanceof HybridStorageIntegrityError;
       if (integrityFailure) {
         storageBlockedRef.current = true;
@@ -1705,8 +1791,13 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       });
       toast.error('O treino não foi confirmado. Ele permanece aberto para você tentar novamente.');
     }).finally(() => {
+      // Somente refs: nada de estado depois do unmount.
       finishWorkoutInProgressRef.current = false;
+      if (pendingFinalizationPromiseRef.current === finalization) {
+        pendingFinalizationPromiseRef.current = null;
+      }
     });
+    pendingFinalizationPromiseRef.current = finalization;
   };
 
   const cancelWorkout = () => {

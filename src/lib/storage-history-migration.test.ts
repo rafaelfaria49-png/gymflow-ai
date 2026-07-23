@@ -116,6 +116,14 @@ function overrideAdapter(
     readHistoryGenerationSnapshot: (generationId) => adapter.readHistoryGenerationSnapshot(generationId),
     activateHistoryGeneration: (generationId) => adapter.activateHistoryGeneration(generationId),
     appendSession: (session) => adapter.appendSession(session),
+    appendSessionWithCompletionReceipt: (session, receipt) => (
+      adapter.appendSessionWithCompletionReceipt(session, receipt)
+    ),
+    readPendingCompletionReceipts: () => adapter.readPendingCompletionReceipts(),
+    readCompletionReceiptForSession: (sessionId) => (
+      adapter.readCompletionReceiptForSession(sessionId)
+    ),
+    settleCompletionReceipt: (receiptId) => adapter.settleCompletionReceipt(receiptId),
     updateSession: (session) => adapter.updateSession(session),
     deleteSession: (sessionId) => adapter.deleteSession(sessionId),
     count: () => adapter.count(),

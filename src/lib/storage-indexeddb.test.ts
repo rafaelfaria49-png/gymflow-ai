@@ -2,6 +2,8 @@ import { IDBFactory, IDBObjectStore as FakeIDBObjectStore } from 'fake-indexeddb
 import { describe, expect, it } from 'vitest';
 import type { WorkoutSession } from '../types';
 import {
+  COMPLETION_RECEIPTS_STORE,
+  CompletionReceiptIntegrityError,
   GENERATION_MANIFESTS_STORE,
   GYMFLOW_INDEXEDDB_VERSION,
   HistoryManifestIntegrityError,
@@ -20,6 +22,7 @@ import {
   computeOrderedHistoryDigest,
   digestWorkoutSession,
 } from './storage-history-integrity';
+import type { WorkoutCompletionReceipt } from './storage-completion-receipt';
 
 let databaseSequence = 0;
 
@@ -180,6 +183,7 @@ describe('fundação IndexedDB do workoutHistory', () => {
 
     const database = await openDatabase(factory, name);
     expect(Array.from(database.objectStoreNames)).toEqual([
+      COMPLETION_RECEIPTS_STORE,
       GENERATION_MANIFESTS_STORE,
       LEGACY_SNAPSHOTS_STORE,
       METADATA_STORE,
@@ -823,6 +827,27 @@ describe('manifest verificado por geração', () => {
     await adapter.close();
   });
 
+  it('faz upgrade idempotente para v3 preservando o manifest já gravado na v2', async () => {
+    const factory = new IDBFactory();
+    const name = `gymflow-upgrade-v2-${databaseSequence += 1}`;
+
+    const first = new IndexedDbWorkoutHistoryStorage({ factory, databaseName: name });
+    await first.open();
+    const generationId = await first.replaceHistory([makeSession(1)]);
+    const manifest = await first.readGenerationManifest(generationId);
+    await first.close();
+
+    const reopened = new IndexedDbWorkoutHistoryStorage({ factory, databaseName: name });
+    await reopened.open();
+    const database = await openDatabase(factory, name);
+    expect(Array.from(database.objectStoreNames)).toContain(COMPLETION_RECEIPTS_STORE);
+    expect(Array.from(database.objectStoreNames)).toContain(GENERATION_MANIFESTS_STORE);
+    database.close();
+    expect(await reopened.readGenerationManifest(generationId)).toEqual(manifest);
+    expect(await reopened.readPendingCompletionReceipts()).toEqual([]);
+    await reopened.close();
+  });
+
   it('faz upgrade idempotente preservando registros e stores da versão anterior', async () => {
     const factory = new IDBFactory();
     const name = `gymflow-upgrade-${databaseSequence += 1}`;
@@ -871,6 +896,194 @@ describe('manifest verificado por geração', () => {
     await adapter.open();
     expect((await adapter.readActiveHistory()).map((session) => session.id))
       .toEqual(['session-legada']);
+    await adapter.close();
+  });
+});
+
+function makeCoreEnvelope(generationId: string, overrides: Record<string, unknown> = {}) {
+  return {
+    user: null,
+    weeklyPlan: [],
+    customPrograms: [],
+    activeWorkout: null,
+    activeWorkoutStartedAt: null,
+    restTimerEndAt: null,
+    restTimerTotalSeconds: null,
+    restTimerLabel: null,
+    weightHistory: [],
+    measurementsHistory: [],
+    nutrition: { calories: 0, protein: 0, carbs: 0, fat: 0, water: 0 },
+    achievements: [],
+    challenges: [],
+    favoriteExercises: [],
+    recentlyViewedVideoIds: [],
+    historyStorage: { backend: 'indexeddb' as const, schemaVersion: 1 as const, generationId },
+    ...overrides,
+  };
+}
+
+async function makeReceipt(
+  session: WorkoutSession,
+  generationId: string,
+  overrides: Partial<WorkoutCompletionReceipt> = {},
+): Promise<WorkoutCompletionReceipt> {
+  return {
+    receiptId: `receipt-${session.id}`,
+    sessionId: session.id,
+    generationId,
+    sessionDigest: await digestWorkoutSession(session),
+    finalSession: session,
+    coreEnvelopeAfter: makeCoreEnvelope(generationId),
+    effects: {
+      xpNotifications: [{ kind: 'xp', text: 'Treino Concluído!', xp: 150 }],
+      communityPost: {
+        id: `post-${session.id}`,
+        authorName: 'Rafael',
+        authorAvatar: '🚀',
+        time: 'Agora mesmo',
+        content: 'Treino finalizado!',
+        likes: 0,
+        comments: [],
+        userLiked: false,
+        shares: 0,
+      },
+      unlockedAchievementIds: ['ach_1'],
+      markedDayName: 'Segunda',
+    },
+    createdAt: '2026-07-23T12:00:00.000Z',
+    status: 'pending',
+    settledAt: null,
+    ...overrides,
+  };
+}
+
+describe('receipt transacional da finalização', () => {
+  it('grava sessão, manifest e receipt na mesma transação', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    const before = await adapter.readGenerationManifest(generationId);
+
+    const session = makeSession(2);
+    await adapter.appendSessionWithCompletionReceipt(session, await makeReceipt(session, generationId));
+
+    expect((await adapter.readActiveHistory()).map((item) => item.id))
+      .toEqual(['session-2', 'session-1']);
+    const after = await adapter.readGenerationManifest(generationId);
+    expect(after).toMatchObject({ sessionCount: 2, verified: true });
+    expect(after!.orderedDigest).toBe(
+      await chainGenerationDigest(before!.orderedDigest, await digestWorkoutSession(session)),
+    );
+    const pending = await adapter.readPendingCompletionReceipts();
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({
+      receiptId: 'receipt-session-2',
+      sessionId: 'session-2',
+      status: 'pending',
+    });
+    await adapter.close();
+  });
+
+  it('não grava receipt quando a sessão já existe, nem toca no manifest', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const session = makeSession(1);
+    const generationId = await adapter.replaceHistory([session]);
+    const before = await adapter.readGenerationManifest(generationId);
+
+    await expect(adapter.appendSessionWithCompletionReceipt(
+      session,
+      await makeReceipt(session, generationId),
+    )).rejects.toThrow(/já existe/);
+
+    expect(await adapter.readGenerationManifest(generationId)).toEqual(before);
+    expect(await adapter.readPendingCompletionReceipts()).toEqual([]);
+    expect(await adapter.readActiveHistory()).toHaveLength(1);
+    await adapter.close();
+  });
+
+  it('não grava sessão quando o receipt já existe', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    const first = makeSession(2);
+    await adapter.appendSessionWithCompletionReceipt(first, await makeReceipt(first, generationId));
+    const manifestAfterFirst = await adapter.readGenerationManifest(generationId);
+
+    const second = makeSession(3);
+    await expect(adapter.appendSessionWithCompletionReceipt(
+      second,
+      await makeReceipt(second, generationId, { receiptId: 'receipt-session-2' }),
+    )).rejects.toBeInstanceOf(CompletionReceiptIntegrityError);
+
+    expect((await adapter.readActiveHistory()).map((item) => item.id))
+      .toEqual(['session-2', 'session-1']);
+    expect(await adapter.readGenerationManifest(generationId)).toEqual(manifestAfterFirst);
+    expect(await adapter.readPendingCompletionReceipts()).toHaveLength(1);
+    await adapter.close();
+  });
+
+  it('recusa receipt malformado ou de outra sessão antes de gravar', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    const session = makeSession(2);
+
+    await expect(adapter.appendSessionWithCompletionReceipt(
+      session,
+      { receiptId: 'r' } as unknown as WorkoutCompletionReceipt,
+    )).rejects.toBeInstanceOf(CompletionReceiptIntegrityError);
+
+    await expect(adapter.appendSessionWithCompletionReceipt(
+      session,
+      await makeReceipt(makeSession(9), generationId),
+    )).rejects.toBeInstanceOf(CompletionReceiptIntegrityError);
+
+    expect(await adapter.readActiveHistory()).toHaveLength(1);
+    expect(await adapter.readPendingCompletionReceipts()).toEqual([]);
+    await adapter.close();
+  });
+
+  it('lista receipts pendentes em ordem de criação e ignora os concluídos', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([]);
+    const first = makeSession(1);
+    const second = makeSession(2);
+    await adapter.appendSessionWithCompletionReceipt(
+      first,
+      await makeReceipt(first, generationId, { createdAt: '2026-07-23T12:00:00.000Z' }),
+    );
+    await adapter.appendSessionWithCompletionReceipt(
+      second,
+      await makeReceipt(second, generationId, { createdAt: '2026-07-23T13:00:00.000Z' }),
+    );
+
+    expect((await adapter.readPendingCompletionReceipts()).map((r) => r.receiptId))
+      .toEqual(['receipt-session-1', 'receipt-session-2']);
+
+    expect(await adapter.settleCompletionReceipt('receipt-session-1')).toBe(true);
+    expect((await adapter.readPendingCompletionReceipts()).map((r) => r.receiptId))
+      .toEqual(['receipt-session-2']);
+    await adapter.close();
+  });
+
+  it('liquida receipts de forma idempotente e informa receipt inexistente', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([]);
+    const session = makeSession(1);
+    await adapter.appendSessionWithCompletionReceipt(session, await makeReceipt(session, generationId));
+
+    expect(await adapter.settleCompletionReceipt('receipt-session-1')).toBe(true);
+    expect(await adapter.settleCompletionReceipt('receipt-session-1')).toBe(true);
+    expect(await adapter.readPendingCompletionReceipts()).toEqual([]);
+    expect(await adapter.settleCompletionReceipt('receipt-inexistente')).toBe(false);
+
+    const stored = await adapter.readCompletionReceiptForSession('session-1');
+    expect(stored).toMatchObject({ status: 'completed' });
+    expect(stored?.settledAt).toBe('2026-07-22T15:00:00.000Z');
+    expect(await adapter.readCompletionReceiptForSession('session-9')).toBeNull();
     await adapter.close();
   });
 });

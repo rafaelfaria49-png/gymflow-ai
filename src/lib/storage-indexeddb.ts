@@ -5,6 +5,10 @@ import type {
   WorkoutHistoryStorageAdapter,
 } from './storage-adapter';
 import {
+  type WorkoutCompletionReceipt,
+  isWorkoutCompletionReceipt,
+} from './storage-completion-receipt';
+import {
   type HistoryGenerationManifest,
   type HistoryGenerationSnapshot,
   chainGenerationDigest,
@@ -17,9 +21,10 @@ import {
 } from './storage-history-integrity';
 
 export const GYMFLOW_INDEXEDDB_NAME = 'gymflow-persistence';
-// v2 adiciona os stores de manifest e de receipts da conclusão. O upgrade é
-// idempotente e preserva todos os stores e registros já existentes.
-export const GYMFLOW_INDEXEDDB_VERSION = 2;
+// v2 adicionou o manifest por geração; v3 adiciona os receipts duráveis da
+// finalização. O upgrade é idempotente e preserva todos os stores e registros
+// já existentes — cada store novo só é criado quando ainda não existe.
+export const GYMFLOW_INDEXEDDB_VERSION = 3;
 
 // Versão lógica do schema de histórico exposta em metadata e no core físico v2.
 // Continua 1: nenhum formato observável pelo envelope mudou.
@@ -29,9 +34,11 @@ export const WORKOUT_HISTORY_STORE = 'workoutHistory';
 export const METADATA_STORE = 'metadata';
 export const LEGACY_SNAPSHOTS_STORE = 'legacySnapshots';
 export const GENERATION_MANIFESTS_STORE = 'generationManifests';
+export const COMPLETION_RECEIPTS_STORE = 'completionReceipts';
 
 const BY_GENERATION_INDEX = 'byGeneration';
 const BY_GENERATION_SESSION_INDEX = 'byGenerationSession';
+const BY_RECEIPT_STATUS_INDEX = 'byStatus';
 const LEGACY_SNAPSHOT_ID = 'v1-rollback';
 const INTERNAL_NEXT_ORDER_PREFIX = 'generationNextOrder:';
 
@@ -107,6 +114,13 @@ export class HistoryManifestIntegrityError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'HistoryManifestIntegrityError';
+  }
+}
+
+export class CompletionReceiptIntegrityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CompletionReceiptIntegrityError';
   }
 }
 
@@ -216,6 +230,14 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
       // vez de virarem histórico vazio.
       if (!database.objectStoreNames.contains(GENERATION_MANIFESTS_STORE)) {
         database.createObjectStore(GENERATION_MANIFESTS_STORE, { keyPath: 'generationId' });
+      }
+
+      // v3: receipts duráveis da finalização, também sem tocar nos registros.
+      if (!database.objectStoreNames.contains(COMPLETION_RECEIPTS_STORE)) {
+        const receiptStore = database.createObjectStore(COMPLETION_RECEIPTS_STORE, {
+          keyPath: 'receiptId',
+        });
+        receiptStore.createIndex(BY_RECEIPT_STATUS_INDEX, 'status', { unique: false });
       }
     };
 
@@ -447,6 +469,98 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
   // orderedDigest entram na mesma transação.
   async appendSession(session: WorkoutSession): Promise<void> {
     await this.commitAppend(session);
+  }
+
+  // Sessão, manifest e receipt pendente entram na mesma transação: nunca existe
+  // sessão sem receipt, receipt sem sessão nem manifest atualizado pela metade.
+  async appendSessionWithCompletionReceipt(
+    session: WorkoutSession,
+    receipt: WorkoutCompletionReceipt,
+  ): Promise<void> {
+    if (!isWorkoutCompletionReceipt(receipt)) {
+      throw new CompletionReceiptIntegrityError('O receipt de conclusão está com formato inválido.');
+    }
+    if (receipt.sessionId !== session.id) {
+      throw new CompletionReceiptIntegrityError(
+        `O receipt ${receipt.receiptId} não corresponde à sessão ${session.id}.`,
+      );
+    }
+    await this.commitAppend(
+      session,
+      async (transaction) => {
+        const store = transaction.objectStore(COMPLETION_RECEIPTS_STORE);
+        const existing = await requestResult(store.get(receipt.receiptId)) as unknown;
+        if (existing !== undefined) {
+          throw new CompletionReceiptIntegrityError(
+            `O receipt ${receipt.receiptId} já existe.`,
+          );
+        }
+        await requestResult(store.put(receipt));
+      },
+      [COMPLETION_RECEIPTS_STORE],
+    );
+  }
+
+  async readPendingCompletionReceipts(): Promise<WorkoutCompletionReceipt[]> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(COMPLETION_RECEIPTS_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    const records = await requestResult(
+      transaction.objectStore(COMPLETION_RECEIPTS_STORE)
+        .index(BY_RECEIPT_STATUS_INDEX)
+        .getAll('pending'),
+    ) as unknown[];
+    await completed;
+    return (records as WorkoutCompletionReceipt[])
+      .sort((left, right) => (
+        left.createdAt === right.createdAt
+          ? String(left.receiptId).localeCompare(String(right.receiptId))
+          : String(left.createdAt).localeCompare(String(right.createdAt))
+      ));
+  }
+
+  async readCompletionReceiptForSession(
+    sessionId: string,
+  ): Promise<WorkoutCompletionReceipt | null> {
+    if (!sessionId) throw new Error('A leitura do receipt exige um sessionId.');
+    const database = this.requireDatabase();
+    const transaction = database.transaction(COMPLETION_RECEIPTS_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    const records = await requestResult(
+      transaction.objectStore(COMPLETION_RECEIPTS_STORE).getAll(),
+    ) as unknown[];
+    await completed;
+    const match = (records as WorkoutCompletionReceipt[])
+      .find((candidate) => candidate?.sessionId === sessionId);
+    return match ?? null;
+  }
+
+  async settleCompletionReceipt(receiptId: string): Promise<boolean> {
+    if (!receiptId) throw new Error('A conclusão do receipt exige um receiptId.');
+    const database = this.requireDatabase();
+    const settledAt = this.now().toISOString();
+    const transaction = database.transaction(COMPLETION_RECEIPTS_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+
+    try {
+      const store = transaction.objectStore(COMPLETION_RECEIPTS_STORE);
+      const record = await requestResult(store.get(receiptId)) as WorkoutCompletionReceipt | undefined;
+      if (!record) {
+        await completed;
+        return false;
+      }
+      if (record.status === 'completed') {
+        await completed;
+        return true;
+      }
+      await requestResult(store.put({ ...record, status: 'completed', settledAt }));
+      await completed;
+      return true;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
   }
 
   protected async commitAppend(

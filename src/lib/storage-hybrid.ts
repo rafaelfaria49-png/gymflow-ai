@@ -12,8 +12,15 @@ import {
   checksumLegacySnapshot,
 } from './storage-indexeddb';
 import {
+  type WorkoutCompletionEffects,
+  type WorkoutCompletionReceipt,
+  createWorkoutCompletionReceipt,
+  verifyWorkoutCompletionReceipt,
+} from './storage-completion-receipt';
+import {
   serializeWorkoutHistoryDeterministically,
   verifyHistoryGeneration,
+  workoutSessionsMatch,
 } from './storage-history-integrity';
 import { migrateWorkoutHistoryFromV1 } from './storage-history-migration';
 import { mergePersistedState } from './storage-migrations';
@@ -51,6 +58,9 @@ export type HybridHydrationResult =
       core: PersistedCoreState;
       generationId: string;
       reconciledCompletion: boolean;
+      // Efeitos de receipts pendentes recuperados no boot. Já estão confirmados
+      // no core; faltam apenas as materializações que não pertencem a ele.
+      recoveredCompletions: RecoveredCompletion[];
       physicalVersion: 2;
     }
   | {
@@ -59,8 +69,33 @@ export type HybridHydrationResult =
       physicalVersion: number | null;
     };
 
+export interface RecoveredCompletion {
+  receiptId: string;
+  session: WorkoutSession;
+  effects: WorkoutCompletionEffects;
+}
+
 export type HybridAppendResult =
   | { status: 'appended'; session: WorkoutSession }
+  | { status: 'resumed'; session: WorkoutSession };
+
+export interface HybridCompletionRequest {
+  session: WorkoutSession;
+  // Estado pós-conclusão já derivado pelo helper puro, sem depender de render.
+  state: PersistedState;
+  effects: WorkoutCompletionEffects;
+  receiptId: string;
+}
+
+export type HybridCompletionResult =
+  | {
+      status: 'committed' | 'recovered';
+      receiptId: string;
+      session: WorkoutSession;
+      core: PersistedCoreState;
+      effects: WorkoutCompletionEffects;
+      coreWrite: StorageWriteResult<PersistedCoreState>;
+    }
   | { status: 'resumed'; session: WorkoutSession };
 
 export interface HybridStorageRuntimeOptions {
@@ -75,6 +110,11 @@ export interface HybridStorageRuntime {
   hydrate(): Promise<HybridHydrationResult>;
   saveCore(state: PersistedState): StorageWriteResult<PersistedCoreState>;
   appendSession(session: WorkoutSession): Promise<HybridAppendResult>;
+  commitCompletion(request: HybridCompletionRequest): Promise<HybridCompletionResult>;
+  settleCompletion(receiptId: string): Promise<void>;
+  // Ciclo de vida explícito: cada montagem retém o runtime e só a última
+  // liberação fecha o adapter, depois de drenar operações duráveis pendentes.
+  retain(): void;
   close(): Promise<void>;
 }
 
@@ -619,6 +659,12 @@ class HybridStorageRuntimeImpl implements HybridStorageRuntime {
   private hydrationPromise: Promise<HybridHydrationResult> | null = null;
   private mode: HybridStorageMode = 'blocked';
   private generationId: string | null = null;
+  private retainCount = 0;
+  private readonly pendingOperations = new Set<Promise<unknown>>();
+  // Enquanto a conclusão não é liquidada, este snapshot é a fonte de qualquer
+  // gravação do core — inclusive a de um `pagehide` imediato.
+  private pendingCompletionCore: PersistedCoreState | null = null;
+  private pendingCompletionReceiptId: string | null = null;
 
   constructor(options: HybridStorageRuntimeOptions) {
     this.key = options.key;
@@ -660,12 +706,17 @@ class HybridStorageRuntimeImpl implements HybridStorageRuntime {
         error: 'O core v2 só pode ser salvo depois da hidratação híbrida.',
       };
     }
-    return saveHybridCoreResult(
-      this.key,
-      toPersistedCoreState(state, this.generationId),
-      this.storage,
-      this.now,
-    );
+    // Depois do commit do append e antes da liquidação do receipt, o estado
+    // renderizado ainda é o pré-conclusão. Gravar o snapshot pós-conclusão
+    // impede que um pagehide imediato ressuscite treino ativo, XP, streak,
+    // planejamento, desafios ou conquistas antigos.
+    const core = this.pendingCompletionCore
+      ?? toPersistedCoreState(state, this.generationId);
+    return saveHybridCoreResult(this.key, core, this.storage, this.now);
+  }
+
+  retain(): void {
+    this.retainCount += 1;
   }
 
   async appendSession(session: WorkoutSession): Promise<HybridAppendResult> {
@@ -694,9 +745,189 @@ class HybridStorageRuntimeImpl implements HybridStorageRuntime {
     }
   }
 
+  // Fluxo obrigatório da finalização híbrida: sessão + manifest + receipt numa
+  // transação, `transaction.oncomplete`, gravação verificada do core e só então
+  // os estados React (aplicados pelo chamador).
+  async commitCompletion(request: HybridCompletionRequest): Promise<HybridCompletionResult> {
+    if (this.mode !== 'hybrid-v2' || !this.generationId) {
+      throw new HybridStorageIntegrityError('Conclusão recusada fora do modo híbrido.');
+    }
+    const generationId = this.generationId;
+    return this.track((async (): Promise<HybridCompletionResult> => {
+      await this.adapter.open();
+      const receipt = await createWorkoutCompletionReceipt({
+        receiptId: request.receiptId,
+        generationId,
+        finalSession: request.session,
+        coreEnvelopeAfter: toPersistedCoreState(request.state, generationId),
+        effects: request.effects,
+        createdAt: this.now().toISOString(),
+      });
+
+      let confirmed = receipt;
+      let status: 'committed' | 'recovered' = 'committed';
+      try {
+        await this.adapter.appendSessionWithCompletionReceipt(request.session, receipt);
+      } catch (originalError) {
+        const duplicate = await this.resolveDuplicateCompletion(
+          request.session,
+          generationId,
+          originalError,
+        );
+        if (duplicate.status === 'resumed') return duplicate;
+        confirmed = duplicate.receipt;
+        status = 'recovered';
+      }
+
+      // Sessão e receipt já são duráveis: a partir daqui nada pode ressuscitar
+      // o estado pré-conclusão, nem por autosave nem por pagehide.
+      this.pendingCompletionCore = confirmed.coreEnvelopeAfter;
+      this.pendingCompletionReceiptId = confirmed.receiptId;
+      const coreWrite = saveHybridCoreResult(
+        this.key,
+        confirmed.coreEnvelopeAfter,
+        this.storage,
+        this.now,
+      );
+      return {
+        status,
+        receiptId: confirmed.receiptId,
+        session: confirmed.finalSession,
+        core: confirmed.coreEnvelopeAfter,
+        effects: confirmed.effects,
+        coreWrite,
+      };
+    })());
+  }
+
+  async settleCompletion(receiptId: string): Promise<void> {
+    if (!receiptId) return;
+    await this.track((async () => {
+      await this.adapter.open();
+      await this.adapter.settleCompletionReceipt(receiptId);
+      if (this.pendingCompletionReceiptId === receiptId) {
+        this.pendingCompletionReceiptId = null;
+        this.pendingCompletionCore = null;
+      }
+    })());
+  }
+
   async close(): Promise<void> {
+    this.retainCount = Math.max(0, this.retainCount - 1);
     await this.hydrationPromise?.catch(() => undefined);
+    await this.drainPendingOperations();
+    // Uma segunda montagem (Strict Mode) já retomou o runtime enquanto este
+    // cleanup aguardava: a conexão continua em uso e não pode ser fechada.
+    if (this.retainCount > 0) return;
     await this.adapter.close();
+  }
+
+  private track<T>(operation: Promise<T>): Promise<T> {
+    const tracked = operation.catch(() => undefined);
+    this.pendingOperations.add(tracked);
+    void tracked.finally(() => {
+      this.pendingOperations.delete(tracked);
+    });
+    return operation;
+  }
+
+  private async drainPendingOperations(): Promise<void> {
+    while (this.pendingOperations.size > 0) {
+      await Promise.allSettled([...this.pendingOperations]);
+    }
+  }
+
+  private async resolveDuplicateCompletion(
+    session: WorkoutSession,
+    generationId: string,
+    originalError: unknown,
+  ): Promise<
+    | { status: 'resumed'; session: WorkoutSession }
+    | { status: 'recovered'; receipt: WorkoutCompletionReceipt }
+  > {
+    let existing: WorkoutSession | undefined;
+    try {
+      existing = (await this.adapter.readActiveHistory())
+        .find((candidate) => candidate.id === session.id);
+    } catch {
+      throw originalError;
+    }
+    if (!existing) throw originalError;
+    if (!workoutSessionsMatch(session, existing)) {
+      throw new HybridStorageIntegrityError(
+        `A sessão ${session.id} já existe com conteúdo divergente.`,
+      );
+    }
+
+    const storedReceipt = await this.adapter.readCompletionReceiptForSession(session.id);
+    // Sessão idêntica sem receipt: retomada legada do fluxo 002C.
+    if (!storedReceipt) return { status: 'resumed', session: existing };
+
+    const verification = await verifyWorkoutCompletionReceipt({
+      receipt: storedReceipt,
+      generationId,
+      persistedSession: existing,
+    });
+    if (verification.status === 'invalid') {
+      throw new HybridStorageIntegrityError(verification.message);
+    }
+    return storedReceipt.status === 'pending'
+      ? { status: 'recovered', receipt: storedReceipt }
+      : { status: 'resumed', session: existing };
+  }
+
+  // Protocolo de recuperação: confirma sessão e digest, confirma o manifest da
+  // geração, grava ou confirma o coreEnvelopeAfter e devolve os efeitos que
+  // ainda precisam ser materializados em memória.
+  private async recoverPendingCompletions(
+    core: PersistedCoreState,
+    history: readonly WorkoutSession[],
+    generationId: string,
+  ): Promise<{ core: PersistedCoreState; recovered: RecoveredCompletion[] }> {
+    const receipts = await this.adapter.readPendingCompletionReceipts();
+    if (receipts.length === 0) return { core, recovered: [] };
+
+    let currentCore = core;
+    const recovered: RecoveredCompletion[] = [];
+    for (const receipt of receipts) {
+      const persistedSession = history.find((session) => session.id === receipt.sessionId);
+      const verification = await verifyWorkoutCompletionReceipt({
+        receipt,
+        generationId,
+        persistedSession,
+      });
+      if (verification.status === 'invalid') {
+        throw new HybridStorageIntegrityError(
+          `Receipt de conclusão recusado (${verification.reason}): ${verification.message}`,
+        );
+      }
+      const session = persistedSession as WorkoutSession;
+
+      if (currentCore.activeWorkout?.id === receipt.sessionId) {
+        // O core ainda é o pré-conclusão: o treino ativo residual precisa
+        // corresponder à sessão terminal antes de adotar o snapshot do receipt.
+        if (!isTerminalSession(session) || !terminalSessionMatchesActive(currentCore.activeWorkout, session)) {
+          throw new HybridStorageIntegrityError(
+            `O treino ativo residual diverge da sessão ${receipt.sessionId} confirmada pelo receipt.`,
+          );
+        }
+        const saved = saveHybridCoreResult(
+          this.key,
+          receipt.coreEnvelopeAfter,
+          this.storage,
+          this.now,
+        );
+        if (!saved.ok) {
+          throw new HybridStorageIntegrityError(
+            `O core pós-conclusão do receipt ${receipt.receiptId} não foi persistido: ${saved.error}`,
+          );
+        }
+        currentCore = receipt.coreEnvelopeAfter;
+      }
+      // Caso contrário o core já reflete a conclusão: confirmar e seguir.
+      recovered.push({ receiptId: receipt.receiptId, session, effects: receipt.effects });
+    }
+    return { core: currentCore, recovered };
   }
 
   private async performHydration(): Promise<HybridHydrationResult> {
@@ -792,6 +1023,7 @@ class HybridStorageRuntimeImpl implements HybridStorageRuntime {
         core,
         generationId,
         reconciledCompletion: false,
+        recoveredCompletions: [],
         physicalVersion: HYBRID_STORAGE_VERSION,
       };
     } catch (error) {
@@ -882,6 +1114,7 @@ class HybridStorageRuntimeImpl implements HybridStorageRuntime {
         core,
         generationId,
         reconciledCompletion: false,
+        recoveredCompletions: [],
         physicalVersion: HYBRID_STORAGE_VERSION,
       };
     } catch (error) {
@@ -916,7 +1149,10 @@ class HybridStorageRuntimeImpl implements HybridStorageRuntime {
         );
       }
       const history = await loadVerifiedGeneration(this.adapter, generationId);
-      const reconciled = reconcileResidualActiveWorkout(envelope.data, history);
+      // Receipts pendentes primeiro: o coreEnvelopeAfter é a fonte mais completa
+      // do resultado da conclusão e precede a reconciliação residual do 002C.
+      const recovery = await this.recoverPendingCompletions(envelope.data, history, generationId);
+      const reconciled = reconcileResidualActiveWorkout(recovery.core, history);
       if (reconciled.reconciled) {
         const saved = saveHybridCoreResult(this.key, reconciled.core, this.storage, this.now);
         if (!saved.ok) {
@@ -931,6 +1167,7 @@ class HybridStorageRuntimeImpl implements HybridStorageRuntime {
         core: reconciled.core,
         generationId,
         reconciledCompletion: reconciled.reconciled,
+        recoveredCompletions: recovery.recovered,
         physicalVersion: HYBRID_STORAGE_VERSION,
       };
     } catch (error) {

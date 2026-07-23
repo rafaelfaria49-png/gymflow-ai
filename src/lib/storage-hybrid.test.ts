@@ -9,18 +9,28 @@ import {
   commitHybridWorkoutSession,
   createHybridStorageRuntime,
   parsePhysicalEnvelope,
+  toPersistedCoreState,
 } from './storage-hybrid';
 import {
+  COMPLETION_RECEIPTS_STORE,
   GENERATION_MANIFESTS_STORE,
   GYMFLOW_INDEXEDDB_VERSION,
   IndexedDbWorkoutHistoryStorage,
   METADATA_STORE,
   WORKOUT_HISTORY_STORE,
 } from './storage-indexeddb';
-import { EMPTY_GENERATION_DIGEST } from './storage-history-integrity';
+import {
+  type WorkoutCompletionEffects,
+  createWorkoutCompletionReceipt,
+} from './storage-completion-receipt';
+import {
+  EMPTY_GENERATION_DIGEST,
+  digestWorkoutSession,
+} from './storage-history-integrity';
 import {
   HYBRID_STORAGE_VERSION,
   MONOLITHIC_STORAGE_VERSION,
+  type PersistedCoreState,
   type PersistedState,
   type StorageLike,
 } from './storage-types';
@@ -809,5 +819,468 @@ describe('runtime híbrido v2', () => {
       physicalVersion: 99,
       issue: { kind: 'unsupported-version' },
     });
+  });
+});
+
+function completionEffects(marker: string): WorkoutCompletionEffects {
+  return {
+    xpNotifications: [{ kind: 'xp', text: 'Treino Concluído! +420 kcal gastas', xp: 150 }],
+    communityPost: {
+      id: `post-${marker}`,
+      authorName: 'Rafael Silveira (Demo)',
+      authorAvatar: '🚀',
+      time: 'Agora mesmo',
+      content: 'Treino finalizado!',
+      likes: 0,
+      comments: [],
+      userLiked: false,
+      shares: 0,
+    },
+    unlockedAchievementIds: ['ach_1'],
+    markedDayName: 'Segunda',
+  };
+}
+
+// Estado pós-conclusão: treino ativo e timers limpos, com marcadores que provam
+// que o core gravado veio do snapshot e não de um render intermediário.
+function completionState(session: WorkoutSession): PersistedState {
+  return {
+    ...defaults(),
+    activeWorkout: null,
+    activeWorkoutStartedAt: null,
+    restTimerEndAt: null,
+    restTimerTotalSeconds: null,
+    restTimerLabel: null,
+    favoriteExercises: ['pos-conclusao'],
+    recentlyViewedVideoIds: [session.id],
+  };
+}
+
+function staleStateWithActiveWorkout(session: WorkoutSession): PersistedState {
+  return {
+    ...defaults(),
+    activeWorkout: session,
+    activeWorkoutStartedAt: session.startedAt ?? null,
+    restTimerEndAt: 1_800_000_000_000,
+    restTimerTotalSeconds: 90,
+    restTimerLabel: 'Supino',
+    favoriteExercises: ['pre-conclusao'],
+  };
+}
+
+function activeVersionOf(session: WorkoutSession): WorkoutSession {
+  return {
+    ...session,
+    duration: 0,
+    calories: 0,
+    xpEarned: 0,
+    totalVolume: undefined,
+    prsDetected: undefined,
+    status: 'active',
+    endedAt: undefined,
+    exercises: session.exercises.map((exercise) => {
+      const { entryStatus, ...withoutStatus } = exercise;
+      void entryStatus;
+      return withoutStatus;
+    }),
+  };
+}
+
+function persistedCore(storage: MemoryStorage): PersistedCoreState {
+  const parsed = parsePhysicalEnvelope(storage.getItem(KEY) as string);
+  if (parsed.status !== 'v2') throw new Error('O envelope persistido não é v2.');
+  return parsed.envelope.data;
+}
+
+async function writeRawReceipt(
+  harness: ReturnType<typeof createHarness>,
+  receipt: unknown,
+): Promise<void> {
+  await mutateRawDatabase(
+    harness.factory,
+    harness.name,
+    [COMPLETION_RECEIPTS_STORE],
+    async (transaction) => {
+      await rawRequest(transaction.objectStore(COMPLETION_RECEIPTS_STORE).put(receipt));
+    },
+  );
+}
+
+describe('conclusão híbrida recuperável', () => {
+  async function hydratedHarness(state: Partial<PersistedState> = {}) {
+    const harness = createHarness();
+    harness.storage.setItem(KEY, v1Envelope({ ...defaults(), ...state }));
+    const hydration = await harness.runtime.hydrate();
+    expect(hydration.mode).toBe('hybrid-v2');
+    return harness;
+  }
+
+  it('persiste sessão, receipt e core verificado antes de qualquer callback', async () => {
+    const harness = await hydratedHarness();
+    const session = makeSession(1);
+
+    const result = await harness.runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('1'),
+      receiptId: 'receipt-1',
+    });
+
+    expect(result.status).toBe('committed');
+    if (result.status === 'resumed') throw new Error('esperado commit');
+    expect(result.coreWrite.ok).toBe(true);
+    expect(result.core.activeWorkout).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(result.core, 'workoutHistory')).toBe(false);
+
+    expect((await harness.adapter.readActiveHistory()).map((item) => item.id)).toEqual(['session-1']);
+    expect((await harness.adapter.readPendingCompletionReceipts()).map((item) => item.receiptId))
+      .toEqual(['receipt-1']);
+    expect(await harness.adapter.readGenerationManifest('generation-1'))
+      .toMatchObject({ sessionCount: 1, verified: true });
+
+    const core = persistedCore(harness.storage);
+    expect(core.activeWorkout).toBeNull();
+    expect(core.activeWorkoutStartedAt).toBeNull();
+    expect(core.restTimerEndAt).toBeNull();
+    expect(core.favoriteExercises).toEqual(['pos-conclusao']);
+    await harness.runtime.close();
+  });
+
+  it('um pagehide imediato após o append grava o snapshot pós-conclusão, não o estado antigo', async () => {
+    const harness = await hydratedHarness();
+    const session = makeSession(1);
+    const result = await harness.runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('1'),
+      receiptId: 'receipt-1',
+    });
+    if (result.status === 'resumed') throw new Error('esperado commit');
+
+    // Flush de ciclo de vida com o estado ainda pré-conclusão em memória.
+    const flush = harness.runtime.saveCore(staleStateWithActiveWorkout(session));
+    expect(flush.ok).toBe(true);
+    const core = persistedCore(harness.storage);
+    expect(core.activeWorkout).toBeNull();
+    expect(core.activeWorkoutStartedAt).toBeNull();
+    expect(core.restTimerEndAt).toBeNull();
+    expect(core.favoriteExercises).toEqual(['pos-conclusao']);
+
+    // Depois da liquidação o autosave normal volta a mandar.
+    await harness.runtime.settleCompletion(result.receiptId);
+    expect(harness.runtime.saveCore(completionState(session)).ok).toBe(true);
+    expect(persistedCore(harness.storage).favoriteExercises).toEqual(['pos-conclusao']);
+    await harness.runtime.close();
+  });
+
+  it('recupera kill após append e antes do core gravando o coreEnvelopeAfter', async () => {
+    const terminal = makeSession(1);
+    const active = activeVersionOf(terminal);
+    const harness = await hydratedHarness({
+      activeWorkout: active,
+      activeWorkoutStartedAt: active.startedAt ?? null,
+    });
+    const receipt = await createWorkoutCompletionReceipt({
+      receiptId: 'receipt-1',
+      generationId: 'generation-1',
+      finalSession: terminal,
+      coreEnvelopeAfter: toPersistedCoreState(completionState(terminal), 'generation-1'),
+      effects: completionEffects('1'),
+      createdAt: '2026-07-23T12:30:00.000Z',
+    });
+    // Kill: sessão e receipt duráveis, core ainda com o treino ativo.
+    await harness.adapter.appendSessionWithCompletionReceipt(terminal, receipt);
+    expect(persistedCore(harness.storage).activeWorkout).not.toBeNull();
+    await harness.runtime.close();
+
+    const reloaded = reloadRuntime(harness);
+    const recovered = await reloaded.hydrate();
+    expect(recovered).toMatchObject({
+      mode: 'hybrid-v2',
+      state: { activeWorkout: null, activeWorkoutStartedAt: null, favoriteExercises: ['pos-conclusao'] },
+    });
+    if (recovered.mode !== 'hybrid-v2') throw new Error('esperado hybrid-v2');
+    expect(recovered.state.workoutHistory.map((item) => item.id)).toEqual(['session-1']);
+    expect(recovered.recoveredCompletions).toHaveLength(1);
+    expect(recovered.recoveredCompletions[0]).toMatchObject({ receiptId: 'receipt-1' });
+    expect(recovered.recoveredCompletions[0].effects.communityPost.id).toBe('post-1');
+    expect(persistedCore(harness.storage).favoriteExercises).toEqual(['pos-conclusao']);
+    await reloaded.close();
+  });
+
+  it('recupera kill após o core e antes dos estados React confirmando o core existente', async () => {
+    const harness = await hydratedHarness();
+    const session = makeSession(1);
+    const result = await harness.runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('1'),
+      receiptId: 'receipt-1',
+    });
+    if (result.status === 'resumed') throw new Error('esperado commit');
+    const coreBefore = harness.storage.getItem(KEY);
+    // Kill antes de liquidar o receipt.
+    await harness.runtime.close();
+
+    const reloaded = reloadRuntime(harness);
+    const recovered = await reloaded.hydrate();
+    if (recovered.mode !== 'hybrid-v2') throw new Error('esperado hybrid-v2');
+    expect(recovered.recoveredCompletions).toHaveLength(1);
+    expect(recovered.state.workoutHistory.map((item) => item.id)).toEqual(['session-1']);
+    expect(harness.storage.getItem(KEY)).toBe(coreBefore);
+    await reloaded.close();
+  });
+
+  it('é idempotente em reinícios repetidos com o mesmo receipt', async () => {
+    const harness = await hydratedHarness();
+    const session = makeSession(1);
+    const result = await harness.runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('1'),
+      receiptId: 'receipt-1',
+    });
+    if (result.status === 'resumed') throw new Error('esperado commit');
+    await harness.runtime.close();
+
+    for (let boot = 0; boot < 3; boot += 1) {
+      const reloaded = reloadRuntime(harness);
+      const recovered = await reloaded.hydrate();
+      if (recovered.mode !== 'hybrid-v2') throw new Error('esperado hybrid-v2');
+      expect(recovered.recoveredCompletions).toHaveLength(1);
+      expect(recovered.state.workoutHistory.map((item) => item.id)).toEqual(['session-1']);
+      expect(recovered.state.user).toBeNull();
+      await reloaded.close();
+    }
+
+    // Depois de liquidado, o boot seguinte não repete nada.
+    const settling = reloadRuntime(harness);
+    await settling.hydrate();
+    await settling.settleCompletion('receipt-1');
+    await settling.close();
+
+    const clean = reloadRuntime(harness);
+    const cleanBoot = await clean.hydrate();
+    if (cleanBoot.mode !== 'hybrid-v2') throw new Error('esperado hybrid-v2');
+    expect(cleanBoot.recoveredCompletions).toEqual([]);
+    expect(cleanBoot.state.workoutHistory.map((item) => item.id)).toEqual(['session-1']);
+    await clean.close();
+  });
+
+  it('bloqueia receipt pendente sem sessão na geração', async () => {
+    const harness = await hydratedHarness();
+    await writeRawReceipt(harness, await createWorkoutCompletionReceipt({
+      receiptId: 'receipt-orfao',
+      generationId: 'generation-1',
+      finalSession: makeSession(7),
+      coreEnvelopeAfter: toPersistedCoreState(completionState(makeSession(7)), 'generation-1'),
+      effects: completionEffects('7'),
+      createdAt: '2026-07-23T12:30:00.000Z',
+    }));
+    await harness.runtime.close();
+
+    const reloaded = reloadRuntime(harness);
+    const result = await reloaded.hydrate();
+    expect(result).toMatchObject({ mode: 'blocked', physicalVersion: 2 });
+    if (result.mode === 'blocked') expect(result.issue.message).toContain('session-absent');
+    await reloaded.close();
+  });
+
+  it('bloqueia receipt adulterado no digest', async () => {
+    const harness = await hydratedHarness();
+    const session = makeSession(1);
+    const result = await harness.runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('1'),
+      receiptId: 'receipt-1',
+    });
+    if (result.status === 'resumed') throw new Error('esperado commit');
+    const stored = await harness.adapter.readCompletionReceiptForSession(session.id);
+    await writeRawReceipt(harness, { ...stored, sessionDigest: 'sha256:adulterado' });
+    await harness.runtime.close();
+
+    const reloaded = reloadRuntime(harness);
+    const boot = await reloaded.hydrate();
+    expect(boot).toMatchObject({ mode: 'blocked' });
+    if (boot.mode === 'blocked') expect(boot.issue.message).toContain('receipt-digest-mismatch');
+    await reloaded.close();
+  });
+
+  it('bloqueia receipt cuja sessão persistida diverge', async () => {
+    const harness = await hydratedHarness();
+    const session = makeSession(1);
+    const result = await harness.runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('1'),
+      receiptId: 'receipt-1',
+    });
+    if (result.status === 'resumed') throw new Error('esperado commit');
+    const stored = await harness.adapter.readCompletionReceiptForSession(session.id);
+    const divergent = { ...session, name: 'Outro treino' };
+    await writeRawReceipt(harness, {
+      ...stored,
+      finalSession: divergent,
+      sessionDigest: await digestWorkoutSession(divergent),
+    });
+    await harness.runtime.close();
+
+    const reloaded = reloadRuntime(harness);
+    const boot = await reloaded.hydrate();
+    expect(boot).toMatchObject({ mode: 'blocked' });
+    if (boot.mode === 'blocked') expect(boot.issue.message).toContain('session-divergent');
+    await reloaded.close();
+  });
+
+  it('bloqueia quando o treino ativo residual diverge da sessão do receipt', async () => {
+    const terminal = makeSession(1);
+    const harness = await hydratedHarness({
+      activeWorkout: activeVersionOf(makeSession(1, { name: 'Outro conteúdo' })),
+      activeWorkoutStartedAt: terminal.startedAt ?? null,
+    });
+    await harness.adapter.appendSessionWithCompletionReceipt(terminal, await createWorkoutCompletionReceipt({
+      receiptId: 'receipt-1',
+      generationId: 'generation-1',
+      finalSession: terminal,
+      coreEnvelopeAfter: toPersistedCoreState(completionState(terminal), 'generation-1'),
+      effects: completionEffects('1'),
+      createdAt: '2026-07-23T12:30:00.000Z',
+    }));
+    await harness.runtime.close();
+
+    const reloaded = reloadRuntime(harness);
+    await expect(reloaded.hydrate()).resolves.toMatchObject({ mode: 'blocked' });
+    await reloaded.close();
+  });
+
+  it('trata duplicidade: conteúdo idêntico com receipt pendente vira recuperação', async () => {
+    const harness = await hydratedHarness();
+    const session = makeSession(1);
+    const first = await harness.runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('1'),
+      receiptId: 'receipt-1',
+    });
+    if (first.status === 'resumed') throw new Error('esperado commit');
+
+    const second = await harness.runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('nova-tentativa'),
+      receiptId: 'receipt-2',
+    });
+    expect(second.status).toBe('recovered');
+    if (second.status === 'resumed') throw new Error('esperado recovered');
+    // O receipt durável original é a fonte, não a nova tentativa.
+    expect(second.receiptId).toBe('receipt-1');
+    expect(second.effects.communityPost.id).toBe('post-1');
+    expect((await harness.adapter.readPendingCompletionReceipts()).map((item) => item.receiptId))
+      .toEqual(['receipt-1']);
+    expect(await harness.adapter.count()).toBe(1);
+    await harness.runtime.close();
+  });
+
+  it('trata duplicidade: conteúdo idêntico com receipt concluído vira retomada', async () => {
+    const harness = await hydratedHarness();
+    const session = makeSession(1);
+    const first = await harness.runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('1'),
+      receiptId: 'receipt-1',
+    });
+    if (first.status === 'resumed') throw new Error('esperado commit');
+    await harness.runtime.settleCompletion('receipt-1');
+
+    const second = await harness.runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('nova-tentativa'),
+      receiptId: 'receipt-2',
+    });
+    expect(second.status).toBe('resumed');
+    expect(await harness.adapter.count()).toBe(1);
+    await harness.runtime.close();
+  });
+
+  it('trata duplicidade: conteúdo divergente bloqueia por integridade', async () => {
+    const harness = await hydratedHarness();
+    const session = makeSession(1);
+    const first = await harness.runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('1'),
+      receiptId: 'receipt-1',
+    });
+    if (first.status === 'resumed') throw new Error('esperado commit');
+
+    const divergent = makeSession(1, { name: 'Outro conteúdo' });
+    await expect(harness.runtime.commitCompletion({
+      session: divergent,
+      state: completionState(divergent),
+      effects: completionEffects('divergente'),
+      receiptId: 'receipt-2',
+    })).rejects.toBeInstanceOf(HybridStorageIntegrityError);
+    expect(await harness.adapter.count()).toBe(1);
+    await harness.runtime.close();
+  });
+
+  it('recusa conclusão fora do modo híbrido', async () => {
+    const { storage, runtime } = createHarness();
+    storage.setItem(KEY, '{inválido');
+    expect((await runtime.hydrate()).mode).toBe('blocked');
+    const session = makeSession(1);
+    await expect(runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('1'),
+      receiptId: 'receipt-1',
+    })).rejects.toBeInstanceOf(HybridStorageIntegrityError);
+    await runtime.close();
+  });
+
+  it('close aguarda a operação durável pendente antes de fechar o adapter', async () => {
+    const harness = await hydratedHarness();
+    const session = makeSession(1);
+    const order: string[] = [];
+    const closeSpy = vi.spyOn(harness.adapter, 'close')
+      .mockImplementation(async () => { order.push('close'); });
+
+    const commit = harness.runtime.commitCompletion({
+      session,
+      state: completionState(session),
+      effects: completionEffects('1'),
+      receiptId: 'receipt-1',
+    }).then((result) => {
+      order.push('commit');
+      return result;
+    });
+    const closing = harness.runtime.close();
+    const [result] = await Promise.all([commit, closing]);
+
+    expect(order).toEqual(['commit', 'close']);
+    expect(result.status).toBe('committed');
+    closeSpy.mockRestore();
+    expect((await harness.adapter.readActiveHistory()).map((item) => item.id)).toEqual(['session-1']);
+    expect((await harness.adapter.readPendingCompletionReceipts()).map((item) => item.receiptId))
+      .toEqual(['receipt-1']);
+    await harness.adapter.close();
+  });
+
+  it('cleanup da primeira montagem não fecha adapter retido pela segunda', async () => {
+    const harness = await hydratedHarness();
+    const closeSpy = vi.spyOn(harness.adapter, 'close');
+
+    harness.runtime.retain();
+    const firstCleanup = harness.runtime.close();
+    harness.runtime.retain();
+    await firstCleanup;
+    expect(closeSpy).not.toHaveBeenCalled();
+
+    await harness.runtime.close();
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+    closeSpy.mockRestore();
   });
 });
