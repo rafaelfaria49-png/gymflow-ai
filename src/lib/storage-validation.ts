@@ -1,6 +1,8 @@
 import {
   CURRENT_STORAGE_VERSION,
+  HYBRID_STORAGE_VERSION,
   type EnvelopeParseResult,
+  type PersistedCoreState,
   type PersistedState,
   type StorageEnvelope,
 } from './storage-types';
@@ -62,6 +64,30 @@ export function validateEnvelope<T>(
   if (value.v !== CURRENT_STORAGE_VERSION) return false;
   if (typeof value.savedAt !== 'string' || Number.isNaN(Date.parse(value.savedAt))) return false;
   return validateData(value.data);
+}
+
+export function validatePersistedCoreStateShape(value: unknown): value is PersistedCoreState {
+  if (!isRecord(value) || 'workoutHistory' in value) return false;
+  const reference = value.historyStorage;
+  if (
+    !isRecord(reference)
+    || reference.backend !== 'indexeddb'
+    || reference.schemaVersion !== 1
+    || typeof reference.generationId !== 'string'
+    || reference.generationId.length === 0
+  ) {
+    return false;
+  }
+  return validatePersistedStateShape({ ...value, workoutHistory: [] });
+}
+
+export function validateHybridEnvelope(
+  value: unknown,
+): value is StorageEnvelope<PersistedCoreState> {
+  if (!isRecord(value)) return false;
+  if (value.v !== HYBRID_STORAGE_VERSION) return false;
+  if (typeof value.savedAt !== 'string' || Number.isNaN(Date.parse(value.savedAt))) return false;
+  return validatePersistedCoreStateShape(value.data);
 }
 
 export function parseEnvelope<T>(

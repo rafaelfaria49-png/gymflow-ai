@@ -8,7 +8,13 @@ import type {
   WorkoutSession,
 } from '../types';
 
-export const CURRENT_STORAGE_VERSION = 1 as const;
+export const MONOLITHIC_STORAGE_VERSION = 1 as const;
+export const HYBRID_STORAGE_VERSION = 2 as const;
+export const EXTERNAL_BACKUP_FORMAT_VERSION = 1 as const;
+
+// Compatibilidade das APIs monolíticas existentes. O runtime híbrido usa
+// HYBRID_STORAGE_VERSION explicitamente e não muda o formato externo de backup.
+export const CURRENT_STORAGE_VERSION = MONOLITHIC_STORAGE_VERSION;
 
 export interface PersistedState {
   user: UserProfile | null;
@@ -28,6 +34,16 @@ export interface PersistedState {
   favoriteExercises: string[];
   recentlyViewedVideoIds: string[];
 }
+
+export interface HistoryStorageReference {
+  backend: 'indexeddb';
+  schemaVersion: 1;
+  generationId: string;
+}
+
+export type PersistedCoreState = Omit<PersistedState, 'workoutHistory'> & {
+  historyStorage: HistoryStorageReference;
+};
 
 export interface StorageEnvelope<T> {
   v: number;
@@ -93,9 +109,9 @@ export interface StorageHealth {
 
 export interface GymFlowBackupFile<T> {
   format: 'gymflow-backup';
-  formatVersion: 1;
+  formatVersion: typeof EXTERNAL_BACKUP_FORMAT_VERSION;
   exportedAt: string;
-  appStorageVersion: 1;
+  appStorageVersion: typeof MONOLITHIC_STORAGE_VERSION;
   envelope: StorageEnvelope<T>;
 }
 

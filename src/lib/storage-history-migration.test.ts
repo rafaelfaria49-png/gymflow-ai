@@ -110,6 +110,7 @@ function overrideAdapter(
     replaceHistory: (history) => adapter.replaceHistory(history),
     prepareHistoryGeneration: (history) => adapter.prepareHistoryGeneration(history),
     readHistoryGeneration: (generationId) => adapter.readHistoryGeneration(generationId),
+    hasHistoryGeneration: (generationId) => adapter.hasHistoryGeneration(generationId),
     activateHistoryGeneration: (generationId) => adapter.activateHistoryGeneration(generationId),
     appendSession: (session) => adapter.appendSession(session),
     updateSession: (session) => adapter.updateSession(session),

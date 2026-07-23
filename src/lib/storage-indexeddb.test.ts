@@ -293,6 +293,8 @@ describe('fundação IndexedDB do workoutHistory', () => {
       activeGeneration: active,
       migrationGeneration: prepared,
     });
+    expect(await adapter.hasHistoryGeneration(prepared)).toBe(true);
+    expect(await adapter.hasHistoryGeneration('generation-inexistente')).toBe(false);
     expect((await adapter.readActiveHistory()).map((session) => session.id)).toEqual(['session-1']);
     await adapter.close();
   });

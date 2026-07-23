@@ -26,6 +26,7 @@ export interface WorkoutHistoryStorageAdapter {
   replaceHistory(history: readonly WorkoutSession[]): Promise<string>;
   prepareHistoryGeneration(history: readonly WorkoutSession[]): Promise<string>;
   readHistoryGeneration(generationId: string): Promise<WorkoutSession[]>;
+  hasHistoryGeneration(generationId: string): Promise<boolean>;
   activateHistoryGeneration(generationId: string): Promise<void>;
   appendSession(session: WorkoutSession): Promise<void>;
   updateSession(session: WorkoutSession): Promise<boolean>;

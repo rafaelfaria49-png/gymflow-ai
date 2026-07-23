@@ -345,6 +345,19 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
       .map((record) => record.session);
   }
 
+  async hasHistoryGeneration(generationId: string): Promise<boolean> {
+    if (!generationId) return false;
+    const database = this.requireDatabase();
+    const transaction = database.transaction(METADATA_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    const marker = await this.readMetadataValue<number>(
+      transaction,
+      `${INTERNAL_NEXT_ORDER_PREFIX}${generationId}`,
+    );
+    await completed;
+    return marker !== undefined;
+  }
+
   async activateHistoryGeneration(generationId: string): Promise<void> {
     if (!generationId) throw new Error('A ativação exige um generationId.');
     const database = this.requireDatabase();
