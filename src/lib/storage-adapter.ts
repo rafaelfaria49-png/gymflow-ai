@@ -4,6 +4,7 @@ export type HistoryMigrationStatus = 'not-started' | 'in-progress' | 'completed'
 
 export interface HistoryStorageMetadata {
   activeGeneration: string | null;
+  migrationGeneration: string | null;
   schemaVersion: number;
   migrationStatus: HistoryMigrationStatus;
   migratedAt: string | null;
@@ -23,6 +24,9 @@ export interface WorkoutHistoryStorageAdapter {
   isAvailable(): Promise<boolean>;
   readActiveHistory(): Promise<WorkoutSession[]>;
   replaceHistory(history: readonly WorkoutSession[]): Promise<string>;
+  prepareHistoryGeneration(history: readonly WorkoutSession[]): Promise<string>;
+  readHistoryGeneration(generationId: string): Promise<WorkoutSession[]>;
+  activateHistoryGeneration(generationId: string): Promise<void>;
   appendSession(session: WorkoutSession): Promise<void>;
   updateSession(session: WorkoutSession): Promise<boolean>;
   deleteSession(sessionId: string): Promise<boolean>;

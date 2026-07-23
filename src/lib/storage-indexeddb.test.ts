@@ -178,6 +178,7 @@ describe('fundação IndexedDB do workoutHistory', () => {
     ]);
     expect(await adapter.readMetadata()).toEqual({
       activeGeneration: null,
+      migrationGeneration: null,
       schemaVersion: 1,
       migrationStatus: 'not-started',
       migratedAt: null,
@@ -275,6 +276,101 @@ describe('fundação IndexedDB do workoutHistory', () => {
     await adapter.close();
   });
 
+  it('prepara geração inativa e permite leitura específica na ordem original', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const active = await adapter.replaceHistory([makeSession(1)]);
+    const history = [
+      makeSession(8, { id: 'z', date: '2020-01-01' }),
+      makeSession(2, { id: 'a', date: '2030-01-01' }),
+      makeSession(5, { id: 'm', date: '2025-01-01' }),
+    ];
+
+    const prepared = await adapter.prepareHistoryGeneration(history);
+    expect(prepared).toBe('generation-2');
+    expect(await adapter.readHistoryGeneration(prepared)).toEqual(history);
+    expect((await adapter.readMetadata())).toMatchObject({
+      activeGeneration: active,
+      migrationGeneration: prepared,
+    });
+    expect((await adapter.readActiveHistory()).map((session) => session.id)).toEqual(['session-1']);
+    await adapter.close();
+  });
+
+  it('ativa somente geração previamente preparada sem apagar a anterior', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const previous = await adapter.replaceHistory([makeSession(1), makeSession(2)]);
+    const prepared = await adapter.prepareHistoryGeneration([makeSession(3)]);
+
+    await adapter.activateHistoryGeneration(prepared);
+    expect((await adapter.readMetadata()).activeGeneration).toBe(prepared);
+    expect((await adapter.readActiveHistory()).map((session) => session.id)).toEqual(['session-3']);
+    expect((await adapter.readHistoryGeneration(previous)).map((session) => session.id))
+      .toEqual(['session-1', 'session-2']);
+    await adapter.close();
+  });
+
+  it('aceita staging e ativação de histórico vazio', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    const prepared = await adapter.prepareHistoryGeneration([]);
+
+    expect(await adapter.readHistoryGeneration(prepared)).toEqual([]);
+    expect((await adapter.readActiveHistory()).map((session) => session.id)).toEqual(['session-1']);
+    await adapter.activateHistoryGeneration(prepared);
+    expect(await adapter.readActiveHistory()).toEqual([]);
+    await adapter.close();
+  });
+
+  it('rejeita ativação de geração que não foi preparada', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+
+    await expect(adapter.activateHistoryGeneration('generation-inexistente'))
+      .rejects.toThrow('depois de preparada');
+    expect((await adapter.readMetadata()).activeGeneration).toBe('generation-1');
+    await adapter.close();
+  });
+
+  it('aborta staging duplicado sem estado parcial nem troca da geração ativa', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const active = await adapter.replaceHistory([makeSession(1)]);
+
+    await expect(adapter.prepareHistoryGeneration([
+      makeSession(2, { id: 'duplicada' }),
+      makeSession(3, { id: 'duplicada' }),
+    ])).rejects.toBeTruthy();
+
+    expect(await adapter.readHistoryGeneration('generation-2')).toEqual([]);
+    expect(await adapter.readMetadata()).toMatchObject({
+      activeGeneration: active,
+      migrationGeneration: null,
+    });
+    await adapter.close();
+  });
+
+  it('aborta staging com structured clone inválido sem registros parciais', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const active = await adapter.replaceHistory([makeSession(1)]);
+    const invalid = {
+      ...makeSession(3),
+      unsupportedValue: () => 'não clonável',
+    } as unknown as WorkoutSession;
+
+    await expect(adapter.prepareHistoryGeneration([makeSession(2), invalid])).rejects.toBeTruthy();
+    expect(await adapter.readHistoryGeneration('generation-2')).toEqual([]);
+    expect(await adapter.readMetadata()).toMatchObject({
+      activeGeneration: active,
+      migrationGeneration: null,
+    });
+    await adapter.close();
+  });
+
   it('adiciona sessão incrementalmente no início lógico do histórico atual', async () => {
     const { adapter } = createHarness();
     await adapter.open();
@@ -336,6 +432,7 @@ describe('fundação IndexedDB do workoutHistory', () => {
     });
     expect(await adapter.readMetadata()).toEqual({
       activeGeneration: null,
+      migrationGeneration: null,
       schemaVersion: 1,
       migrationStatus: 'completed',
       migratedAt: '2026-07-22T14:30:00.000Z',
@@ -483,6 +580,26 @@ describe('fundação IndexedDB do workoutHistory', () => {
     expect(await adapter.clearInactiveGeneration(first)).toBe(0);
     await expect(adapter.clearInactiveGeneration(active)).rejects.toThrow('geração ativa');
     expect((await adapter.readActiveHistory()).map((session) => session.id)).toEqual(['session-3']);
+    expect(await adapter.readLegacySnapshot()).toMatchObject({
+      raw: 'snapshot-preservado',
+      verified: true,
+    });
+    await adapter.close();
+  });
+
+  it('descarta geração preparada inválida sem tocar na ativa ou no snapshot', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.saveLegacySnapshot('snapshot-preservado');
+    const active = await adapter.replaceHistory([makeSession(1)]);
+    const prepared = await adapter.prepareHistoryGeneration([makeSession(2), makeSession(3)]);
+
+    expect(await adapter.clearInactiveGeneration(prepared)).toBe(2);
+    expect(await adapter.readMetadata()).toMatchObject({
+      activeGeneration: active,
+      migrationGeneration: null,
+    });
+    expect((await adapter.readActiveHistory()).map((session) => session.id)).toEqual(['session-1']);
     expect(await adapter.readLegacySnapshot()).toMatchObject({
       raw: 'snapshot-preservado',
       verified: true,

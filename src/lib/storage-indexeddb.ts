@@ -19,6 +19,7 @@ const INTERNAL_NEXT_ORDER_PREFIX = 'generationNextOrder:';
 
 const METADATA_DEFAULTS: HistoryStorageMetadata = {
   activeGeneration: null,
+  migrationGeneration: null,
   schemaVersion: GYMFLOW_INDEXEDDB_VERSION,
   migrationStatus: 'not-started',
   migratedAt: null,
@@ -270,6 +271,103 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
     }
   }
 
+  async prepareHistoryGeneration(history: readonly WorkoutSession[]): Promise<string> {
+    for (const session of history) assertSessionIdentity(session);
+
+    const database = this.requireDatabase();
+    const generationId = this.generationIdFactory();
+    if (!generationId) throw new Error('A geração precisa de um id estável.');
+
+    const transaction = database.transaction([WORKOUT_HISTORY_STORE, METADATA_STORE], 'readwrite');
+    const completed = transactionResult(transaction);
+    const historyStore = transaction.objectStore(WORKOUT_HISTORY_STORE);
+    const metadataStore = transaction.objectStore(METADATA_STORE);
+    const writes: Promise<unknown>[] = [];
+
+    try {
+      const [activeGeneration, migrationGeneration, existingMarker, existingRecords] = await Promise.all([
+        this.readMetadataValue<string | null>(transaction, 'activeGeneration'),
+        this.readMetadataValue<string | null>(transaction, 'migrationGeneration'),
+        this.readMetadataValue<number>(transaction, `${INTERNAL_NEXT_ORDER_PREFIX}${generationId}`),
+        requestResult(historyStore.index(BY_GENERATION_INDEX).count(generationId)),
+      ]);
+      if (generationId === activeGeneration) {
+        throw new Error('A geração preparada precisa ser diferente da geração ativa.');
+      }
+      if (generationId === migrationGeneration || existingMarker !== undefined || existingRecords > 0) {
+        throw new Error(`A geração ${generationId} já existe.`);
+      }
+
+      history.forEach((session, order) => {
+        writes.push(requestResult(historyStore.add({
+          sessionId: session.id,
+          generationId,
+          order,
+          session,
+        } satisfies HistoryRecord)));
+      });
+      writes.push(requestResult(metadataStore.put({
+        key: `${INTERNAL_NEXT_ORDER_PREFIX}${generationId}`,
+        value: -1,
+      } satisfies MetadataRecord)));
+      writes.push(requestResult(metadataStore.put({
+        key: 'migrationGeneration',
+        value: generationId,
+      } satisfies MetadataRecord)));
+
+      await Promise.all(writes);
+      await completed;
+      return generationId;
+    } catch (error) {
+      abortQuietly(transaction);
+      await Promise.allSettled(writes);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async readHistoryGeneration(generationId: string): Promise<WorkoutSession[]> {
+    if (!generationId) throw new Error('A leitura exige um generationId.');
+    const database = this.requireDatabase();
+    const transaction = database.transaction(WORKOUT_HISTORY_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    const records = await requestResult(
+      transaction.objectStore(WORKOUT_HISTORY_STORE)
+        .index(BY_GENERATION_INDEX)
+        .getAll(generationId),
+    ) as HistoryRecord[];
+    await completed;
+    return records
+      .sort((left, right) => left.order - right.order)
+      .map((record) => record.session);
+  }
+
+  async activateHistoryGeneration(generationId: string): Promise<void> {
+    if (!generationId) throw new Error('A ativação exige um generationId.');
+    const database = this.requireDatabase();
+    const transaction = database.transaction(METADATA_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+
+    try {
+      const [migrationGeneration, marker] = await Promise.all([
+        this.readMetadataValue<string | null>(transaction, 'migrationGeneration'),
+        this.readMetadataValue<number>(transaction, `${INTERNAL_NEXT_ORDER_PREFIX}${generationId}`),
+      ]);
+      if (migrationGeneration !== generationId || marker === undefined) {
+        throw new Error('A geração só pode ser ativada depois de preparada.');
+      }
+      await requestResult(transaction.objectStore(METADATA_STORE).put({
+        key: 'activeGeneration',
+        value: generationId,
+      } satisfies MetadataRecord));
+      await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
   async appendSession(session: WorkoutSession): Promise<void> {
     assertSessionIdentity(session);
     const database = this.requireDatabase();
@@ -475,7 +573,10 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
     const completed = transactionResult(transaction);
 
     try {
-      const activeGeneration = await this.readMetadataValue<string | null>(transaction, 'activeGeneration');
+      const [activeGeneration, migrationGeneration] = await Promise.all([
+        this.readMetadataValue<string | null>(transaction, 'activeGeneration'),
+        this.readMetadataValue<string | null>(transaction, 'migrationGeneration'),
+      ]);
       if (generationId === activeGeneration) {
         throw new Error('A geração ativa nunca pode ser removida.');
       }
@@ -487,6 +588,12 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
       await requestResult(transaction.objectStore(METADATA_STORE).delete(
         `${INTERNAL_NEXT_ORDER_PREFIX}${generationId}`,
       ));
+      if (migrationGeneration === generationId) {
+        await requestResult(transaction.objectStore(METADATA_STORE).put({
+          key: 'migrationGeneration',
+          value: null,
+        } satisfies MetadataRecord));
+      }
       await completed;
       return keys.length;
     } catch (error) {
