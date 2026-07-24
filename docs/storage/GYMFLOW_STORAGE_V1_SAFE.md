@@ -421,6 +421,113 @@ As guardas do Context não mudaram: `restoreStorageBackup`, `startFreshStorage` 
 chamados diretamente. A correção alinha apresentação e capacidade; ela não
 substitui a defesa em profundidade.
 
+## Fundação administrativa do IndexedDB (GOAL-17B-002D-A1)
+
+O banco interno passou para a **versão física 4**, criando apenas o store
+`storageOperationReceipts` (`keyPath: operationId`, índices `byStatus`, `byKind`
+e `byUpdatedAt`). O upgrade é estritamente aditivo e idempotente: nenhuma sessão
+é percorrida ou regravada, e `workoutHistory`, `metadata`, `legacySnapshots`,
+`generationManifests` e `completionReceipts` ficam byte a byte iguais. O
+`schemaVersion` lógico continua **1** e o envelope físico v2 não muda.
+
+Este slice entrega **somente fundação interna**: nenhuma primitiva tem call site
+real, nada é exposto à UI, nada é chamado no boot ou no Provider. Exportação
+formato v2, importação, restauração, reset e downgrade continuam **não
+implementados** e bloqueados.
+
+### Receipt administrativo separado
+
+`StorageOperationReceipt` (em `storage-operation-receipt.ts`) descreve operações
+de `import`, `restore`, `reset` e `rollback`. Ele **não** compartilha store,
+status nem validador com o `WorkoutCompletionReceipt`:
+
+| Campo | Papel |
+| --- | --- |
+| `operationId` | chave primária da operação |
+| `kind` | `import`, `restore`, `reset` ou `rollback` |
+| `sourceDigest` | digest da origem externa; `null` em reset e rollback |
+| `previousCoreRaw` | core v2 serializado antes da operação (nunca vazio) |
+| `previousGenerationId` | geração ativa antes da operação |
+| `stagedGenerationId` | geração preparada, quando já existe |
+| `targetCoreRaw` | core v2 pretendido, quando já resolvido |
+| `status` | `staged`, `activating`, `activated`, `settled` ou `reverted` |
+
+Transições válidas — `settled` e `reverted` são terminais:
+
+```
+staged → activating → activated → settled
+staged | activating | activated → reverted
+```
+
+`transitionStorageOperationReceipt` é **compare-and-swap**: lê e grava na mesma
+transação, exige o `expectedStatus`, recusa registro ausente, status divergente e
+transição não declarada, valida o registro final antes do commit e carimba
+`updatedAt`. O patch só alcança `sourceDigest`, `stagedGenerationId` e
+`targetCoreRaw` — identidade, origem e `createdAt` são imutáveis.
+
+O isolamento é físico e estrutural: os stores são diferentes, o status `pending`
+da conclusão não existe no contrato administrativo, e um registro que carregue
+`receiptId`, `finalSession` ou `sessionDigest` é recusado como receipt
+administrativo. `readPendingCompletionReceipts` nunca vê operação administrativa;
+`listUnsettledStorageOperationReceipts` nunca vê conclusão de treino.
+
+A listagem varre o store inteiro em vez de consultar o índice `byStatus`: um
+registro com status ausente ou inválido não aparece em índice nenhum, e responder
+"nada em aberto" sobre um store corrompido seria a conclusão perigosa que o
+runtime do 002D-A2 não pode tirar. Qualquer registro malformado interrompe a
+listagem.
+
+### Enumeração de gerações
+
+`listHistoryGenerations()` **não** enumera apenas manifests. Ela une os
+`generationId` encontrados em `workoutHistory`, em `generationManifests`, nos
+marcadores físicos de staging e nos ponteiros `activeGeneration` e
+`migrationGeneration`. É assim que ficam visíveis geração ativa, geração em
+staging, geração vazia válida, registros sem manifest, manifest sem registros e
+geração órfã — em vez de sumirem.
+
+O resumo é diagnóstico: `hasManifest` não prova integridade e `verified` é apenas
+a flag declarada pelo manifest (`null` sem manifest, `false` com manifest
+ilegível). Integridade real exige `readVerifiedHistoryGeneration`. A listagem
+nunca repara, apaga ou ativa nada.
+
+Ordem determinística: ativa, depois staged, depois as demais por
+`updatedAt ?? createdAt` decrescente (sem manifest vai para o fim), com desempate
+por `generationId`.
+
+### Leitura verificada e rollback físico
+
+`readVerifiedHistoryGeneration(generationId)` lê o snapshot físico completo,
+exige presença coerente e manifest, recalcula o digest, chama
+`verifyHistoryGeneration` e devolve as sessões em ordem newest-first. Ela nunca
+fabrica `[]`, nunca aceita manifest ausente, nunca corrige digest e nunca
+reconstrói manifest. Geração vazia só passa com `sessionCount = 0` e
+`orderedDigest = EMPTY_GENERATION_DIGEST`.
+
+`rollbackToHistoryGeneration` verifica a geração alvo por completo **antes** de
+qualquer escrita, abre transação sobre metadata e manifest, relê metadata dentro
+da transação exigindo `activeGeneration === expectedActiveGenerationId`, reconfere
+que o manifest alvo continua idêntico ao verificado e só então move
+`activeGeneration`. Com `clearStagedGenerationId`, `migrationGeneration` precisa
+ser exatamente esse id para ser limpo; sem ele, o ponteiro de staging não é
+tocado. Depois do commit, metadata é relida e o resultado é explícito — inclusive
+`changed: false` quando o alvo já era a geração ativa.
+
+Toda falha é fail-closed e aborta a transação inteira: alvo ausente, alvo sem
+manifest, digest divergente, sessão faltando, ponteiro ativo obsoleto, staged
+divergente e manifest alterado entre a verificação e o commit. Nenhuma delas
+altera metadata, nenhuma apaga geração e nenhuma toca no histórico.
+
+> **Isto não é rollback completo do aplicativo.** A primitiva move apenas o
+> ponteiro físico do IndexedDB. O core v2 no `localStorage` continua apontando
+> para a geração anterior e precisa ser coordenado — essa coordenação é o
+> 002D-A2/C/D. Por isso não há call site real, nem chamada no boot, nem no
+> Provider, nem na UI.
+
+Sem IndexedDB disponível as primitivas administrativas falham explicitamente
+(`IndexedDbUnavailableError` / `IndexedDbNotOpenError`). Não existe fallback
+silencioso em memória e nenhuma geração é fabricada.
+
 ## Recuperação manual
 
 Na seção **Painel administrativo → Dados locais**:

@@ -2070,3 +2070,95 @@ corretamente. Botões mortos deixavam o usuário sem saída acionável.
   Validação em WebView físico continua gate obrigatório.
 
 ---
+
+## GOAL-17B-002D-A1 — fundação administrativa do IndexedDB (2026-07-24)
+
+### Objetivo
+
+Entregar a primeira fundação interna do 002D: upgrade físico para a versão 4,
+store separado para receipts de operações administrativas, enumeração completa de
+gerações, leitura verificada de uma geração e rollback explícito do ponteiro de
+geração ativa. **Sem comportamento visível na interface** e **sem integração ao
+`HybridStorageRuntime`**.
+
+### Antes / depois
+
+| Comportamento | Antes | Depois |
+| --- | --- | --- |
+| Versão física do IndexedDB | 3 | **4** (upgrade aditivo e idempotente) |
+| Receipt administrativo | não existia | store `storageOperationReceipts` isolado |
+| Enumerar gerações | só `readGenerationManifest(id)` pontual | `listHistoryGenerations()` com união de quatro fontes + marcadores |
+| Ler geração arbitrária | `readHistoryGeneration` devolvia `[]` para geração ausente | `readVerifiedHistoryGeneration` falha com razão de integridade |
+| Rollback de geração | inexistente | primitiva física fail-closed com CAS no ponteiro ativo |
+| Ações administrativas reais | bloqueadas | **continuam bloqueadas** (nenhum call site novo) |
+
+### Mudanças
+
+- `storage-operation-receipt.ts` (novo): contrato `StorageOperationReceipt`, os
+  quatro `kind`, os cinco `status`, tabela de transições, validação pura e
+  factory. Recusa registros que carreguem campos do receipt de conclusão.
+- `storage-adapter.ts`: `HistoryGenerationSummary`, `VerifiedHistoryGeneration`,
+  entrada/saída do rollback e a interface `WorkoutHistoryAdministrationAdapter`,
+  separada do contrato de histórico consumido pela migração e pelo runtime.
+- `storage-indexeddb.ts`: versão 4 com `storageOperationReceipts`
+  (`keyPath: operationId`, índices `byStatus`, `byKind`, `byUpdatedAt`); CRUD e
+  compare-and-swap dos receipts administrativos; `listHistoryGenerations`;
+  `readVerifiedHistoryGeneration`; `rollbackToHistoryGeneration`; erros
+  `StorageOperationReceiptIntegrityError`, `StorageOperationTransitionError`,
+  `HistoryGenerationIntegrityError` e `HistoryRollbackConflictError`.
+
+### Correção durante a implementação
+
+A primeira versão de `listUnsettledStorageOperationReceipts` consultava o índice
+`byStatus` pelos três status não terminais. Um teste com registro corrompido
+provou o buraco: **sem status válido o registro não entra em índice nenhum**, e a
+listagem devolvia `[]` — ou seja, "nada em aberto" sobre um store corrompido, que
+é a conclusão mais perigosa possível para o runtime de recuperação do A2. A
+listagem passou a varrer o store inteiro e a interromper em qualquer registro
+malformado.
+
+### Testes
+
+- `storage-operation-receipt.test.ts` (novo): **8 testes** — tipos e status
+  declarados, terminais, matriz completa de transições (25 pares), factory,
+  aprovação de todos os `kind`/`status`, recusa de malformado, exigência de core
+  e geração anteriores, e recusa de campos do receipt de conclusão.
+- `storage-indexeddb.test.ts`: **52 → 88 testes.** Upgrade v3 → v4 preservando
+  byte a byte os cinco stores antigos, receipts de conclusão intactos, upgrade
+  repetido idempotente, store novo vazio; round-trip administrativo, malformado
+  recusado na gravação e na leitura, listagem só de não terminais, transições
+  válidas, CAS divergente, terminal imóvel, isolamento nos dois sentidos e falha
+  explícita sem banco aberto; enumeração de ativa, staged, registros sem
+  manifest, manifest sem registros, vazia válida, órfã, manifest ilegível,
+  ordenação determinística e ausência de mutação; leitura verificada válida,
+  vazia, ausente, sem manifest, digest divergente, contagem divergente e ordem
+  divergente; rollback válido, no-op explícito, staged limpo e preservado, alvo
+  ausente, alvo corrompido, ponteiro obsoleto, staged divergente, manifest
+  alterado antes do commit, e stores intocados em todas as falhas.
+- `storage-completion-receipt.test.ts`: **+1 teste** de regressão — receipt
+  administrativo nunca é lido como receipt de conclusão, e vice-versa.
+
+### Validações
+
+- `npx vitest run`: **41 arquivos, 936 testes** aprovados (892 anteriores + 44
+  novos). Zero falha.
+- `npx tsc --noEmit`: aprovado (0 erros).
+- `npm run build` (web) e `npm run build:mobile`: aprovados.
+- `npx eslint src`: **12 erros + 6 warnings**, idêntico à baseline (TF-F-13);
+  zero ocorrência nova nos arquivos alterados.
+- `git diff --check`: limpo. `package.json` e `package-lock.json` inalterados.
+
+### Continuação
+
+- **GOAL-17B-002D-A2 não iniciado.** A fachada segura do runtime administrativo,
+  a coordenação entre core v2 do `localStorage` e ponteiro do IndexedDB, o
+  owner-token e a concorrência entre abas seguem **não implementados**.
+- **002D-B/C/D/E/F não iniciados.** Exportação formato v2, importação,
+  restauração, reset e downgrade físico continuam **não implementados** e
+  bloqueados em modo híbrido.
+- Nenhuma primitiva desta entrega tem call site real: nada foi exposto à UI,
+  chamado no boot ou no Provider. `rollbackToHistoryGeneration` move apenas o
+  ponteiro físico e **não** é rollback completo do aplicativo.
+- Validação em WebView físico (17B-002A-PHYSICAL) continua gate obrigatório.
+
+---

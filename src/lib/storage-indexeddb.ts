@@ -1,7 +1,12 @@
 import type { WorkoutSession } from '../types';
 import type {
+  HistoryGenerationSummary,
   HistoryStorageMetadata,
   LegacySnapshotRecord,
+  RollbackHistoryGenerationInput,
+  RollbackHistoryGenerationResult,
+  VerifiedHistoryGeneration,
+  WorkoutHistoryAdministrationAdapter,
   WorkoutHistoryStorageAdapter,
 } from './storage-adapter';
 import {
@@ -9,6 +14,7 @@ import {
   isWorkoutCompletionReceipt,
 } from './storage-completion-receipt';
 import {
+  type HistoryGenerationIntegrityReason,
   type HistoryGenerationManifest,
   type HistoryGenerationSnapshot,
   chainGenerationDigest,
@@ -18,13 +24,22 @@ import {
   digestWorkoutSessions,
   isHistoryGenerationManifest,
   sha256Checksum,
+  verifyHistoryGeneration,
 } from './storage-history-integrity';
+import {
+  type StorageOperationReceipt,
+  type StorageOperationReceiptPatch,
+  type StorageOperationStatus,
+  canTransitionStorageOperation,
+  isStorageOperationReceipt,
+} from './storage-operation-receipt';
 
 export const GYMFLOW_INDEXEDDB_NAME = 'gymflow-persistence';
-// v2 adicionou o manifest por geração; v3 adiciona os receipts duráveis da
-// finalização. O upgrade é idempotente e preserva todos os stores e registros
-// já existentes — cada store novo só é criado quando ainda não existe.
-export const GYMFLOW_INDEXEDDB_VERSION = 3;
+// v2 adicionou o manifest por geração; v3 adicionou os receipts duráveis da
+// finalização; v4 adiciona os receipts das operações administrativas. O upgrade
+// é idempotente e preserva todos os stores e registros já existentes — cada
+// store novo só é criado quando ainda não existe.
+export const GYMFLOW_INDEXEDDB_VERSION = 4;
 
 // Versão lógica do schema de histórico exposta em metadata e no core físico v2.
 // Continua 1: nenhum formato observável pelo envelope mudou.
@@ -35,12 +50,23 @@ export const METADATA_STORE = 'metadata';
 export const LEGACY_SNAPSHOTS_STORE = 'legacySnapshots';
 export const GENERATION_MANIFESTS_STORE = 'generationManifests';
 export const COMPLETION_RECEIPTS_STORE = 'completionReceipts';
+export const STORAGE_OPERATION_RECEIPTS_STORE = 'storageOperationReceipts';
 
 const BY_GENERATION_INDEX = 'byGeneration';
 const BY_GENERATION_SESSION_INDEX = 'byGenerationSession';
 const BY_RECEIPT_STATUS_INDEX = 'byStatus';
+const BY_OPERATION_KIND_INDEX = 'byKind';
+const BY_OPERATION_UPDATED_AT_INDEX = 'byUpdatedAt';
 const LEGACY_SNAPSHOT_ID = 'v1-rollback';
 const INTERNAL_NEXT_ORDER_PREFIX = 'generationNextOrder:';
+
+// Status administrativos que ainda podem avançar. `settled` e `reverted` são
+// terminais e nunca aparecem na listagem de operações em aberto.
+const UNSETTLED_OPERATION_STATUSES: readonly StorageOperationStatus[] = [
+  'staged',
+  'activating',
+  'activated',
+];
 
 const METADATA_DEFAULTS: HistoryStorageMetadata = {
   activeGeneration: null,
@@ -124,6 +150,42 @@ export class CompletionReceiptIntegrityError extends Error {
   }
 }
 
+export class StorageOperationReceiptIntegrityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StorageOperationReceiptIntegrityError';
+  }
+}
+
+// Falha de compare-and-swap: registro ausente, status divergente ou transição
+// proibida. Nenhuma delas altera o registro persistido.
+export class StorageOperationTransitionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StorageOperationTransitionError';
+  }
+}
+
+export class HistoryGenerationIntegrityError extends Error {
+  readonly reason: HistoryGenerationIntegrityReason;
+
+  constructor(reason: HistoryGenerationIntegrityReason, message: string) {
+    super(message);
+    this.name = 'HistoryGenerationIntegrityError';
+    this.reason = reason;
+  }
+}
+
+// Falha de pré-condição do rollback físico: ponteiro ativo obsoleto, staging
+// divergente ou manifest alterado entre a verificação e o commit. A transação é
+// abortada inteira, então metadata continua exatamente como estava.
+export class HistoryRollbackConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'HistoryRollbackConflictError';
+  }
+}
+
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -162,6 +224,32 @@ function assertSessionIdentity(session: WorkoutSession): void {
   }
 }
 
+// `undefined` significa "campo não informado no patch"; `null` continua sendo um
+// valor gravável, então o patch consegue voltar um campo para nulo.
+function patchedField<T>(patched: T | undefined, current: T): T {
+  return patched === undefined ? current : patched;
+}
+
+function manifestsMatch(
+  left: HistoryGenerationManifest,
+  right: HistoryGenerationManifest,
+): boolean {
+  return left.generationId === right.generationId
+    && left.sessionCount === right.sessionCount
+    && left.orderedDigest === right.orderedDigest
+    && left.createdAt === right.createdAt
+    && left.updatedAt === right.updatedAt
+    && left.verified === right.verified;
+}
+
+// Ativa primeiro, staged depois, o resto por tempo. A ordem é diagnóstica: ela
+// não diz nada sobre integridade.
+function generationOrderRank(summary: HistoryGenerationSummary): number {
+  if (summary.isActive) return 0;
+  if (summary.isStaged) return 1;
+  return 2;
+}
+
 export async function checksumLegacySnapshot(
   raw: string,
   subtleCrypto: SubtleCrypto | null | undefined = globalThis.crypto?.subtle,
@@ -170,7 +258,8 @@ export async function checksumLegacySnapshot(
   return sha256Checksum(raw, subtleCrypto);
 }
 
-export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdapter {
+export class IndexedDbWorkoutHistoryStorage
+implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
   private readonly factory: IDBFactory | undefined;
   private readonly databaseName: string;
   private readonly generationIdFactory: () => string;
@@ -238,6 +327,19 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
           keyPath: 'receiptId',
         });
         receiptStore.createIndex(BY_RECEIPT_STATUS_INDEX, 'status', { unique: false });
+      }
+
+      // v4: receipts das operações administrativas, em store próprio. O upgrade
+      // é estritamente aditivo: nenhuma sessão é percorrida ou regravada,
+      // metadata, manifests, completionReceipts e legacySnapshots ficam byte a
+      // byte iguais e o schemaVersion lógico continua o mesmo.
+      if (!database.objectStoreNames.contains(STORAGE_OPERATION_RECEIPTS_STORE)) {
+        const operationStore = database.createObjectStore(STORAGE_OPERATION_RECEIPTS_STORE, {
+          keyPath: 'operationId',
+        });
+        operationStore.createIndex(BY_RECEIPT_STATUS_INDEX, 'status', { unique: false });
+        operationStore.createIndex(BY_OPERATION_KIND_INDEX, 'kind', { unique: false });
+        operationStore.createIndex(BY_OPERATION_UPDATED_AT_INDEX, 'updatedAt', { unique: false });
       }
     };
 
@@ -870,6 +972,343 @@ export class IndexedDbWorkoutHistoryStorage implements WorkoutHistoryStorageAdap
       await completed.catch(() => undefined);
       throw error;
     }
+  }
+
+  // ==========================================================================
+  // Primitivas administrativas — GOAL-17B-002D-A1.
+  //
+  // Fundação interna: nenhuma delas tem call site real no aplicativo, nenhuma é
+  // exposta à UI e nenhuma é chamada no boot. Todas exigem o banco aberto — sem
+  // IndexedDB elas falham explicitamente, sem fallback em memória e sem
+  // fabricar geração. A coordenação com o core v2 do localStorage fica no
+  // 002D-A2/C/D.
+  // ==========================================================================
+
+  async putStorageOperationReceipt(receipt: StorageOperationReceipt): Promise<void> {
+    if (!isStorageOperationReceipt(receipt)) {
+      throw new StorageOperationReceiptIntegrityError(
+        'O receipt de operação administrativa está com formato inválido.',
+      );
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(STORAGE_OPERATION_RECEIPTS_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+
+    try {
+      await requestResult(transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE).put(receipt));
+      await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async readStorageOperationReceipt(operationId: string): Promise<StorageOperationReceipt | null> {
+    if (!operationId) throw new Error('A leitura do receipt administrativo exige um operationId.');
+    const database = this.requireDatabase();
+    const transaction = database.transaction(STORAGE_OPERATION_RECEIPTS_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    const record = await requestResult(
+      transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE).get(operationId),
+    ) as unknown;
+    await completed;
+    if (record === undefined || record === null) return null;
+    if (!isStorageOperationReceipt(record)) {
+      throw new StorageOperationReceiptIntegrityError(
+        `O receipt administrativo ${operationId} está com formato inválido.`,
+      );
+    }
+    return record;
+  }
+
+  // Só status não terminais. `settled` e `reverted` ficam de fora por definição.
+  //
+  // A varredura é do store inteiro, e não do índice `byStatus`: um registro com
+  // status ausente ou inválido não aparece em índice nenhum, e devolver "nada em
+  // aberto" sobre um store corrompido é exatamente a conclusão perigosa que o
+  // runtime do 002D-A2 não pode tirar. Qualquer registro malformado interrompe a
+  // listagem.
+  async listUnsettledStorageOperationReceipts(): Promise<StorageOperationReceipt[]> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(STORAGE_OPERATION_RECEIPTS_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    const records = await requestResult(
+      transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE).getAll(),
+    ) as unknown[];
+    await completed;
+
+    const receipts: StorageOperationReceipt[] = [];
+    for (const record of records) {
+      if (!isStorageOperationReceipt(record)) {
+        throw new StorageOperationReceiptIntegrityError(
+          'Existe um receipt administrativo com formato inválido no armazenamento.',
+        );
+      }
+      if (UNSETTLED_OPERATION_STATUSES.includes(record.status)) receipts.push(record);
+    }
+    return receipts.sort((left, right) => (
+      left.createdAt === right.createdAt
+        ? left.operationId.localeCompare(right.operationId)
+        : left.createdAt.localeCompare(right.createdAt)
+    ));
+  }
+
+  // Compare-and-swap: leitura e escrita na mesma transação, `expectedStatus`
+  // obrigatório e validação do registro final antes do commit. Duas transições
+  // concorrentes nunca passam as duas.
+  async transitionStorageOperationReceipt(
+    operationId: string,
+    expectedStatus: StorageOperationStatus,
+    nextStatus: StorageOperationStatus,
+    patch: StorageOperationReceiptPatch = {},
+  ): Promise<StorageOperationReceipt> {
+    if (!operationId) throw new Error('A transição do receipt administrativo exige um operationId.');
+    if (!canTransitionStorageOperation(expectedStatus, nextStatus)) {
+      throw new StorageOperationTransitionError(
+        `A transição ${expectedStatus} → ${nextStatus} não é permitida.`,
+      );
+    }
+    const database = this.requireDatabase();
+    const updatedAt = this.now().toISOString();
+    const transaction = database.transaction(STORAGE_OPERATION_RECEIPTS_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+
+    try {
+      const store = transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE);
+      const record = await requestResult(store.get(operationId)) as unknown;
+      if (record === undefined || record === null) {
+        throw new StorageOperationTransitionError(
+          `O receipt administrativo ${operationId} não existe.`,
+        );
+      }
+      if (!isStorageOperationReceipt(record)) {
+        throw new StorageOperationReceiptIntegrityError(
+          `O receipt administrativo ${operationId} está com formato inválido.`,
+        );
+      }
+      if (record.status !== expectedStatus) {
+        throw new StorageOperationTransitionError(
+          `O receipt ${operationId} está em ${record.status}, e não em ${expectedStatus}.`,
+        );
+      }
+
+      const next: StorageOperationReceipt = {
+        ...record,
+        sourceDigest: patchedField(patch.sourceDigest, record.sourceDigest),
+        stagedGenerationId: patchedField(patch.stagedGenerationId, record.stagedGenerationId),
+        targetCoreRaw: patchedField(patch.targetCoreRaw, record.targetCoreRaw),
+        status: nextStatus,
+        updatedAt,
+      };
+      if (!isStorageOperationReceipt(next)) {
+        throw new StorageOperationReceiptIntegrityError(
+          `A transição deixaria o receipt ${operationId} com formato inválido.`,
+        );
+      }
+
+      await requestResult(store.put(next));
+      await completed;
+      return next;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  // Enumeração diagnóstica: união dos generationIds encontrados nos registros,
+  // nos manifests, nos marcadores físicos de staging e nos dois ponteiros de
+  // metadata. É assim que geração órfã, manifest sem registros e registros sem
+  // manifest ficam visíveis em vez de sumirem. Não repara, não apaga, não ativa.
+  async listHistoryGenerations(): Promise<HistoryGenerationSummary[]> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(
+      [METADATA_STORE, WORKOUT_HISTORY_STORE, GENERATION_MANIFESTS_STORE],
+      'readonly',
+    );
+    const completed = transactionResult(transaction);
+    const [metadataRecords, manifestRecords, historyKeys] = await Promise.all([
+      requestResult(transaction.objectStore(METADATA_STORE).getAll()) as Promise<MetadataRecord[]>,
+      requestResult(
+        transaction.objectStore(GENERATION_MANIFESTS_STORE).getAll(),
+      ) as Promise<unknown[]>,
+      requestResult(transaction.objectStore(WORKOUT_HISTORY_STORE).getAllKeys()),
+    ]);
+    await completed;
+
+    let activeGeneration: string | null = null;
+    let migrationGeneration: string | null = null;
+    const stagedMarkers = new Set<string>();
+    for (const record of metadataRecords) {
+      if (record.key === 'activeGeneration') {
+        activeGeneration = typeof record.value === 'string' ? record.value : null;
+      } else if (record.key === 'migrationGeneration') {
+        migrationGeneration = typeof record.value === 'string' ? record.value : null;
+      } else if (record.key.startsWith(INTERNAL_NEXT_ORDER_PREFIX)) {
+        stagedMarkers.add(record.key.slice(INTERNAL_NEXT_ORDER_PREFIX.length));
+      }
+    }
+
+    // `null` no mapa marca manifest presente porém ilegível: presença é
+    // reportada, integridade não é presumida.
+    const manifests = new Map<string, HistoryGenerationManifest | null>();
+    for (const record of manifestRecords) {
+      const candidate = record as Record<string, unknown> | null;
+      const generationId = typeof candidate?.generationId === 'string' ? candidate.generationId : null;
+      if (!generationId) continue;
+      manifests.set(generationId, isHistoryGenerationManifest(record) ? record : null);
+    }
+
+    const recordCounts = new Map<string, number>();
+    for (const key of historyKeys) {
+      if (!Array.isArray(key) || typeof key[0] !== 'string') continue;
+      recordCounts.set(key[0], (recordCounts.get(key[0]) ?? 0) + 1);
+    }
+
+    const generationIds = new Set<string>([
+      ...recordCounts.keys(),
+      ...manifests.keys(),
+      ...stagedMarkers,
+    ]);
+    if (activeGeneration) generationIds.add(activeGeneration);
+    if (migrationGeneration) generationIds.add(migrationGeneration);
+
+    const summaries = Array.from(generationIds, (generationId): HistoryGenerationSummary => {
+      const hasManifest = manifests.has(generationId);
+      const manifest = manifests.get(generationId) ?? null;
+      const recordCount = recordCounts.get(generationId) ?? 0;
+      return {
+        generationId,
+        isActive: generationId === activeGeneration,
+        isStaged: generationId === migrationGeneration,
+        hasManifest,
+        hasRecords: recordCount > 0,
+        recordCount,
+        manifestSessionCount: manifest ? manifest.sessionCount : null,
+        orderedDigest: manifest ? manifest.orderedDigest : null,
+        verified: hasManifest ? Boolean(manifest?.verified) : null,
+        createdAt: manifest ? manifest.createdAt : null,
+        updatedAt: manifest ? manifest.updatedAt : null,
+      };
+    });
+
+    return summaries.sort((left, right) => {
+      const rankDelta = generationOrderRank(left) - generationOrderRank(right);
+      if (rankDelta !== 0) return rankDelta;
+      const leftTime = left.updatedAt ?? left.createdAt;
+      const rightTime = right.updatedAt ?? right.createdAt;
+      if (leftTime !== rightTime) {
+        if (leftTime === null) return 1;
+        if (rightTime === null) return -1;
+        return rightTime.localeCompare(leftTime);
+      }
+      return left.generationId.localeCompare(right.generationId);
+    });
+  }
+
+  // Leitura verificada: presença física, manifest obrigatório, digest
+  // recalculado e verificação de integridade completa. Nunca devolve `[]` por
+  // ausência, nunca aceita manifest ausente e nunca corrige nada.
+  async readVerifiedHistoryGeneration(generationId: string): Promise<VerifiedHistoryGeneration> {
+    if (!generationId) throw new Error('A leitura verificada exige um generationId.');
+    const snapshot = await this.readHistoryGenerationSnapshot(generationId);
+    const verification = await verifyHistoryGeneration(generationId, snapshot, this.subtleCrypto);
+    if (verification.status !== 'verified') {
+      throw new HistoryGenerationIntegrityError(verification.reason, verification.message);
+    }
+    return {
+      generationId,
+      sessions: verification.sessions,
+      manifest: verification.manifest,
+    };
+  }
+
+  // Rollback físico do ponteiro de geração ativa.
+  //
+  // ATENÇÃO: isto não é o rollback completo do aplicativo. Só o ponteiro do
+  // IndexedDB muda; o core v2 no localStorage continua apontando para a geração
+  // anterior e precisa ser coordenado pelo runtime seguro do 002D-A2/C/D. Não há
+  // call site real desta primitiva.
+  async rollbackToHistoryGeneration(
+    input: RollbackHistoryGenerationInput,
+  ): Promise<RollbackHistoryGenerationResult> {
+    const { targetGenerationId, expectedActiveGenerationId, clearStagedGenerationId } = input;
+    if (!targetGenerationId) throw new Error('O rollback exige um targetGenerationId.');
+    if (!expectedActiveGenerationId) {
+      throw new Error('O rollback exige o expectedActiveGenerationId observado.');
+    }
+
+    // A geração alvo é verificada por completo antes de qualquer escrita: alvo
+    // ausente, sem manifest ou com digest divergente aborta aqui, sem tocar em
+    // metadata.
+    const verified = await this.readVerifiedHistoryGeneration(targetGenerationId);
+    const expectedManifest = verified.manifest;
+
+    const database = this.requireDatabase();
+    const transaction = database.transaction(
+      [METADATA_STORE, GENERATION_MANIFESTS_STORE],
+      'readwrite',
+    );
+    const completed = transactionResult(transaction);
+
+    try {
+      const [activeGeneration, migrationGeneration] = await Promise.all([
+        this.readMetadataValue<string | null>(transaction, 'activeGeneration'),
+        this.readMetadataValue<string | null>(transaction, 'migrationGeneration'),
+      ]);
+      if (activeGeneration !== expectedActiveGenerationId) {
+        throw new HistoryRollbackConflictError(
+          `A geração ativa é ${activeGeneration ?? 'nenhuma'}, e não ${expectedActiveGenerationId}.`,
+        );
+      }
+      if (clearStagedGenerationId !== undefined && migrationGeneration !== clearStagedGenerationId) {
+        throw new HistoryRollbackConflictError(
+          `A geração preparada é ${migrationGeneration ?? 'nenhuma'}, e não ${clearStagedGenerationId}.`,
+        );
+      }
+
+      const manifest = await this.readManifestRecord(transaction, targetGenerationId);
+      if (!manifest || !manifestsMatch(manifest, expectedManifest)) {
+        throw new HistoryRollbackConflictError(
+          `O manifest da geração ${targetGenerationId} mudou entre a verificação e o commit.`,
+        );
+      }
+
+      const metadataStore = transaction.objectStore(METADATA_STORE);
+      await requestResult(metadataStore.put({
+        key: 'activeGeneration',
+        value: targetGenerationId,
+      } satisfies MetadataRecord));
+      if (clearStagedGenerationId !== undefined) {
+        await requestResult(metadataStore.put({
+          key: 'migrationGeneration',
+          value: null,
+        } satisfies MetadataRecord));
+      }
+      await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+
+    const metadata = await this.readMetadata();
+    if (metadata.activeGeneration !== targetGenerationId) {
+      throw new HistoryRollbackConflictError(
+        `A geração ativa não confirmou ${targetGenerationId} após o commit.`,
+      );
+    }
+    return {
+      targetGenerationId,
+      previousActiveGenerationId: expectedActiveGenerationId,
+      clearedStagedGenerationId: clearStagedGenerationId ?? null,
+      sessionCount: expectedManifest.sessionCount,
+      orderedDigest: expectedManifest.orderedDigest,
+      activeGeneration: metadata.activeGeneration,
+      migrationGeneration: metadata.migrationGeneration,
+      changed: expectedActiveGenerationId !== targetGenerationId,
+    };
   }
 
   private requireDatabase(): IDBDatabase {

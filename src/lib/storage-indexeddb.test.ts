@@ -6,23 +6,34 @@ import {
   CompletionReceiptIntegrityError,
   GENERATION_MANIFESTS_STORE,
   GYMFLOW_INDEXEDDB_VERSION,
+  HistoryGenerationIntegrityError,
   HistoryManifestIntegrityError,
+  HistoryRollbackConflictError,
+  IndexedDbNotOpenError,
   IndexedDbUnavailableError,
   IndexedDbWorkoutHistoryStorage,
   LEGACY_SNAPSHOTS_STORE,
   LegacySnapshotCryptoUnavailableError,
   LegacySnapshotIntegrityError,
   METADATA_STORE,
+  STORAGE_OPERATION_RECEIPTS_STORE,
+  StorageOperationReceiptIntegrityError,
+  StorageOperationTransitionError,
   WORKOUT_HISTORY_STORE,
   checksumLegacySnapshot,
 } from './storage-indexeddb';
 import {
   EMPTY_GENERATION_DIGEST,
+  type HistoryGenerationIntegrityReason,
   chainGenerationDigest,
   computeOrderedHistoryDigest,
   digestWorkoutSession,
 } from './storage-history-integrity';
 import type { WorkoutCompletionReceipt } from './storage-completion-receipt';
+import {
+  type StorageOperationReceipt,
+  createStorageOperationReceipt,
+} from './storage-operation-receipt';
 
 let databaseSequence = 0;
 
@@ -156,6 +167,128 @@ async function updateStoredSnapshot(
   database.close();
 }
 
+// Banco físico exatamente como a v3 o criava, já povoado em todos os cinco
+// stores daquela versão. É a base real do teste de upgrade para v4.
+async function createV3Database(factory: IDBFactory, name: string): Promise<void> {
+  const sessions = [
+    makeSession(31, { id: 'session-v3-a' }),
+    makeSession(32, { id: 'session-v3-b' }),
+  ];
+  const orderedDigest = await computeOrderedHistoryDigest(sessions);
+  const digests = await Promise.all(sessions.map((session) => digestWorkoutSession(session)));
+
+  const request = factory.open(name, 3);
+  request.onupgradeneeded = () => {
+    const database = request.result;
+    const historyStore = database.createObjectStore(WORKOUT_HISTORY_STORE, {
+      keyPath: ['generationId', 'order'],
+    });
+    historyStore.createIndex('byGeneration', 'generationId', { unique: false });
+    historyStore.createIndex('byGenerationSession', ['generationId', 'sessionId'], { unique: true });
+    sessions.forEach((session, order) => {
+      historyStore.add({
+        sessionId: session.id,
+        generationId: 'generation-v3',
+        order,
+        session,
+        digest: digests[order],
+      });
+    });
+
+    const metadataStore = database.createObjectStore(METADATA_STORE, { keyPath: 'key' });
+    metadataStore.put({ key: 'activeGeneration', value: 'generation-v3' });
+    metadataStore.put({ key: 'migrationGeneration', value: null });
+    metadataStore.put({ key: 'schemaVersion', value: 1 });
+    metadataStore.put({ key: 'migrationStatus', value: 'completed' });
+    metadataStore.put({ key: 'migratedAt', value: '2026-07-23T10:00:00.000Z' });
+    metadataStore.put({ key: 'sourceStorageVersion', value: 1 });
+    metadataStore.put({ key: 'generationNextOrder:generation-v3', value: -1 });
+
+    const snapshotStore = database.createObjectStore(LEGACY_SNAPSHOTS_STORE, {
+      keyPath: 'snapshotId',
+    });
+    snapshotStore.put({
+      snapshotId: 'v1-rollback',
+      raw: '{"version":1}',
+      checksum: 'sha256:congelado',
+      createdAt: '2026-07-23T10:00:00.000Z',
+      verified: true,
+    });
+
+    const manifestStore = database.createObjectStore(GENERATION_MANIFESTS_STORE, {
+      keyPath: 'generationId',
+    });
+    manifestStore.put({
+      generationId: 'generation-v3',
+      sessionCount: sessions.length,
+      orderedDigest,
+      createdAt: '2026-07-23T10:00:00.000Z',
+      updatedAt: '2026-07-23T10:00:00.000Z',
+      verified: true,
+    });
+
+    const receiptStore = database.createObjectStore(COMPLETION_RECEIPTS_STORE, {
+      keyPath: 'receiptId',
+    });
+    receiptStore.createIndex('byStatus', 'status', { unique: false });
+    receiptStore.add({
+      receiptId: 'receipt-v3-pendente',
+      sessionId: 'session-v3-a',
+      generationId: 'generation-v3',
+      sessionDigest: digests[0],
+      finalSession: sessions[0],
+      coreEnvelopeAfter: makeCoreEnvelope('generation-v3'),
+      effects: {
+        xpNotifications: [{ kind: 'xp', text: 'Treino Concluído!', xp: 150 }],
+        communityPost: {
+          id: 'post-v3',
+          authorName: 'Rafael',
+          authorAvatar: '🚀',
+          time: 'Agora mesmo',
+          content: 'Treino finalizado!',
+          likes: 0,
+          comments: [],
+          userLiked: false,
+          shares: 0,
+        },
+        unlockedAchievementIds: [],
+        markedDayName: 'Segunda',
+      },
+      createdAt: '2026-07-23T11:00:00.000Z',
+      status: 'pending',
+      settledAt: null,
+    });
+  };
+
+  const database = await new Promise<IDBDatabase>((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  database.close();
+}
+
+async function readAllStores(
+  factory: IDBFactory,
+  name: string,
+  version: number,
+): Promise<Record<string, unknown[]>> {
+  const request = factory.open(name, version);
+  const database = await new Promise<IDBDatabase>((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  const storeNames = Array.from(database.objectStoreNames);
+  const transaction = database.transaction(storeNames, 'readonly');
+  const completed = transactionResult(transaction);
+  const entries = await Promise.all(storeNames.map(async (storeName) => [
+    storeName,
+    await requestResult(transaction.objectStore(storeName).getAll()) as unknown[],
+  ] as const));
+  await completed;
+  database.close();
+  return Object.fromEntries(entries);
+}
+
 function createInterceptedSubtleCrypto(
   onDigest: (call: number, digest: ArrayBuffer) => void | ArrayBuffer | Promise<void | ArrayBuffer>,
 ): SubtleCrypto {
@@ -187,8 +320,15 @@ describe('fundação IndexedDB do workoutHistory', () => {
       GENERATION_MANIFESTS_STORE,
       LEGACY_SNAPSHOTS_STORE,
       METADATA_STORE,
+      STORAGE_OPERATION_RECEIPTS_STORE,
       WORKOUT_HISTORY_STORE,
     ]);
+    const operationStore = database.transaction(STORAGE_OPERATION_RECEIPTS_STORE, 'readonly')
+      .objectStore(STORAGE_OPERATION_RECEIPTS_STORE);
+    expect(operationStore.keyPath).toBe('operationId');
+    expect(Array.from(operationStore.indexNames).sort())
+      .toEqual(['byKind', 'byStatus', 'byUpdatedAt']);
+    expect(await adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
     expect(await adapter.readMetadata()).toEqual({
       activeGeneration: null,
       migrationGeneration: null,
@@ -898,6 +1038,87 @@ describe('manifest verificado por geração', () => {
       .toEqual(['session-legada']);
     await adapter.close();
   });
+
+  it('faz upgrade físico de v3 para v4 preservando byte a byte todos os stores antigos', async () => {
+    const factory = new IDBFactory();
+    const name = `gymflow-upgrade-v3-${databaseSequence += 1}`;
+    await createV3Database(factory, name);
+
+    const before = await readAllStores(factory, name, 3);
+    expect(Object.keys(before).sort()).toEqual([
+      COMPLETION_RECEIPTS_STORE,
+      GENERATION_MANIFESTS_STORE,
+      LEGACY_SNAPSHOTS_STORE,
+      METADATA_STORE,
+      WORKOUT_HISTORY_STORE,
+    ].sort());
+
+    const adapter = new IndexedDbWorkoutHistoryStorage({ factory, databaseName: name });
+    await adapter.open();
+
+    const after = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    for (const store of [
+      WORKOUT_HISTORY_STORE,
+      METADATA_STORE,
+      LEGACY_SNAPSHOTS_STORE,
+      GENERATION_MANIFESTS_STORE,
+      COMPLETION_RECEIPTS_STORE,
+    ]) {
+      expect(JSON.stringify(after[store])).toBe(JSON.stringify(before[store]));
+    }
+
+    // Store novo criado vazio; schemaVersion lógico intocado.
+    expect(after[STORAGE_OPERATION_RECEIPTS_STORE]).toEqual([]);
+    expect(await adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
+    expect((await adapter.readMetadata()).schemaVersion).toBe(1);
+    expect((await adapter.readActiveHistory()).map((session) => session.id))
+      .toEqual(['session-v3-a', 'session-v3-b']);
+    await adapter.close();
+  });
+
+  it('mantém os receipts de conclusão intactos e legíveis depois do upgrade v4', async () => {
+    const factory = new IDBFactory();
+    const name = `gymflow-upgrade-v3-receipts-${databaseSequence += 1}`;
+    await createV3Database(factory, name);
+
+    const adapter = new IndexedDbWorkoutHistoryStorage({ factory, databaseName: name });
+    await adapter.open();
+    const pending = await adapter.readPendingCompletionReceipts();
+    expect(pending.map((receipt) => receipt.receiptId)).toEqual(['receipt-v3-pendente']);
+    expect(pending[0].status).toBe('pending');
+    expect((await adapter.readCompletionReceiptForSession('session-v3-a'))?.receiptId)
+      .toBe('receipt-v3-pendente');
+    await adapter.close();
+  });
+
+  it('repete o upgrade v4 de forma idempotente sem recriar nem regravar nada', async () => {
+    const factory = new IDBFactory();
+    const name = `gymflow-upgrade-v4-idempotente-${databaseSequence += 1}`;
+    await createV3Database(factory, name);
+
+    const first = new IndexedDbWorkoutHistoryStorage({ factory, databaseName: name });
+    await first.open();
+    const receipt = createStorageOperationReceipt({
+      operationId: 'operation-upgrade',
+      kind: 'rollback',
+      previousCoreRaw: '{"core":"v3"}',
+      previousGenerationId: 'generation-v3',
+      createdAt: '2026-07-24T12:00:00.000Z',
+    });
+    await first.putStorageOperationReceipt(receipt);
+    const afterFirst = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    await first.close();
+
+    const second = new IndexedDbWorkoutHistoryStorage({ factory, databaseName: name });
+    await second.open();
+    await second.close();
+    await second.open();
+
+    const afterSecond = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    expect(JSON.stringify(afterSecond)).toBe(JSON.stringify(afterFirst));
+    expect(await second.readStorageOperationReceipt('operation-upgrade')).toEqual(receipt);
+    await second.close();
+  });
 });
 
 function makeCoreEnvelope(generationId: string, overrides: Record<string, unknown> = {}) {
@@ -1115,4 +1336,890 @@ describe('benchmark informativo da fundação IndexedDB', () => {
     expect(results).toHaveLength(3);
     await adapter.close();
   }, 30_000);
+});
+
+// ---------------------------------------------------------------------------
+// Fundação administrativa — GOAL-17B-002D-A1.
+// ---------------------------------------------------------------------------
+
+async function withStore<T>(
+  factory: IDBFactory,
+  name: string,
+  storeNames: string | string[],
+  mode: IDBTransactionMode,
+  run: (transaction: IDBTransaction) => Promise<T>,
+): Promise<T> {
+  const database = await openDatabase(factory, name);
+  const transaction = database.transaction(storeNames, mode);
+  const completed = transactionResult(transaction);
+  const result = await run(transaction);
+  await completed;
+  database.close();
+  return result;
+}
+
+function putMetadataRecord(
+  factory: IDBFactory,
+  name: string,
+  key: string,
+  value: unknown,
+): Promise<unknown> {
+  return withStore(factory, name, METADATA_STORE, 'readwrite', (transaction) => (
+    requestResult(transaction.objectStore(METADATA_STORE).put({ key, value }))
+  ));
+}
+
+function putManifestRecord(
+  factory: IDBFactory,
+  name: string,
+  manifest: Record<string, unknown>,
+): Promise<unknown> {
+  return withStore(factory, name, GENERATION_MANIFESTS_STORE, 'readwrite', (transaction) => (
+    requestResult(transaction.objectStore(GENERATION_MANIFESTS_STORE).put(manifest))
+  ));
+}
+
+function deleteManifestRecord(
+  factory: IDBFactory,
+  name: string,
+  generationId: string,
+): Promise<unknown> {
+  return withStore(factory, name, GENERATION_MANIFESTS_STORE, 'readwrite', (transaction) => (
+    requestResult(transaction.objectStore(GENERATION_MANIFESTS_STORE).delete(generationId))
+  ));
+}
+
+function deleteHistoryRecords(
+  factory: IDBFactory,
+  name: string,
+  generationId: string,
+): Promise<void> {
+  return withStore(factory, name, WORKOUT_HISTORY_STORE, 'readwrite', async (transaction) => {
+    const store = transaction.objectStore(WORKOUT_HISTORY_STORE);
+    const keys = await requestResult(store.index('byGeneration').getAllKeys(generationId));
+    await Promise.all(keys.map((key) => requestResult(store.delete(key))));
+  });
+}
+
+function putRawOperationReceipt(
+  factory: IDBFactory,
+  name: string,
+  record: Record<string, unknown>,
+): Promise<unknown> {
+  return withStore(factory, name, STORAGE_OPERATION_RECEIPTS_STORE, 'readwrite', (transaction) => (
+    requestResult(transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE).put(record))
+  ));
+}
+
+function makeOperationReceipt(
+  overrides: Partial<StorageOperationReceipt> = {},
+): StorageOperationReceipt {
+  return {
+    ...createStorageOperationReceipt({
+      operationId: 'operation-1',
+      kind: 'rollback',
+      previousCoreRaw: '{"schemaVersion":1}',
+      previousGenerationId: 'generation-1',
+      createdAt: '2026-07-24T12:00:00.000Z',
+    }),
+    ...overrides,
+  };
+}
+
+// Falha de integridade sempre carrega a classe e a razão: nenhuma delas é
+// aceita apenas pela mensagem.
+async function expectGenerationIntegrityError(
+  promise: Promise<unknown>,
+  reason: HistoryGenerationIntegrityReason,
+): Promise<void> {
+  const error = await promise.then(() => null, (caught: unknown) => caught);
+  expect(error).toBeInstanceOf(HistoryGenerationIntegrityError);
+  expect((error as HistoryGenerationIntegrityError).reason).toBe(reason);
+}
+
+function makeManifestRecord(
+  generationId: string,
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    generationId,
+    sessionCount: 0,
+    orderedDigest: EMPTY_GENERATION_DIGEST,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    verified: true,
+    ...overrides,
+  };
+}
+
+describe('receipts das operações administrativas', () => {
+  it('faz round-trip completo de um receipt válido', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const receipt = makeOperationReceipt({
+      kind: 'import',
+      sourceDigest: 'sha256:origem',
+      stagedGenerationId: 'generation-2',
+      targetCoreRaw: '{"schemaVersion":1,"alvo":true}',
+    });
+
+    await adapter.putStorageOperationReceipt(receipt);
+    expect(await adapter.readStorageOperationReceipt('operation-1')).toEqual(receipt);
+    expect(await adapter.readStorageOperationReceipt('operation-inexistente')).toBeNull();
+    await adapter.close();
+  });
+
+  it('recusa gravar e recusa ler registro malformado', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+
+    await expect(adapter.putStorageOperationReceipt(
+      { ...makeOperationReceipt(), status: 'pending' } as unknown as StorageOperationReceipt,
+    )).rejects.toBeInstanceOf(StorageOperationReceiptIntegrityError);
+    await expect(adapter.putStorageOperationReceipt(
+      { ...makeOperationReceipt(), previousCoreRaw: '' } as unknown as StorageOperationReceipt,
+    )).rejects.toBeInstanceOf(StorageOperationReceiptIntegrityError);
+    expect(await adapter.readStorageOperationReceipt('operation-1')).toBeNull();
+
+    // Registro corrompido fora do adapter nunca vira operação silenciosa.
+    await putRawOperationReceipt(factory, name, { operationId: 'operation-torto', kind: 'import' });
+    await expect(adapter.readStorageOperationReceipt('operation-torto'))
+      .rejects.toBeInstanceOf(StorageOperationReceiptIntegrityError);
+    // Sem status válido o registro não entra em índice nenhum: a listagem
+    // precisa acusar corrupção em vez de responder "nada em aberto".
+    await expect(adapter.listUnsettledStorageOperationReceipts())
+      .rejects.toBeInstanceOf(StorageOperationReceiptIntegrityError);
+
+    await putRawOperationReceipt(factory, name, {
+      ...makeOperationReceipt({ operationId: 'operation-torto' }),
+      previousGenerationId: '',
+    });
+    await expect(adapter.listUnsettledStorageOperationReceipts())
+      .rejects.toBeInstanceOf(StorageOperationReceiptIntegrityError);
+    await adapter.close();
+  });
+
+  it('lista apenas os receipts não terminais, em ordem determinística', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.putStorageOperationReceipt(makeOperationReceipt({
+      operationId: 'operation-b',
+      status: 'staged',
+      createdAt: '2026-07-24T12:00:00.000Z',
+    }));
+    await adapter.putStorageOperationReceipt(makeOperationReceipt({
+      operationId: 'operation-a',
+      status: 'activating',
+      createdAt: '2026-07-24T12:00:00.000Z',
+    }));
+    await adapter.putStorageOperationReceipt(makeOperationReceipt({
+      operationId: 'operation-c',
+      status: 'activated',
+      createdAt: '2026-07-24T11:00:00.000Z',
+    }));
+    await adapter.putStorageOperationReceipt(makeOperationReceipt({
+      operationId: 'operation-liquidada',
+      status: 'settled',
+    }));
+    await adapter.putStorageOperationReceipt(makeOperationReceipt({
+      operationId: 'operation-revertida',
+      status: 'reverted',
+    }));
+
+    expect((await adapter.listUnsettledStorageOperationReceipts()).map((item) => item.operationId))
+      .toEqual(['operation-c', 'operation-a', 'operation-b']);
+    await adapter.close();
+  });
+
+  it('percorre as transições válidas e carimba updatedAt', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.putStorageOperationReceipt(makeOperationReceipt());
+
+    const activating = await adapter.transitionStorageOperationReceipt(
+      'operation-1',
+      'staged',
+      'activating',
+      { stagedGenerationId: 'generation-2', sourceDigest: 'sha256:origem' },
+    );
+    expect(activating).toMatchObject({
+      status: 'activating',
+      stagedGenerationId: 'generation-2',
+      sourceDigest: 'sha256:origem',
+      createdAt: '2026-07-24T12:00:00.000Z',
+      updatedAt: '2026-07-22T15:00:00.000Z',
+    });
+
+    const activated = await adapter.transitionStorageOperationReceipt(
+      'operation-1',
+      'activating',
+      'activated',
+      { targetCoreRaw: '{"schemaVersion":1}' },
+    );
+    expect(activated).toMatchObject({ status: 'activated', targetCoreRaw: '{"schemaVersion":1}' });
+
+    const settled = await adapter.transitionStorageOperationReceipt(
+      'operation-1',
+      'activated',
+      'settled',
+    );
+    expect(settled.status).toBe('settled');
+    expect(await adapter.readStorageOperationReceipt('operation-1')).toEqual(settled);
+    expect(await adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
+    await adapter.close();
+  });
+
+  it('permite reverter a partir de qualquer status não terminal', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    for (const status of ['staged', 'activating', 'activated'] as const) {
+      const operationId = `operation-${status}`;
+      await adapter.putStorageOperationReceipt(makeOperationReceipt({ operationId, status }));
+      const reverted = await adapter.transitionStorageOperationReceipt(
+        operationId,
+        status,
+        'reverted',
+      );
+      expect(reverted.status).toBe('reverted');
+    }
+    expect(await adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
+    await adapter.close();
+  });
+
+  it('recusa compare-and-swap com expectedStatus divergente ou registro ausente', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.putStorageOperationReceipt(makeOperationReceipt());
+
+    await expect(adapter.transitionStorageOperationReceipt(
+      'operation-1',
+      'activating',
+      'activated',
+    )).rejects.toBeInstanceOf(StorageOperationTransitionError);
+    await expect(adapter.transitionStorageOperationReceipt(
+      'operation-ausente',
+      'staged',
+      'activating',
+    )).rejects.toBeInstanceOf(StorageOperationTransitionError);
+
+    // O registro persistido continua exatamente como estava.
+    expect(await adapter.readStorageOperationReceipt('operation-1'))
+      .toEqual(makeOperationReceipt());
+    await adapter.close();
+  });
+
+  it('recusa transição a partir de status terminal e transição não declarada', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.putStorageOperationReceipt(makeOperationReceipt({
+      operationId: 'operation-liquidada',
+      status: 'settled',
+    }));
+    await adapter.putStorageOperationReceipt(makeOperationReceipt({
+      operationId: 'operation-revertida',
+      status: 'reverted',
+    }));
+    await adapter.putStorageOperationReceipt(makeOperationReceipt());
+
+    await expect(adapter.transitionStorageOperationReceipt(
+      'operation-liquidada',
+      'settled',
+      'activated',
+    )).rejects.toBeInstanceOf(StorageOperationTransitionError);
+    await expect(adapter.transitionStorageOperationReceipt(
+      'operation-revertida',
+      'reverted',
+      'activating',
+    )).rejects.toBeInstanceOf(StorageOperationTransitionError);
+    // staged → activated pula uma etapa e não está declarada.
+    await expect(adapter.transitionStorageOperationReceipt(
+      'operation-1',
+      'staged',
+      'activated',
+    )).rejects.toBeInstanceOf(StorageOperationTransitionError);
+
+    expect((await adapter.readStorageOperationReceipt('operation-liquidada'))?.status)
+      .toBe('settled');
+    expect((await adapter.readStorageOperationReceipt('operation-revertida'))?.status)
+      .toBe('reverted');
+    expect((await adapter.readStorageOperationReceipt('operation-1'))?.status).toBe('staged');
+    await adapter.close();
+  });
+
+  // Isolamento físico: os dois receipts vivem em stores diferentes e nenhuma
+  // busca cruza a fronteira.
+  it('não confunde receipt administrativo com receipt de conclusão', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    await adapter.putStorageOperationReceipt(makeOperationReceipt({ status: 'staged' }));
+
+    expect(await adapter.readPendingCompletionReceipts()).toEqual([]);
+    expect(await adapter.readCompletionReceiptForSession('session-1')).toBeNull();
+    expect(await adapter.settleCompletionReceipt('operation-1')).toBe(false);
+    expect((await adapter.readStorageOperationReceipt('operation-1'))?.status).toBe('staged');
+
+    // E o inverso: a conclusão de treino continua invisível para a busca
+    // administrativa.
+    const session = makeSession(2);
+    await adapter.appendSessionWithCompletionReceipt(
+      session,
+      await makeReceipt(session, generationId),
+    );
+    expect((await adapter.readPendingCompletionReceipts()).map((item) => item.receiptId))
+      .toEqual([`receipt-${session.id}`]);
+    expect((await adapter.listUnsettledStorageOperationReceipts()).map((item) => item.operationId))
+      .toEqual(['operation-1']);
+    expect(await adapter.readStorageOperationReceipt(`receipt-${session.id}`)).toBeNull();
+    await adapter.close();
+  });
+
+  it('falha explicitamente quando o banco não está aberto, sem fallback em memória', async () => {
+    const adapter = new IndexedDbWorkoutHistoryStorage({ factory: new IDBFactory() });
+    await expect(adapter.putStorageOperationReceipt(makeOperationReceipt()))
+      .rejects.toBeInstanceOf(IndexedDbNotOpenError);
+    await expect(adapter.readStorageOperationReceipt('operation-1'))
+      .rejects.toBeInstanceOf(IndexedDbNotOpenError);
+    await expect(adapter.listUnsettledStorageOperationReceipts())
+      .rejects.toBeInstanceOf(IndexedDbNotOpenError);
+    await expect(adapter.transitionStorageOperationReceipt('operation-1', 'staged', 'activating'))
+      .rejects.toBeInstanceOf(IndexedDbNotOpenError);
+    await expect(adapter.listHistoryGenerations())
+      .rejects.toBeInstanceOf(IndexedDbNotOpenError);
+    await expect(adapter.readVerifiedHistoryGeneration('generation-1'))
+      .rejects.toBeInstanceOf(IndexedDbNotOpenError);
+    await expect(adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-1',
+      expectedActiveGenerationId: 'generation-2',
+    })).rejects.toBeInstanceOf(IndexedDbNotOpenError);
+  });
+});
+
+describe('enumeração completa das gerações de histórico', () => {
+  it('descreve a geração ativa válida', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1), makeSession(2)]);
+
+    expect(await adapter.listHistoryGenerations()).toEqual([{
+      generationId: 'generation-1',
+      isActive: true,
+      isStaged: false,
+      hasManifest: true,
+      hasRecords: true,
+      recordCount: 2,
+      manifestSessionCount: 2,
+      orderedDigest: await computeOrderedHistoryDigest([makeSession(1), makeSession(2)]),
+      verified: true,
+      createdAt: '2026-07-22T15:00:00.000Z',
+      updatedAt: '2026-07-22T15:00:00.000Z',
+    }]);
+    await adapter.close();
+  });
+
+  it('separa a geração ativa da geração preparada', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await adapter.prepareHistoryGeneration([makeSession(2), makeSession(3)]);
+
+    const generations = await adapter.listHistoryGenerations();
+    expect(generations.map((item) => [item.generationId, item.isActive, item.isStaged])).toEqual([
+      ['generation-1', true, false],
+      ['generation-2', false, true],
+    ]);
+    expect(generations[1]).toMatchObject({
+      hasManifest: true,
+      hasRecords: true,
+      recordCount: 2,
+      manifestSessionCount: 2,
+    });
+    await adapter.close();
+  });
+
+  it('mostra registros sem manifest em vez de escondê-los', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await deleteManifestRecord(factory, name, 'generation-1');
+
+    expect(await adapter.listHistoryGenerations()).toEqual([{
+      generationId: 'generation-1',
+      isActive: true,
+      isStaged: false,
+      hasManifest: false,
+      hasRecords: true,
+      recordCount: 1,
+      manifestSessionCount: null,
+      orderedDigest: null,
+      verified: null,
+      createdAt: null,
+      updatedAt: null,
+    }]);
+    await adapter.close();
+  });
+
+  it('mostra manifest que declara sessões sem nenhum registro físico', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await deleteHistoryRecords(factory, name, 'generation-1');
+
+    const [generation] = await adapter.listHistoryGenerations();
+    expect(generation).toMatchObject({
+      generationId: 'generation-1',
+      hasManifest: true,
+      hasRecords: false,
+      recordCount: 0,
+      manifestSessionCount: 1,
+      verified: true,
+    });
+    await adapter.close();
+  });
+
+  it('distingue geração vazia válida de manifest sem registros', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([]);
+
+    const [generation] = await adapter.listHistoryGenerations();
+    expect(generation).toMatchObject({
+      generationId: 'generation-1',
+      hasManifest: true,
+      hasRecords: false,
+      recordCount: 0,
+      manifestSessionCount: 0,
+      orderedDigest: EMPTY_GENERATION_DIGEST,
+      verified: true,
+    });
+    await adapter.close();
+  });
+
+  it('mostra geração órfã que não é ativa nem preparada', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await adapter.replaceHistory([makeSession(2), makeSession(3)]);
+
+    const generations = await adapter.listHistoryGenerations();
+    expect(generations.map((item) => item.generationId)).toEqual(['generation-2', 'generation-1']);
+    expect(generations[1]).toMatchObject({
+      generationId: 'generation-1',
+      isActive: false,
+      isStaged: false,
+      hasManifest: true,
+      hasRecords: true,
+      recordCount: 1,
+    });
+    await adapter.close();
+  });
+
+  it('ordena por ativa, preparada e tempo, com desempate por generationId', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    await putManifestRecord(factory, name, makeManifestRecord('gen-active', { updatedAt: '2026-01-05T00:00:00.000Z' }));
+    await putManifestRecord(factory, name, makeManifestRecord('gen-staged', { updatedAt: '2026-01-04T00:00:00.000Z' }));
+    await putManifestRecord(factory, name, makeManifestRecord('gen-newer', { updatedAt: '2026-01-03T00:00:00.000Z' }));
+    await putManifestRecord(factory, name, makeManifestRecord('gen-tie-b', { updatedAt: '2026-01-02T00:00:00.000Z' }));
+    await putManifestRecord(factory, name, makeManifestRecord('gen-tie-a', { updatedAt: '2026-01-02T00:00:00.000Z' }));
+    await putManifestRecord(factory, name, makeManifestRecord('gen-older', { updatedAt: '2026-01-01T00:00:00.000Z' }));
+    await putMetadataRecord(factory, name, 'generationNextOrder:gen-marcador', -1);
+    await putMetadataRecord(factory, name, 'activeGeneration', 'gen-active');
+    await putMetadataRecord(factory, name, 'migrationGeneration', 'gen-staged');
+
+    expect((await adapter.listHistoryGenerations()).map((item) => item.generationId)).toEqual([
+      'gen-active',
+      'gen-staged',
+      'gen-newer',
+      'gen-tie-a',
+      'gen-tie-b',
+      'gen-older',
+      'gen-marcador',
+    ]);
+    await adapter.close();
+  });
+
+  it('trata manifest ilegível como presente sem presumir integridade', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await putManifestRecord(factory, name, { generationId: 'generation-1', sessionCount: 'muitas' });
+
+    expect(await adapter.listHistoryGenerations()).toEqual([{
+      generationId: 'generation-1',
+      isActive: true,
+      isStaged: false,
+      hasManifest: true,
+      hasRecords: true,
+      recordCount: 1,
+      manifestSessionCount: null,
+      orderedDigest: null,
+      verified: false,
+      createdAt: null,
+      updatedAt: null,
+    }]);
+    await adapter.close();
+  });
+
+  it('não muta nada durante a listagem', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await adapter.prepareHistoryGeneration([makeSession(2)]);
+    await adapter.putStorageOperationReceipt(makeOperationReceipt());
+
+    const before = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    await adapter.listHistoryGenerations();
+    await adapter.listHistoryGenerations();
+    const after = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    expect(JSON.stringify(after)).toBe(JSON.stringify(before));
+    await adapter.close();
+  });
+});
+
+describe('leitura verificada de uma geração', () => {
+  it('devolve sessões newest-first e o manifest verificado', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const history = [makeSession(3), makeSession(2), makeSession(1)];
+    const generationId = await adapter.replaceHistory(history);
+
+    const verified = await adapter.readVerifiedHistoryGeneration(generationId);
+    expect(verified.generationId).toBe(generationId);
+    expect(verified.sessions.map((session) => session.id))
+      .toEqual(['session-3', 'session-2', 'session-1']);
+    expect(verified.manifest).toEqual(await adapter.readGenerationManifest(generationId));
+    await adapter.close();
+  });
+
+  it('aceita geração vazia apenas com o digest canônico do vazio', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([]);
+
+    const verified = await adapter.readVerifiedHistoryGeneration(generationId);
+    expect(verified.sessions).toEqual([]);
+    expect(verified.manifest.orderedDigest).toBe(EMPTY_GENERATION_DIGEST);
+
+    await putManifestRecord(factory, name, makeManifestRecord(generationId, {
+      orderedDigest: 'sha256:inventado',
+      createdAt: '2026-07-22T15:00:00.000Z',
+      updatedAt: '2026-07-22T15:00:00.000Z',
+    }));
+    await expectGenerationIntegrityError(
+      adapter.readVerifiedHistoryGeneration(generationId),
+      'empty-digest-mismatch',
+    );
+    await adapter.close();
+  });
+
+  it('recusa geração ausente sem fabricar histórico vazio', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+
+    await expectGenerationIntegrityError(
+      adapter.readVerifiedHistoryGeneration('generation-inexistente'),
+      'generation-absent',
+    );
+    await expect(adapter.readVerifiedHistoryGeneration(''))
+      .rejects.toBeInstanceOf(Error);
+    await adapter.close();
+  });
+
+  it('recusa geração sem manifest', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    await deleteManifestRecord(factory, name, generationId);
+
+    await expectGenerationIntegrityError(
+      adapter.readVerifiedHistoryGeneration(generationId),
+      'manifest-absent',
+    );
+    await adapter.close();
+  });
+
+  it('recusa digest divergente sem corrigir o manifest', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1), makeSession(2)]);
+    const manifest = await adapter.readGenerationManifest(generationId);
+    await putManifestRecord(factory, name, {
+      ...manifest,
+      orderedDigest: 'sha256:adulterado',
+    } as Record<string, unknown>);
+
+    await expectGenerationIntegrityError(
+      adapter.readVerifiedHistoryGeneration(generationId),
+      'ordered-digest-mismatch',
+    );
+    expect((await adapter.readGenerationManifest(generationId))?.orderedDigest)
+      .toBe('sha256:adulterado');
+    await adapter.close();
+  });
+
+  it('recusa contagem divergente entre manifest e registros', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    const manifest = await adapter.readGenerationManifest(generationId);
+    await putManifestRecord(factory, name, {
+      ...manifest,
+      sessionCount: 5,
+    } as Record<string, unknown>);
+
+    await expectGenerationIntegrityError(
+      adapter.readVerifiedHistoryGeneration(generationId),
+      'session-count-mismatch',
+    );
+    await adapter.close();
+  });
+
+  it('recusa ordem divergente mesmo com o mesmo conjunto de sessões', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1), makeSession(2)]);
+
+    // Troca as duas posições preservando o digest de cada registro: só a ordem
+    // encadeada muda.
+    await withStore(factory, name, WORKOUT_HISTORY_STORE, 'readwrite', async (transaction) => {
+      const store = transaction.objectStore(WORKOUT_HISTORY_STORE);
+      const records = await requestResult(
+        store.index('byGeneration').getAll(generationId),
+      ) as Record<string, unknown>[];
+      const [first, second] = records.sort(
+        (left, right) => Number(left.order) - Number(right.order),
+      );
+      await Promise.all(records.map((record) => requestResult(
+        store.delete([generationId, Number(record.order)]),
+      )));
+      await requestResult(store.add({ ...second, order: 0 }));
+      await requestResult(store.add({ ...first, order: 1 }));
+    });
+
+    expect((await adapter.readHistoryGeneration(generationId)).map((session) => session.id))
+      .toEqual(['session-2', 'session-1']);
+    await expectGenerationIntegrityError(
+      adapter.readVerifiedHistoryGeneration(generationId),
+      'ordered-digest-mismatch',
+    );
+    await adapter.close();
+  });
+});
+
+describe('rollback físico do ponteiro de geração ativa', () => {
+  async function createRollbackHarness() {
+    const harness = createHarness();
+    await harness.adapter.open();
+    await harness.adapter.replaceHistory([makeSession(1)]);
+    await harness.adapter.replaceHistory([makeSession(2), makeSession(3)]);
+    return harness;
+  }
+
+  it('volta para uma geração anterior válida sem apagar nada', async () => {
+    const { adapter, factory, name } = await createRollbackHarness();
+    const historyBefore = (await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION))[
+      WORKOUT_HISTORY_STORE
+    ];
+
+    const result = await adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-1',
+      expectedActiveGenerationId: 'generation-2',
+    });
+
+    expect(result).toEqual({
+      targetGenerationId: 'generation-1',
+      previousActiveGenerationId: 'generation-2',
+      clearedStagedGenerationId: null,
+      sessionCount: 1,
+      orderedDigest: await computeOrderedHistoryDigest([makeSession(1)]),
+      activeGeneration: 'generation-1',
+      migrationGeneration: null,
+      changed: true,
+    });
+    expect((await adapter.readActiveHistory()).map((session) => session.id))
+      .toEqual(['session-1']);
+
+    // Nenhuma geração apagada e histórico byte a byte igual.
+    expect((await adapter.listHistoryGenerations()).map((item) => item.generationId).sort())
+      .toEqual(['generation-1', 'generation-2']);
+    const historyAfter = (await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION))[
+      WORKOUT_HISTORY_STORE
+    ];
+    expect(JSON.stringify(historyAfter)).toBe(JSON.stringify(historyBefore));
+    await adapter.close();
+  });
+
+  it('trata a própria geração ativa como no-op explícito', async () => {
+    const { adapter, factory, name } = await createRollbackHarness();
+    const before = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+
+    const result = await adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-2',
+      expectedActiveGenerationId: 'generation-2',
+    });
+
+    expect(result).toMatchObject({
+      targetGenerationId: 'generation-2',
+      previousActiveGenerationId: 'generation-2',
+      activeGeneration: 'generation-2',
+      changed: false,
+    });
+    const after = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    expect(JSON.stringify(after)).toBe(JSON.stringify(before));
+    await adapter.close();
+  });
+
+  it('limpa migrationGeneration somente quando o id declarado confere', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await adapter.prepareHistoryGeneration([makeSession(2)]);
+    expect((await adapter.readMetadata()).migrationGeneration).toBe('generation-2');
+
+    const result = await adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-1',
+      expectedActiveGenerationId: 'generation-1',
+      clearStagedGenerationId: 'generation-2',
+    });
+
+    expect(result).toMatchObject({
+      clearedStagedGenerationId: 'generation-2',
+      migrationGeneration: null,
+      changed: false,
+    });
+    expect(await adapter.readMetadata()).toMatchObject({
+      activeGeneration: 'generation-1',
+      migrationGeneration: null,
+    });
+    // A geração que estava preparada continua fisicamente presente.
+    expect((await adapter.listHistoryGenerations()).map((item) => item.generationId).sort())
+      .toEqual(['generation-1', 'generation-2']);
+    await adapter.close();
+  });
+
+  it('não limpa migrationGeneration quando o id não é declarado', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await adapter.prepareHistoryGeneration([makeSession(2)]);
+
+    const result = await adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-1',
+      expectedActiveGenerationId: 'generation-1',
+    });
+
+    expect(result.clearedStagedGenerationId).toBeNull();
+    expect((await adapter.readMetadata()).migrationGeneration).toBe('generation-2');
+    await adapter.close();
+  });
+
+  it('recusa alvo ausente, alvo corrompido, ponteiro obsoleto e staged divergente sem alterar nada', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await adapter.replaceHistory([makeSession(2), makeSession(3)]);
+    await adapter.prepareHistoryGeneration([makeSession(4)]);
+    const before = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+
+    // Alvo ausente.
+    await expectGenerationIntegrityError(adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-inexistente',
+      expectedActiveGenerationId: 'generation-2',
+    }), 'generation-absent');
+
+    // Ponteiro ativo obsoleto.
+    await expect(adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-1',
+      expectedActiveGenerationId: 'generation-obsoleta',
+    })).rejects.toBeInstanceOf(HistoryRollbackConflictError);
+
+    // Staged divergente.
+    await expect(adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-1',
+      expectedActiveGenerationId: 'generation-2',
+      clearStagedGenerationId: 'generation-outra',
+    })).rejects.toBeInstanceOf(HistoryRollbackConflictError);
+
+    const after = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    expect(JSON.stringify(after)).toBe(JSON.stringify(before));
+
+    // Alvo corrompido: manifest removido depois do snapshot de comparação.
+    await deleteManifestRecord(factory, name, 'generation-1');
+    const beforeCorrupted = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    await expectGenerationIntegrityError(adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-1',
+      expectedActiveGenerationId: 'generation-2',
+    }), 'manifest-absent');
+    const afterCorrupted = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    expect(JSON.stringify(afterCorrupted)).toBe(JSON.stringify(beforeCorrupted));
+    expect((await adapter.readMetadata()).activeGeneration).toBe('generation-2');
+    await adapter.close();
+  });
+
+  it('aborta quando o manifest alvo muda entre a verificação e o commit', async () => {
+    const { adapter, factory, name } = await createRollbackHarness();
+    const manifest = await adapter.readGenerationManifest('generation-1');
+    await adapter.close();
+
+    // A interceptação do digest reescreve o manifest exatamente na janela entre
+    // a verificação e a transação de escrita.
+    const racing = new IndexedDbWorkoutHistoryStorage({
+      factory,
+      databaseName: name,
+      subtleCrypto: createInterceptedSubtleCrypto(async (call) => {
+        if (call !== 1) return undefined;
+        await putManifestRecord(factory, name, {
+          ...manifest,
+          updatedAt: '2030-01-01T00:00:00.000Z',
+        } as Record<string, unknown>);
+        return undefined;
+      }),
+    });
+    await racing.open();
+    const before = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+
+    await expect(racing.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-1',
+      expectedActiveGenerationId: 'generation-2',
+    })).rejects.toBeInstanceOf(HistoryRollbackConflictError);
+
+    const after = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    expect(JSON.stringify(after[METADATA_STORE])).toBe(JSON.stringify(before[METADATA_STORE]));
+    expect(JSON.stringify(after[WORKOUT_HISTORY_STORE]))
+      .toBe(JSON.stringify(before[WORKOUT_HISTORY_STORE]));
+    expect((await racing.readMetadata()).activeGeneration).toBe('generation-2');
+    await racing.close();
+  });
+
+  it('não toca em receipts nem no snapshot legado durante o rollback', async () => {
+    const { adapter, factory, name } = await createRollbackHarness();
+    await adapter.saveLegacySnapshot('{"version":1}');
+    const session = makeSession(9);
+    await adapter.appendSessionWithCompletionReceipt(
+      session,
+      await makeReceipt(session, 'generation-2'),
+    );
+    await adapter.putStorageOperationReceipt(makeOperationReceipt());
+    const before = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+
+    await adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-1',
+      expectedActiveGenerationId: 'generation-2',
+    });
+
+    const after = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    for (const store of [
+      COMPLETION_RECEIPTS_STORE,
+      STORAGE_OPERATION_RECEIPTS_STORE,
+      LEGACY_SNAPSHOTS_STORE,
+      WORKOUT_HISTORY_STORE,
+      GENERATION_MANIFESTS_STORE,
+    ]) {
+      expect(JSON.stringify(after[store])).toBe(JSON.stringify(before[store]));
+    }
+    expect((await adapter.readStorageOperationReceipt('operation-1'))?.status).toBe('staged');
+    await adapter.close();
+  });
 });
