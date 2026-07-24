@@ -32,6 +32,7 @@ export const AdminPanel = () => {
     addNewExercise,
     deleteExercise,
     storageHealth,
+    legacyStorageOperationsAllowed,
     applyStorageImport,
     restoreStorageBackup,
     startFreshStorage,
@@ -49,10 +50,18 @@ export const AdminPanel = () => {
 
   const handleResetLocalData = () => {
     setShowResetConfirm(false);
+    if (!legacyStorageOperationsAllowed) {
+      toast.info('Zerar dados será reativado pelo GOAL-17B-002D com suporte ao storage híbrido.');
+      return;
+    }
     startFreshStorage();
   };
 
   const handleExportLocalData = () => {
+    if (!legacyStorageOperationsAllowed) {
+      toast.info('A exportação híbrida será reativada pelo GOAL-17B-002D.');
+      return;
+    }
     const result = createStorageExport(STORAGE_KEY);
     if (!result.ok) {
       toast.error(result.error);
@@ -66,6 +75,10 @@ export const AdminPanel = () => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    if (!legacyStorageOperationsAllowed) {
+      toast.info('A importação híbrida será reativada pelo GOAL-17B-002D.');
+      return;
+    }
     if (file.size > MAX_IMPORT_BYTES) {
       toast.error('Arquivo rejeitado: o limite de importação é 5 MiB.');
       return;
@@ -89,6 +102,11 @@ export const AdminPanel = () => {
 
   const confirmStorageImport = () => {
     if (!pendingImport) return;
+    if (!legacyStorageOperationsAllowed) {
+      setPendingImport(null);
+      toast.info('A importação híbrida será reativada pelo GOAL-17B-002D.');
+      return;
+    }
     const candidate = pendingImport.backup;
     setPendingImport(null);
     applyStorageImport(candidate);
@@ -371,20 +389,22 @@ export const AdminPanel = () => {
           <button
             type="button"
             onClick={handleExportLocalData}
-            className="min-h-[44px] rounded-2xl border border-white/10 bg-white/5 px-3 text-xs font-extrabold text-white hover:bg-white/10"
+            disabled={!legacyStorageOperationsAllowed}
+            className="min-h-[44px] rounded-2xl border border-white/10 bg-white/5 px-3 text-xs font-extrabold text-white enabled:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Download className="mr-1.5 inline h-4 w-4" /> Exportar JSON
           </button>
           <button
             type="button"
             onClick={() => importInputRef.current?.click()}
-            className="min-h-[44px] rounded-2xl border border-gym-accent/25 bg-gym-accent/10 px-3 text-xs font-extrabold text-gym-accent hover:bg-gym-accent/15"
+            disabled={!legacyStorageOperationsAllowed}
+            className="min-h-[44px] rounded-2xl border border-gym-accent/25 bg-gym-accent/10 px-3 text-xs font-extrabold text-gym-accent enabled:hover:bg-gym-accent/15 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Upload className="mr-1.5 inline h-4 w-4" /> Importar JSON
           </button>
           <button
             type="button"
-            disabled={!storageHealth.hasBackup}
+            disabled={!storageHealth.hasBackup || !legacyStorageOperationsAllowed}
             onClick={() => setShowRestoreConfirm(true)}
             className="min-h-[44px] rounded-2xl border border-white/10 bg-white/5 px-3 text-xs font-extrabold text-white enabled:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -394,18 +414,27 @@ export const AdminPanel = () => {
             ref={importInputRef}
             type="file"
             accept="application/json,.json"
+            disabled={!legacyStorageOperationsAllowed}
             className="hidden"
             onChange={handleImportFile}
             aria-label="Selecionar backup JSON do GymFlow"
           />
         </div>
+        {!legacyStorageOperationsAllowed && (
+          <p className="rounded-xl border border-gym-accent/20 bg-gym-accent/5 p-3 text-[10px] leading-relaxed text-gym-accent">
+            Exportação, importação, restauração e “zerar dados” estão temporariamente
+            bloqueados no modo híbrido. O GOAL-17B-002D reativará essas operações com
+            um arquivo lógico que combine core e histórico.
+          </p>
+        )}
         <p className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3 text-[10px] leading-relaxed text-yellow-200/80">
           O arquivo exportado contém dados pessoais de treino. Ele não é enviado a servidor algum;
           guarde-o em local seguro.
         </p>
         <button
           onClick={() => setShowResetConfirm(true)}
-          className="w-full min-h-[44px] py-3 px-4 rounded-2xl text-xs font-extrabold bg-gym-rose/15 border border-gym-rose/25 text-gym-rose hover:bg-gym-rose/25 transition-all"
+          disabled={!legacyStorageOperationsAllowed}
+          className="w-full min-h-[44px] py-3 px-4 rounded-2xl text-xs font-extrabold bg-gym-rose/15 border border-gym-rose/25 text-gym-rose enabled:hover:bg-gym-rose/25 disabled:cursor-not-allowed disabled:opacity-40 transition-all"
         >
           Zerar dados do app
         </button>

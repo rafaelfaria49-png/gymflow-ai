@@ -1,4 +1,11 @@
 import type { WorkoutSession } from '../types';
+import type { WorkoutCompletionReceipt } from './storage-completion-receipt';
+import type {
+  HistoryGenerationManifest,
+  HistoryGenerationSnapshot,
+} from './storage-history-integrity';
+
+export type { HistoryGenerationManifest, HistoryGenerationSnapshot };
 
 export type HistoryMigrationStatus = 'not-started' | 'in-progress' | 'completed' | 'failed';
 
@@ -26,8 +33,18 @@ export interface WorkoutHistoryStorageAdapter {
   replaceHistory(history: readonly WorkoutSession[]): Promise<string>;
   prepareHistoryGeneration(history: readonly WorkoutSession[]): Promise<string>;
   readHistoryGeneration(generationId: string): Promise<WorkoutSession[]>;
+  hasHistoryGeneration(generationId: string): Promise<boolean>;
+  readGenerationManifest(generationId: string): Promise<HistoryGenerationManifest | null>;
+  readHistoryGenerationSnapshot(generationId: string): Promise<HistoryGenerationSnapshot>;
   activateHistoryGeneration(generationId: string): Promise<void>;
   appendSession(session: WorkoutSession): Promise<void>;
+  appendSessionWithCompletionReceipt(
+    session: WorkoutSession,
+    receipt: WorkoutCompletionReceipt,
+  ): Promise<void>;
+  readPendingCompletionReceipts(): Promise<WorkoutCompletionReceipt[]>;
+  readCompletionReceiptForSession(sessionId: string): Promise<WorkoutCompletionReceipt | null>;
+  settleCompletionReceipt(receiptId: string): Promise<boolean>;
   updateSession(session: WorkoutSession): Promise<boolean>;
   deleteSession(sessionId: string): Promise<boolean>;
   count(): Promise<number>;

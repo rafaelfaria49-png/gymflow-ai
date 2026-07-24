@@ -203,6 +203,190 @@ Esta API continua sem consumidor no aplicativo. `gymflow:state:v1` segue como
 fonte de verdade até o GOAL-17B-002C. O GOAL-17B-002D continua responsável por
 import/export e rollback híbridos, e WebView físico permanece gate de rollout.
 
+## Envelope físico híbrido v2 (GOAL-17B-002C)
+
+A chave continua sendo `gymflow:state:v1`, mas agora aceita dois formatos físicos:
+
+- **v1 monolítico:** contém o estado completo e `workoutHistory`; continua legível
+  para migração e é o fallback quando IndexedDB está indisponível antes do
+  cutover.
+- **v2 híbrido:** contém somente o core pequeno e
+  `historyStorage: { backend: 'indexeddb', schemaVersion: 1, generationId }`.
+  `workoutHistory`, listas resumidas e cópias de IDs são proibidos.
+
+O parser v1 rejeita v2 como versão incompatível. Assim um downgrade antigo não
+abre o core como se o usuário tivesse histórico vazio.
+
+No cutover, o raw v1 completo é preservado no snapshot IndexedDB e no backup local
+antes da troca da chave. Metadata `completed`, geração ativa, marcador da geração
+e readback integral são confirmados; depois o v2 é gravado e relido. Qualquer
+falha anterior mantém v1 na chave ou bloqueia autosave sem apagar snapshot,
+backup ou geração.
+
+No boot v2, o Context aguarda core, metadata, geração e histórico antes de marcar
+a hidratação como concluída. O histórico é combinado ao core somente em memória.
+Autosave e eventos de ciclo de vida serializam apenas o core; novas sessões usam
+append incremental e aparecem no início sem ordenação por datas.
+
+A conclusão de treino só aplica XP, streak, planejamento, desafios, postagem,
+limpeza e navegação após o commit do append. Se o aplicativo encerrar entre o
+append e a atualização do core, o próximo boot reconhece a sessão terminal pelo
+`session.id`, confirma o conteúdo e limpa o treino ativo residual sem repetir
+recompensas. ID igual com conteúdo diferente bloqueia por integridade.
+
+Exportação, importação, restauração e reset v1 ficam temporariamente bloqueados
+em modo híbrido. O GOAL-17B-002D permanece responsável pelo formato lógico
+híbrido e rollback completo. Concorrência entre múltiplos escritores permanece
+P2 e validação em WebView físico continua gate obrigatório.
+
+## Manifest verificado por geração (GOAL-17B-002C corretivo)
+
+O banco interno passou para a **versão física 2**. O upgrade é idempotente: cria
+o store `generationManifests` sem tocar em `workoutHistory`, `metadata`,
+`legacySnapshots` nem em nenhum registro existente. A versão lógica exposta em
+`metadata.schemaVersion` e em `historyStorage.schemaVersion` continua **1** — o
+envelope físico v2 e o backup externo versão 1 não mudaram.
+
+Cada geração passou a ter um manifest durável com, no mínimo, `generationId`,
+`sessionCount`, `orderedDigest`, `createdAt` e `verified`. Não é um marcador de
+existência: sem manifest confirmado a geração não é considerada válida.
+
+### Digest ordenado encadeado
+
+`storage-history-integrity.ts` concentra a serialização canônica (antes só
+existia dentro da migração) e o digest determinístico:
+
+- cada sessão tem o digest SHA-256 do próprio conteúdo canônico;
+- o digest da geração encadeia do registro mais antigo para o mais novo, então
+  a ordem física newest-first é parte da identidade;
+- geração vazia tem digest canônico explícito (`gymflow:history-digest:v1:empty`),
+  que nunca colide com um digest calculado;
+- prefixar uma sessão custa **um** passo de encadeamento sobre o digest anterior;
+- `createdAt`, `updatedAt` e `generationId` não entram no digest — datas não são
+  identidade.
+
+O digest detecta registro ausente, registro extra, ordem divergente, conteúdo
+divergente, perda total dos registros e manifest adulterado.
+
+### Escrita atômica
+
+`prepareHistoryGeneration` e `replaceHistory` gravam registros, digest de cada
+registro, manifest confirmado e metadata na mesma transação. O append normal
+grava registro, manifest, contagem e `orderedDigest` juntos — lê apenas o
+manifest e serializa apenas a sessão nova, nunca o histórico inteiro. `update` e
+`delete` recalculam a cadeia completa, por serem operações raras.
+
+Como `crypto.subtle` resolve fora da tarefa da transação IndexedDB, o digest é
+calculado antes de abrir a transação de escrita, e a transação reconfere a base
+(geração ativa, `sessionCount` e `orderedDigest` anteriores) antes de gravar.
+
+### Hidratação
+
+Hidratar v2 exige manifest existente, `verified` verdadeiro, `sessionCount`
+coerente, `orderedDigest` coerente, geração ativa existente e registros
+completos. Geração vazia só é válida com manifest verificado, `sessionCount = 0`
+e o digest vazio canônico. Geração ausente, manifest ausente ou qualquer
+divergência resultam em `blocked` — ausência física **nunca** é convertida em
+`[]`. Gerações criadas antes do manifest (banco na versão física 1) mantêm os
+registros intactos e bloqueiam por `manifest-absent`.
+
+## Receipt transacional da finalização (GOAL-17B-002C corretivo)
+
+O banco interno foi para a **versão física 3**, criando o store
+`completionReceipts` (índice por `status`) — de novo sem tocar em nenhum store ou
+registro existente. Um receipt pendente contém `receiptId`, `sessionId`,
+`generationId`, `sessionDigest`, `finalSession`, `coreEnvelopeAfter`, os efeitos
+não pertencentes ao core, `createdAt` e `status`.
+
+`coreEnvelopeAfter` é o resultado final e determinístico da conclusão, sem
+`workoutHistory`: treino ativo, `activeWorkoutStartedAt` e timers removidos; XP,
+pontos, streak, `lastWorkoutDate`, `weeklyPlan`, desafios e conquistas
+atualizados; demais campos do core preservados. Ele é produzido por
+`deriveWorkoutCompletion` (helper puro em `storage-completion-receipt.ts`), a
+partir dos refs — **nenhum render React participa** da construção do snapshot.
+
+### Fluxo obrigatório
+
+1. construir a `finalSession`;
+2. derivar `coreEnvelopeAfter` e os efeitos, sem aplicar callbacks;
+3. gravar sessão + manifest + receipt pendente **numa única transação**
+   (`appendSessionWithCompletionReceipt`);
+4. aguardar `transaction.oncomplete`;
+5. gravar e reler o `coreEnvelopeAfter` no `localStorage`;
+6. só então atualizar estados React e efeitos visuais;
+7. liquidar o receipt depois do processamento seguro.
+
+Nunca existe sessão sem receipt, receipt sem sessão nem manifest atualizado pela
+metade: a transação inteira aborta.
+
+### Pagehide imediato
+
+Entre o commit do append e a liquidação do receipt, o runtime guarda o snapshot
+pós-conclusão. O autosave normal é **recusado** (`blocked`) nessa janela e o
+ciclo de vida grava esse snapshot por um caminho próprio
+(`flushPendingCompletionCore`). Um `pagehide` imediato não ressuscita treino
+ativo, XP, streak, planejamento, desafios nem conquistas antigas. A gravação não
+depende de render intermediário, de `persistedStateRef` atualizado por efeito, de
+um `pagehide` futuro nem do debounce de 500 ms.
+
+### Falha do core: recuperação só no próximo boot
+
+Se a transação já foi confirmada mas a gravação do `coreEnvelopeAfter` falha, a
+política é conservadora — a montagem atual **não** tenta se recuperar:
+
+1. o receipt permanece pendente e o `pendingCompletionCore` permanece ativo;
+2. `storageHealth` fica em `write-error`/`blocked` e não volta para `ready`
+   nessa montagem, nem mesmo depois de uma gravação posterior bem-sucedida;
+3. o autosave normal fica suspenso: nenhuma edição posterior do usuário é
+   persistida **nem anunciada como salva**;
+4. `pagehide`/`visibilitychange` podem repetir apenas o `pendingCompletionCore`;
+   o sucesso não liquida o receipt nem limpa o estado pendente;
+5. `finishWorkout` recusa uma segunda execução — nenhuma segunda sessão,
+   recompensa ou receipt é criado;
+6. o Provider informa uma única vez que o aplicativo precisa ser reaberto para
+   finalizar a recuperação; não há toast de "salvo" nem de recuperação concluída,
+   e nada é emitido após o unmount.
+
+O boot seguinte localiza o receipt pendente, valida sessão, manifest, digest e
+`coreEnvelopeAfter`, grava ou confirma o core, liquida o receipt, limpa o estado
+pendente, hidrata o Provider e só então marca `storageHealth` como `ready`,
+liberando autosave e nova finalização. XP, streak, planejamento, desafios,
+conquistas e sessão não duplicam; a postagem segue a política já documentada.
+
+### Recuperação após kill
+
+No boot v2, os receipts pendentes são processados antes de liberar o autosave:
+confirma-se a sessão e o `sessionDigest`, confirma-se o manifest da geração,
+grava-se ou confirma-se o `coreEnvelopeAfter`, o core é combinado ao histórico,
+os efeitos fora do core são materializados, o receipt é liquidado e só então
+`hydrated` é definido.
+
+O protocolo é idempotente e cobre kill após o append e antes do core, kill após
+o core e antes dos estados React, kill após os estados React e antes de liquidar
+o receipt, e reinícios repetidos com o mesmo receipt. Receipt sem sessão, sessão
+divergente, treino ativo residual divergente ou receipt adulterado bloqueiam por
+integridade. XP, streak, desafios, conquistas e sessão vivem no core (nunca
+duplicam); a postagem é materializada uma única vez por ciclo do Provider.
+
+Duplicidade da mesma sessão: conteúdo idêntico com receipt concluído é retomada;
+conteúdo divergente ou receipt divergente bloqueiam. Uma nova conclusão enquanto
+há receipt ou core de conclusão pendente é recusada por integridade —
+reprocessar o receipt é atribuição do boot, nunca de uma nova chamada.
+
+### Ciclo de vida e Strict Mode
+
+O Provider mantém `mountedRef` e `pendingFinalizationPromiseRef`. Depois do
+unmount não há `setState`, toast, navegação nem efeito visual; a operação durável
+já iniciada conclui receipt e core normalmente e, se os callbacks não puderem ser
+aplicados, o receipt permanece retomável no próximo boot. O `finally` só mexe em
+refs.
+
+O runtime rastreia operações pendentes e conta retenções: `close()` aguarda a
+hidratação e drena as operações duráveis antes de fechar o adapter, e o cleanup
+da primeira montagem do Strict Mode não fecha uma conexão ainda retida pela
+segunda. Hidratação/cutover e recuperação de receipts acontecem uma única vez por
+runtime; não há listener, append nem conclusão paralela duplicada.
+
 ## Recuperação manual
 
 Na seção **Painel administrativo → Dados locais**:

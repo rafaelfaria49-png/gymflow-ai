@@ -557,3 +557,123 @@ Detalhe por ADR (status · decisão-chave · riscos residuais · validação · 
 - **Ainda desconectada:** 002B não é importada pelo Context. O v1 continua fonte
   de verdade; 002C fará integração e 002D tratará import/export e rollback. O
   aparelho físico permanece gate antes do rollout.
+
+## GOAL-17B-002C — cutover físico v2 e integração do Context (2026-07-23)
+
+- **Versões físicas explícitas:** v1 continua sendo o envelope monolítico legível
+  para migração e fallback; v2 permanece na mesma chave, contém apenas o core e
+  uma referência de geração IndexedDB. O backup externo continua no formato 1.
+- **Uma fonte por modo:** antes do cutover, `legacy-v1` mantém o comportamento
+  atual. Depois do readback v2, `hybrid-v2` grava o core no armazenamento local e
+  usa IndexedDB como fonte exclusiva de `workoutHistory`. Falhas v2 entram em
+  `blocked` e nunca fabricam histórico vazio.
+- **Downgrade falha fechado:** aplicativos que entendem somente v1 recebem
+  `unsupported-version` ao encontrar v2, em vez de interpretar o core sem
+  histórico como um estado válido.
+- **Cutover verificável:** snapshot e backup bruto v1 são confirmados antes da
+  troca da chave. A geração, metadata e readback do histórico são verificados
+  antes do commit e o v2 é relido antes de ativar o modo híbrido.
+- **Finalização durável:** append da sessão e `transaction.oncomplete` precedem
+  histórico em memória, XP, streak, planejamento, desafios, postagem, limpeza e
+  navegação. Duplicidade idêntica reconcilia sem repetir recompensas; divergência
+  bloqueia por integridade.
+- **Janela de kill reconciliada:** se a sessão terminal já estiver no IndexedDB e
+  o core ainda guardar o treino ativo correspondente, o boot limpa apenas o
+  residual e confirma o core sem duplicar efeitos.
+- **Admin temporariamente restrito:** exportação, importação, restauração e reset
+  antigos ficam bloqueados em v2 até o GOAL-17B-002D. O download do raw
+  problemático continua disponível.
+- **Gates de rollout permanecem:** múltiplos escritores continuam P2 e validação
+  em WebView físico continua obrigatória antes de ativação para usuários.
+
+## GOAL-17B-002C corretivo P1-A — manifest verificado por geração (2026-07-23)
+
+- **Manifest, não marcador:** cada geração tem `generationId`, `sessionCount`,
+  `orderedDigest`, `createdAt`, `updatedAt` e `verified` num store próprio
+  (`generationManifests`). Só um manifest confirmado torna a geração válida.
+- **Ausente ≠ vazia:** `readHistoryGenerationSnapshot` devolve presença física,
+  manifest e registros juntos. Geração vazia exige `sessionCount = 0` e o digest
+  vazio canônico; geração ausente bloqueia. `[]` nunca é fabricado.
+- **Digest encadeado do mais antigo para o mais novo:** a ordem newest-first faz
+  parte da identidade e prefixar uma sessão custa um único passo de
+  encadeamento — o append normal não relê nem reserializa o histórico.
+- **Digest fora da transação:** `crypto.subtle` resolve em outra tarefa e
+  desativaria a transação IndexedDB. O digest é calculado antes e a transação de
+  escrita reconfere a base (geração ativa, contagem e digest anteriores).
+- **Serialização canônica centralizada:** saiu da migração para
+  `storage-history-integrity.ts`, então migração, manifest e verificação de
+  hidratação compartilham a mesma definição de "conteúdo idêntico".
+- **Upgrade físico idempotente:** banco na versão 2 apenas cria stores novos.
+  Gerações escritas antes do manifest preservam os registros e bloqueiam por
+  `manifest-absent` em vez de hidratar histórico vazio. `schemaVersion` lógico
+  do metadata e do core v2 continua 1.
+
+## GOAL-17B-002C corretivo P1-B/P1-C — conclusão recuperável e ciclo de vida (2026-07-23)
+
+- **Receipt no lugar de confiança no append:** o append confirmado só provava a
+  sessão. Agora sessão, manifest e receipt pendente entram na mesma transação
+  (`appendSessionWithCompletionReceipt`), e o receipt carrega o resultado final
+  completo da conclusão. Banco interno na versão física 3, upgrade idempotente.
+- **Snapshot puro, não render:** `deriveWorkoutCompletion` deriva XP, level up,
+  streak, dia treinado, conquistas, desafios, postagem e limpeza do treino a
+  partir dos refs, preservando exatamente as regras dos callbacks anteriores. O
+  `coreEnvelopeAfter` sai desse snapshot — nenhum render React participa.
+- **Estados React saem do snapshot persistido:** em vez de reaplicar callbacks
+  (`addXp`/`unlockAchievement`/`addPost`) depois do commit, o Provider aplica o
+  core já gravado. Memória e `localStorage` não podem divergir, e a recuperação
+  no boot usa exatamente o mesmo caminho.
+- **Janela de conclusão manda no autosave:** entre o commit do append e a
+  liquidação do receipt, o runtime grava o snapshot pós-conclusão em qualquer
+  `saveCore`. Um `pagehide` imediato não ressuscita treino ativo, XP, streak,
+  planejamento, desafios ou conquistas antigos.
+- **Recuperação antes de `hydrated`:** receipts pendentes são verificados,
+  o core é gravado ou confirmado, os efeitos fora do core são materializados e o
+  receipt é liquidado antes de liberar o autosave. Idempotente em reinícios
+  repetidos; qualquer divergência bloqueia por integridade.
+- **Receipt pendente é a fonte na duplicidade:** reenvio da mesma sessão com
+  receipt pendente devolve o receipt durável original (não a nova tentativa),
+  então efeitos não são recalculados nem duplicados.
+- **Ciclo de vida explícito:** `mountedRef` e `pendingFinalizationPromiseRef`
+  impedem setState/toast/navegação após o unmount, enquanto a operação durável
+  segue até o fim. O runtime conta retenções e drena operações pendentes em
+  `close()`, então o cleanup da primeira montagem do Strict Mode não fecha um
+  adapter ainda em uso pela segunda.
+
+## GOAL-17B-002C corretivo C06 — recuperação pendente até novo boot (2026-07-23)
+
+- **Falha do core não é recuperável na mesma montagem:** quando a transação do
+  append/receipt já foi confirmada e a gravação do `coreEnvelopeAfter` falha, a
+  montagem inteira entra em recuperação necessária. Uma gravação posterior
+  bem-sucedida não é evidência de que o protocolo terminou: o receipt continua
+  pendente, o `pendingCompletionCore` continua ativo e `storageHealth` fica em
+  `write-error`/`blocked` até um novo boot. Recuperação completa na mesma
+  montagem foi descartada por ser exatamente a suposição que gerou o P2.
+- **Autosave suspenso em vez de silencioso:** `saveCore` recusa (`blocked`)
+  enquanto houver conclusão pendente, em vez de reescrever o snapshot da
+  conclusão a cada `saveCore`. Antes, o autosave "funcionava" gravando sempre o
+  mesmo core pós-conclusão — o usuário via sucesso enquanto as edições feitas
+  depois da falha não iam para lugar nenhum. Agora nada é anunciado como salvo.
+- **`flushPendingCompletionCore` explícito:** o ciclo de vida (`pagehide`/
+  `visibilitychange`) ganha um caminho próprio que grava **somente** o
+  `pendingCompletionCore`. Nenhum core derivado dos refs renderizados pode
+  substituir o snapshot de conclusão, e o sucesso não liquida o receipt nem
+  limpa o estado pendente.
+- **`reportWriteResult` não promove para ready:** enquanto
+  `completionRecoveryRequiredRef` estiver ativo, um resultado `ok` não restaura
+  `storageHealth`. `markHistoryCommitHealthy` tem a mesma guarda.
+- **Segunda finalização recusada nas duas camadas:** `finishWorkout` retorna
+  cedo e o runtime lança `HybridStorageIntegrityError` em `commitCompletion`
+  enquanto `hasPendingCompletion()` for verdadeiro. Nenhuma segunda sessão,
+  recompensa ou receipt nasce. A duplicidade "conteúdo idêntico com receipt
+  pendente vira recuperação" foi substituída por essa recusa: reprocessar o
+  receipt é atribuição do boot, não de uma nova chamada de conclusão.
+- **Mensagem honesta e única:** o Provider informa que o aplicativo precisa ser
+  reaberto para finalizar a recuperação, uma única vez por montagem
+  (`completionRecoveryMessageShownRef`), sem toast de "salvo" nem de recuperação
+  concluída, e nada é emitido após o unmount.
+- **Comentário de `recordDigests` corrigido:** o texto afirmava que `null` é
+  sempre divergência. O comportamento real tolera digests individuais ausentes
+  em registros legados — o `orderedDigest` recalculado sobre o conteúdo completo
+  continua verificando a integridade, e manifest ausente ou divergente continua
+  bloqueando. Algoritmo, digests, separador, constantes e formato persistido
+  intocados.

@@ -4,6 +4,26 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002C — integração híbrida do Context (2026-07-23)
+
+O `GymFlowContext` agora hidrata de forma assíncrona por um runtime com modos
+`legacy-v1`, `hybrid-v2` e `blocked`. O cutover preserva snapshot e backup bruto
+v1, confirma metadata/geração/readback e só então grava e relê o envelope físico
+v2. O core v2 não contém histórico; a lista é materializada somente em memória a
+partir da geração ativa do IndexedDB.
+
+Novas sessões usam append incremental newest-first. Os efeitos de conclusão
+ocorrem apenas depois do commit IndexedDB. A janela em que o append foi confirmado
+mas o core ainda contém `activeWorkout` é reconciliada no próximo boot sem
+duplicar sessão, XP ou demais efeitos. React Strict Mode compartilha o mesmo
+cutover em andamento e o adapter é reutilizado durante a vida do Provider.
+
+Enquanto o GOAL-17B-002D não implementar backup lógico híbrido, exportação,
+importação, restauração e reset ficam bloqueados somente no modo v2. O fallback
+v1 continua funcional quando IndexedDB está indisponível antes do cutover.
+
+---
+
 ## GOAL-17B-002B — migração v1 verificada do workoutHistory (2026-07-22)
 
 Implementado o mecanismo desconectado `migrateWorkoutHistoryFromV1`, que recebe o
@@ -1831,5 +1851,153 @@ não foi executada neste ambiente (sem navegador ativo); fica como pendência 23
 - GOAL-24 **não iniciado**: motivo de substituição e diff avançado plano×execução
   seguem fora de escopo. Sessões abandonadas no histórico (23A-03/23B-03) seguem
   abertas. Ver PENDENCIAS 23B-01..05.
+
+---
+
+## GOAL-17B-002C corretivo 014 — três P1 da integração híbrida (2026-07-23)
+
+Corrige os três P1 encontrados na revisão da integração do `workoutHistory`:
+geração ausente/parcial hidratada como histórico vazio, perda de efeitos
+persistentes após append confirmado e callbacks de finalização executados após
+o unmount. Base: `origin/master` =
+`5d2965008916ea951b7c6b537d4d427e84d9ba2d`. Worktree
+`C:\Projetos\gymflow-goal-17b-context-integration`, branch
+`feat/gymflow-goal17b-context-integration`. Os dois commits do 002C
+(`8f89ad4`, `d837185`) foram preservados sem reescrita.
+
+### Entrega (três commits corretivos)
+
+- **Commit 3 — `fix(storage): verificar integridade fisica das geracoes` (P1-A):**
+  `storage-history-integrity.ts` (serialização canônica extraída da migração +
+  digest encadeado determinístico + `verifyHistoryGeneration`) e seu teste;
+  store `generationManifests` com manifest durável por geração; banco interno na
+  versão física 2 com upgrade idempotente; staging, replace e append gravando
+  registros, digests, manifest e metadata na mesma transação; hidratação v2
+  exigindo manifest confirmado.
+- **Commit 4 — `fix(storage): tornar conclusao hibrida recuperavel` (P1-B/P1-C):**
+  `storage-completion-receipt.ts` (helper puro `deriveWorkoutCompletion` +
+  receipt + verificação) e seu teste; store `completionReceipts` e banco na
+  versão física 3; `appendSessionWithCompletionReceipt` atômico;
+  `commitCompletion`/`settleCompletion`/`retain` no runtime; recuperação de
+  receipts pendentes antes de liberar o autosave; `finishWorkout` reescrito para
+  aplicar os estados React a partir do snapshot já persistido; `mountedRef` e
+  `pendingFinalizationPromiseRef` no Provider.
+- **Commit 5 — `test(storage): cobrir provider e ciclo de vida hibridos`:**
+  `GymFlowContext.storage.test.tsx` montando o `GymFlowProvider` real
+  (`react-test-renderer` 19.2.4 como única dependência de desenvolvimento nova)
+  e o registro final na documentação.
+
+### Decisões-chave
+
+Manifest verificado por geração (nunca só um marcador), digest encadeado do
+registro mais antigo para o mais novo (append incremental de um passo),
+`coreEnvelopeAfter` derivado por helper puro sem render React, snapshot
+pós-conclusão como fonte de qualquer gravação do core até a liquidação do
+receipt, e ciclo de vida com contagem de retenções no runtime. Ver
+`docs/DECISOES.md` (GOAL-17B-002C corretivo P1-A e P1-B/P1-C) e
+`docs/storage/GYMFLOW_STORAGE_V1_SAFE.md`.
+
+### Cobertura real do Provider
+
+`src/providers/GymFlowContext.storage.test.tsx` monta o Provider real (com
+`ToastProvider`) sobre `fake-indexeddb` e um `localStorage` em memória, e cobre:
+hidratação v2 válida, geração fisicamente ausente, perda parcial de registros,
+manifest ausente, manifest divergente, geração vazia válida, append bem-sucedido,
+append falhando, kill após append, XP/streak/weeklyPlan/desafios/conquistas
+preservados após a recuperação, postagem recuperada sem duplicação no ciclo,
+pagehide após a conclusão, finalização seguida de unmount, ausência de callbacks
+após o unmount, Strict Mode (hidratação e conclusão únicas), bloqueios
+administrativos via Context e operações antigas não sobrescrevendo o v2.
+
+### Validações
+
+- `npx vitest run`: **39 arquivos, 873 testes** aprovados (783 anteriores + 15
+  de integridade + 22 de receipt + 6 de manifest no adapter + 6 de receipt no
+  adapter + 2 de upgrade + 5 de hidratação bloqueada + 15 de conclusão
+  recuperável + 16 do Provider real). Zero falha.
+- `npx tsc --noEmit`: aprovado (0 erros).
+- `npm run build` (web) e `npm run build:mobile`: aprovados no Next.js 16.2.6.
+- `npm run lint`: **12 erros + 6 warnings**, idêntico à baseline pré-GOAL
+  (TF-F-13); **zero erro/warning novo** nos arquivos alterados.
+- `git diff --check`: limpo.
+
+### Continuação
+
+- GOAL-17B-002D **não iniciado**: import/export e rollback híbridos seguem fora
+  de escopo. Validação em WebView físico continua gate obrigatório. Ver
+  PENDENCIAS 17B-002C-C01..C05.
+
+---
+
+## GOAL-17B-002C corretivo 017 — recuperação pendente até novo boot (2026-07-23)
+
+Corrige o **P2 17B-002C-C06** da auditoria final do corretivo 002C: depois de uma
+falha na gravação do core de conclusão, o `pendingCompletionCore` continuava
+ativo, mas uma gravação posterior bem-sucedida devolvia `storageHealth` para
+`ready` enquanto o receipt seguia pendente — e as edições feitas pelo usuário
+depois da falha não estavam sendo persistidas, embora o app as anunciasse como
+salvas. Corrige também o comentário desatualizado de `recordDigests`. Base:
+`origin/master` = `5d2965008916ea951b7c6b537d4d427e84d9ba2d`. Os seis commits
+anteriores foram preservados sem reescrita (sexto = `84d82ae`).
+
+### Entrega (um commit corretivo)
+
+- **Commit 7 — `fix(storage): manter recuperacao pendente ate novo boot`:**
+  `hasPendingCompletion()` e `flushPendingCompletionCore()` no runtime híbrido;
+  `saveCore` recusando (`blocked`) enquanto houver conclusão pendente;
+  `commitCompletion` recusando uma segunda conclusão por integridade;
+  `completionRecoveryRequiredRef`/`markCompletionRecoveryRequired` no Provider,
+  com autosave suspenso, `reportWriteResult` e `markHistoryCommitHealthy`
+  impedidos de promover para `ready`, ciclo de vida gravando apenas o snapshot
+  pendente e `finishWorkout` bloqueado; comentário de `recordDigests` corrigido.
+
+### Comportamento crítico — antes/depois
+
+- **Antes:** core falha → receipt pendente, mas qualquer `saveCore` posterior
+  regravava o snapshot pós-conclusão e `reportWriteResult` marcava `ready`. O
+  usuário via "salvo" enquanto suas edições posteriores não iam para lugar
+  nenhum, e uma nova conclusão era tratada como recuperação.
+- **Depois:** core falha → recuperação necessária pela montagem inteira. Autosave
+  recusado, `storageHealth` preso em `write-error`, `pagehide`/
+  `visibilitychange` gravando somente o `pendingCompletionCore` (sem liquidar o
+  receipt nem limpar o estado pendente), `finishWorkout` recusado e uma mensagem
+  única e honesta pedindo a reabertura do aplicativo. Só o boot seguinte valida,
+  grava/confirma o core, liquida o receipt, hidrata e libera `ready` e autosave.
+
+### Decisões-chave
+
+Política conservadora: recuperação completa na mesma montagem foi descartada por
+ser exatamente a suposição que gerou o P2. Nenhuma edição posterior é
+silenciosamente declarada persistida. Ver `docs/DECISOES.md`
+(GOAL-17B-002C corretivo C06) e `docs/storage/GYMFLOW_STORAGE_V1_SAFE.md`
+("Falha do core: recuperação só no próximo boot").
+
+### Cobertura adicionada
+
+- `storage-hybrid.test.ts`: falha inicial do core após append + receipt, autosave
+  recusado, flush posterior bem-sucedido sem liquidar o receipt, segunda
+  conclusão recusada, boot seguinte recuperando/liquidando e autosave liberado.
+- `GymFlowContext.storage.test.tsx` (Provider real): `storageHealth` preso em
+  `write-error`, edição posterior só em memória, `pagehide` usando apenas o
+  snapshot pendente, segunda finalização bloqueada sem duplicar XP, streak,
+  planejamento, desafios, conquistas ou sessão, unmount sem callback, novo boot
+  ficando `ready` com o receipt liquidado e o autosave de volta.
+- Os digests golden de `storage-history-integrity.test.ts` seguem idênticos.
+
+### Validações
+
+- `npx vitest run`: **39 arquivos, 875 testes** aprovados (873 anteriores + 2
+  novos). Zero falha.
+- `npx tsc --noEmit`: aprovado (0 erros).
+- `npm run build` (web) e `npm run build:mobile`: aprovados.
+- `npm run lint`: **12 erros + 6 warnings**, idêntico à baseline (TF-F-13);
+  zero ocorrência nova.
+- `git diff --check`: limpo.
+
+### Continuação
+
+- GOAL-17B-002D **não iniciado**: import/export e rollback híbridos seguem fora
+  de escopo. Validação em WebView físico continua gate obrigatório. Ver
+  PENDENCIAS 17B-002C-C01..C05 (C06 encerrado).
 
 ---
