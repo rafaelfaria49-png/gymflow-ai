@@ -892,3 +892,168 @@ describe('GymFlowProvider real — bloqueios administrativos em v2', () => {
     expect(storage.getItem(STORAGE_KEY)).toBe('{inválido');
   });
 });
+
+describe('GymFlowProvider real — capacidades honestas de recuperação', () => {
+  async function breakActiveGeneration(): Promise<string> {
+    const first = await mountHydrated();
+    const generationId = persistedCore().historyStorage.generationId;
+    await first.unmount();
+    await withRawDatabase(
+      [WORKOUT_HISTORY_STORE, METADATA_STORE, GENERATION_MANIFESTS_STORE],
+      'readwrite',
+      async (transaction) => {
+        const historyStore = transaction.objectStore(WORKOUT_HISTORY_STORE);
+        const keys = await rawRequest(historyStore.index('byGeneration').getAllKeys(generationId));
+        await Promise.all(keys.map((key) => rawRequest(historyStore.delete(key))));
+        await rawRequest(transaction.objectStore(GENERATION_MANIFESTS_STORE).delete(generationId));
+        await rawRequest(transaction.objectStore(METADATA_STORE)
+          .delete(`generationNextOrder:${generationId}`));
+      },
+    );
+    return generationId;
+  }
+
+  it('v2 saudável não expõe nenhuma capacidade de recuperação', async () => {
+    seedV1Envelope();
+    const handle = await mountHydrated();
+    expect(handle.context().storageMode).toBe('hybrid-v2');
+    expect(handle.context().storageHealth.status).toBe('ready');
+    expect(handle.context().storageRecoveryCapabilities).toEqual({
+      canRestoreLegacyBackup: false,
+      canStartFreshLegacy: false,
+      canDownloadRaw: false,
+      requiresHybridRecovery: false,
+    });
+  });
+
+  it('v2 bloqueado não oferece restauração legada mesmo com o backup v1 congelado', async () => {
+    seedV1Envelope();
+    await breakActiveGeneration();
+    const rawBefore = storage.getItem(STORAGE_KEY);
+
+    const handle = await mountHydrated();
+    const context = handle.context();
+    expect(context.storageMode).toBe('blocked');
+    expect(context.storageHealth.status).toBe('blocked');
+    // O cutover deixou um backup v1 congelado: ele existe, mas não habilita nada.
+    expect(context.storageHealth.hasBackup).toBe(true);
+    expect(context.legacyStorageOperationsAllowed).toBe(false);
+    expect(context.storageRecoveryCapabilities).toEqual({
+      canRestoreLegacyBackup: false,
+      canStartFreshLegacy: false,
+      canDownloadRaw: true,
+      requiresHybridRecovery: true,
+    });
+    expect(storage.getItem(STORAGE_KEY)).toBe(rawBefore);
+  });
+
+  it('os handlers continuam fail-closed em v2 bloqueado, sem tocar em localStorage nem no IndexedDB', async () => {
+    seedV1Envelope({
+      activeWorkout: null,
+      activeWorkoutStartedAt: null,
+      workoutHistory: [
+        { ...makeActiveSession({ id: 'hist-1' }), status: 'completed', endedAt: STARTED_AT + 1 },
+      ],
+    });
+    const first = await mountHydrated();
+    const generationId = persistedCore().historyStorage.generationId;
+    await first.unmount();
+
+    // Corrompe só o manifest: os registros do histórico continuam no banco e
+    // precisam sobreviver intactos a qualquer tentativa administrativa.
+    await withRawDatabase([GENERATION_MANIFESTS_STORE], 'readwrite', async (transaction) => {
+      await rawRequest(transaction.objectStore(GENERATION_MANIFESTS_STORE).delete(generationId));
+    });
+
+    const rawBefore = storage.getItem(STORAGE_KEY);
+    const backupBefore = storage.getItem(`${STORAGE_KEY}:backup`);
+    const sessionsBefore = await withRawDatabase(
+      [WORKOUT_HISTORY_STORE],
+      'readonly',
+      (transaction) => rawRequest(transaction.objectStore(WORKOUT_HISTORY_STORE).getAll()),
+    );
+
+    const handle = await mountHydrated();
+    expect(handle.context().storageMode).toBe('blocked');
+    expect(handle.context().storageRecoveryCapabilities.requiresHybridRecovery).toBe(true);
+
+    let restoreResult: ReturnType<GymFlowValue['restoreStorageBackup']> | null = null;
+    let freshResult: ReturnType<GymFlowValue['startFreshStorage']> | null = null;
+    let importResult: ReturnType<GymFlowValue['applyStorageImport']> | null = null;
+    await act(async () => {
+      const context = handle.context();
+      restoreResult = context.restoreStorageBackup();
+      freshResult = context.startFreshStorage();
+      importResult = context.applyStorageImport({
+        format: 'gymflow-backup',
+        formatVersion: 1,
+        exportedAt: '2026-07-23T09:00:00.000Z',
+        appStorageVersion: 1,
+        envelope: { v: 1, savedAt: '2026-07-23T09:00:00.000Z', data: {} as never },
+      });
+    });
+    await settle(10);
+
+    for (const result of [restoreResult, freshResult, importResult]) {
+      expect(result).toMatchObject({ ok: false, reason: 'blocked' });
+    }
+    expect(storage.getItem(STORAGE_KEY)).toBe(rawBefore);
+    expect(storage.getItem(`${STORAGE_KEY}:backup`)).toBe(backupBefore);
+    expect(parsePhysicalEnvelope(storage.getItem(STORAGE_KEY) as string).status).toBe('v2');
+    const sessionsAfter = await withRawDatabase(
+      [WORKOUT_HISTORY_STORE],
+      'readonly',
+      (transaction) => rawRequest(transaction.objectStore(WORKOUT_HISTORY_STORE).getAll()),
+    );
+    expect(sessionsAfter).toEqual(sessionsBefore);
+  });
+
+  it('v1 corrompido preserva as capacidades legadas', async () => {
+    storage.setItem(STORAGE_KEY, '{inválido');
+    const handle = await mountHydrated();
+    expect(handle.context().legacyStorageOperationsAllowed).toBe(true);
+    expect(handle.context().storageRecoveryCapabilities).toEqual({
+      canRestoreLegacyBackup: handle.context().storageHealth.hasBackup,
+      canStartFreshLegacy: true,
+      canDownloadRaw: true,
+      requiresHybridRecovery: false,
+    });
+  });
+
+  it('conclusão pendente em v2 não é tratada como corrupção física', async () => {
+    seedV1Envelope();
+    const handle = await mountHydrated();
+    storage.failMainKeyWrites = true;
+    await finishActiveWorkout(handle);
+
+    const context = handle.context();
+    // Protocolo do 002C preservado: erro de gravação, autosave suspenso e o
+    // pedido de reabrir o app continuam exatamente como antes.
+    expect(context.storageHealth.status).toBe('write-error');
+    expect(context.storageHealth.issue?.message).toContain('Reabra o aplicativo');
+    expect(context.storageMode).toBe('hybrid-v2');
+    // E nenhuma ação legada é oferecida como se fosse a saída.
+    expect(context.storageRecoveryCapabilities).toEqual({
+      canRestoreLegacyBackup: false,
+      canStartFreshLegacy: false,
+      canDownloadRaw: false,
+      requiresHybridRecovery: true,
+    });
+    expect((await readPendingReceipts()).map((receipt) => receipt.sessionId))
+      .toEqual(['session-ativa']);
+    storage.failMainKeyWrites = false;
+  });
+
+  it('sob Strict Mode as capacidades em v2 bloqueado não divergem', async () => {
+    seedV1Envelope();
+    await breakActiveGeneration();
+    const handle = await mountHydrated({ strict: true });
+    expect(handle.context().storageMode).toBe('blocked');
+    expect(handle.context().storageRecoveryCapabilities).toEqual({
+      canRestoreLegacyBackup: false,
+      canStartFreshLegacy: false,
+      canDownloadRaw: true,
+      requiresHybridRecovery: true,
+    });
+  });
+});

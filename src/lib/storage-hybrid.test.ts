@@ -9,7 +9,9 @@ import {
   commitHybridWorkoutSession,
   createHybridStorageRuntime,
   parsePhysicalEnvelope,
+  resolveStorageRecoveryCapabilities,
   toPersistedCoreState,
+  type StorageRecoveryCapabilityInput,
 } from './storage-hybrid';
 import {
   COMPLETION_RECEIPTS_STORE,
@@ -801,6 +803,98 @@ describe('runtime híbrido v2', () => {
     expect(canUseLegacyAdminOperations('blocked', 1)).toBe(true);
     expect(canUseLegacyAdminOperations('hybrid-v2', 2)).toBe(false);
     expect(canUseLegacyAdminOperations('blocked', 2)).toBe(false);
+  });
+
+  it('resolve capacidades de recuperação a partir do modo e da versão física', () => {
+    const base: StorageRecoveryCapabilityInput = {
+      mode: 'blocked',
+      physicalVersion: 1,
+      status: 'blocked',
+      hasLegacyBackup: true,
+      hasRawContent: true,
+    };
+
+    // legacy-v1 corrompido com backup: comportamento antigo preservado.
+    expect(resolveStorageRecoveryCapabilities(base)).toEqual({
+      canRestoreLegacyBackup: true,
+      canStartFreshLegacy: true,
+      canDownloadRaw: true,
+      requiresHybridRecovery: false,
+    });
+
+    // legacy-v1 corrompido sem backup: só recomeçar e baixar o original.
+    expect(resolveStorageRecoveryCapabilities({ ...base, hasLegacyBackup: false }))
+      .toMatchObject({ canRestoreLegacyBackup: false, canStartFreshLegacy: true });
+
+    // v2 saudável: nenhuma ação legada liberada e nada a recuperar.
+    expect(resolveStorageRecoveryCapabilities({
+      mode: 'hybrid-v2',
+      physicalVersion: 2,
+      status: 'ready',
+      hasLegacyBackup: true,
+      hasRawContent: true,
+    })).toEqual({
+      canRestoreLegacyBackup: false,
+      canStartFreshLegacy: false,
+      canDownloadRaw: false,
+      requiresHybridRecovery: false,
+    });
+
+    // v2 bloqueado: o backup v1 congelado não habilita restauração alguma.
+    expect(resolveStorageRecoveryCapabilities({ ...base, physicalVersion: 2 })).toEqual({
+      canRestoreLegacyBackup: false,
+      canStartFreshLegacy: false,
+      canDownloadRaw: true,
+      requiresHybridRecovery: true,
+    });
+
+    // v2 bloqueado sem conteúdo bruto: nenhuma ação disponível.
+    expect(resolveStorageRecoveryCapabilities({
+      ...base,
+      physicalVersion: 2,
+      hasRawContent: false,
+    })).toEqual({
+      canRestoreLegacyBackup: false,
+      canStartFreshLegacy: false,
+      canDownloadRaw: false,
+      requiresHybridRecovery: true,
+    });
+
+    // Erro de gravação em v2: nada legado, mesmo com backup e raw presentes.
+    expect(resolveStorageRecoveryCapabilities({
+      mode: 'hybrid-v2',
+      physicalVersion: 2,
+      status: 'write-error',
+      hasLegacyBackup: true,
+      hasRawContent: true,
+    })).toEqual({
+      canRestoreLegacyBackup: false,
+      canStartFreshLegacy: false,
+      canDownloadRaw: true,
+      requiresHybridRecovery: true,
+    });
+
+    // Erro de gravação em v1: restaurar continua possível, recomeçar não.
+    expect(resolveStorageRecoveryCapabilities({
+      mode: 'legacy-v1',
+      physicalVersion: 1,
+      status: 'write-error',
+      hasLegacyBackup: true,
+      hasRawContent: false,
+    })).toEqual({
+      canRestoreLegacyBackup: true,
+      canStartFreshLegacy: false,
+      canDownloadRaw: false,
+      requiresHybridRecovery: false,
+    });
+
+    // Carregando: nenhuma ação, nenhum alarme.
+    expect(resolveStorageRecoveryCapabilities({ ...base, status: 'loading' })).toEqual({
+      canRestoreLegacyBackup: false,
+      canStartFreshLegacy: false,
+      canDownloadRaw: false,
+      requiresHybridRecovery: false,
+    });
   });
 
   it('bloqueia JSON inválido e versão física desconhecida sem sobrescrever', async () => {

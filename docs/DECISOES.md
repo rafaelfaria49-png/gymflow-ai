@@ -677,3 +677,34 @@ Detalhe por ADR (status · decisão-chave · riscos residuais · validação · 
   continua verificando a integridade, e manifest ausente ou divergente continua
   bloqueando. Algoritmo, digests, separador, constantes e formato persistido
   intocados.
+
+## GOAL-17B-002D-A0 — capacidade real antes da apresentação (2026-07-24)
+
+- **Fonte única de capacidade:** `resolveStorageRecoveryCapabilities` nasceu em
+  `storage-hybrid.ts`, ao lado de `canUseLegacyAdminOperations`, e recebe modo,
+  versão física, status de saúde, existência de backup legado e presença de
+  conteúdo bruto. A regra de versão **não** foi duplicada no componente React —
+  o `StorageRecoveryNotice` passou a receber as capacidades já resolvidas.
+- **`storagePhysicalVersion` virou estado do Provider:** antes só existia
+  derivado dentro do efeito de hidratação. Sem ele a UI teria de reinferir a
+  permissão a partir de `storageMode`, que é exatamente o acoplamento que o
+  corretivo remove. No caminho de falha da migração legada ele fica `null`,
+  preservando `canUseLegacyAdminOperations('blocked', null) === true`.
+- **`hasBackup` deixa de habilitar restauração em v2:** o valor continua vindo
+  do parser v1 e continua descrevendo o backup congelado no cutover. Redefinir
+  toda a semântica pública de backup seria escopo do 002D-E; aqui apenas se
+  impede que ele ofereça uma restauração que o Context recusa.
+- **Download do conteúdo bruto não é restauração:** é a única ação oferecida em
+  v2 bloqueado, é somente leitura e o texto declara que não corrige o
+  armazenamento. Sem conteúdo bruto, nenhum botão é renderizado — um botão sem
+  implementação seria a mesma desonestia que o corretivo elimina.
+- **Nada de reset nem reinstalação como sugestão:** no estado sem ação
+  disponível o aviso orienta a preservar aplicativo e dados. Sugerir reinstalar
+  seria sugerir perda de dados sem caminho de recuperação verificado.
+- **AdminPanel preservado:** a auditoria confirmou que os quatro botões de
+  "Dados locais" já estão `disabled` sob v2 e que o bloqueio é explicado no
+  painel. Sem botão executável, não havia o que corrigir — mexer no painel seria
+  alteração fora do escopo declarado.
+- **Guardas do Context intocadas:** `restoreStorageBackup`, `startFreshStorage`
+  e `applyStorageImport` continuam recusando sob v2. O corretivo alinha
+  apresentação e capacidade; a defesa em profundidade permanece.

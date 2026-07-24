@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState, useEffect, useRef, ReactNode } from 'react';
 import {
   UserProfile,
   Exercise,
@@ -41,9 +41,11 @@ import {
   canUseLegacyAdminOperations,
   combineCoreWithHistory,
   createHybridStorageRuntime,
+  resolveStorageRecoveryCapabilities,
   type HybridStorageMode,
   type HybridStorageRuntime,
   type RecoveredCompletion,
+  type StorageRecoveryCapabilities,
 } from '../lib/storage-hybrid';
 import {
   deriveWorkoutCompletion,
@@ -309,6 +311,7 @@ interface GymFlowContextType {
   storageHealth: StorageHealth;
   storageMode: HybridStorageMode;
   legacyStorageOperationsAllowed: boolean;
+  storageRecoveryCapabilities: StorageRecoveryCapabilities;
   applyStorageImport: (backup: GymFlowBackupFile<PersistedState>) => StorageWriteResult<PersistedState>;
   restoreStorageBackup: () => StorageWriteResult<PersistedState>;
   startFreshStorage: () => StorageWriteResult<PersistedState>;
@@ -710,6 +713,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const storageModeRef = useRef<HybridStorageMode>('blocked');
   const [legacyStorageOperationsAllowed, setLegacyStorageOperationsAllowed] = useState(false);
   const legacyStorageOperationsAllowedRef = useRef(false);
+  // Versão física observada na hidratação: entra na resolução de capacidades
+  // junto com o modo, para que a UI nunca infira permissão por conta própria.
+  const [storagePhysicalVersion, setStoragePhysicalVersion] = useState<number | null>(null);
   const historyAdapterRef = useRef<IndexedDbWorkoutHistoryStorage | null>(null);
   const hybridRuntimeRef = useRef<HybridStorageRuntime | null>(null);
   const storageBlockedRef = useRef(false);
@@ -749,6 +755,20 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const hasValidBackup = () => loadBackupResult<StoragePersistedState>(STORAGE_KEY).status === 'ok';
+
+  // GOAL-17B-002D-A0: a apresentação passa a depender da capacidade real. Sob v2
+  // o `hasBackup` continua descrevendo o backup v1 congelado no cutover — por isso
+  // ele não habilita restauração aqui, e sua desambiguação fica para o 002D-E.
+  const storageRecoveryCapabilities = useMemo(
+    () => resolveStorageRecoveryCapabilities({
+      mode: storageMode,
+      physicalVersion: storagePhysicalVersion,
+      status: storageHealth.status,
+      hasLegacyBackup: storageHealth.hasBackup,
+      hasRawContent: typeof storageHealth.issue?.raw === 'string' && storageHealth.issue.raw.length > 0,
+    }),
+    [storageMode, storagePhysicalVersion, storageHealth],
+  );
 
   const reportWriteResult = (result: StorageWriteResult<unknown>) => {
     if (result.ok) {
@@ -943,6 +963,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
               storageBlockedRef.current = true;
               storageModeRef.current = 'blocked';
               setStorageMode('blocked');
+              // A migração legada falhou antes de qualquer cutover: o envelope
+              // observado não é v2, então as operações antigas seguem válidas.
+              setStoragePhysicalVersion(null);
               legacyStorageOperationsAllowedRef.current = true;
               setLegacyStorageOperationsAllowed(true);
               setStorageHealth({
@@ -961,6 +984,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
         storageModeRef.current = hydration.mode;
         setStorageMode(hydration.mode);
+        setStoragePhysicalVersion(hydration.physicalVersion);
         const legacyOperationsAllowed = canUseLegacyAdminOperations(
           hydration.mode,
           hydration.physicalVersion,
@@ -2672,6 +2696,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         storageHealth,
         storageMode,
         legacyStorageOperationsAllowed,
+        storageRecoveryCapabilities,
         applyStorageImport,
         restoreStorageBackup,
         startFreshStorage,
@@ -2681,6 +2706,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       {children}
       <StorageRecoveryNotice
         health={storageHealth}
+        capabilities={storageRecoveryCapabilities}
         onExportRaw={downloadStorageRecovery}
         onRestoreBackup={restoreStorageBackup}
         onStartFresh={startFreshStorage}

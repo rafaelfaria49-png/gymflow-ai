@@ -2001,3 +2001,72 @@ silenciosamente declarada persistida. Ver `docs/DECISOES.md`
   PENDENCIAS 17B-002C-C01..C05 (C06 encerrado).
 
 ---
+
+## GOAL-17B-002D-A0 — recuperação honesta no envelope físico v2 (2026-07-24)
+
+Corretivo exclusivo do **P0-1** levantado na auditoria do 002D: com o envelope
+físico v2 em estado bloqueado, o `StorageRecoveryNotice` ainda exibia
+"Restaurar backup" e "Iniciar dados novos", embora o Context recusasse as duas
+corretamente. Botões mortos deixavam o usuário sem saída acionável.
+
+### Antes / depois
+
+| Estado | Antes | Depois |
+| --- | --- | --- |
+| legacy-v1 bloqueado com backup | exportar original, restaurar backup, iniciar dados novos | idêntico |
+| legacy-v1 bloqueado sem backup | exportar original, iniciar dados novos | idêntico |
+| hybrid-v2 saudável | aviso ausente | idêntico |
+| hybrid-v2 bloqueado com `hasBackup` | **restaurar backup e iniciar dados novos exibidos e inertes** | nenhum dos dois é renderizado |
+| hybrid-v2 bloqueado com conteúdo bruto | exportar original + dois botões mortos | somente "Baixar conteúdo original" |
+| hybrid-v2 bloqueado sem conteúdo bruto | dois botões mortos | nenhuma ação; texto declara que não há ação automática segura |
+| hybrid-v2 com erro de gravação | "Restaurar backup" se `hasBackup` | nenhuma ação legada |
+
+### Mudanças
+
+- `resolveStorageRecoveryCapabilities` em `storage-hybrid.ts`, ao lado de
+  `canUseLegacyAdminOperations`: resolve `canRestoreLegacyBackup`,
+  `canStartFreshLegacy`, `canDownloadRaw` e `requiresHybridRecovery` a partir do
+  modo, da versão física, do status de saúde, do backup legado e do conteúdo
+  bruto. A regra de versão não foi duplicada no componente.
+- `GymFlowContext.tsx`: `storagePhysicalVersion` virou estado, as capacidades
+  são memoizadas e expostas no contexto e passadas ao aviso. As guardas de
+  `restoreStorageBackup`, `startFreshStorage` e `applyStorageImport`
+  permanecem intactas.
+- `StorageRecoveryNotice.tsx`: renderiza a partir das capacidades; título e
+  textos honestos para v2, sem citar identificador interno de GOAL.
+- `AdminPanel.tsx`: **não alterado** — os quatro botões já estavam `disabled` em
+  modo híbrido, com bloqueio explicado no painel.
+
+### Testes
+
+- `storage-hybrid.test.ts`: matriz pura do resolvedor — legacy com e sem backup,
+  v2 saudável, v2 bloqueado com e sem conteúdo bruto, erro de gravação em v1 e
+  em v2, e estado de carregamento. **48 → 49 testes.**
+- `StorageRecoveryNotice.test.tsx` (novo, `react-test-renderer`): 10 testes
+  cobrindo os sete estados da matriz, o fluxo de confirmação legado, ausência de
+  identificador interno de GOAL e Strict Mode sem duplicação.
+- `GymFlowContext.storage.test.tsx`: Provider real em v2 saudável, v2 bloqueado
+  com backup congelado, handlers fail-closed sem tocar em `localStorage`,
+  `:backup` ou registros do IndexedDB, v1 corrompido preservando as capacidades
+  legadas, conclusão pendente não confundida com corrupção física e Strict Mode.
+  **17 → 23 testes.**
+
+### Validações
+
+- `npx vitest run`: **40 arquivos, 892 testes** aprovados (875 anteriores + 17
+  novos). Zero falha.
+- `npx tsc --noEmit`: aprovado (0 erros).
+- `npm run build` (web) e `npm run build:mobile`: aprovados.
+- `npx eslint src`: **12 erros + 6 warnings**, idêntico à baseline (TF-F-13);
+  zero ocorrência nova nos arquivos alterados.
+- `git diff --check`: limpo. `package.json` e `package-lock.json` inalterados.
+
+### Continuação
+
+- **GOAL-17B-002D-A não iniciado.** Importação, exportação, rollback de geração,
+  reset híbrido, journal administrativo e downgrade para v1 seguem **não
+  implementados**. Ver PENDENCIAS 17B-002D, 17B-002D-E01 (ambiguidade de
+  `hasBackup`, P1) e 17B-002D-E02 (identificador de GOAL no AdminPanel, P3).
+  Validação em WebView físico continua gate obrigatório.
+
+---
