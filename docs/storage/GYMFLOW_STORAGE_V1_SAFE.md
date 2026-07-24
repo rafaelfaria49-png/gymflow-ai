@@ -505,18 +505,70 @@ reconstrói manifest. Geração vazia só passa com `sessionCount = 0` e
 `orderedDigest = EMPTY_GENERATION_DIGEST`.
 
 `rollbackToHistoryGeneration` verifica a geração alvo por completo **antes** de
-qualquer escrita, abre transação sobre metadata e manifest, relê metadata dentro
-da transação exigindo `activeGeneration === expectedActiveGenerationId`, reconfere
-que o manifest alvo continua idêntico ao verificado e só então move
-`activeGeneration`. Com `clearStagedGenerationId`, `migrationGeneration` precisa
-ser exatamente esse id para ser limpo; sem ele, o ponteiro de staging não é
-tocado. Depois do commit, metadata é relida e o resultado é explícito — inclusive
-`changed: false` quando o alvo já era a geração ativa.
+qualquer escrita e abre **uma única transação readwrite sobre `metadata`,
+`generationManifests` e `workoutHistory`**. Dentro dela: relê metadata exigindo
+`activeGeneration === expectedActiveGenerationId`, confere
+`clearStagedGenerationId` quando fornecido, relê o manifest alvo exigindo
+igualdade integral (`generationId`, `sessionCount`, `orderedDigest`, `verified`,
+`createdAt`, `updatedAt`) e **relê todos os registros físicos**, reconferindo-os
+contra a prova canônica. Só então `activeGeneration` muda. Depois do commit
+metadata é relida e o resultado é explícito.
 
-Toda falha é fail-closed e aborta a transação inteira: alvo ausente, alvo sem
-manifest, digest divergente, sessão faltando, ponteiro ativo obsoleto, staged
-divergente e manifest alterado entre a verificação e o commit. Nenhuma delas
-altera metadata, nenhuma apaga geração e nenhuma toca no histórico.
+### Por que `workoutHistory` está na transação
+
+A auditoria independente do 002D-A1 (Classe C) encontrou e **reproduziu** uma
+janela real: com `workoutHistory` fora da transação, o store não era serializado
+e as sessões podiam mudar entre a verificação e a ativação. Reprodução em banco
+real, com o manifest intacto nos três casos:
+
+| Injeção após a verificação | Antes da correção | Depois da correção |
+| --- | --- | --- |
+| sessão **alterada** | rollback commitava; geração ativada falhava re-verificação com `record-digest-mismatch` | rejeitado; ponteiro intacto |
+| sessão **removida** | rollback commitava; geração ativa ficava com **0 sessões** | rejeitado; ponteiro intacto |
+| sessão **adicionada** | rollback commitava com contagem divergente do manifest | rejeitado; ponteiro intacto |
+
+A prova canônica é montada **fora** da transação, a partir da mesma leitura
+física que alimentou a verificação, e guarda por registro: `order`, `sessionId`,
+digest persistido (inclusive `null`) e a serialização canônica completa da sessão
+— reusando `serializeWorkoutSessionCanonically`, sem segunda definição. Dentro da
+transação a reconferência é **síncrona**, por comparação de strings: nenhum
+`crypto.subtle`, nenhum await estranho à transação, nenhum risco de desativá-la.
+
+Digest persistido sozinho não basta — uma sessão pode ser alterada mantendo o
+digest antigo gravado. Por isso o conteúdo canônico é comparado **sempre**,
+inclusive quando o digest é `null` em registro legado: `null` nunca torna a
+comparação permissiva.
+
+### No-op também exige integridade
+
+Quando o alvo já é a geração ativa, o rollback passa pelas **mesmas**
+verificações — metadata, manifest e registros. Aprovado, devolve
+`changed: false` **sem reescrever o ponteiro**: metadata fica byte a byte
+intocada. Reprovado, rejeita. Um no-op não ignora corrupção.
+
+### Falhas fail-closed
+
+Abortam a transação inteira, sem alterar metadata: alvo ausente, alvo sem
+manifest, digest divergente, ponteiro ativo obsoleto, staged divergente, manifest
+alterado entre a verificação e o commit e — desde a correção — sessão
+**alterada, removida, adicionada ou reordenada**, `order` alterado e digest
+persistido alterado na mesma janela. Nenhuma falha apaga geração, altera manifest,
+toca em receipt ou grava histórico.
+
+> Correção de registro anterior: a versão original desta seção listava "sessão
+> faltando" entre as falhas fail-closed sem esclarecer que a garantia valia
+> apenas no instante da verificação, não até o commit. A janela existia e está
+> fechada; a afirmação agora vale de ponta a ponta.
+
+### Metadata com chave não textual
+
+`listHistoryGenerations` valida que toda chave do store `metadata` é textual
+antes de usá-la. Chave de outro tipo (number, Date, ArrayBuffer) lança
+`HistoryMetadataIntegrityError` — erro explícito do domínio, não `TypeError`
+genérico. O registro não é ignorado, convertido, reparado nem apagado, e nenhuma
+listagem parcial é devolvida: a enumeração é a visão que um runtime de
+recuperação usaria para decidir, e uma visão incompleta seria pior que nenhuma.
+As demais operações continuam legíveis, pois usam `get(key)` direto.
 
 > **Isto não é rollback completo do aplicativo.** A primitiva move apenas o
 > ponteiro físico do IndexedDB. O core v2 no `localStorage` continua apontando

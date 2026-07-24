@@ -357,6 +357,19 @@ recomendação · dependências · próximo passo.**
   no `localStorage` continua apontando para a geração anterior, então usá-la
   isolada deixaria core e histórico divergentes. Não há call site hoje, e não
   pode haver antes da coordenação. *Próximo passo:* coordenar no 002D-A2/C/D.
+- **17B-002D-A1-P0-1 — Janela entre verificação e commit do rollback.**
+  *Encerrado em 2026-07-24 (corretivo do A1).* A auditoria independente
+  classificou o A1 como Classe C e reproduziu, em banco real, o rollback
+  ativando uma geração cujo conteúdo mudara depois de verificado — com sessão
+  alterada, removida e adicionada, manifest intacto. Causa: `workoutHistory`
+  ficava fora da transação de escrita. A transação passou a incluir o store e os
+  registros são reconferidos sincronamente contra uma prova canônica montada
+  antes dela. As três reproduções viraram testes permanentes.
+- **17B-002D-A1-P0-2 — `TypeError` na enumeração com chave de metadata não
+  textual.** *Encerrado em 2026-07-24 (corretivo do A1).*
+  `listHistoryGenerations` chamava `startsWith` direto na chave. Agora a chave é
+  validada e o caso vira `HistoryMetadataIntegrityError`, sem listagem parcial e
+  sem mutação.
 - **17B-002D-A1-P2 — Índices `byKind` e `byUpdatedAt` ainda sem consulta.**
   *Aberto · P3.* Os três índices do store `storageOperationReceipts` foram
   criados na v4 conforme o schema, mas a listagem atual varre o store inteiro

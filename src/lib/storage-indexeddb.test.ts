@@ -8,6 +8,7 @@ import {
   GYMFLOW_INDEXEDDB_VERSION,
   HistoryGenerationIntegrityError,
   HistoryManifestIntegrityError,
+  HistoryMetadataIntegrityError,
   HistoryRollbackConflictError,
   IndexedDbNotOpenError,
   IndexedDbUnavailableError,
@@ -1452,6 +1453,38 @@ function makeManifestRecord(
   };
 }
 
+// Escreve um registro de metadata cru, inclusive com chave não textual — o
+// IndexedDB aceita number, Date e ArrayBuffer como chave válida.
+function putRawMetadataRecord(
+  factory: IDBFactory,
+  name: string,
+  record: Record<string, unknown>,
+): Promise<unknown> {
+  return withStore(factory, name, METADATA_STORE, 'readwrite', (transaction) => (
+    requestResult(transaction.objectStore(METADATA_STORE).put(record))
+  ));
+}
+
+// Reescreve registros do histórico direto no store, sem passar pelo adapter e
+// sem tocar no manifest.
+function mutateHistoryRecords(
+  factory: IDBFactory,
+  name: string,
+  generationId: string,
+  mutate: (
+    store: IDBObjectStore,
+    records: Record<string, unknown>[],
+  ) => Promise<void>,
+): Promise<void> {
+  return withStore(factory, name, WORKOUT_HISTORY_STORE, 'readwrite', async (transaction) => {
+    const store = transaction.objectStore(WORKOUT_HISTORY_STORE);
+    const records = await requestResult(
+      store.index('byGeneration').getAll(generationId),
+    ) as Record<string, unknown>[];
+    await mutate(store, [...records].sort((left, right) => Number(left.order) - Number(right.order)));
+  });
+}
+
 describe('receipts das operações administrativas', () => {
   it('faz round-trip completo de um receipt válido', async () => {
     const { adapter } = createHarness();
@@ -2193,6 +2226,20 @@ describe('rollback físico do ponteiro de geração ativa', () => {
     await racing.close();
   });
 
+  it('mantém o histórico intacto e recusa quando os registros mudam antes do commit', async () => {
+    // Cobertura de fumaça do caminho feliz depois da correção: o rollback normal
+    // continua funcionando com a reconferência de conteúdo ligada.
+    const { adapter } = await createRollbackHarness();
+    const result = await adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-1',
+      expectedActiveGenerationId: 'generation-2',
+    });
+    expect(result.changed).toBe(true);
+    expect((await adapter.readVerifiedHistoryGeneration('generation-1')).sessions)
+      .toHaveLength(1);
+    await adapter.close();
+  });
+
   it('não toca em receipts nem no snapshot legado durante o rollback', async () => {
     const { adapter, factory, name } = await createRollbackHarness();
     await adapter.saveLegacySnapshot('{"version":1}');
@@ -2220,6 +2267,343 @@ describe('rollback físico do ponteiro de geração ativa', () => {
       expect(JSON.stringify(after[store])).toBe(JSON.stringify(before[store]));
     }
     expect((await adapter.readStorageOperationReceipt('operation-1'))?.status).toBe('staged');
+    await adapter.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Janela entre a verificação e o commit do rollback.
+//
+// A auditoria Classe C do 002D-A1 provou que, com workoutHistory fora da
+// transação, o rollback ativava uma geração cujo conteúdo mudara depois de ser
+// verificado. As três sondas viraram testes permanentes, em banco real.
+//
+// A janela é criada interceptando `crypto.subtle.digest`: a primeira chamada
+// acontece depois da leitura física e antes da transação de commit. A
+// verificação real roda inteira, a mutação é gravada no IndexedDB real e o
+// rollback executa sua implementação verdadeira — nada é simulado.
+// ---------------------------------------------------------------------------
+
+interface RollbackRaceOutcome {
+  error: unknown;
+  before: Record<string, unknown[]>;
+  afterMutation: Record<string, unknown[]> | null;
+  after: Record<string, unknown[]>;
+  activeGeneration: string | null;
+  activeHistory: WorkoutSession[];
+}
+
+describe('janela entre a verificação e o commit do rollback', () => {
+  async function seedRollbackRace() {
+    const harness = createHarness();
+    await harness.adapter.open();
+    // generation-1 fica com duas sessões para que ordem e posição sejam
+    // observáveis; generation-2 assume como ativa.
+    await harness.adapter.replaceHistory([makeSession(1), makeSession(4)]);
+    await harness.adapter.replaceHistory([makeSession(2), makeSession(3)]);
+    await harness.adapter.close();
+    return harness;
+  }
+
+  async function runRollbackRace(options: {
+    targetGenerationId?: string;
+    expectedActiveGenerationId?: string;
+    mutate: (context: { factory: IDBFactory; name: string }) => Promise<void>;
+  }): Promise<RollbackRaceOutcome> {
+    const { factory, name } = await seedRollbackRace();
+    const before = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    let afterMutation: Record<string, unknown[]> | null = null;
+
+    const racing = new IndexedDbWorkoutHistoryStorage({
+      factory,
+      databaseName: name,
+      subtleCrypto: createInterceptedSubtleCrypto(async (call) => {
+        if (call !== 1) return undefined;
+        await options.mutate({ factory, name });
+        afterMutation = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+        return undefined;
+      }),
+    });
+    await racing.open();
+
+    const error = await racing.rollbackToHistoryGeneration({
+      targetGenerationId: options.targetGenerationId ?? 'generation-1',
+      expectedActiveGenerationId: options.expectedActiveGenerationId ?? 'generation-2',
+    }).then(() => null, (caught: unknown) => caught);
+
+    const after = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    const activeGeneration = (await racing.readMetadata()).activeGeneration;
+    const activeHistory = await racing.readActiveHistory();
+    await racing.close();
+    return { error, before, afterMutation, after, activeGeneration, activeHistory };
+  }
+
+  // Falha fail-closed: o rollback não gravou nada depois da mutação injetada, e
+  // metadata, manifests e os dois stores de receipt continuam como no início.
+  function expectNothingWritten(result: RollbackRaceOutcome): void {
+    expect(result.error).toBeInstanceOf(HistoryRollbackConflictError);
+    expect(result.activeGeneration).toBe('generation-2');
+    expect(JSON.stringify(result.after)).toBe(JSON.stringify(result.afterMutation));
+    for (const store of [
+      METADATA_STORE,
+      GENERATION_MANIFESTS_STORE,
+      COMPLETION_RECEIPTS_STORE,
+      STORAGE_OPERATION_RECEIPTS_STORE,
+    ]) {
+      expect(JSON.stringify(result.after[store])).toBe(JSON.stringify(result.before[store]));
+    }
+    // A geração ativa anterior continua servindo o histórico dela.
+    expect(result.activeHistory.map((session) => session.id)).toEqual(['session-2', 'session-3']);
+  }
+
+  it('recusa quando uma sessão é alterada e o manifest permanece intacto', async () => {
+    const result = await runRollbackRace({
+      mutate: ({ factory, name }) => mutateHistoryRecords(
+        factory,
+        name,
+        'generation-1',
+        async (store, records) => {
+          // O digest gravado é preservado de propósito: só a comparação canônica
+          // pode detectar esta alteração.
+          await requestResult(store.put({
+            ...records[0],
+            session: { ...(records[0].session as WorkoutSession), totalVolume: 999_999 },
+          }));
+        },
+      ),
+    });
+
+    expectNothingWritten(result);
+    expect((result.error as Error).message).toContain('conteúdo');
+    expect(result.activeHistory.some((session) => session.totalVolume === 999_999)).toBe(false);
+  });
+
+  it('recusa quando uma sessão é removida e o manifest permanece intacto', async () => {
+    const result = await runRollbackRace({
+      mutate: ({ factory, name }) => mutateHistoryRecords(
+        factory,
+        name,
+        'generation-1',
+        async (store, records) => {
+          await requestResult(store.delete(['generation-1', Number(records[0].order)]));
+        },
+      ),
+    });
+
+    expectNothingWritten(result);
+    expect((result.error as Error).message).toContain('registros');
+    // Geração esvaziada não vira geração ativa.
+    expect(result.activeHistory).toHaveLength(2);
+  });
+
+  it('recusa quando uma sessão é adicionada e o manifest permanece intacto', async () => {
+    const result = await runRollbackRace({
+      mutate: ({ factory, name }) => mutateHistoryRecords(
+        factory,
+        name,
+        'generation-1',
+        async (store) => {
+          await requestResult(store.add({
+            sessionId: 'session-intrusa',
+            generationId: 'generation-1',
+            order: 9,
+            session: makeSession(77, { id: 'session-intrusa' }),
+            digest: null,
+          }));
+        },
+      ),
+    });
+
+    expectNothingWritten(result);
+    expect((result.error as Error).message).toContain('registros');
+  });
+
+  it('recusa quando a ordem física dos registros é trocada', async () => {
+    const result = await runRollbackRace({
+      mutate: ({ factory, name }) => mutateHistoryRecords(
+        factory,
+        name,
+        'generation-1',
+        async (store, records) => {
+          const [first, second] = records;
+          await requestResult(store.delete(['generation-1', Number(first.order)]));
+          await requestResult(store.delete(['generation-1', Number(second.order)]));
+          await requestResult(store.add({ ...second, order: Number(first.order) }));
+          await requestResult(store.add({ ...first, order: Number(second.order) }));
+        },
+      ),
+    });
+
+    expectNothingWritten(result);
+    expect((result.error as Error).message).toContain('posição');
+  });
+
+  it('recusa quando o digest gravado muda e o conteúdo permanece igual', async () => {
+    const result = await runRollbackRace({
+      mutate: ({ factory, name }) => mutateHistoryRecords(
+        factory,
+        name,
+        'generation-1',
+        async (store, records) => {
+          await requestResult(store.put({ ...records[0], digest: 'sha256:trocado' }));
+        },
+      ),
+    });
+
+    expectNothingWritten(result);
+    expect((result.error as Error).message).toContain('digest');
+  });
+
+  // Registro legado sem digest individual: `null` não pode tornar a comparação
+  // permissiva — a serialização canônica continua obrigatória.
+  it('recusa alteração de conteúdo mesmo com digest persistido nulo', async () => {
+    const result = await runRollbackRace({
+      mutate: ({ factory, name }) => mutateHistoryRecords(
+        factory,
+        name,
+        'generation-1',
+        async (store, records) => {
+          await requestResult(store.put({
+            ...records[0],
+            digest: null,
+            session: { ...(records[0].session as WorkoutSession), calories: 1 },
+          }));
+        },
+      ),
+    });
+
+    expectNothingWritten(result);
+  });
+
+  it('recusa o no-op quando a própria geração ativa muda depois da verificação', async () => {
+    const result = await runRollbackRace({
+      targetGenerationId: 'generation-2',
+      expectedActiveGenerationId: 'generation-2',
+      mutate: ({ factory, name }) => mutateHistoryRecords(
+        factory,
+        name,
+        'generation-2',
+        async (store, records) => {
+          await requestResult(store.put({
+            ...records[0],
+            session: { ...(records[0].session as WorkoutSession), calories: 7 },
+          }));
+        },
+      ),
+    });
+
+    // No-op não pode ignorar corrupção: ele passa pelas mesmas verificações.
+    expect(result.error).toBeInstanceOf(HistoryRollbackConflictError);
+    expect(result.activeGeneration).toBe('generation-2');
+    expect(JSON.stringify(result.after)).toBe(JSON.stringify(result.afterMutation));
+    expect(JSON.stringify(result.after[METADATA_STORE]))
+      .toBe(JSON.stringify(result.before[METADATA_STORE]));
+  });
+
+  it('mantém metadata intocada no no-op bem-sucedido', async () => {
+    const { factory, name, adapter } = await seedRollbackRace();
+    await adapter.open();
+    const before = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+
+    const result = await adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-2',
+      expectedActiveGenerationId: 'generation-2',
+    });
+
+    expect(result.changed).toBe(false);
+    const after = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    expect(JSON.stringify(after)).toBe(JSON.stringify(before));
+    await adapter.close();
+  });
+
+  // Concorrência legítima: workoutHistory está na transação, então um escritor
+  // concorrente é serializado. Reescrevendo conteúdo idêntico, o rollback conclui
+  // sempre — e a geração ativada continua verificável. Sem threshold de tempo.
+  it('conclui com escritor concorrente que regrava conteúdo idêntico', async () => {
+    const { factory, name, adapter } = await seedRollbackRace();
+    await adapter.open();
+
+    const rollback = adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-1',
+      expectedActiveGenerationId: 'generation-2',
+    });
+    const competing = mutateHistoryRecords(factory, name, 'generation-1', async (store, records) => {
+      for (const record of records) await requestResult(store.put({ ...record }));
+    });
+    const [result] = await Promise.all([rollback, competing]);
+
+    expect(result.changed).toBe(true);
+    expect((await adapter.readMetadata()).activeGeneration).toBe('generation-1');
+    expect((await adapter.readVerifiedHistoryGeneration('generation-1')).sessions)
+      .toHaveLength(2);
+    await adapter.close();
+  });
+
+  it('nunca produz estado intermediário com escritor concorrente que altera conteúdo', async () => {
+    const { factory, name, adapter } = await seedRollbackRace();
+    await adapter.open();
+
+    const rollback = adapter.rollbackToHistoryGeneration({
+      targetGenerationId: 'generation-1',
+      expectedActiveGenerationId: 'generation-2',
+    }).then(() => null, (caught: unknown) => caught);
+    const competing = mutateHistoryRecords(factory, name, 'generation-1', async (store, records) => {
+      await requestResult(store.put({
+        ...records[0],
+        session: { ...(records[0].session as WorkoutSession), totalVolume: 424_242 },
+      }));
+    });
+    const [error] = await Promise.all([rollback, competing]);
+    const activeGeneration = (await adapter.readMetadata()).activeGeneration;
+
+    // Só duas formas são aceitáveis, e nenhuma delas é um estado torto.
+    if (error === null) {
+      expect(activeGeneration).toBe('generation-1');
+    } else {
+      expect(error).toBeInstanceOf(HistoryRollbackConflictError);
+      expect(activeGeneration).toBe('generation-2');
+    }
+    await adapter.close();
+  });
+});
+
+describe('metadata com chave não textual', () => {
+  async function seedWithRawMetadataKey(key: unknown) {
+    const harness = createHarness();
+    await harness.adapter.open();
+    await harness.adapter.replaceHistory([makeSession(1)]);
+    await putRawMetadataRecord(harness.factory, harness.name, { key, value: 'lixo' });
+    return harness;
+  }
+
+  it.each([
+    ['numérica', 42],
+    ['Date', new Date('2026-07-24T12:00:00.000Z')],
+    ['ArrayBuffer', new Uint8Array([1, 2, 3]).buffer],
+  ])('recusa a enumeração com chave %s em vez de lançar TypeError', async (_label, key) => {
+    const { adapter, factory, name } = await seedWithRawMetadataKey(key);
+    const before = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+
+    const error = await adapter.listHistoryGenerations()
+      .then(() => null, (caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(HistoryMetadataIntegrityError);
+    expect(error).not.toBeInstanceOf(TypeError);
+    // Nenhuma listagem parcial e nenhuma mutação.
+    const after = await readAllStores(factory, name, GYMFLOW_INDEXEDDB_VERSION);
+    expect(JSON.stringify(after)).toBe(JSON.stringify(before));
+    await adapter.close();
+  });
+
+  it('mantém o banco legível por operações que não dependem da listagem', async () => {
+    const { adapter } = await seedWithRawMetadataKey(7);
+
+    expect((await adapter.readActiveHistory()).map((session) => session.id))
+      .toEqual(['session-1']);
+    expect((await adapter.readMetadata()).activeGeneration).toBe('generation-1');
+    expect((await adapter.readVerifiedHistoryGeneration('generation-1')).sessions)
+      .toHaveLength(1);
+    expect(await adapter.count()).toBe(1);
     await adapter.close();
   });
 });

@@ -757,3 +757,38 @@ Detalhe por ADR (status · decisão-chave · riscos residuais · validação · 
   staging só é limpo quando `clearStagedGenerationId` confere exatamente; qualquer
   divergência aborta a transação inteira. Limpeza implícita apagaria o rastro de
   uma operação de outra aba.
+
+## GOAL-17B-002D-A1 corretivo — rollback atomicamente verificável (2026-07-24)
+
+- **`workoutHistory` entra na transação do rollback:** a auditoria independente
+  reproduziu a janela — com o store fora do escopo, o IndexedDB não serializa
+  escritores concorrentes e as sessões podiam mudar entre a verificação e a
+  ativação. Incluir o store é o que dá a exclusão mútua; a reconferência sozinha
+  não bastaria.
+- **Prova canônica em vez de crypto dentro da transação:** a verificação de
+  integridade depende de `crypto.subtle`, que é assíncrono e desativaria a
+  transação. A prova é montada fora dela, a partir da MESMA leitura crua que
+  alimentou a verificação, e guarda `order`, `sessionId`, digest persistido e a
+  serialização canônica de cada sessão. Dentro da transação a comparação é
+  síncrona, só de strings.
+- **Leitura crua compartilhada:** `readGenerationRecords` virou a fonte única do
+  snapshot público e da prova. Duas leituras separadas reabririam uma janela
+  entre elas — a prova precisa descrever exatamente o estado que foi verificado.
+- **Conteúdo canônico comparado sempre, digest também:** digest persistido
+  sozinho é falsificável (basta alterar a sessão mantendo o digest antigo), e
+  conteúdo sozinho não detectaria adulteração só do digest. Os dois são
+  comparados. Com digest `null` de registro legado, a serialização canônica
+  continua obrigatória — `null` não afrouxa a comparação.
+- **No-op deixou de reescrever o ponteiro:** o alvo já ativo passa pelas mesmas
+  verificações, mas não regrava `activeGeneration`. Metadata fica byte a byte
+  intocada, e o no-op continua recusando quando a geração está corrompida.
+- **Chave não textual em metadata vira erro de domínio:** `HistoryMetadataIntegrityError`
+  em vez do `TypeError` de `startsWith`. Ignorar o registro devolveria listagem
+  parcial, e listagem parcial esconderia de um runtime de recuperação exatamente
+  a geração que ele precisa enxergar. O erro nasceu interno ao
+  `storage-indexeddb.ts`: a interface do adapter não mudou.
+- **Sondas da auditoria viraram testes permanentes:** as três reproduções usam
+  banco `fake-indexeddb` real, executam a verificação e o rollback verdadeiros e
+  só usam a interceptação de `crypto.subtle.digest` para abrir a janela. Elas
+  exigem `HistoryRollbackConflictError` — se a verificação prévia tivesse pego a
+  mutação, o tipo do erro seria outro e o teste falharia.

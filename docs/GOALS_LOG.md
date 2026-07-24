@@ -2162,3 +2162,98 @@ malformado.
 - Validação em WebView físico (17B-002A-PHYSICAL) continua gate obrigatório.
 
 ---
+
+## GOAL-17B-002D-A1 corretivo — rollback atomicamente verificável (2026-07-24)
+
+### Origem
+
+Auditoria independente de merge readiness do A1 classificou **Classe C — NÃO
+APTO** e reprovou a publicação por dois achados. Este corretivo fecha os dois. O
+commit `b488109` do A1 foi **preservado**.
+
+### P1 — janela entre a verificação e o commit do rollback
+
+`rollbackToHistoryGeneration` verificava a geração alvo em uma transação readonly
+já encerrada e depois abria a transação de escrita apenas sobre `metadata` e
+`generationManifests`. Com `workoutHistory` fora do escopo, o IndexedDB não
+serializava escritores concorrentes: as sessões podiam mudar entre a verificação
+e a ativação, e só o manifest era reconferido.
+
+Reprodução em banco real, manifest intacto nos três casos:
+
+| Injeção após a verificação | Antes | Depois |
+| --- | --- | --- |
+| sessão alterada | **commitava**; geração ativada reprovava com `record-digest-mismatch`; `totalVolume` adulterado virava histórico ativo | **rejeita**; `activeGeneration` intacto |
+| sessão removida | **commitava**; geração ativa com **0 sessões** e manifest declarando 1 | **rejeita**; histórico anterior preservado |
+| sessão adicionada | **commitava** com contagem divergente | **rejeita**; ponteiro intacto |
+
+Correção: a transação readwrite passou a incluir **`METADATA_STORE`,
+`GENERATION_MANIFESTS_STORE` e `WORKOUT_HISTORY_STORE`**. Antes dela, a
+verificação integral monta uma **prova canônica imutável** a partir da mesma
+leitura física — `order`, `sessionId`, digest persistido (inclusive `null`) e a
+serialização canônica de cada sessão, reusando
+`serializeWorkoutSessionCanonically`. Dentro da transação, depois de conferir
+metadata e a igualdade integral do manifest, todos os registros são relidos e
+reconferidos **sincronamente** contra a prova: contagem, `sessionId`, `order`,
+digest persistido e conteúdo canônico. Nenhum `crypto.subtle` e nenhum await
+estranho à transação.
+
+`readGenerationRecords` virou a leitura crua única que alimenta o snapshot
+público e a prova, para que ambos descrevam o mesmo estado físico.
+
+O no-op deixou de reescrever `activeGeneration`: passa pelas mesmas verificações,
+devolve `changed: false` e deixa metadata byte a byte intocada — mas continua
+recusando quando a geração alvo está corrompida.
+
+### P2 — chave não textual em metadata
+
+`listHistoryGenerations` chamava `startsWith` direto em `record.key`. Uma chave
+number/Date/ArrayBuffer produzia `TypeError: record.key.startsWith is not a
+function`. Agora a chave é validada e o caso vira
+`HistoryMetadataIntegrityError`, erro explícito do domínio, sem listagem parcial,
+sem conversão, sem reparo. A interface do adapter não mudou.
+
+### Testes
+
+`storage-indexeddb.test.ts`: **88 → 103 testes.** As três sondas da auditoria
+viraram testes permanentes, mais ordem trocada, digest alterado com conteúdo
+igual, conteúdo alterado com digest nulo, no-op sobre geração corrompida, no-op
+bem-sucedido com metadata intocada, escritor concorrente idêntico (conclui e a
+geração ativada continua verificável), escritor concorrente mutante (nunca estado
+intermediário, sem threshold de tempo), caminho feliz do rollback e três chaves
+não textuais + legibilidade preservada do banco.
+
+Todos os testes de falha comparam antes/depois de `metadata`,
+`generationManifests`, `workoutHistory`, `completionReceipts` e
+`storageOperationReceipts`. A janela é aberta interceptando
+`crypto.subtle.digest`; a verificação e o rollback reais executam inteiros e
+nenhuma resposta é simulada — os testes exigem `HistoryRollbackConflictError`,
+então uma detecção na verificação prévia faria o teste falhar.
+
+### Validações
+
+- `npx vitest run`: **41 arquivos, 951 testes** aprovados (936 + 15). Zero falha.
+- `storage-indexeddb.test.ts` embaralhado 3×: 103 testes, zero falha.
+- `npx tsc --noEmit`: aprovado. `npm run build` e `npm run build:mobile`: aprovados.
+- `npx eslint src`: **12 erros + 6 warnings**, baseline; zero ocorrência nova.
+- `git diff --check`: limpo. `package.json` e `package-lock.json` inalterados.
+
+### Preservado
+
+Versão física v4, stores, índices, formato do `StorageOperationReceipt`,
+transições CAS, isolamento dos receipts, `listUnsettledStorageOperationReceipts`,
+união da listagem de gerações, semântica documentada de `verified`,
+`readVerifiedHistoryGeneration`, comportamento legacy, envelopes v1/v2 e
+`schemaVersion` lógico 1.
+
+### Continuação
+
+- **A1 continua sem call site real:** nenhuma primitiva exposta à UI, ao boot ou
+  ao Provider.
+- **O rollback físico continua não sendo rollback completo do aplicativo:** ele
+  move apenas o ponteiro do IndexedDB; o core v2 do `localStorage` precisa ser
+  coordenado no 002D-A2/C/D.
+- **002D-A2 não iniciado.** **B/C/D/E/F não iniciados.**
+- Gate de WebView físico (17B-002A-PHYSICAL) continua obrigatório.
+
+---

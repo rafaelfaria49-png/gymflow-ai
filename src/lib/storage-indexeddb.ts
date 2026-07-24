@@ -23,6 +23,7 @@ import {
   digestWorkoutSession,
   digestWorkoutSessions,
   isHistoryGenerationManifest,
+  serializeWorkoutSessionCanonically,
   sha256Checksum,
   verifyHistoryGeneration,
 } from './storage-history-integrity';
@@ -97,6 +98,22 @@ interface StoredLegacySnapshotRecord extends LegacySnapshotRecord {
   snapshotId: string;
 }
 
+// Prova síncrona e imutável do conteúdo físico verificado de uma geração.
+//
+// Ela existe porque a verificação de integridade depende de `crypto.subtle`, que
+// é assíncrono e desativaria a transação IndexedDB. A prova é montada fora da
+// transação, a partir da MESMA leitura que alimentou a verificação, e é
+// reconferida dentro da transação de escrita por comparação de strings — sem
+// crypto, sem await estranho à transação.
+interface HistoryGenerationRecordProof {
+  readonly order: number;
+  readonly sessionId: string;
+  // `null` marca registro legado sem digest individual. Isso nunca torna a
+  // comparação permissiva: a serialização canônica continua obrigatória.
+  readonly digest: string | null;
+  readonly canonical: string;
+}
+
 export interface IndexedDbHistoryStorageOptions {
   factory?: IDBFactory;
   databaseName?: string;
@@ -163,6 +180,16 @@ export class StorageOperationTransitionError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'StorageOperationTransitionError';
+  }
+}
+
+// O store `metadata` só admite chaves textuais. Uma chave de outro tipo torna a
+// enumeração de gerações não confiável — e a enumeração é justamente a visão que
+// um runtime de recuperação usaria para decidir.
+export class HistoryMetadataIntegrityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'HistoryMetadataIntegrityError';
   }
 }
 
@@ -240,6 +267,63 @@ function manifestsMatch(
     && left.createdAt === right.createdAt
     && left.updatedAt === right.updatedAt
     && left.verified === right.verified;
+}
+
+function sortHistoryRecords(records: readonly HistoryRecord[]): HistoryRecord[] {
+  return [...records].sort((left, right) => left.order - right.order);
+}
+
+function buildGenerationProof(
+  records: readonly HistoryRecord[],
+): readonly HistoryGenerationRecordProof[] {
+  return Object.freeze(records.map((record) => Object.freeze({
+    order: record.order,
+    sessionId: record.sessionId,
+    digest: record.digest ?? null,
+    canonical: serializeWorkoutSessionCanonically(record.session),
+  })));
+}
+
+// Reconferência síncrona dentro da transação de rollback.
+//
+// Digest persistido sozinho não basta: uma sessão pode ser alterada mantendo o
+// digest antigo gravado. Por isso o conteúdo canônico completo é comparado
+// sempre, inclusive quando o digest é `null`.
+function assertGenerationMatchesProof(
+  generationId: string,
+  records: readonly HistoryRecord[],
+  proof: readonly HistoryGenerationRecordProof[],
+): void {
+  const ordered = sortHistoryRecords(records);
+  if (ordered.length !== proof.length) {
+    throw new HistoryRollbackConflictError(
+      `A geração ${generationId} tinha ${proof.length} registros na verificação e tem ${ordered.length} no commit.`,
+    );
+  }
+  for (let index = 0; index < ordered.length; index += 1) {
+    const record = ordered[index];
+    const expected = proof[index];
+    if (record.sessionId !== expected.sessionId) {
+      throw new HistoryRollbackConflictError(
+        `A posição ${index} da geração ${generationId} mudou de ${expected.sessionId} para ${record.sessionId}.`,
+      );
+    }
+    if (record.order !== expected.order) {
+      throw new HistoryRollbackConflictError(
+        `A ordem física de ${expected.sessionId} mudou de ${expected.order} para ${record.order}.`,
+      );
+    }
+    if ((record.digest ?? null) !== expected.digest) {
+      throw new HistoryRollbackConflictError(
+        `O digest gravado de ${expected.sessionId} mudou entre a verificação e o commit.`,
+      );
+    }
+    if (serializeWorkoutSessionCanonically(record.session) !== expected.canonical) {
+      throw new HistoryRollbackConflictError(
+        `O conteúdo de ${expected.sessionId} mudou entre a verificação e o commit.`,
+      );
+    }
+  }
 }
 
 // Ativa primeiro, staged depois, o resto por tempo. A ordem é diagnóstica: ela
@@ -501,6 +585,23 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
   // Leitura única usada pela hidratação: presença física, manifest e registros
   // (com os digests gravados) saem da mesma transação consistente.
   async readHistoryGenerationSnapshot(generationId: string): Promise<HistoryGenerationSnapshot> {
+    const raw = await this.readGenerationRecords(generationId);
+    return {
+      present: raw.present,
+      manifest: raw.manifest,
+      sessions: raw.records.map((record) => record.session),
+      recordDigests: raw.records.map((record) => record.digest ?? null),
+    };
+  }
+
+  // Leitura física crua da geração, em ordem newest-first. O snapshot público e
+  // a prova do rollback saem desta mesma leitura para descreverem exatamente o
+  // mesmo estado físico.
+  private async readGenerationRecords(generationId: string): Promise<{
+    present: boolean;
+    manifest: HistoryGenerationManifest | null;
+    records: HistoryRecord[];
+  }> {
     if (!generationId) throw new Error('A leitura da geração exige um generationId.');
     const database = this.requireDatabase();
     const transaction = database.transaction(
@@ -518,12 +619,10 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       ) as Promise<HistoryRecord[]>,
     ]);
     await completed;
-    const ordered = [...records].sort((left, right) => left.order - right.order);
     return {
-      present: marker !== undefined || manifest !== null || ordered.length > 0,
+      present: marker !== undefined || manifest !== null || records.length > 0,
       manifest,
-      sessions: ordered.map((record) => record.session),
-      recordDigests: ordered.map((record) => record.digest ?? null),
+      records: sortHistoryRecords(records),
     };
   }
 
@@ -1129,7 +1228,7 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     );
     const completed = transactionResult(transaction);
     const [metadataRecords, manifestRecords, historyKeys] = await Promise.all([
-      requestResult(transaction.objectStore(METADATA_STORE).getAll()) as Promise<MetadataRecord[]>,
+      requestResult(transaction.objectStore(METADATA_STORE).getAll()) as Promise<unknown[]>,
       requestResult(
         transaction.objectStore(GENERATION_MANIFESTS_STORE).getAll(),
       ) as Promise<unknown[]>,
@@ -1140,7 +1239,16 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     let activeGeneration: string | null = null;
     let migrationGeneration: string | null = null;
     const stagedMarkers = new Set<string>();
-    for (const record of metadataRecords) {
+    for (const entry of metadataRecords) {
+      const record = entry as Partial<MetadataRecord> | null;
+      // Chave não textual não é ignorada nem convertida: ela invalida a
+      // enumeração inteira. Devolver lista parcial seria esconder de um futuro
+      // runtime de recuperação exatamente a geração que ele precisa ver.
+      if (!record || typeof record.key !== 'string') {
+        throw new HistoryMetadataIntegrityError(
+          'O store metadata contém uma chave não textual; a enumeração de gerações não é confiável.',
+        );
+      }
       if (record.key === 'activeGeneration') {
         activeGeneration = typeof record.value === 'string' ? record.value : null;
       } else if (record.key === 'migrationGeneration') {
@@ -1211,25 +1319,51 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
   // recalculado e verificação de integridade completa. Nunca devolve `[]` por
   // ausência, nunca aceita manifest ausente e nunca corrige nada.
   async readVerifiedHistoryGeneration(generationId: string): Promise<VerifiedHistoryGeneration> {
+    return (await this.verifyGenerationWithProof(generationId)).verified;
+  }
+
+  // Verificação integral + prova do estado físico exato que foi verificado. A
+  // prova sai da mesma leitura crua que alimentou a verificação, então ela
+  // descreve precisamente o conteúdo aprovado — nunca um estado posterior.
+  private async verifyGenerationWithProof(generationId: string): Promise<{
+    verified: VerifiedHistoryGeneration;
+    proof: readonly HistoryGenerationRecordProof[];
+  }> {
     if (!generationId) throw new Error('A leitura verificada exige um generationId.');
-    const snapshot = await this.readHistoryGenerationSnapshot(generationId);
-    const verification = await verifyHistoryGeneration(generationId, snapshot, this.subtleCrypto);
+    const raw = await this.readGenerationRecords(generationId);
+    const verification = await verifyHistoryGeneration(
+      generationId,
+      {
+        present: raw.present,
+        manifest: raw.manifest,
+        sessions: raw.records.map((record) => record.session),
+        recordDigests: raw.records.map((record) => record.digest ?? null),
+      },
+      this.subtleCrypto,
+    );
     if (verification.status !== 'verified') {
       throw new HistoryGenerationIntegrityError(verification.reason, verification.message);
     }
     return {
-      generationId,
-      sessions: verification.sessions,
-      manifest: verification.manifest,
+      verified: {
+        generationId,
+        sessions: verification.sessions,
+        manifest: verification.manifest,
+      },
+      proof: buildGenerationProof(raw.records),
     };
   }
 
   // Rollback físico do ponteiro de geração ativa.
   //
-  // ATENÇÃO: isto não é o rollback completo do aplicativo. Só o ponteiro do
-  // IndexedDB muda; o core v2 no localStorage continua apontando para a geração
-  // anterior e precisa ser coordenado pelo runtime seguro do 002D-A2/C/D. Não há
-  // call site real desta primitiva.
+  // A transação inclui workoutHistory de propósito: sem ele o store não é
+  // serializado e um escritor concorrente conseguiria alterar as sessões entre a
+  // verificação e a ativação — a janela real encontrada pela auditoria Classe C
+  // do 002D-A1, reproduzida com sessão alterada, removida e adicionada.
+  //
+  // ATENÇÃO: isto continua não sendo o rollback completo do aplicativo. Só o
+  // ponteiro do IndexedDB muda; o core v2 no localStorage precisa ser coordenado
+  // pelo runtime seguro do 002D-A2/C/D. Não há call site real desta primitiva.
   async rollbackToHistoryGeneration(
     input: RollbackHistoryGenerationInput,
   ): Promise<RollbackHistoryGenerationResult> {
@@ -1239,15 +1373,15 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       throw new Error('O rollback exige o expectedActiveGenerationId observado.');
     }
 
-    // A geração alvo é verificada por completo antes de qualquer escrita: alvo
-    // ausente, sem manifest ou com digest divergente aborta aqui, sem tocar em
-    // metadata.
-    const verified = await this.readVerifiedHistoryGeneration(targetGenerationId);
+    // Verificação integral antes de qualquer escrita: alvo ausente, sem manifest
+    // ou com digest divergente aborta aqui, sem tocar em metadata. A prova
+    // registra o conteúdo exato aprovado, para reconferência dentro da transação.
+    const { verified, proof } = await this.verifyGenerationWithProof(targetGenerationId);
     const expectedManifest = verified.manifest;
 
     const database = this.requireDatabase();
     const transaction = database.transaction(
-      [METADATA_STORE, GENERATION_MANIFESTS_STORE],
+      [METADATA_STORE, GENERATION_MANIFESTS_STORE, WORKOUT_HISTORY_STORE],
       'readwrite',
     );
     const completed = transactionResult(transaction);
@@ -1275,11 +1409,25 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
         );
       }
 
+      // Reconferência do conteúdo físico dentro da própria transação, contra a
+      // prova canônica. Comparação síncrona de strings: nenhum `crypto.subtle`,
+      // nenhum await estranho à transação, nenhum risco de desativá-la.
+      const currentRecords = await requestResult(
+        transaction.objectStore(WORKOUT_HISTORY_STORE)
+          .index(BY_GENERATION_INDEX)
+          .getAll(targetGenerationId),
+      ) as HistoryRecord[];
+      assertGenerationMatchesProof(targetGenerationId, currentRecords, proof);
+
       const metadataStore = transaction.objectStore(METADATA_STORE);
-      await requestResult(metadataStore.put({
-        key: 'activeGeneration',
-        value: targetGenerationId,
-      } satisfies MetadataRecord));
+      // No-op não reescreve o ponteiro: ele passa pelas mesmas verificações, mas
+      // metadata permanece intocada quando o alvo já é a geração ativa.
+      if (activeGeneration !== targetGenerationId) {
+        await requestResult(metadataStore.put({
+          key: 'activeGeneration',
+          value: targetGenerationId,
+        } satisfies MetadataRecord));
+      }
       if (clearStagedGenerationId !== undefined) {
         await requestResult(metadataStore.put({
           key: 'migrationGeneration',
