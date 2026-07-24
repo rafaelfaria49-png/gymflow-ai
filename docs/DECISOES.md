@@ -708,3 +708,87 @@ Detalhe por ADR (status · decisão-chave · riscos residuais · validação · 
 - **Guardas do Context intocadas:** `restoreStorageBackup`, `startFreshStorage`
   e `applyStorageImport` continuam recusando sob v2. O corretivo alinha
   apresentação e capacidade; a defesa em profundidade permanece.
+
+## GOAL-17B-002D-A1 — fundação administrativa do IndexedDB (2026-07-24)
+
+- **002D-A foi subdividido em A1 e A2:** o slice original acumulava fundação
+  física, runtime administrativo e coordenação do core v2. A1 entrega só a
+  fundação interna (upgrade v4, receipts administrativos, enumeração, leitura
+  verificada e rollback do ponteiro); a fachada segura do runtime fica no A2.
+- **Store novo em vez de reuso do `completionReceipts`:** `storageOperationReceipts`
+  nasce separado com `keyPath: operationId` e índices `byStatus`, `byKind` e
+  `byUpdatedAt`. Compartilhar o store faria o boot de treino ler um registro
+  administrativo pelo índice de status — o `pending` da conclusão e o `staged`
+  da operação nunca podem colidir.
+- **Isolamento também estrutural, não só físico:** `isStorageOperationReceipt`
+  recusa qualquer registro que carregue `receiptId`, `finalSession` ou
+  `sessionDigest`. Store separado já bastaria para o caminho normal, mas uma
+  gravação errada não pode virar operação administrativa válida.
+- **`previousCoreRaw` e `previousGenerationId` obrigatórios e não vazios:** o
+  core anterior é o que permite desfazer a operação. Aceitar string vazia seria
+  persistir uma promessa de rollback inexistente — a mesma armadilha do histórico
+  vazio silencioso.
+- **A listagem de operações varre o store inteiro, não o índice `byStatus`:** um
+  registro com status ausente ou inválido não entra em índice nenhum, e a
+  listagem responderia "nada em aberto" sobre um store corrompido. O índice
+  continua criado (schema exigido pela v4) e será usado por consultas dirigidas
+  do A2; a listagem de recuperação precisa ser fail-closed.
+- **Primitivas administrativas em interface própria:** `WorkoutHistoryAdministrationAdapter`
+  fica ao lado de `WorkoutHistoryStorageAdapter` em vez de dentro dele. O
+  contrato de histórico é consumido pela migração v1 e pelo runtime híbrido, que
+  não devem executar operação administrativa; a implementação IndexedDB declara
+  os dois contratos, sem cast e sem método ausente.
+- **`listHistoryGenerations` é diagnóstica e não julga integridade:** `verified`
+  reporta apenas a flag declarada pelo manifest — `null` sem manifest, `false`
+  com manifest ilegível. Manifest presente nunca é tratado como geração íntegra;
+  integridade real só sai de `readVerifiedHistoryGeneration`.
+- **Marcadores físicos de staging entram na união de gerações:** além dos quatro
+  fontes exigidas, `generationNextOrder:<id>` também é lido. Uma geração cujos
+  registros e manifest sumiram continuaria fisicamente marcada e ficaria
+  invisível — exatamente o órfão que a enumeração existe para expor.
+- **Ordenação por `updatedAt ?? createdAt` decrescente:** ativa, staged e depois
+  as demais da mais recente para a mais antiga, com gerações sem manifest no fim
+  e desempate por `generationId`. Newest-first é a convenção já usada pelo
+  histórico; o desempate garante determinismo.
+- **Rollback devolve `changed: false` em vez de recusar o alvo já ativo:** a
+  gravação é idempotente e o resultado é explícito. Recusar seria transformar um
+  no-op seguro em erro que o A2 teria de interpretar.
+- **Rollback não limpa `migrationGeneration` implicitamente:** o ponteiro de
+  staging só é limpo quando `clearStagedGenerationId` confere exatamente; qualquer
+  divergência aborta a transação inteira. Limpeza implícita apagaria o rastro de
+  uma operação de outra aba.
+
+## GOAL-17B-002D-A1 corretivo — rollback atomicamente verificável (2026-07-24)
+
+- **`workoutHistory` entra na transação do rollback:** a auditoria independente
+  reproduziu a janela — com o store fora do escopo, o IndexedDB não serializa
+  escritores concorrentes e as sessões podiam mudar entre a verificação e a
+  ativação. Incluir o store é o que dá a exclusão mútua; a reconferência sozinha
+  não bastaria.
+- **Prova canônica em vez de crypto dentro da transação:** a verificação de
+  integridade depende de `crypto.subtle`, que é assíncrono e desativaria a
+  transação. A prova é montada fora dela, a partir da MESMA leitura crua que
+  alimentou a verificação, e guarda `order`, `sessionId`, digest persistido e a
+  serialização canônica de cada sessão. Dentro da transação a comparação é
+  síncrona, só de strings.
+- **Leitura crua compartilhada:** `readGenerationRecords` virou a fonte única do
+  snapshot público e da prova. Duas leituras separadas reabririam uma janela
+  entre elas — a prova precisa descrever exatamente o estado que foi verificado.
+- **Conteúdo canônico comparado sempre, digest também:** digest persistido
+  sozinho é falsificável (basta alterar a sessão mantendo o digest antigo), e
+  conteúdo sozinho não detectaria adulteração só do digest. Os dois são
+  comparados. Com digest `null` de registro legado, a serialização canônica
+  continua obrigatória — `null` não afrouxa a comparação.
+- **No-op deixou de reescrever o ponteiro:** o alvo já ativo passa pelas mesmas
+  verificações, mas não regrava `activeGeneration`. Metadata fica byte a byte
+  intocada, e o no-op continua recusando quando a geração está corrompida.
+- **Chave não textual em metadata vira erro de domínio:** `HistoryMetadataIntegrityError`
+  em vez do `TypeError` de `startsWith`. Ignorar o registro devolveria listagem
+  parcial, e listagem parcial esconderia de um runtime de recuperação exatamente
+  a geração que ele precisa enxergar. O erro nasceu interno ao
+  `storage-indexeddb.ts`: a interface do adapter não mudou.
+- **Sondas da auditoria viraram testes permanentes:** as três reproduções usam
+  banco `fake-indexeddb` real, executam a verificação e o rollback verdadeiros e
+  só usam a interceptação de `crypto.subtle.digest` para abrir a janela. Elas
+  exigem `HistoryRollbackConflictError` — se a verificação prévia tivesse pego a
+  mutação, o tipo do erro seria outro e o teste falharia.

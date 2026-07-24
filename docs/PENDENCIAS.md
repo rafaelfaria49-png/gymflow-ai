@@ -339,12 +339,49 @@ recomendação · dependências · próximo passo.**
   segue coberta por testes de integração do Provider e revisão de código; a
   inspeção no navegador não foi executada neste ambiente. *Próximo passo:*
   repetir a matriz com navegador ativo.
-- **17B-002D — Import/export e rollback.** *Pendente · P1.* Somente o corretivo
-  de honestidade da UI (**002D-A0**) foi executado; **002D-A não foi iniciado**.
-  Agregar `localStorage` e IndexedDB no arquivo lógico, revisar o limite de
-  5 MiB e definir downgrade/rollback continuam pendentes. Exportação,
+- **17B-002D — Import/export e rollback.** *Pendente · P1.* Executados até aqui:
+  o corretivo de honestidade da UI (**002D-A0**) e a fundação interna do
+  IndexedDB (**002D-A1**). O 002D-A foi subdividido: **002D-A2 não foi
+  iniciado**. Agregar `localStorage` e IndexedDB no arquivo lógico, revisar o
+  limite de 5 MiB e definir downgrade continuam pendentes. Exportação,
   importação, restauração, reset e rollback híbridos seguem **não
   implementados** e bloqueados em modo híbrido.
+- **17B-002D-A2 — Fachada segura do runtime administrativo.** *Aberto · P1.* O
+  002D-A1 entregou as primitivas físicas (receipts administrativos, enumeração,
+  leitura verificada e rollback do ponteiro), mas **nenhuma tem call site real**.
+  Falta o runtime que coordene core v2 do `localStorage` e ponteiro do
+  IndexedDB, liquide o receipt e retome operação interrompida no boot.
+  *Próximo passo:* construir a fachada no 002D-A2 antes de qualquer exposição.
+- **17B-002D-A1-P1 — `rollbackToHistoryGeneration` não é rollback completo.**
+  *Aberto · P1.* A primitiva move apenas `metadata.activeGeneration`. O core v2
+  no `localStorage` continua apontando para a geração anterior, então usá-la
+  isolada deixaria core e histórico divergentes. Não há call site hoje, e não
+  pode haver antes da coordenação. *Próximo passo:* coordenar no 002D-A2/C/D.
+- **17B-002D-A1-P0-1 — Janela entre verificação e commit do rollback.**
+  *Encerrado em 2026-07-24 (corretivo do A1).* A auditoria independente
+  classificou o A1 como Classe C e reproduziu, em banco real, o rollback
+  ativando uma geração cujo conteúdo mudara depois de verificado — com sessão
+  alterada, removida e adicionada, manifest intacto. Causa: `workoutHistory`
+  ficava fora da transação de escrita. A transação passou a incluir o store e os
+  registros são reconferidos sincronamente contra uma prova canônica montada
+  antes dela. As três reproduções viraram testes permanentes.
+- **17B-002D-A1-P0-2 — `TypeError` na enumeração com chave de metadata não
+  textual.** *Encerrado em 2026-07-24 (corretivo do A1).*
+  `listHistoryGenerations` chamava `startsWith` direto na chave. Agora a chave é
+  validada e o caso vira `HistoryMetadataIntegrityError`, sem listagem parcial e
+  sem mutação.
+- **17B-002D-A1-P2 — Índices `byKind` e `byUpdatedAt` ainda sem consulta.**
+  *Aberto · P3.* Os três índices do store `storageOperationReceipts` foram
+  criados na v4 conforme o schema, mas a listagem atual varre o store inteiro
+  para ser fail-closed sobre registros sem status válido. `byKind` e
+  `byUpdatedAt` só terão consulta dirigida quando o runtime do A2 precisar
+  filtrar por tipo ou por janela de tempo. *Próximo passo:* usar ou remover ao
+  fechar o 002D-A2.
+- **17B-002D-A1-P3 — Sem downgrade físico da versão 4.** *Aberto · P2.* O
+  upgrade v3 → v4 é aditivo e idempotente, mas não existe caminho de volta: um
+  banco já na versão 4 não abre em build antiga (`VersionError`). O mesmo já
+  valia para v2 e v3; a v4 amplia a janela. *Próximo passo:* decidir política de
+  downgrade junto do 002D-F.
 - **17B-002D-P0-1 — Recuperação legada incompatível exibida em v2.**
   *Encerrado em 2026-07-24 (002D-A0).* O `StorageRecoveryNotice` mostrava
   "Restaurar backup" e "Iniciar dados novos" com envelope físico v2 bloqueado,

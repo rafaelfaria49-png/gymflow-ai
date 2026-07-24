@@ -18,6 +18,10 @@ import {
   verifyWorkoutCompletionReceipt,
 } from './storage-completion-receipt';
 import { digestWorkoutSession } from './storage-history-integrity';
+import {
+  createStorageOperationReceipt,
+  isStorageOperationReceipt,
+} from './storage-operation-receipt';
 import type { PersistedCoreState, PersistedState } from './storage-types';
 
 const TODAY = '2026-07-23';
@@ -432,5 +436,32 @@ describe('receipt durável da conclusão', () => {
       generationId: 'generation-1',
       persistedSession: { ...session, calories: 1 },
     })).resolves.toMatchObject({ status: 'invalid', reason: 'session-divergent' });
+  });
+
+  // Regressão do GOAL-17B-002D-A1: os receipts administrativos do armazenamento
+  // (importação, restauração, reset e rollback) têm contrato e store próprios.
+  // Nenhum dos dois lados pode ler o registro do outro como se fosse seu.
+  it('nunca lê um receipt administrativo como receipt de conclusão', async () => {
+    const operationReceipt = createStorageOperationReceipt({
+      operationId: 'operation-1',
+      kind: 'rollback',
+      previousCoreRaw: '{"schemaVersion":1}',
+      previousGenerationId: 'generation-1',
+      createdAt: '2026-07-24T12:00:00.000Z',
+    });
+
+    expect(isWorkoutCompletionReceipt(operationReceipt)).toBe(false);
+    await expect(verifyWorkoutCompletionReceipt({
+      receipt: operationReceipt,
+      generationId: 'generation-1',
+      persistedSession: makeSession(),
+    })).resolves.toMatchObject({ status: 'invalid', reason: 'receipt-malformed' });
+
+    // E o receipt de conclusão nunca é aceito como operação administrativa.
+    expect(isStorageOperationReceipt(await buildReceipt())).toBe(false);
+    expect(isStorageOperationReceipt({
+      ...operationReceipt,
+      status: 'pending',
+    })).toBe(false);
   });
 });
