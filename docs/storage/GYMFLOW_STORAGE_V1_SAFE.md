@@ -387,6 +387,40 @@ da primeira montagem do Strict Mode não fecha uma conexão ainda retida pela
 segunda. Hidratação/cutover e recuperação de receipts acontecem uma única vez por
 runtime; não há listener, append nem conclusão paralela duplicada.
 
+## Capacidade de recuperação (GOAL-17B-002D-A0)
+
+O aviso global de recuperação não decide mais o que mostrar a partir de
+`storageHealth.status`, de `hasBackup` ou da presença de `issue.raw` isolados.
+`resolveStorageRecoveryCapabilities` (em `storage-hybrid.ts`) resolve, a partir
+do modo do runtime, da versão física e de `canUseLegacyAdminOperations`:
+
+| Capacidade | Significado |
+| --- | --- |
+| `canRestoreLegacyBackup` | há backup v1 válido **e** as operações antigas estão liberadas |
+| `canStartFreshLegacy` | reinício legado permitido no estado bloqueado |
+| `canDownloadRaw` | existe conteúdo bruto para baixar (somente leitura) |
+| `requiresHybridRecovery` | o estado exige recuperação, mas nenhuma ação legada é compatível |
+
+Comportamento por estado:
+
+- **legacy-v1** — inalterado: restaurar backup quando existir, iniciar dados
+  novos quando bloqueado, exportar o original quando houver conteúdo bruto.
+- **hybrid-v2 saudável** — o aviso não aparece e nenhuma ação legada é liberada.
+- **hybrid-v2 bloqueado ou com erro de gravação** — restaurar backup e iniciar
+  dados novos **não são exibidos**. Havendo conteúdo bruto, a única ação é baixá-lo;
+  o download preserva uma cópia e **não** corrige o armazenamento. Sem conteúdo
+  bruto, o aviso declara que nenhuma ação automática segura está disponível e
+  orienta a preservar aplicativo e dados.
+
+O `hasBackup` continua descrevendo o **backup v1 congelado no cutover**: ele
+existe em modo híbrido, mas não habilita restauração alguma. A desambiguação
+completa da semântica pública de backup fica para o 002D-E.
+
+As guardas do Context não mudaram: `restoreStorageBackup`, `startFreshStorage` e
+`applyStorageImport` continuam recusando (`blocked`) sob v2 mesmo que sejam
+chamados diretamente. A correção alinha apresentação e capacidade; ela não
+substitui a defesa em profundidade.
+
 ## Recuperação manual
 
 Na seção **Painel administrativo → Dados locais**:

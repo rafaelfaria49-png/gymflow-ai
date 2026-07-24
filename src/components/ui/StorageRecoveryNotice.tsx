@@ -2,11 +2,15 @@
 
 import React, { useState } from 'react';
 import { AlertTriangle, Download, RotateCcw, Sparkles } from 'lucide-react';
+import type { StorageRecoveryCapabilities } from '../../lib/storage-hybrid';
 import type { StorageHealth } from '../../lib/storage-types';
 import { ConfirmDialog } from './ConfirmDialog';
 
 interface StorageRecoveryNoticeProps {
   health: StorageHealth;
+  // Fonte única de verdade: quem resolve a capacidade é o helper de storage.
+  // O componente não reimplementa a regra de versão física nem de modo.
+  capabilities: StorageRecoveryCapabilities;
   onExportRaw: () => void;
   onRestoreBackup: () => void;
   onStartFresh: () => void;
@@ -14,6 +18,7 @@ interface StorageRecoveryNoticeProps {
 
 export const StorageRecoveryNotice = ({
   health,
+  capabilities,
   onExportRaw,
   onRestoreBackup,
   onStartFresh,
@@ -22,13 +27,21 @@ export const StorageRecoveryNotice = ({
 
   if (health.status === 'loading' || health.status === 'ready' || !health.issue) return null;
 
-  const incompatible = health.issue.kind === 'unsupported-version';
   const blocked = health.status === 'blocked';
-  const title = incompatible
-    ? 'Dados locais de outra versão'
-    : health.issue.kind === 'corrupt'
-      ? 'Dados locais precisam de recuperação'
-      : 'O último salvamento não foi confirmado';
+  const {
+    canDownloadRaw,
+    canRestoreLegacyBackup,
+    canStartFreshLegacy,
+    requiresHybridRecovery,
+  } = capabilities;
+
+  const title = requiresHybridRecovery && blocked
+    ? 'Recuperação segura necessária'
+    : health.issue.kind === 'unsupported-version'
+      ? 'Dados locais de outra versão'
+      : health.issue.kind === 'corrupt'
+        ? 'Dados locais precisam de recuperação'
+        : 'O último salvamento não foi confirmado';
 
   return (
     <>
@@ -45,20 +58,28 @@ export const StorageRecoveryNotice = ({
             <p className="mt-1 text-[11px] leading-relaxed text-gym-text-muted">
               {health.issue.message} {blocked && 'O autosave está pausado para não substituir o conteúdo original.'}
             </p>
-            {health.hasBackup && (
+            {requiresHybridRecovery && (
+              <p className="mt-1 text-[11px] leading-relaxed text-gym-text-muted">
+                {blocked
+                  ? 'O armazenamento híbrido não pôde ser validado. As opções antigas de restauração não são compatíveis com este formato e foram desativadas para preservar seus dados.'
+                  : 'As opções antigas de restauração não são compatíveis com este formato e continuam desativadas para preservar seus dados.'}
+              </p>
+            )}
+            {canRestoreLegacyBackup && (
               <p className="mt-1 text-[10px] font-bold text-gym-emerald">Há um backup v1 válido disponível.</p>
             )}
             <div className="mt-3 flex flex-wrap gap-2">
-              {health.issue.raw && (
+              {canDownloadRaw && (
                 <button
                   type="button"
                   onClick={onExportRaw}
                   className="min-h-[40px] rounded-xl border border-white/10 bg-white/5 px-3 text-[10px] font-extrabold text-white"
                 >
-                  <Download className="mr-1.5 inline h-3.5 w-3.5" /> Exportar original
+                  <Download className="mr-1.5 inline h-3.5 w-3.5" />
+                  {requiresHybridRecovery ? ' Baixar conteúdo original' : ' Exportar original'}
                 </button>
               )}
-              {health.hasBackup && (
+              {canRestoreLegacyBackup && (
                 <button
                   type="button"
                   onClick={() => setConfirmation('restore')}
@@ -67,7 +88,7 @@ export const StorageRecoveryNotice = ({
                   <RotateCcw className="mr-1.5 inline h-3.5 w-3.5" /> Restaurar backup
                 </button>
               )}
-              {blocked && (
+              {canStartFreshLegacy && (
                 <button
                   type="button"
                   onClick={() => setConfirmation('fresh')}
@@ -77,6 +98,13 @@ export const StorageRecoveryNotice = ({
                 </button>
               )}
             </div>
+            {requiresHybridRecovery && (
+              <p className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3 text-[10px] leading-relaxed text-gym-text-muted">
+                {canDownloadRaw
+                  ? 'Guarde o arquivo baixado para recuperação ou suporte. Ele preserva uma cópia do conteúdo original, mas não corrige o armazenamento.'
+                  : 'Nenhuma ação automática segura está disponível agora. Mantenha o aplicativo instalado e os dados deste aparelho como estão até que uma recuperação compatível seja oferecida.'}
+              </p>
+            )}
           </div>
         </div>
       </aside>

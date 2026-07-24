@@ -339,10 +339,30 @@ recomendação · dependências · próximo passo.**
   segue coberta por testes de integração do Provider e revisão de código; a
   inspeção no navegador não foi executada neste ambiente. *Próximo passo:*
   repetir a matriz com navegador ativo.
-- **17B-002D — Import/export e rollback.** *Pendente · P1.* Continua **não
-  iniciado**. Agregar `localStorage` e IndexedDB no arquivo lógico, revisar o
-  limite de 5 MiB e definir downgrade/rollback. Exportação, importação,
-  restauração e reset antigos seguem bloqueados em modo híbrido.
+- **17B-002D — Import/export e rollback.** *Pendente · P1.* Somente o corretivo
+  de honestidade da UI (**002D-A0**) foi executado; **002D-A não foi iniciado**.
+  Agregar `localStorage` e IndexedDB no arquivo lógico, revisar o limite de
+  5 MiB e definir downgrade/rollback continuam pendentes. Exportação,
+  importação, restauração, reset e rollback híbridos seguem **não
+  implementados** e bloqueados em modo híbrido.
+- **17B-002D-P0-1 — Recuperação legada incompatível exibida em v2.**
+  *Encerrado em 2026-07-24 (002D-A0).* O `StorageRecoveryNotice` mostrava
+  "Restaurar backup" e "Iniciar dados novos" com envelope físico v2 bloqueado,
+  embora o Context recusasse as duas. As ações passaram a depender de
+  `resolveStorageRecoveryCapabilities`; em v2 resta apenas o download do
+  conteúdo bruto, que é somente leitura.
+- **17B-002D-E01 — `hasBackup` continua semanticamente ambíguo.** *Aberto · P1.*
+  O valor vem do parser v1 e, em modo híbrido, descreve o backup congelado no
+  cutover — não o backup rolante do core (`:hybrid-core-backup:v2`). O 002D-A0
+  impediu que ele ofereça restauração incompatível, mas o mesmo rótulo continua
+  cobrindo duas semânticas no chip "Backup disponível" do AdminPanel.
+  *Próximo passo:* separar as ações nomeadas de restauração no 002D-E.
+- **17B-002D-E02 — Textos do AdminPanel citam identificador interno de GOAL.**
+  *Aberto · P3.* O banner de "Dados locais" e os toasts de recusa mencionam
+  "GOAL-17B-002D". Não é ação executável nem promessa de restauração — os botões
+  já estão desabilitados —, então ficou fora do escopo do 002D-A0.
+  *Próximo passo:* substituir por linguagem de produto ao reescrever o painel no
+  002D-E.
 - **17B-002A-PHYSICAL — Gate de aparelho.** *Pendente · P1.* Continua
   obrigatório: medir Android WebView de entrada (migração 100/500/1.000, cold
   start, background/kill, update por `adb install -r`, quota e recuperação)

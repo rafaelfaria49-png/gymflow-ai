@@ -30,6 +30,7 @@ import {
   type PersistedCoreState,
   type PersistedState,
   type StorageEnvelope,
+  type StorageHealth,
   type StorageIssue,
   type StorageLike,
   type StorageWriteResult,
@@ -1242,4 +1243,37 @@ export function canUseLegacyAdminOperations(
 ): boolean {
   return mode === 'legacy-v1'
     || (mode === 'blocked' && physicalVersion !== HYBRID_STORAGE_VERSION);
+}
+
+export interface StorageRecoveryCapabilities {
+  canRestoreLegacyBackup: boolean;
+  canStartFreshLegacy: boolean;
+  canDownloadRaw: boolean;
+  requiresHybridRecovery: boolean;
+}
+
+export interface StorageRecoveryCapabilityInput {
+  mode: HybridStorageMode;
+  physicalVersion: number | null;
+  status: StorageHealth['status'];
+  hasLegacyBackup: boolean;
+  hasRawContent: boolean;
+}
+
+// A interface nunca decide sozinha o que mostrar: a capacidade nasce do modo do
+// runtime e da versão física — a mesma fonte que autoriza as operações
+// administrativas antigas. Sob v2 o backup v1 congelado existe, mas não habilita
+// restauração alguma; oferecê-la seria prometer o que o Context recusa.
+export function resolveStorageRecoveryCapabilities(
+  input: StorageRecoveryCapabilityInput,
+): StorageRecoveryCapabilities {
+  const needsRecovery = input.status === 'blocked' || input.status === 'write-error';
+  const legacyAllowed = canUseLegacyAdminOperations(input.mode, input.physicalVersion);
+  return {
+    canRestoreLegacyBackup: needsRecovery && legacyAllowed && input.hasLegacyBackup,
+    canStartFreshLegacy: needsRecovery && legacyAllowed && input.status === 'blocked',
+    // O download é somente leitura: preserva o conteúdo original sem gravar nada.
+    canDownloadRaw: needsRecovery && input.hasRawContent,
+    requiresHybridRecovery: needsRecovery && !legacyAllowed,
+  };
 }
