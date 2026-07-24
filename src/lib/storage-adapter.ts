@@ -104,6 +104,13 @@ export interface RollbackHistoryGenerationResult {
   changed: boolean;
 }
 
+export interface CreateStorageOperationReceiptIfIdleInput {
+  receipt: StorageOperationReceipt;
+  // CAS: a criação só é aceita quando `metadata.activeGeneration` ainda é
+  // exatamente este id no momento da escrita.
+  expectedActiveGenerationId: string;
+}
+
 // Primitivas administrativas de baixo nível.
 //
 // Elas ficam fora de `WorkoutHistoryStorageAdapter` de propósito: o contrato de
@@ -115,6 +122,12 @@ export interface WorkoutHistoryAdministrationAdapter {
   putStorageOperationReceipt(receipt: StorageOperationReceipt): Promise<void>;
   readStorageOperationReceipt(operationId: string): Promise<StorageOperationReceipt | null>;
   listUnsettledStorageOperationReceipts(): Promise<StorageOperationReceipt[]>;
+  // Só cria o receipt quando nenhuma outra operação administrativa está em
+  // aberto e a geração ativa confere com o CAS. Varredura, releitura de
+  // metadata e gravação (`add`, nunca `put`) acontecem numa única transação.
+  createStorageOperationReceiptIfIdle(
+    input: CreateStorageOperationReceiptIfIdleInput,
+  ): Promise<StorageOperationReceipt>;
   transitionStorageOperationReceipt(
     operationId: string,
     expectedStatus: StorageOperationStatus,

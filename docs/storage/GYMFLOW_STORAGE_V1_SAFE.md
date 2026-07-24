@@ -580,6 +580,87 @@ Sem IndexedDB disponível as primitivas administrativas falham explicitamente
 (`IndexedDbUnavailableError` / `IndexedDbNotOpenError`). Não existe fallback
 silencioso em memória e nenhuma geração é fabricada.
 
+## Fachada administrativa segura do HybridStorageRuntime (GOAL-17B-002D-A2)
+
+`createStorageAdminRuntime` (`storage-admin-runtime.ts`) é a camada entre as
+primitivas físicas do A1 e os futuros fluxos reais de
+importação/restauração/reset/rollback (002D-C/D). **Nenhuma operação real é
+executada nesta etapa** — o begin cria só um receipt `staged`. A fachada
+**não é conectada ao Provider nem à UI**: nenhum componente, boot ou
+inicialização a chama.
+
+### Quatro estados, um único diagnóstico
+
+`inspectStorageAdministration()` devolve sempre o mesmo snapshot —
+`state`, `physicalStorageVersion`, `activeGenerationId`, `stagedGenerationId`,
+`generations`, `unsettledOperations`, `pendingCompletionReceiptCount`,
+`coreDigest` — e nunca escreve nada. `state.status` é um de quatro:
+
+- `unavailable` — camada física inutilizável (`not-hybrid`,
+  `indexeddb-unavailable`, `storage-blocked`, `physical-version-mismatch`,
+  `core-invalid`);
+- `ready` — v2 saudável, sem receipt aberto, sem conclusão pendente, sem
+  staging inesperado;
+- `interrupted` — exatamente um `StorageOperationReceipt` não terminal,
+  identificado por completo (`operationId`/`kind`/`status`); nenhuma
+  recuperação automática;
+- `conflicted` — estado ambíguo demais para mutar (dois receipts abertos,
+  receipt malformado, conclusão pendente sozinha ou junto de operação
+  administrativa, staging sem explicação, geração ativa sem manifest
+  confirmado).
+
+Conflito nunca vira `ready`, e a fachada nunca escolhe sozinha qual operação
+continuar — isso fica para 002D-C/D.
+
+### Begin cria só o receipt
+
+`beginStorageOperation({ kind, sourceDigest, stagedGenerationId,
+targetCoreRaw })` exige `ready`, relê o `raw` do core v2 e a geração ativa de
+forma independente do snapshot inicial, verifica **integralmente** a geração
+ativa (`readVerifiedHistoryGeneration`, não a flag do manifest) e só então cria
+o receipt via a nova primitiva atômica do adapter,
+`createStorageOperationReceiptIfIdle` (CAS da geração ativa, `add` nunca
+`put`, duas criações concorrentes produzem exatamente um receipt). `operationId`,
+`createdAt` e `updatedAt` são sempre internos; o consumidor não os controla.
+
+Depois do CAS, o begin **relê** o `raw` e a `activeGeneration` de novo: o core
+v2 vive no `localStorage`, fora da transação IndexedDB que criou o receipt, e
+essa releitura fecha a janela que o CAS sozinho não cobre. Qualquer divergência
+transiciona o receipt recém-criado de `staged` para `reverted` — nunca o
+apaga — e devolve erro explícito de concorrência, sem alterar core nem geração
+ativa.
+
+O begin recusa (fail-closed, sem criar receipt) diante de: operação em
+aberto, mais de uma, conclusão de treino pendente, metadata malformada,
+staging sem explicação, geração ativa ausente ou corrompida, core v2
+ausente/inválido, runtime legado ou bloqueado, IndexedDB indisponível e
+versão física diferente de 2.
+
+### Transição é delegação pura
+
+`transitionStorageOperation({ operationId, expectedStatus, nextStatus, patch
+})` delega inteiramente ao CAS já existente do adapter. As transições são as
+mesmas do A1 — nenhuma nova, nenhum efeito colateral por status: mover para
+`activating`/`activated` não altera core, metadata, geração, histórico nem
+`CompletionReceipt`.
+
+### CompletionReceipt continua isolado
+
+O begin recusa com qualquer conclusão de treino pendente, e o snapshot
+classifica como `conflicted` quando ela coexiste com uma operação
+administrativa. A fachada nunca liquida nem altera `WorkoutCompletionReceipt`.
+
+### Rollback físico continua inacessível fora do adapter
+
+`rollbackToHistoryGeneration` **não** foi adicionado à fachada. Confirmado por
+busca: nenhum componente, o `GymFlowContext`, o `AdminPanel` ou o
+`StorageRecoveryNotice` o chamam. Ele continua disponível só no adapter de
+baixo nível, para uso futuro do coordenador atômico em 002D-C/D.
+
+> **A2 não é rollback completo do aplicativo, nem importação, exportação,
+> restauração ou reset.** Owner-token e concorrência entre abas continuam para
+> etapa posterior.
+
 ## Recuperação manual
 
 Na seção **Painel administrativo → Dados locais**:

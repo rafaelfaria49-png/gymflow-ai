@@ -1,5 +1,6 @@
 import type { WorkoutSession } from '../types';
 import type {
+  CreateStorageOperationReceiptIfIdleInput,
   HistoryGenerationSummary,
   HistoryStorageMetadata,
   LegacySnapshotRecord,
@@ -180,6 +181,32 @@ export class StorageOperationTransitionError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'StorageOperationTransitionError';
+  }
+}
+
+// Bloqueio fail-closed de `createStorageOperationReceiptIfIdle`: já existe um
+// receipt administrativo não terminal. Carrega o receipt existente para que o
+// chamador (002D-A2) saiba exatamente qual operação está em aberto sem uma
+// segunda leitura.
+export class StorageOperationAlreadyInProgressError extends Error {
+  readonly existing: StorageOperationReceipt;
+
+  constructor(existing: StorageOperationReceipt) {
+    super(
+      `Já existe uma operação administrativa em aberto (${existing.operationId}, status ${existing.status}).`,
+    );
+    this.name = 'StorageOperationAlreadyInProgressError';
+    this.existing = existing;
+  }
+}
+
+// CAS de `createStorageOperationReceiptIfIdle` falhou: a geração ativa mudou
+// entre a leitura e a escrita, ou o operationId já existe. A transação inteira
+// é abortada — nenhum receipt fica gravado pela metade.
+export class StorageOperationBeginConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StorageOperationBeginConflictError';
   }
 }
 
@@ -1096,6 +1123,70 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     try {
       await requestResult(transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE).put(receipt));
       await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  // Criação atômica: só existe operação nova quando nenhuma outra está em
+  // aberto e a geração ativa observada pelo chamador ainda é a real. Varredura
+  // do store inteiro, releitura de metadata e gravação com `add` (nunca `put`)
+  // vivem na mesma transação readwrite — não há await de outra tarefa entre a
+  // checagem e o commit, então duas chamadas concorrentes nunca passam as
+  // duas: a segunda transação só começa depois que a primeira já commitou ou
+  // abortou.
+  async createStorageOperationReceiptIfIdle(
+    input: CreateStorageOperationReceiptIfIdleInput,
+  ): Promise<StorageOperationReceipt> {
+    const { receipt, expectedActiveGenerationId } = input;
+    if (!isStorageOperationReceipt(receipt)) {
+      throw new StorageOperationReceiptIntegrityError(
+        'O receipt de operação administrativa está com formato inválido.',
+      );
+    }
+    if (!expectedActiveGenerationId) {
+      throw new Error('A criação atômica exige o expectedActiveGenerationId observado.');
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(
+      [STORAGE_OPERATION_RECEIPTS_STORE, METADATA_STORE],
+      'readwrite',
+    );
+    const completed = transactionResult(transaction);
+
+    try {
+      const receiptStore = transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE);
+      const existingRecords = await requestResult(receiptStore.getAll()) as unknown[];
+      for (const record of existingRecords) {
+        if (!isStorageOperationReceipt(record)) {
+          throw new StorageOperationReceiptIntegrityError(
+            'Existe um receipt administrativo com formato inválido no armazenamento.',
+          );
+        }
+        if (UNSETTLED_OPERATION_STATUSES.includes(record.status)) {
+          throw new StorageOperationAlreadyInProgressError(record);
+        }
+      }
+
+      const activeGeneration = await this.readMetadataValue<string | null>(transaction, 'activeGeneration');
+      if (activeGeneration !== expectedActiveGenerationId) {
+        throw new StorageOperationBeginConflictError(
+          `A geração ativa é ${activeGeneration ?? 'nenhuma'}, e não ${expectedActiveGenerationId}.`,
+        );
+      }
+
+      const existingReceipt = await requestResult(receiptStore.get(receipt.operationId)) as unknown;
+      if (existingReceipt !== undefined) {
+        throw new StorageOperationBeginConflictError(
+          `O receipt ${receipt.operationId} já existe.`,
+        );
+      }
+
+      await requestResult(receiptStore.add(receipt));
+      await completed;
+      return receipt;
     } catch (error) {
       abortQuietly(transaction);
       await completed.catch(() => undefined);

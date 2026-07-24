@@ -404,3 +404,27 @@ recomendação · dependências · próximo passo.**
   obrigatório: medir Android WebView de entrada (migração 100/500/1.000, cold
   start, background/kill, update por `adb install -r`, quota e recuperação)
   antes de qualquer ativação para usuários. `fake-indexeddb` é informativo.
+- **17B-002D-A2-P1 — Recuperação de operação interrompida ainda manual.**
+  *Aberto · P1.* `inspectStorageAdministration` diagnostica corretamente um
+  receipt `staged`/`activating`/`activated` órfão (estado `interrupted`), mas
+  nada no A2 conclui, reverte ou limpa staging automaticamente — por desenho
+  desta etapa. Um receipt travado em `activating` depois de uma etapa futura
+  real (002D-C/D) fica visível, porém irresolvido, até o coordenador atômico
+  existir. *Próximo passo:* implementar a resolução em 002D-C/D.
+- **17B-002D-A2-P2 — `stagedGenerationId`/`targetCoreRaw` do begin aceitos mas
+  sem staging físico real.** *Aberto · P2.* `beginStorageOperation` permite que
+  o chamador informe esses dois campos desde já (o contrato do
+  `StorageOperationReceipt` já os previa desde o A1), mas nenhum fluxo real do
+  A2 cria geração, popula staging ou grava `targetCoreRaw` de fato — só o
+  valor bruto informado é persistido no receipt. *Próximo passo:* a criação
+  física de staging entra com importação/restauração em 002D-C/D.
+- **17B-002D-A2-P3 — `active-generation-corrupt` usa a flag do manifest, não
+  verificação integral.** *Aberto · P3.* `inspectStorageAdministration` decide
+  esse motivo a partir de `HistoryGenerationSummary.verified` (a mesma flag
+  documentada como não-prova desde o A1), por custo: verificação criptográfica
+  completa a cada diagnóstico seria caro demais para uma leitura frequente. Só
+  `beginStorageOperation` (via `readVerifiedHistoryGeneration`) verifica de
+  verdade antes de criar um receipt. Um chamador que decidir uma ação
+  destrutiva só a partir do snapshot, sem passar pelo begin, teria uma garantia
+  mais fraca do que parece. *Próximo passo:* nenhuma ação prevista — documentar
+  claramente é a mitigação enquanto não houver call site real.

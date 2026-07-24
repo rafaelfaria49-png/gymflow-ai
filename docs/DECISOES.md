@@ -792,3 +792,66 @@ Detalhe por ADR (status · decisão-chave · riscos residuais · validação · 
   só usam a interceptação de `crypto.subtle.digest` para abrir a janela. Elas
   exigem `HistoryRollbackConflictError` — se a verificação prévia tivesse pego a
   mutação, o tipo do erro seria outro e o teste falharia.
+
+## GOAL-17B-002D-A2 — fachada administrativa segura (2026-07-24)
+
+- **Fachada em arquivo próprio (`storage-admin-runtime.ts`), não dentro de
+  `storage-hybrid.ts`:** `HybridStorageRuntime` já tem 1279 linhas e é a
+  interface que o Provider consome. Uma fachada administrativa que "não deve
+  ser conectada ao Provider" ficando no mesmo arquivo correria o risco real de
+  um método vazar para a interface pública por engano. Arquivo separado, mesmo
+  padrão de `storage-operation-receipt.ts` ao lado de
+  `storage-completion-receipt.ts`: contratos que não podem se misturar vivem
+  separados.
+- **`createStorageOperationReceiptIfIdle` é primitiva do adapter, não da
+  fachada:** ela precisa da mesma transação atômica das demais primitivas do
+  A1 (scan + releitura de metadata + `add` em uma única transação readwrite) e
+  segue o padrão já estabelecido em `storage-indexeddb.ts` — cada primitiva com
+  seus próprios erros de domínio (`StorageOperationAlreadyInProgressError`,
+  `StorageOperationBeginConflictError`). A fachada reexporta os dois em vez de
+  duplicá-los, conforme "reutilizar erros existentes quando forem
+  semanticamente corretos".
+- **Quatro estados, um único método de leitura:** `inspectStorageAdministration`
+  devolve sempre um snapshot com o mesmo formato; o motivo de bloqueio vive
+  dentro de `state`, nunca em exceção. Nenhum outro método decide sozinho se o
+  runtime está pronto — todos (`beginStorageOperation`,
+  `readVerifiedAdministrationGeneration`) chamam o inspect internamente antes
+  de agir.
+- **`physical-version-mismatch` é só para versão física numericamente
+  desconhecida:** `v1` vira `not-hybrid`, envelope corrompido vira
+  `core-invalid`, e só o caso `unsupported-version` do `parsePhysicalEnvelope`
+  (um `v` que não é 1 nem 2) usa esse motivo. Os três nunca se confundem porque
+  vêm de branches distintos do mesmo parser já testado no A0/A1.
+- **Conclusão de treino pendente sozinha classifica como `conflicted`, não
+  `unavailable`:** a definição de `ready` do enunciado já exige "nenhuma
+  conclusão de treino pendente", então o estado nunca poderia ser `ready`; mas
+  a camada física (localStorage, IndexedDB, core v2) continua perfeitamente
+  utilizável — não é "indisponível", é "ambíguo demais para mutar agora". A
+  mesma razão passa a existir isolada (`completion-pending`) e combinada com
+  operação administrativa (`completion-pending-with-operation`), preservando o
+  isolamento entre os dois tipos de receipt.
+- **`active-generation-corrupt` usa a flag do manifest, não verificação
+  integral:** `inspectStorageAdministration` é diagnóstico e não pode custar
+  uma verificação criptográfica completa a cada leitura. Só
+  `beginStorageOperation` (passo 6 do protocolo) chama
+  `readVerifiedHistoryGeneration` de fato. O snapshot documenta isso
+  explicitamente no tipo — o mesmo cuidado que `HistoryGenerationSummary.verified`
+  já exige desde o A1.
+- **`beginStorageOperation` relê `raw` e `activeGeneration` depois do CAS, não
+  reaproveita o snapshot inicial:** o core v2 vive no `localStorage`, fora da
+  transação IndexedDB que cria o receipt. O CAS do adapter garante consistência
+  só do lado IndexedDB; a releitura pós-criação fecha a janela do lado
+  `localStorage`. Divergência em qualquer um dos dois transiciona o receipt
+  recém-criado para `reverted` (nunca apaga) e devolve
+  `StorageOperationBeginConflictError`.
+- **`coreDigest` é best-effort e nunca decide estado:** calculado via
+  `sha256Checksum` (já existente, reaproveitado de
+  `storage-history-integrity.ts`) só para diagnóstico comparável entre
+  snapshots; falha de `crypto.subtle` vira `null` em vez de derrubar o
+  `inspect`.
+- **Erros de domínio preservam `cause` nativo (`Error(message, { cause })`),
+  não um campo `originalError` customizado:** o enunciado pede "cause"
+  literalmente, e o alvo do projeto (`lib: esnext`, Node 24 no build) suporta a
+  opção nativa. `LegacySnapshotIntegrityError` do A1 usa `originalError`
+  porque antecede essa exigência; não foi alterada por estar fora do escopo
+  autorizado deste GOAL.

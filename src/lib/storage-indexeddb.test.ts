@@ -18,6 +18,8 @@ import {
   LegacySnapshotIntegrityError,
   METADATA_STORE,
   STORAGE_OPERATION_RECEIPTS_STORE,
+  StorageOperationAlreadyInProgressError,
+  StorageOperationBeginConflictError,
   StorageOperationReceiptIntegrityError,
   StorageOperationTransitionError,
   WORKOUT_HISTORY_STORE,
@@ -1725,6 +1727,154 @@ describe('receipts das operações administrativas', () => {
       targetGenerationId: 'generation-1',
       expectedActiveGenerationId: 'generation-2',
     })).rejects.toBeInstanceOf(IndexedDbNotOpenError);
+    await expect(adapter.createStorageOperationReceiptIfIdle({
+      receipt: makeOperationReceipt(),
+      expectedActiveGenerationId: 'generation-1',
+    })).rejects.toBeInstanceOf(IndexedDbNotOpenError);
+  });
+});
+
+describe('criação atômica de receipt administrativo (createStorageOperationReceiptIfIdle)', () => {
+  it('cria o receipt quando não há operação em aberto e a geração ativa confere', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    const receipt = makeOperationReceipt({ previousGenerationId: generationId });
+
+    const created = await adapter.createStorageOperationReceiptIfIdle({
+      receipt,
+      expectedActiveGenerationId: generationId,
+    });
+
+    expect(created).toEqual(receipt);
+    expect(await adapter.readStorageOperationReceipt('operation-1')).toEqual(receipt);
+    await adapter.close();
+  });
+
+  it('recusa quando já existe um receipt não terminal, para os três status', async () => {
+    for (const status of ['staged', 'activating', 'activated'] as const) {
+      const { adapter } = createHarness();
+      await adapter.open();
+      const generationId = await adapter.replaceHistory([makeSession(1)]);
+      const existing = makeOperationReceipt({
+        operationId: 'operation-existente',
+        previousGenerationId: generationId,
+        status,
+      });
+      await adapter.putStorageOperationReceipt(existing);
+
+      const error = await adapter.createStorageOperationReceiptIfIdle({
+        receipt: makeOperationReceipt({ operationId: 'operation-nova', previousGenerationId: generationId }),
+        expectedActiveGenerationId: generationId,
+      }).then(() => null, (caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(StorageOperationAlreadyInProgressError);
+      expect((error as StorageOperationAlreadyInProgressError).existing).toEqual(existing);
+      expect(await adapter.readStorageOperationReceipt('operation-nova')).toBeNull();
+      expect((await adapter.listUnsettledStorageOperationReceipts()).map((item) => item.operationId))
+        .toEqual(['operation-existente']);
+      await adapter.close();
+    }
+  });
+
+  it('receipts settled e reverted não bloqueiam uma nova operação', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    await adapter.putStorageOperationReceipt(
+      makeOperationReceipt({ operationId: 'operation-liquidada', previousGenerationId: generationId, status: 'settled' }),
+    );
+    await adapter.putStorageOperationReceipt(
+      makeOperationReceipt({ operationId: 'operation-revertida', previousGenerationId: generationId, status: 'reverted' }),
+    );
+
+    const created = await adapter.createStorageOperationReceiptIfIdle({
+      receipt: makeOperationReceipt({ operationId: 'operation-nova', previousGenerationId: generationId }),
+      expectedActiveGenerationId: generationId,
+    });
+
+    expect(created.operationId).toBe('operation-nova');
+    // Nenhum receipt terminal foi apagado.
+    expect(await adapter.readStorageOperationReceipt('operation-liquidada')).not.toBeNull();
+    expect(await adapter.readStorageOperationReceipt('operation-revertida')).not.toBeNull();
+    await adapter.close();
+  });
+
+  it('recusa por CAS quando a geração ativa observada não confere', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+
+    await expect(adapter.createStorageOperationReceiptIfIdle({
+      receipt: makeOperationReceipt({ previousGenerationId: generationId }),
+      expectedActiveGenerationId: 'generation-desatualizada',
+    })).rejects.toBeInstanceOf(StorageOperationBeginConflictError);
+
+    expect(await adapter.readStorageOperationReceipt('operation-1')).toBeNull();
+    expect(await adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
+    await adapter.close();
+  });
+
+  it('recusa quando o operationId já existe, mesmo terminal', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    await adapter.putStorageOperationReceipt(
+      makeOperationReceipt({ operationId: 'operation-1', previousGenerationId: generationId, status: 'settled' }),
+    );
+
+    await expect(adapter.createStorageOperationReceiptIfIdle({
+      receipt: makeOperationReceipt({ operationId: 'operation-1', previousGenerationId: generationId }),
+      expectedActiveGenerationId: generationId,
+    })).rejects.toBeInstanceOf(StorageOperationBeginConflictError);
+
+    expect((await adapter.readStorageOperationReceipt('operation-1'))?.status).toBe('settled');
+    await adapter.close();
+  });
+
+  it('recusa quando o receipt novo ou um registro existente está malformado', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+
+    await expect(adapter.createStorageOperationReceiptIfIdle({
+      receipt: { ...makeOperationReceipt(), status: 'pending' } as unknown as StorageOperationReceipt,
+      expectedActiveGenerationId: generationId,
+    })).rejects.toBeInstanceOf(StorageOperationReceiptIntegrityError);
+
+    await putRawOperationReceipt(factory, name, { operationId: 'operation-torto', kind: 'import' });
+    await expect(adapter.createStorageOperationReceiptIfIdle({
+      receipt: makeOperationReceipt({ operationId: 'operation-nova', previousGenerationId: generationId }),
+      expectedActiveGenerationId: generationId,
+    })).rejects.toBeInstanceOf(StorageOperationReceiptIntegrityError);
+    expect(await adapter.readStorageOperationReceipt('operation-nova')).toBeNull();
+    await adapter.close();
+  });
+
+  it('duas criações concorrentes na mesma conexão produzem exatamente um receipt', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+
+    const [first, second] = await Promise.allSettled([
+      adapter.createStorageOperationReceiptIfIdle({
+        receipt: makeOperationReceipt({ operationId: 'operation-a', previousGenerationId: generationId }),
+        expectedActiveGenerationId: generationId,
+      }),
+      adapter.createStorageOperationReceiptIfIdle({
+        receipt: makeOperationReceipt({ operationId: 'operation-b', previousGenerationId: generationId }),
+        expectedActiveGenerationId: generationId,
+      }),
+    ]);
+
+    const outcomes = [first, second];
+    const fulfilled = outcomes.filter((outcome) => outcome.status === 'fulfilled');
+    const rejected = outcomes.filter((outcome) => outcome.status === 'rejected');
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(StorageOperationAlreadyInProgressError);
+    expect(await adapter.listUnsettledStorageOperationReceipts()).toHaveLength(1);
+    await adapter.close();
   });
 });
 
