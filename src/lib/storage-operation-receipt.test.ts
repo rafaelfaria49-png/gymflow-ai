@@ -7,6 +7,7 @@ import {
   type StorageOperationStatus,
   canTransitionStorageOperation,
   createStorageOperationReceipt,
+  evaluateStorageOperationCompatibility,
   isStorageOperationKind,
   isStorageOperationReceipt,
   isStorageOperationStatus,
@@ -163,5 +164,139 @@ describe('contrato do receipt de operação administrativa', () => {
       ...makeOperationReceipt(),
       finalSession: { id: 'session-1' },
     })).toBe(false);
+  });
+});
+
+// Coerência entre um receipt não terminal e o mundo físico observado. É o que
+// separa `interrupted` (seguro para diagnosticar e, no futuro, retomar) de
+// `conflicted` (ambíguo demais para tocar). Tudo puro: sem IndexedDB, sem I/O.
+describe('evaluateStorageOperationCompatibility', () => {
+  const CORE = '{"v":2,"data":{"core":"atual"}}';
+  const OUTRO_CORE = '{"v":2,"data":{"core":"de outro momento"}}';
+  const GERACOES = [
+    { generationId: 'generation-1' },
+    { generationId: 'generation-2' },
+  ];
+
+  function evaluate(
+    receipt: Partial<StorageOperationReceipt>,
+    metadata: { activeGeneration: string | null; migrationGeneration: string | null } = {
+      activeGeneration: 'generation-1',
+      migrationGeneration: null,
+    },
+    coreRaw = CORE,
+    generations = GERACOES,
+  ) {
+    return evaluateStorageOperationCompatibility({
+      receipt: makeOperationReceipt({ previousCoreRaw: CORE, previousGenerationId: 'generation-1', ...receipt }),
+      coreRaw,
+      metadata,
+      generations,
+    });
+  }
+
+  it('staged coerente é compatible', () => {
+    expect(evaluate({ status: 'staged' })).toEqual({ status: 'compatible' });
+  });
+
+  it('staged com previousGenerationId inexistente é incompatible', () => {
+    expect(evaluate({ status: 'staged', previousGenerationId: 'generation-fantasma' }))
+      .toMatchObject({ status: 'incompatible', reason: 'previous-generation-absent' });
+  });
+
+  it('staged sobre geração que não é mais a ativa é incompatible', () => {
+    expect(evaluate({ status: 'staged' }, { activeGeneration: 'generation-2', migrationGeneration: null }))
+      .toMatchObject({ status: 'incompatible', reason: 'previous-generation-not-active' });
+  });
+
+  it('staged com core diferente do previousCoreRaw é incompatible', () => {
+    expect(evaluate({ status: 'staged' }, undefined, OUTRO_CORE))
+      .toMatchObject({ status: 'incompatible', reason: 'core-not-previous' });
+  });
+
+  it('stagedGenerationId fantasma é incompatible', () => {
+    expect(evaluate({ status: 'staged', stagedGenerationId: 'generation-fantasma' }))
+      .toMatchObject({ status: 'incompatible', reason: 'staged-generation-absent' });
+  });
+
+  it('ponteiro de staging preenchido sem receipt que o explique é incompatible', () => {
+    expect(evaluate(
+      { status: 'staged', stagedGenerationId: null },
+      { activeGeneration: 'generation-1', migrationGeneration: 'generation-2' },
+    )).toMatchObject({ status: 'incompatible', reason: 'migration-generation-divergent' });
+  });
+
+  it('ponteiro de staging divergente do declarado é incompatible', () => {
+    expect(evaluate(
+      { status: 'staged', stagedGenerationId: 'generation-2' },
+      { activeGeneration: 'generation-1', migrationGeneration: 'generation-1' },
+    )).toMatchObject({ status: 'incompatible', reason: 'migration-generation-divergent' });
+  });
+
+  it('activating sem nenhum efeito aplicado é compatible', () => {
+    expect(evaluate({ status: 'activating' })).toEqual({ status: 'compatible' });
+  });
+
+  it('activating com efeitos já aplicados é insufficient-evidence, nunca compatible', () => {
+    const resultado = evaluate(
+      { status: 'activating', stagedGenerationId: 'generation-2', targetCoreRaw: OUTRO_CORE },
+      { activeGeneration: 'generation-2', migrationGeneration: 'generation-2' },
+      OUTRO_CORE,
+    );
+    expect(resultado).toMatchObject({
+      status: 'insufficient-evidence',
+      reason: 'activating-effects-unprovable',
+    });
+    expect(resultado.status).not.toBe('compatible');
+  });
+
+  it('activating com core de terceira origem é incompatible', () => {
+    expect(evaluate({ status: 'activating' }, undefined, OUTRO_CORE))
+      .toMatchObject({ status: 'incompatible', reason: 'activating-state-unrecognized' });
+  });
+
+  it('activating com geração ativa de terceira origem é incompatible', () => {
+    expect(evaluate({ status: 'activating' }, { activeGeneration: 'generation-2', migrationGeneration: null }))
+      .toMatchObject({ status: 'incompatible', reason: 'activating-state-unrecognized' });
+  });
+
+  it('activated sem alvo declarado é incompatible', () => {
+    expect(evaluate({ status: 'activated' }))
+      .toMatchObject({ status: 'incompatible', reason: 'activated-target-missing' });
+  });
+
+  it('activated com a geração antiga ainda ativa é incompatible', () => {
+    expect(evaluate(
+      { status: 'activated', stagedGenerationId: 'generation-2', targetCoreRaw: OUTRO_CORE },
+      { activeGeneration: 'generation-1', migrationGeneration: 'generation-2' },
+      OUTRO_CORE,
+    )).toMatchObject({ status: 'incompatible', reason: 'activated-generation-not-active' });
+  });
+
+  it('activated com o core antigo é incompatible', () => {
+    expect(evaluate(
+      { status: 'activated', stagedGenerationId: 'generation-2', targetCoreRaw: OUTRO_CORE },
+      { activeGeneration: 'generation-2', migrationGeneration: 'generation-2' },
+      CORE,
+    )).toMatchObject({ status: 'incompatible', reason: 'activated-core-not-target' });
+  });
+
+  it('activated com evidência completa é compatible', () => {
+    expect(evaluate(
+      { status: 'activated', stagedGenerationId: 'generation-2', targetCoreRaw: OUTRO_CORE },
+      { activeGeneration: 'generation-2', migrationGeneration: 'generation-2' },
+      OUTRO_CORE,
+    )).toEqual({ status: 'compatible' });
+  });
+
+  it.each(['settled', 'reverted'] as const)('status terminal %s nunca é operação em aberto', (status) => {
+    expect(evaluate({ status })).toMatchObject({ status: 'incompatible', reason: 'terminal-status' });
+  });
+
+  it('insufficient-evidence e incompatible carregam razão fechada e mensagem', () => {
+    const resultado = evaluate({ status: 'activated' });
+    if (resultado.status === 'compatible') throw new Error('esperado não-compatible');
+    expect(typeof resultado.reason).toBe('string');
+    expect(resultado.message.length).toBeGreaterThan(0);
   });
 });

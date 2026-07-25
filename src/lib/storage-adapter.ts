@@ -104,6 +104,73 @@ export interface RollbackHistoryGenerationResult {
   changed: boolean;
 }
 
+export interface CreateStorageOperationReceiptIfIdleInput {
+  receipt: StorageOperationReceipt;
+  // CAS: a criação só é aceita quando `metadata.activeGeneration` ainda é
+  // exatamente este id no momento da escrita.
+  expectedActiveGenerationId: string;
+}
+
+export interface TransitionStorageOperationIfUnambiguousInput {
+  operationId: string;
+  expectedStatus: StorageOperationStatus;
+  nextStatus: StorageOperationStatus;
+  // CAS: a transição só é aceita quando `metadata.activeGeneration` ainda é
+  // exatamente este id no momento da escrita.
+  expectedActiveGenerationId: string | null;
+  patch?: StorageOperationReceiptPatch;
+}
+
+export interface RevertStorageOperationAfterTransitionConflictInput {
+  operationId: string;
+  // Status em que o receipt precisa estar AGORA para ser revertido. Sem ele a
+  // compensação viraria um `put` cego.
+  expectedStatus: StorageOperationStatus;
+  // CAS opcional. `undefined` desliga a checagem — é o caso da reversão de
+  // emergência, cujo propósito é justamente encerrar uma operação num mundo que
+  // já divergiu. Qualquer outro valor (inclusive `null`) é conferido.
+  expectedActiveGenerationId?: string | null;
+  // Motivo fechado, só para diagnóstico. Nunca carrega core bruto.
+  reason: string;
+}
+
+// Registro físico de uma sessão dentro de uma geração, exatamente como está
+// gravado. `digest` é o digest persistido junto do registro — `null` marca
+// registro legado sem digest individual. Nada aqui é normalizado ou reparado.
+export interface HistoryGenerationRecordSnapshot {
+  generationId: string;
+  sessionId: string;
+  order: number;
+  session: WorkoutSession;
+  digest: string | null;
+}
+
+// Retrato coerente de TODO o estado administrativo, capturado numa única
+// transação readonly. É a base do diagnóstico do 002D-A2: sem ele, cada leitura
+// independente podia descrever um momento diferente e o snapshot combinava
+// dados incompatíveis.
+//
+// `fingerprint` é determinístico e cobre metadata, ponteiros, manifests,
+// conteúdo canônico de todos os registros de histórico, todos os receipts
+// administrativos e todos os CompletionReceipts pendentes. Dois snapshots com
+// o mesmo fingerprint descrevem o mesmo estado físico.
+export interface StorageAdministrationSnapshotRead {
+  metadata: HistoryStorageMetadata;
+  activeGenerationId: string | null;
+  migrationGenerationId: string | null;
+  generations: HistoryGenerationSummary[];
+  manifests: HistoryGenerationManifest[];
+  // Registros da geração ativa, ordenados por `order`. Vazio quando não há
+  // geração ativa — nunca fabricado para uma geração que existe.
+  activeGenerationRecords: HistoryGenerationRecordSnapshot[];
+  activeGenerationManifest: HistoryGenerationManifest | null;
+  activeGenerationPresent: boolean;
+  operationReceipts: StorageOperationReceipt[];
+  unsettledOperations: StorageOperationReceipt[];
+  pendingCompletionReceipts: WorkoutCompletionReceipt[];
+  fingerprint: string;
+}
+
 // Primitivas administrativas de baixo nível.
 //
 // Elas ficam fora de `WorkoutHistoryStorageAdapter` de propósito: o contrato de
@@ -115,6 +182,31 @@ export interface WorkoutHistoryAdministrationAdapter {
   putStorageOperationReceipt(receipt: StorageOperationReceipt): Promise<void>;
   readStorageOperationReceipt(operationId: string): Promise<StorageOperationReceipt | null>;
   listUnsettledStorageOperationReceipts(): Promise<StorageOperationReceipt[]>;
+  // Só cria o receipt quando nenhuma outra operação administrativa está em
+  // aberto e a geração ativa confere com o CAS. Varredura, releitura de
+  // metadata e gravação (`add`, nunca `put`) acontecem numa única transação.
+  createStorageOperationReceiptIfIdle(
+    input: CreateStorageOperationReceiptIfIdleInput,
+  ): Promise<StorageOperationReceipt>;
+  // Retrato administrativo coerente numa única transação readonly, incluindo os
+  // registros necessários para verificar integralmente a geração ativa. Nunca
+  // escreve, nunca repara, nunca fabrica lista vazia por store ausente.
+  readStorageAdministrationSnapshot(): Promise<StorageAdministrationSnapshotRead>;
+  // Transição atômica que só acontece quando o estado administrativo é
+  // inequívoco: exatamente um receipt não terminal, que é o `operationId`
+  // informado, zero CompletionReceipt pendente e CAS da geração ativa — tudo na
+  // mesma transação readwrite da escrita.
+  transitionStorageOperationIfUnambiguous(
+    input: TransitionStorageOperationIfUnambiguousInput,
+  ): Promise<StorageOperationReceipt>;
+  // Compensação: leva a operação para `reverted` e só para lá. Mesma transação
+  // de três stores, mesma exigência de operação única e não ambígua, mesma
+  // validação de todos os registros — mas sem bloquear por CompletionReceipt
+  // pendente, porque reverter apenas REDUZ o conflito. Sem ela, um receipt que
+  // avançou sobre um core que depois divergiu ficaria preso para sempre.
+  revertStorageOperationAfterTransitionConflict(
+    input: RevertStorageOperationAfterTransitionConflictInput,
+  ): Promise<StorageOperationReceipt>;
   transitionStorageOperationReceipt(
     operationId: string,
     expectedStatus: StorageOperationStatus,

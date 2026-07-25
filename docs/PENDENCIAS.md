@@ -404,3 +404,82 @@ recomendação · dependências · próximo passo.**
   obrigatório: medir Android WebView de entrada (migração 100/500/1.000, cold
   start, background/kill, update por `adb install -r`, quota e recuperação)
   antes de qualquer ativação para usuários. `fake-indexeddb` é informativo.
+- **17B-002D-A2-P1 — Recuperação de operação interrompida ainda manual.**
+  *Aberto · P1.* `inspectStorageAdministration` diagnostica corretamente um
+  receipt `staged`/`activating`/`activated` órfão (estado `interrupted`), mas
+  nada no A2 conclui, reverte ou limpa staging automaticamente — por desenho
+  desta etapa. Um receipt travado em `activating` depois de uma etapa futura
+  real (002D-C/D) fica visível, porém irresolvido, até o coordenador atômico
+  existir. *Próximo passo:* implementar a resolução em 002D-C/D.
+- **17B-002D-A2-P2 — `stagedGenerationId`/`targetCoreRaw` reservados para C/D.**
+  *Resolvido no corretivo 036 (2026-07-24) · era P2.* O A2 original aceitava os
+  dois campos no `beginStorageOperation` e gravava no receipt uma promessa que
+  nenhum fluxo cumpria. Agora `beginStorageOperation` **exige que ambos sejam
+  `null`** e recusa com `StorageAdministrationInputError` antes de qualquer
+  leitura ou escrita. Os campos continuam no contrato do
+  `StorageOperationReceipt` (desde o A1) para uso de 002D-C/D, quando o staging
+  físico passar a existir de verdade.
+- **17B-002D-A2-P3 — `active-generation-corrupt` usava a flag do manifest.**
+  *Resolvido no corretivo 036 (2026-07-24) · era P3, e a classificação estava
+  errada.* Auditoria independente reproduziu seis corrupções físicas
+  (conteúdo alterado mantendo digest, digest alterado, ordem trocada, sessão
+  removida, sessão adicionada, `orderedDigest` incorreto) em que
+  `inspectStorageAdministration` devolvia **`ready`** enquanto
+  `readVerifiedAdministrationGeneration` reprovava a MESMA geração — Classe C,
+  não P3. `ready` agora exige verificação criptográfica integral
+  (`verifyHistoryGeneration` sobre o snapshot atômico: contagem, ordem, digests
+  por registro e `orderedDigest`). A flag persistida continua visível em
+  `HistoryGenerationSummary.verified`, explicitamente documentada como flag e
+  não como prova.
+- **17B-002D-A2-P4 — o custo do diagnóstico cresce com o histórico.**
+  *Aberto · P2.* `inspectStorageAdministration` faz duas leituras atômicas
+  completas e uma verificação criptográfica integral da geração ativa por
+  chamada. Isso é o preço de `ready` não mentir, mas significa que o diagnóstico
+  não é barato o suficiente para rodar em loop de render ou a cada tecla. Não há
+  call site real ainda, então nada regride hoje. *Próximo passo:* quando
+  002D-C/D ligar a fachada a uma tela, medir com histórico real no WebView
+  Android e, se necessário, cachear o snapshot por fingerprint — nunca
+  enfraquecer a verificação.
+- **17B-002D-A2-P5 — operação `activating` não tem como avançar no A2.**
+  *Aberto · P3.* Como o A2 não cria staging físico nem grava core alvo, um
+  receipt só pode ir de `staged` para `activating` e daí para `reverted`:
+  `activated` exige evidência (`stagedGenerationId` e `targetCoreRaw` reais,
+  geração alvo ativa, core alvo gravado) que nenhuma etapa desta fase produz, e
+  a transição é recusada antes de escrever. É o comportamento correto — avançar
+  criaria um receipt afirmando um mundo inexistente —, mas significa que o ciclo
+  completo só fecha em 002D-C/D. *Próximo passo:* o coordenador atômico de C/D
+  passa a produzir os efeitos e, aí sim, `activated` e `settled` ficam
+  alcançáveis.
+- **17B-002D-A2-P6 — recuperação de operação interrompida continua manual.**
+  *Aberto · P1.* Ver 17B-002D-A2-P1: o corretivo 036 melhorou o diagnóstico
+  (agora um receipt incoerente com core/metadata vira `conflicted` em vez de
+  `interrupted` genérico), mas continua não existindo resolução automática. O
+  corretivo 038 acrescentou `revertStorageOperationSafely`, que ao menos garante
+  uma saída — encerrar a operação como `reverted` sem ficar preso —, mas ela é
+  um caminho interno sem call site: alguém precisa chamá-la. *Próximo passo:* o
+  coordenador de 002D-C/D decide quando encerrar automaticamente.
+- **17B-002D-A2-P7 — TOCTOU do core na transição.** *Resolvido no corretivo 038
+  (2026-07-25) · era Classe C.* Auditoria independente reproduziu, com fault
+  injection real, a transição avançando `staged → activating` sobre um core do
+  `localStorage` já trocado — antes da transação e durante ela. O receipt ficava
+  **preso em `activating`**: o `inspect` seguinte virava
+  `conflicted/operation-incompatible` e `transitionStorageOperation`, que exige
+  `interrupted`, recusava até a reversão. Agora a transição relê o core antes,
+  exige igualdade byte a byte com o core do diagnóstico, revalida o envelope,
+  reconfere a compatibilidade, e depois do commit relê o core, o receipt e a
+  metadata. Qualquer divergência compensa para `reverted` e devolve
+  `StorageOperationTransitionConflictError` com `phase`, `reason` fechada,
+  resultado da compensação e último status conhecido.
+- **17B-002D-A2-P8 — a saída de emergência não tem call site.** *Aberto · P3.*
+  `revertStorageOperationSafely` existe e é testada, mas nada no produto a
+  chama: não há UI, Provider nem boot ligados à fachada administrativa. Um
+  receipt preso por falha de compensação continua exigindo uma chamada
+  deliberada. *Próximo passo:* 002D-C/D expõe a resolução junto do coordenador
+  atômico.
+- **17B-002D-A2-P9 — sem owner-token, duas abas continuam podendo disputar.**
+  *Aberto · P2.* O protocolo do 038 garante que a transição não conclui sobre um
+  core obsoleto, mas não impede uma segunda aba de escrever no `localStorage`
+  durante a operação — ela só faz a operação falhar de forma honesta. A exclusão
+  real depende do owner-token, que continua fora de escopo. *Próximo passo:*
+  owner-token em etapa posterior, antes de qualquer operação administrativa
+  real.
