@@ -121,6 +121,19 @@ export interface TransitionStorageOperationIfUnambiguousInput {
   patch?: StorageOperationReceiptPatch;
 }
 
+export interface RevertStorageOperationAfterTransitionConflictInput {
+  operationId: string;
+  // Status em que o receipt precisa estar AGORA para ser revertido. Sem ele a
+  // compensação viraria um `put` cego.
+  expectedStatus: StorageOperationStatus;
+  // CAS opcional. `undefined` desliga a checagem — é o caso da reversão de
+  // emergência, cujo propósito é justamente encerrar uma operação num mundo que
+  // já divergiu. Qualquer outro valor (inclusive `null`) é conferido.
+  expectedActiveGenerationId?: string | null;
+  // Motivo fechado, só para diagnóstico. Nunca carrega core bruto.
+  reason: string;
+}
+
 // Registro físico de uma sessão dentro de uma geração, exatamente como está
 // gravado. `digest` é o digest persistido junto do registro — `null` marca
 // registro legado sem digest individual. Nada aqui é normalizado ou reparado.
@@ -185,6 +198,14 @@ export interface WorkoutHistoryAdministrationAdapter {
   // mesma transação readwrite da escrita.
   transitionStorageOperationIfUnambiguous(
     input: TransitionStorageOperationIfUnambiguousInput,
+  ): Promise<StorageOperationReceipt>;
+  // Compensação: leva a operação para `reverted` e só para lá. Mesma transação
+  // de três stores, mesma exigência de operação única e não ambígua, mesma
+  // validação de todos os registros — mas sem bloquear por CompletionReceipt
+  // pendente, porque reverter apenas REDUZ o conflito. Sem ela, um receipt que
+  // avançou sobre um core que depois divergiu ficaria preso para sempre.
+  revertStorageOperationAfterTransitionConflict(
+    input: RevertStorageOperationAfterTransitionConflictInput,
   ): Promise<StorageOperationReceipt>;
   transitionStorageOperationReceipt(
     operationId: string,

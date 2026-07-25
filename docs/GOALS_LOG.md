@@ -2517,6 +2517,11 @@ conclusão pendente e receipt coerente) e a primitiva reconfere tudo dentro da
 transação de escrita. Ela **nunca escolhe** um receipt: o `operationId` tem de
 ser exatamente a única operação não terminal.
 
+> **Correção do 038:** "reconfere tudo dentro da transação de escrita" vale só
+> para o lado IndexedDB. O core v2 vive no `localStorage`, fora da transação, e
+> a auditoria seguinte provou que a transição avançava sobre um core já trocado.
+> Ver a seção do corretivo 038.
+
 A transição também valida o estado **projetado**, para não deixar o chamador
 criar um beco sem saída: `activating → activated` é recusada no A2 porque
 `activated` afirma efeitos que nenhum fluxo desta fase produz. Reverter é sempre
@@ -2607,5 +2612,114 @@ Nenhum arquivo de UI, Provider, Android ou domínio de treino foi tocado.
 - **Nenhuma recuperação automática no boot; nenhuma sincronização entre abas.**
 - **Owner-token continua pendente.** Gate de WebView físico
   (17B-002A-PHYSICAL) continua obrigatório.
+- **002D-B/C/D/E/F não iniciados.**
+---
+
+## GOAL-17B-002D-A2 corretivo 038 — transição protegida contra core obsoleto (2026-07-25)
+
+**Status:** concluído · **Commits preservados:** `429c87d` e `2e8495c`, sem
+amend, squash ou rebase.
+
+### O bloqueio
+
+Segunda auditoria independente classificou o 002D-A2 como **Classe C** de novo.
+O achado, reproduzido com fault injection real sobre o adapter físico:
+
+- `transitionStorageOperation` usava apenas `snapshot.coreRawObserved`, capturado
+  pelo `inspect`, e **nunca relia o core** — nem antes de abrir a transação, nem
+  depois do commit;
+- com o core do `localStorage` alterado depois do `inspect`, a transição
+  **commitava** `staged → activating` e retornava sucesso;
+- o mesmo acontecia com o core alterado **durante** a transação IndexedDB;
+- pior: o receipt ficava **preso em `activating`**. O `inspect` seguinte virava
+  `conflicted/operation-incompatible` e `transitionStorageOperation` — que exige
+  `interrupted` — recusava até `activating → reverted`. Não havia saída pela
+  fachada.
+
+Antes → depois, medido pelas mesmas sondas:
+
+| Cenário | Antes (2e8495c) | Depois (038) |
+| --- | --- | --- |
+| Core trocado entre o `inspect` e a transação | `activating` persistido, sucesso retornado | `pre-transition`, receipt `reverted`, erro estruturado |
+| Core trocado durante a transação IndexedDB | `activating` persistido, sucesso retornado | `post-transition`, receipt `reverted`, erro estruturado |
+| Core trocado depois do commit, antes do readback | `activating` persistido, sucesso retornado | `post-transition`, receipt `reverted`, erro estruturado |
+| Receipt em `activating` sobre core divergente | preso: nem avança nem reverte | `revertStorageOperationSafely` encerra como `reverted`; `inspect` volta a `ready` |
+| `previousCoreRaw` trocado com o mesmo comprimento | fingerprint idêntico | fingerprint diferente |
+| Compensação falha e a releitura do status também | `readCause` capturada e descartada, status `null` | `finalStatusReadCause` acessível, status `unknown` |
+| `activeGeneration` gravado como number/Date/objeto | `core-invalid` ("não existe geração ativa") | `metadata-malformed`, com a causa preservada |
+
+### Modelo de consistência declarado
+
+Não existe atomicidade única entre `localStorage` e IndexedDB, e a documentação
+deixou de sugerir que existia. A garantia é:
+
+> A transição só retorna sucesso quando o core observado antes e imediatamente
+> depois da transação continua byte a byte igual ao core compatível com o
+> receipt.
+
+Pré-transação: relê o core, exige igualdade byte a byte com
+`snapshot.coreRawObserved`, revalida o envelope v2 e reconfere a compatibilidade
+do receipt contra o raw recém-lido. Pós-commit: relê o core e compara, relê o
+receipt e confirma o `nextStatus`, relê a metadata e confirma a geração ativa,
+reconfirma a compatibilidade. Qualquer divergência compensa para `reverted`.
+
+A compensação **não** tenta desfazer a alteração externa do `localStorage`: o
+core alheio fica como está, e a operação administrativa é encerrada com
+honestidade.
+
+### O que entrou
+
+- `revertStorageOperationAfterTransitionConflict` no adapter: transação readwrite
+  sobre os três stores, validação de todos os receipts dos dois stores, exigência
+  de exatamente uma operação não terminal correspondente, releitura e validação
+  da metadata, CAS opcional da geração ativa, destino único `reverted`. Não apaga
+  o receipt, não faz `put` sem conferência, não altera CompletionReceipt,
+  histórico, manifest ou metadata.
+- `revertStorageOperationSafely` na fachada: saída para a operação presa. Aceita
+  `conflicted` por incoerência; recusa ambiguidade estrutural.
+- `StorageOperationTransitionConflictError` com `operationId`, `expectedStatus`,
+  `attemptedStatus`, `phase`, `reason`, `compensation`, `finalReceiptStatus`,
+  `cause`, `compensationCause`, `finalStatusReadCause` e `observedCoreDigest`.
+  Nenhuma mensagem carrega core bruto.
+- Fingerprint com o conteúdo integral de `previousCoreRaw`/`targetCoreRaw`
+  (SHA-256 via `sha256Checksum`, fora da transação; raw inteiro no material
+  canônico sem Web Crypto).
+- `readMetadataPointers`: ponteiro não textual vira `HistoryMetadataIntegrityError`
+  em vez de `null` silencioso.
+- `finalReceiptStatus` ganhou `missing` e `unknown`; `finalStatusReadCause` passou
+  a existir nos dois erros de conflito.
+
+### Testes
+
+998 → 1088 → **1151**. 42 arquivos, zero falha. 62 testes novos, em sete blocos
+permanentes: transição protegida contra core obsoleto (15, incluindo as três
+janelas do core e os cenários de compensação), reversão segura de operação presa
+(7), metadata malformada na fachada (12), ponteiros de metadata no adapter (12),
+primitiva de compensação (9), fingerprint dos cores do receipt (5) e as duas
+ordens de transição × conclusão de treino (2). Um teste antigo mudou de
+expectativa: `finalReceiptStatus` deixou de ser `null` e passou a ser `unknown`
+com a causa da releitura acessível.
+
+Prova de que os testes pegam a regressão: desativando as duas comparações de
+core (pré e pós), os cenários A e B falham; restaurando, voltam a passar.
+
+As janelas são determinísticas: a do pré-transação conta as leituras do core
+feitas pelo `inspect`; a do "durante" injeta a escrita depois que a chamada já
+abriu a transação de forma síncrona. Nenhum `setTimeout`, nenhum threshold.
+
+### Continuação
+
+- **Nenhum call site real:** nenhum componente, `GymFlowContext`, `AdminPanel`,
+  `StorageRecoveryNotice`, boot ou layout chama a fachada. Confirmado por busca.
+  `revertStorageOperationSafely` inclusive — ela existe e é testada, mas ninguém
+  a chama ainda (17B-002D-A2-P8).
+- **`rollbackToHistoryGeneration` continua fora da interface pública.**
+- **Nenhuma operação administrativa real.** Importação, exportação v2,
+  restauração, reset e rollback completo ficam para 002D-C/D.
+- **Nenhuma recuperação automática no boot; nenhuma sincronização entre abas.**
+- **Owner-token continua pendente** (17B-002D-A2-P9): o protocolo garante que a
+  transição não conclui sobre core obsoleto, não que uma segunda aba seja
+  impedida de escrever. Gate de WebView físico (17B-002A-PHYSICAL) continua
+  obrigatório.
 - **002D-B/C/D/E/F não iniciados.**
 ---

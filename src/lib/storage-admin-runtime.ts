@@ -17,8 +17,12 @@ import {
   StorageOperationAlreadyInProgressError,
   StorageOperationAmbiguousStateError,
   StorageOperationBeginConflictError,
+  type StorageOperationFinalReceiptStatus,
   StorageOperationReceiptIntegrityError,
+  StorageOperationTransitionConflictError,
+  type StorageOperationTransitionConflictReason,
   StorageOperationTransitionError,
+  type StorageOperationTransitionPhase,
 } from './storage-indexeddb';
 import { parsePhysicalEnvelope } from './storage-hybrid';
 import {
@@ -57,6 +61,13 @@ export {
   StorageOperationAlreadyInProgressError,
   StorageOperationAmbiguousStateError,
   StorageOperationBeginConflictError,
+  StorageOperationTransitionConflictError,
+};
+
+export type {
+  StorageOperationFinalReceiptStatus,
+  StorageOperationTransitionConflictReason,
+  StorageOperationTransitionPhase,
 };
 
 export type StorageAdministrationUnavailableReason =
@@ -159,6 +170,11 @@ export interface TransitionStorageOperationInput {
   patch?: StorageOperationReceiptPatch;
 }
 
+export interface RevertStorageOperationSafelyInput {
+  operationId: string;
+  expectedStatus: StorageOperationStatus;
+}
+
 export interface StorageAdminRuntimeOptions {
   key: string;
   storage: StorageLike;
@@ -173,6 +189,12 @@ export interface StorageAdminRuntime {
   readVerifiedAdministrationGeneration(generationId: string): Promise<VerifiedHistoryGeneration>;
   beginStorageOperation(input: BeginStorageOperationInput): Promise<StorageOperationReceipt>;
   transitionStorageOperation(input: TransitionStorageOperationInput): Promise<StorageOperationReceipt>;
+  // Saída de emergência: leva a operação em aberto para `reverted` mesmo quando
+  // o diagnóstico está `conflicted` por incoerência entre receipt, core e
+  // metadata. Sem ela, um receipt que avançou sobre um core que depois divergiu
+  // ficaria preso — `transitionStorageOperation` exige `interrupted`, e o
+  // estado divergente nunca volta a ser `interrupted`.
+  revertStorageOperationSafely(input: RevertStorageOperationSafelyInput): Promise<StorageOperationReceipt>;
 }
 
 // Motivo explícito sempre que o estado bloqueia leitura verificada ou início
@@ -244,6 +266,12 @@ function describeError(error: unknown): string {
   return error instanceof Error && error.message ? error.message : 'Falha administrativa sem detalhe.';
 }
 
+function describeFinalStatus(status: StorageOperationFinalReceiptStatus): string {
+  if (status === 'missing') return 'ausente (o registro não existe mais)';
+  if (status === 'unknown') return 'desconhecido';
+  return status;
+}
+
 function unavailableState(
   reason: StorageAdministrationUnavailableReason,
   detail: string,
@@ -280,11 +308,18 @@ function emptySnapshot(
   };
 }
 
-// Resultado da tentativa de compensar (`staged → reverted`) um receipt que já
-// nasceu mas cuja revalidação foi recusada.
+// Resultado da tentativa de compensar (`* → reverted`) um receipt cuja
+// revalidação foi recusada. `finalStatus` distingue três coisas diferentes: o
+// status realmente lido, `missing` (o registro não existe mais) e `unknown` (a
+// própria releitura falhou — e aí `readCause` carrega o porquê).
 type CompensationResult =
   | { status: 'reverted'; receipt: StorageOperationReceipt }
-  | { status: 'failed'; cause: unknown; finalStatus: StorageOperationStatus | null; readCause: unknown };
+  | {
+      status: 'failed';
+      cause: unknown;
+      finalStatus: StorageOperationFinalReceiptStatus;
+      readCause: unknown;
+    };
 
 // Uma passada completa do protocolo de leitura estável.
 type StableRead<T> =
@@ -849,15 +884,19 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
         },
       );
     }
-    const remaining = compensation.finalStatus ?? 'desconhecido';
+    const remaining = describeFinalStatus(compensation.finalStatus);
+    const readDetail = compensation.readCause === null || compensation.readCause === undefined
+      ? ''
+      : ` A releitura do status final também falhou (${describeError(compensation.readCause)}).`;
     throw new StorageOperationBeginConflictError(
       `A operação ${operationId} foi recusada (${problem}) e a compensação staged → reverted FALHOU`
-      + ` (${describeError(compensation.cause)}); o receipt permanece em ${remaining}.`,
+      + ` (${describeError(compensation.cause)}); o receipt permanece em ${remaining}.${readDetail}`,
       {
         cause,
         operationId,
         compensation: 'failed',
         compensationCause: compensation.cause,
+        finalStatusReadCause: compensation.readCause,
         finalReceiptStatus: compensation.finalStatus,
       },
     );
@@ -872,18 +911,103 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
       const receipt = await this.adapter.transitionStorageOperationReceipt(operationId, 'staged', 'reverted');
       return { status: 'reverted', receipt };
     } catch (cause) {
-      let finalStatus: StorageOperationStatus | null = null;
-      let readCause: unknown = null;
-      try {
-        const current = await this.adapter.readStorageOperationReceipt(operationId);
-        finalStatus = current?.status ?? null;
-      } catch (error) {
-        // A releitura do status final também falhou. Isso não vira silêncio: a
-        // causa viaja junto e `finalStatus` fica honestamente `null`.
-        readCause = error;
-      }
-      return { status: 'failed', cause, finalStatus, readCause };
+      const readback = await this.readFinalStatus(operationId);
+      return { status: 'failed', cause, finalStatus: readback.status, readCause: readback.cause };
     }
+  }
+
+  // Releitura honesta do status remanescente. `missing` e `unknown` são estados
+  // distintos: o primeiro é um fato lido, o segundo é a admissão de que nem ler
+  // foi possível — e nesse caso a causa acompanha, nunca é descartada.
+  private async readFinalStatus(
+    operationId: string,
+  ): Promise<{ status: StorageOperationFinalReceiptStatus; cause: unknown }> {
+    try {
+      const current = await this.adapter.readStorageOperationReceipt(operationId);
+      return { status: current === null ? 'missing' : current.status, cause: null };
+    } catch (error) {
+      return { status: 'unknown', cause: error };
+    }
+  }
+
+  // Compensação da TRANSIÇÃO. Usa a primitiva dedicada do adapter, que só sabe
+  // levar para `reverted` e não é bloqueada por CompletionReceipt pendente —
+  // reverter apenas reduz o conflito. Nunca apaga o receipt, nunca faz `put`
+  // sem conferência, nunca mexe em core, histórico, manifests, metadata ou
+  // conclusões de treino.
+  private async compensateTransition(
+    operationId: string,
+    expectedStatus: StorageOperationStatus,
+    expectedActiveGenerationId: string | null | undefined,
+    reason: StorageOperationTransitionConflictReason,
+  ): Promise<CompensationResult> {
+    try {
+      const receipt = await this.adapter.revertStorageOperationAfterTransitionConflict({
+        operationId,
+        expectedStatus,
+        expectedActiveGenerationId,
+        reason,
+      });
+      return { status: 'reverted', receipt };
+    } catch (cause) {
+      const readback = await this.readFinalStatus(operationId);
+      return { status: 'failed', cause, finalStatus: readback.status, readCause: readback.cause };
+    }
+  }
+
+  // Compensa e lança. `statusToRevert` é o status em que o receipt está AGORA:
+  // `expectedStatus` quando o conflito apareceu antes da transação,
+  // `nextStatus` quando apareceu depois do commit.
+  private async failTransition(options: {
+    operationId: string;
+    expectedStatus: StorageOperationStatus;
+    attemptedStatus: StorageOperationStatus;
+    statusToRevert: StorageOperationStatus;
+    phase: StorageOperationTransitionPhase;
+    reason: StorageOperationTransitionConflictReason;
+    problem: string;
+    expectedActiveGenerationId: string | null | undefined;
+    observedCoreDigest: string | null;
+    cause?: unknown;
+  }): Promise<never> {
+    const compensation = await this.compensateTransition(
+      options.operationId,
+      options.statusToRevert,
+      options.expectedActiveGenerationId,
+      options.reason,
+    );
+    const base = {
+      operationId: options.operationId,
+      expectedStatus: options.expectedStatus,
+      attemptedStatus: options.attemptedStatus,
+      phase: options.phase,
+      reason: options.reason,
+      observedCoreDigest: options.observedCoreDigest,
+      cause: options.cause,
+    };
+    if (compensation.status === 'reverted') {
+      throw new StorageOperationTransitionConflictError(
+        `A transição ${options.expectedStatus} → ${options.attemptedStatus} da operação`
+        + ` ${options.operationId} foi recusada (${options.problem}); o receipt foi revertido.`,
+        { ...base, compensation: 'reverted', finalReceiptStatus: compensation.receipt.status },
+      );
+    }
+    const readDetail = compensation.readCause === null || compensation.readCause === undefined
+      ? ''
+      : ` A releitura do status final também falhou (${describeError(compensation.readCause)}).`;
+    throw new StorageOperationTransitionConflictError(
+      `A transição ${options.expectedStatus} → ${options.attemptedStatus} da operação`
+      + ` ${options.operationId} foi recusada (${options.problem}) e a compensação para reverted FALHOU`
+      + ` (${describeError(compensation.cause)}); o receipt permanece em`
+      + ` ${describeFinalStatus(compensation.finalStatus)}.${readDetail}`,
+      {
+        ...base,
+        compensation: 'failed',
+        compensationCause: compensation.cause,
+        finalStatusReadCause: compensation.readCause,
+        finalReceiptStatus: compensation.finalStatus,
+      },
+    );
   }
 
   async transitionStorageOperation(
@@ -939,25 +1063,102 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
       );
     }
 
+    // PROTOCOLO PRÉ-TRANSAÇÃO (corretivo 038).
+    //
+    // O core v2 mora no localStorage e NÃO participa da transação IndexedDB —
+    // não existe atomicidade única entre os dois. O que existe é um protocolo
+    // explícito: relê o core agora, exige igualdade byte a byte com o core que
+    // o diagnóstico observou, revalida o envelope e reconfere a compatibilidade
+    // do receipt contra esse raw recém-lido. Só então a transação começa.
+    //
+    // Antes do 038 a transição usava só `snapshot.coreRawObserved` e conseguia
+    // avançar `staged → activating` sobre um core já trocado, deixando o receipt
+    // preso: o inspect seguinte virava `conflicted` e nem reverter era possível.
+    const observed = snapshot.coreRawObserved;
+    const failOptions = {
+      operationId,
+      expectedStatus,
+      attemptedStatus: nextStatus,
+      expectedActiveGenerationId: snapshot.activeGenerationId,
+      observedCoreDigest: snapshot.coreDigest,
+    };
+
+    let coreRawBeforeTransition: string | null;
+    try {
+      coreRawBeforeTransition = this.storage.getItem(this.key);
+    } catch (error) {
+      return this.failTransition({
+        ...failOptions,
+        statusToRevert: expectedStatus,
+        phase: 'pre-transition',
+        reason: 'core-unreadable',
+        problem: 'o core físico ficou ilegível antes da transação',
+        cause: error,
+      });
+    }
+    if (coreRawBeforeTransition === null) {
+      return this.failTransition({
+        ...failOptions,
+        statusToRevert: expectedStatus,
+        phase: 'pre-transition',
+        reason: 'core-missing-before-transition',
+        problem: 'o core físico desapareceu antes da transação',
+      });
+    }
+    if (coreRawBeforeTransition !== observed) {
+      return this.failTransition({
+        ...failOptions,
+        statusToRevert: expectedStatus,
+        phase: 'pre-transition',
+        reason: 'core-changed-before-transition',
+        problem: 'o core físico mudou entre o diagnóstico e a transação',
+      });
+    }
+    if (parsePhysicalEnvelope(coreRawBeforeTransition).status !== 'v2') {
+      return this.failTransition({
+        ...failOptions,
+        statusToRevert: expectedStatus,
+        phase: 'pre-transition',
+        reason: 'core-invalid-before-transition',
+        problem: 'o core físico deixou de ser um envelope v2 válido antes da transação',
+      });
+    }
+
+    // Coerência do receipt ATUAL contra o core recém-lido. `interrupted` já
+    // garantiu isso contra o core do diagnóstico; aqui a garantia é refeita
+    // contra o raw que vai valer para a escrita.
+    const current = evaluateStorageOperationCompatibility({
+      receipt: operation,
+      coreRaw: coreRawBeforeTransition,
+      metadata: {
+        activeGeneration: snapshot.activeGenerationId,
+        migrationGeneration: snapshot.stagedGenerationId,
+      },
+      generations: snapshot.generations,
+    });
+    if (current.status !== 'compatible') {
+      return this.failTransition({
+        ...failOptions,
+        statusToRevert: expectedStatus,
+        phase: 'pre-transition',
+        reason: 'receipt-incompatible-before-transition',
+        problem: `o receipt deixou de ser coerente com o core relido (${current.reason})`,
+      });
+    }
+
     // Uma transição não pode DEIXAR o receipt incoerente. No A2 isso barra, em
     // particular, `activating → activated`: `activated` afirma efeitos (geração
     // preparada ativa e core alvo gravado) que nenhuma etapa desta fase produz,
     // então avançar até lá criaria um estado impossível de comprovar. Reverter
     // é sempre permitido: status terminal não descreve efeito nenhum.
-    const coreRawObserved = snapshot.coreRawObserved;
-    if (nextStatus !== 'settled' && nextStatus !== 'reverted' && coreRawObserved !== null) {
-      const projected: StorageOperationReceipt = {
-        ...operation,
-        sourceDigest: patch?.sourceDigest === undefined ? operation.sourceDigest : patch.sourceDigest,
-        stagedGenerationId: patch?.stagedGenerationId === undefined
-          ? operation.stagedGenerationId
-          : patch.stagedGenerationId,
-        targetCoreRaw: patch?.targetCoreRaw === undefined ? operation.targetCoreRaw : patch.targetCoreRaw,
-        status: nextStatus,
-      };
+    //
+    // Esta recusa é erro do chamador sobre um estado íntegro, não conflito
+    // físico: nada é compensado, o receipt fica exatamente onde estava.
+    const projected = this.projectReceipt(operation, nextStatus, patch);
+    if (nextStatus !== 'settled' && nextStatus !== 'reverted') {
       const projection = evaluateStorageOperationCompatibility({
         receipt: projected,
-        coreRaw: coreRawObserved,
+        coreRaw: coreRawBeforeTransition,
         metadata: {
           activeGeneration: snapshot.activeGenerationId,
           migrationGeneration: snapshot.stagedGenerationId,
@@ -973,14 +1174,196 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
       }
     }
 
-    // O CAS atômico reconfere tudo dentro da própria transação de escrita:
-    // nenhum estado pode mudar entre o diagnóstico e a gravação.
-    return this.adapter.transitionStorageOperationIfUnambiguous({
+    // O CAS atômico reconfere todo o lado IndexedDB dentro da própria transação
+    // de escrita. Uma falha aqui não avançou nada: o erro sobe cru, sem
+    // compensação, porque não há o que compensar.
+    const advanced = await this.adapter.transitionStorageOperationIfUnambiguous({
       operationId,
       expectedStatus,
       nextStatus,
       expectedActiveGenerationId: snapshot.activeGenerationId,
       patch,
+    });
+
+    await this.confirmTransition({ coreRawBeforeTransition, snapshot, failOptions, nextStatus });
+    return advanced;
+  }
+
+  private projectReceipt(
+    operation: StorageOperationReceipt,
+    nextStatus: StorageOperationStatus,
+    patch: StorageOperationReceiptPatch | undefined,
+  ): StorageOperationReceipt {
+    return {
+      ...operation,
+      sourceDigest: patch?.sourceDigest === undefined ? operation.sourceDigest : patch.sourceDigest,
+      stagedGenerationId: patch?.stagedGenerationId === undefined
+        ? operation.stagedGenerationId
+        : patch.stagedGenerationId,
+      targetCoreRaw: patch?.targetCoreRaw === undefined ? operation.targetCoreRaw : patch.targetCoreRaw,
+      status: nextStatus,
+    };
+  }
+
+  // PROTOCOLO PÓS-COMMIT (corretivo 038).
+  //
+  // A transação já commitou; o receipt já está em `nextStatus`. Esta é a única
+  // chance de descobrir que alguém trocou o core do localStorage enquanto a
+  // transação IndexedDB estava aberta. Se trocou, a transição não pode ser
+  // relatada como sucesso: o receipt é compensado para `reverted` e o erro
+  // estruturado explica o que aconteceu.
+  //
+  // A compensação NÃO tenta desfazer a alteração externa do localStorage — o
+  // core alheio fica exatamente como está. Ela só encerra honestamente a
+  // operação administrativa.
+  //
+  // LIMITE HONESTO: uma alteração iniciada depois desta leitura é um novo evento
+  // externo. Ela aparece no PRÓXIMO `inspect` como conflito; este método não
+  // promete — e não pode prometer — bloquear escritas futuras.
+  private async confirmTransition(options: {
+    coreRawBeforeTransition: string;
+    snapshot: StorageAdministrationSnapshot;
+    failOptions: {
+      operationId: string;
+      expectedStatus: StorageOperationStatus;
+      attemptedStatus: StorageOperationStatus;
+      expectedActiveGenerationId: string | null;
+      observedCoreDigest: string | null;
+    };
+    nextStatus: StorageOperationStatus;
+  }): Promise<void> {
+    const { coreRawBeforeTransition, snapshot, failOptions, nextStatus } = options;
+    const { operationId } = failOptions;
+    // `reverted` é terminal e não afirma efeito nenhum: um core que mude depois
+    // dele não invalida coisa alguma, e "compensar" um receipt já revertido só
+    // produziria uma falha de CAS inventada.
+    const terminal = nextStatus === 'reverted';
+    const fail = (
+      reason: StorageOperationTransitionConflictReason,
+      problem: string,
+      cause?: unknown,
+    ) => this.failTransition({
+      ...failOptions,
+      statusToRevert: nextStatus,
+      phase: 'post-transition',
+      reason,
+      problem,
+      cause,
+    });
+
+    let coreRawAfterTransition: string | null;
+    try {
+      coreRawAfterTransition = this.storage.getItem(this.key);
+    } catch (error) {
+      if (terminal) return;
+      return fail('core-unreadable', 'o core físico ficou ilegível depois do commit', error);
+    }
+    if (!terminal && coreRawAfterTransition !== coreRawBeforeTransition) {
+      return fail(
+        'core-changed-during-transition',
+        'o core físico mudou enquanto a transação IndexedDB estava em andamento',
+      );
+    }
+
+    let persisted: StorageOperationReceipt | null;
+    let metadata: { activeGeneration: string | null; migrationGeneration: string | null };
+    try {
+      persisted = await this.adapter.readStorageOperationReceipt(operationId);
+      const read = await this.adapter.readMetadata();
+      metadata = {
+        activeGeneration: read.activeGeneration,
+        migrationGeneration: read.migrationGeneration,
+      };
+    } catch (error) {
+      return fail(
+        'administration-unreadable-after-transition',
+        'o estado administrativo ficou ilegível logo depois do commit',
+        error,
+      );
+    }
+
+    if (persisted === null) {
+      return fail('receipt-missing-after-transition', 'o receipt desapareceu logo depois do commit');
+    }
+    if (persisted.status !== nextStatus) {
+      return fail(
+        'receipt-status-unexpected-after-transition',
+        `o receipt persistido está em ${persisted.status}, e não em ${nextStatus}`,
+      );
+    }
+    if (terminal) return;
+
+    if (metadata.activeGeneration !== snapshot.activeGenerationId) {
+      return fail(
+        'active-generation-changed-after-transition',
+        'a geração ativa mudou durante a transação',
+      );
+    }
+    // `settled` é terminal e afirma efeitos que já foram comprovados em
+    // `activated`; a avaliação de compatibilidade recusa qualquer status
+    // terminal por definição, então não se aplica a ele.
+    if (nextStatus !== 'settled' && coreRawAfterTransition !== null) {
+      const confirmation = evaluateStorageOperationCompatibility({
+        receipt: persisted,
+        coreRaw: coreRawAfterTransition,
+        metadata,
+        generations: snapshot.generations,
+      });
+      if (confirmation.status !== 'compatible') {
+        return fail(
+          'receipt-incompatible-after-transition',
+          `o receipt persistido não é coerente com o estado físico (${confirmation.reason})`,
+        );
+      }
+    }
+  }
+
+  // Reversão de emergência. Existe porque a auditoria provou uma armadilha: um
+  // receipt em `activating` sobre um core divergente nunca mais volta a ser
+  // `interrupted`, e `transitionStorageOperation` — que exige `interrupted` —
+  // recusava até a reversão. O receipt ficava preso, bloqueando todo begin
+  // futuro.
+  //
+  // Este caminho não avança nada: o único destino é `reverted`. Ele aceita um
+  // diagnóstico `conflicted` por incoerência (core incompatível, estado de
+  // ativação não reconhecido, operação incompatível com a metadata, compensação
+  // anterior que falhou), mas continua recusando ambiguidade ESTRUTURAL —
+  // múltiplos receipts não terminais, receipt malformado, operationId ou status
+  // divergentes, metadata malformada e adapter indisponível — porque nesses
+  // casos escolher qual operação encerrar seria um chute. Todas essas recusas
+  // são feitas dentro da própria transação da primitiva.
+  async revertStorageOperationSafely(
+    input: RevertStorageOperationSafelyInput,
+  ): Promise<StorageOperationReceipt> {
+    const { operationId, expectedStatus } = input;
+    if (!operationId) {
+      throw new StorageAdministrationInputError(
+        'operationId',
+        'A reversão administrativa exige um operationId.',
+      );
+    }
+    if (!(await this.adapterAvailable())) {
+      throw new StorageAdministrationUnavailableError(
+        'indexeddb-unavailable',
+        'O adapter IndexedDB reportou indisponibilidade.',
+      );
+    }
+    try {
+      await this.adapter.open();
+    } catch (error) {
+      throw new StorageAdministrationUnavailableError(
+        'indexeddb-unavailable',
+        describeError(error),
+        { cause: error },
+      );
+    }
+    // Sem CAS de geração ativa: o propósito é encerrar uma operação num mundo
+    // que já divergiu. A metadata continua sendo lida e validada dentro da
+    // transação — malformada, ela bloqueia.
+    return this.adapter.revertStorageOperationAfterTransitionConflict({
+      operationId,
+      expectedStatus,
+      reason: 'revert-storage-operation-safely',
     });
   }
 

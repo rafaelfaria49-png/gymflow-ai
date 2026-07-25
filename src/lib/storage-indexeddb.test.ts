@@ -20,6 +20,7 @@ import {
   STORAGE_OPERATION_RECEIPTS_STORE,
   StorageCompletionPendingError,
   StorageOperationAlreadyInProgressError,
+  StorageOperationAmbiguousStateError,
   StorageOperationBeginConflictError,
   StorageOperationReceiptIntegrityError,
   StorageOperationTransitionError,
@@ -36,6 +37,7 @@ import {
 import type { WorkoutCompletionReceipt } from './storage-completion-receipt';
 import {
   type StorageOperationReceipt,
+  type StorageOperationStatus,
   createStorageOperationReceipt,
 } from './storage-operation-receipt';
 
@@ -3084,5 +3086,375 @@ describe('snapshot administrativo atômico (readStorageAdministrationSnapshot)',
     expect(snapshot.activeGenerationRecords).toEqual([]);
     expect(snapshot.activeGenerationManifest).toBeNull();
     expect(snapshot.activeGenerationPresent).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Corretivo 038 — o fingerprint cobre o CONTEÚDO dos cores brutos guardados nos
+// receipts. Antes eles entravam só pelo comprimento, e dois cores diferentes de
+// mesmo tamanho produziam o mesmo fingerprint.
+// ---------------------------------------------------------------------------
+describe('fingerprint cobre o conteúdo integral dos cores do receipt (038)', () => {
+  async function fingerprintComReceipt(receipt: StorageOperationReceipt): Promise<string> {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await adapter.putStorageOperationReceipt(receipt);
+    return (await adapter.readStorageAdministrationSnapshot()).fingerprint;
+  }
+
+  it('previousCoreRaw diferente com o MESMO comprimento muda o fingerprint', async () => {
+    const a = '{"v":2,"savedAt":"2026-07-24T12:00:00.000Z","data":{"a":1}}';
+    const b = '{"v":2,"savedAt":"2026-07-24T12:00:00.000Z","data":{"a":2}}';
+    expect(b).toHaveLength(a.length);
+    expect(b).not.toBe(a);
+
+    const fingerprintA = await fingerprintComReceipt(makeOperationReceipt({ previousCoreRaw: a }));
+    const fingerprintB = await fingerprintComReceipt(makeOperationReceipt({ previousCoreRaw: b }));
+    expect(fingerprintB).not.toBe(fingerprintA);
+  });
+
+  it('targetCoreRaw diferente com o MESMO comprimento muda o fingerprint', async () => {
+    const a = '{"v":2,"savedAt":"2026-07-24T12:00:00.000Z","data":{"b":7}}';
+    const b = '{"v":2,"savedAt":"2026-07-24T12:00:00.000Z","data":{"b":8}}';
+    expect(b).toHaveLength(a.length);
+
+    const fingerprintA = await fingerprintComReceipt(makeOperationReceipt({
+      status: 'activated', stagedGenerationId: 'generation-2', targetCoreRaw: a,
+    }));
+    const fingerprintB = await fingerprintComReceipt(makeOperationReceipt({
+      status: 'activated', stagedGenerationId: 'generation-2', targetCoreRaw: b,
+    }));
+    expect(fingerprintB).not.toBe(fingerprintA);
+  });
+
+  it('o mesmo receipt lido duas vezes mantém o fingerprint estável', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await adapter.putStorageOperationReceipt(makeOperationReceipt({
+      previousCoreRaw: '{"v":2,"savedAt":"2026-07-24T12:00:00.000Z","data":{"a":1}}',
+    }));
+    const primeiro = await adapter.readStorageAdministrationSnapshot();
+    const segundo = await adapter.readStorageAdministrationSnapshot();
+    expect(segundo.fingerprint).toBe(primeiro.fingerprint);
+  });
+
+  it('trocar o previousCoreRaw in loco muda o fingerprint na leitura seguinte', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    const receipt = makeOperationReceipt({
+      previousCoreRaw: '{"v":2,"savedAt":"2026-07-24T12:00:00.000Z","data":{"a":1}}',
+    });
+    await adapter.putStorageOperationReceipt(receipt);
+    const antes = (await adapter.readStorageAdministrationSnapshot()).fingerprint;
+
+    const trocado = receipt.previousCoreRaw.replace('"a":1', '"a":9');
+    expect(trocado).toHaveLength(receipt.previousCoreRaw.length);
+    await putRawOperationReceipt(factory, name, { ...receipt, previousCoreRaw: trocado });
+
+    expect((await adapter.readStorageAdministrationSnapshot()).fingerprint).not.toBe(antes);
+  });
+
+  it('o fingerprint não expõe o core bruto do receipt', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    const previousCoreRaw = '{"v":2,"savedAt":"2026-07-24T12:00:00.000Z","data":{"segredo":"nao-vazar"}}';
+    await adapter.putStorageOperationReceipt(makeOperationReceipt({ previousCoreRaw }));
+
+    const snapshot = await adapter.readStorageAdministrationSnapshot();
+    expect(snapshot.fingerprint).not.toContain('nao-vazar');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Corretivo 038 — ponteiro de metadata não textual invalida a leitura em vez de
+// virar `null`.
+// ---------------------------------------------------------------------------
+describe('ponteiros de metadata malformados (038)', () => {
+  const valores: [string, unknown][] = [
+    ['number', 42],
+    ['Date', new Date('2026-07-24T12:00:00.000Z')],
+    ['ArrayBuffer', new ArrayBuffer(8)],
+    ['objeto', { generationId: 'generation-1' }],
+    ['array', ['generation-1']],
+  ];
+
+  it.each(valores)('activeGeneration como %s invalida snapshot e enumeração', async (_label, value) => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await putMetadataRecord(factory, name, 'activeGeneration', value);
+
+    await expect(adapter.readStorageAdministrationSnapshot())
+      .rejects.toBeInstanceOf(HistoryMetadataIntegrityError);
+    await expect(adapter.listHistoryGenerations())
+      .rejects.toBeInstanceOf(HistoryMetadataIntegrityError);
+  });
+
+  it.each(valores)('migrationGeneration como %s invalida snapshot e enumeração', async (_label, value) => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await putMetadataRecord(factory, name, 'migrationGeneration', value);
+
+    await expect(adapter.readStorageAdministrationSnapshot())
+      .rejects.toBeInstanceOf(HistoryMetadataIntegrityError);
+  });
+
+  it('null continua válido e a metadata não é reparada', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    await putMetadataRecord(factory, name, 'migrationGeneration', null);
+
+    const snapshot = await adapter.readStorageAdministrationSnapshot();
+    expect(snapshot.activeGenerationId).toBe(generationId);
+    expect(snapshot.migrationGenerationId).toBeNull();
+  });
+
+  it('ponteiro malformado não é apagado nem convertido pela leitura', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    await adapter.replaceHistory([makeSession(1)]);
+    await putMetadataRecord(factory, name, 'activeGeneration', 42);
+
+    await adapter.readStorageAdministrationSnapshot().catch(() => undefined);
+
+    const registro = await withStore(factory, name, METADATA_STORE, 'readonly', (transaction) => (
+      requestResult(transaction.objectStore(METADATA_STORE).get('activeGeneration'))
+    )) as { key: string; value: unknown };
+    expect(registro.value).toBe(42);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Corretivo 038 — primitiva de compensação. Só leva para `reverted`, e existe
+// para que um receipt não fique preso quando o mundo já divergiu.
+// ---------------------------------------------------------------------------
+describe('revertStorageOperationAfterTransitionConflict (038)', () => {
+  async function comOperacao(status: StorageOperationStatus = 'staged') {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    await adapter.createStorageOperationReceiptIfIdle({
+      receipt: makeOperationReceipt({ operationId: 'operation-1', previousGenerationId: generationId }),
+      expectedActiveGenerationId: generationId,
+    });
+    if (status !== 'staged') {
+      await adapter.transitionStorageOperationReceipt('operation-1', 'staged', 'activating');
+    }
+    return { adapter, factory, name, generationId };
+  }
+
+  it('leva staged e activating para reverted, e só para reverted', async () => {
+    const doStaged = await comOperacao('staged');
+    const revertidoDeStaged = await doStaged.adapter.revertStorageOperationAfterTransitionConflict({
+      operationId: 'operation-1', expectedStatus: 'staged', reason: 'teste',
+    });
+    expect(revertidoDeStaged.status).toBe('reverted');
+
+    const doActivating = await comOperacao('activating');
+    const revertidoDeActivating = await doActivating.adapter
+      .revertStorageOperationAfterTransitionConflict({
+        operationId: 'operation-1', expectedStatus: 'activating', reason: 'teste',
+      });
+    expect(revertidoDeActivating.status).toBe('reverted');
+  });
+
+  it('recusa status terminal como origem', async () => {
+    const { adapter } = await comOperacao('staged');
+    await adapter.transitionStorageOperationReceipt('operation-1', 'staged', 'reverted');
+    await expect(adapter.revertStorageOperationAfterTransitionConflict({
+      operationId: 'operation-1', expectedStatus: 'reverted', reason: 'teste',
+    })).rejects.toBeInstanceOf(StorageOperationTransitionError);
+  });
+
+  it('recusa operationId estranho, status divergente e ausência de operação', async () => {
+    const { adapter } = await comOperacao('staged');
+    await expect(adapter.revertStorageOperationAfterTransitionConflict({
+      operationId: 'operation-outra', expectedStatus: 'staged', reason: 'teste',
+    })).rejects.toBeInstanceOf(StorageOperationAmbiguousStateError);
+    await expect(adapter.revertStorageOperationAfterTransitionConflict({
+      operationId: 'operation-1', expectedStatus: 'activating', reason: 'teste',
+    })).rejects.toBeInstanceOf(StorageOperationTransitionError);
+    expect((await adapter.readStorageOperationReceipt('operation-1'))?.status).toBe('staged');
+
+    const vazio = createHarness();
+    await vazio.adapter.open();
+    await vazio.adapter.replaceHistory([makeSession(1)]);
+    await expect(vazio.adapter.revertStorageOperationAfterTransitionConflict({
+      operationId: 'operation-1', expectedStatus: 'staged', reason: 'teste',
+    })).rejects.toBeInstanceOf(StorageOperationAmbiguousStateError);
+  });
+
+  it('recusa dois receipts não terminais e receipt malformado', async () => {
+    const dois = await comOperacao('staged');
+    await dois.adapter.putStorageOperationReceipt(makeOperationReceipt({
+      operationId: 'operation-2', previousGenerationId: dois.generationId,
+    }));
+    await expect(dois.adapter.revertStorageOperationAfterTransitionConflict({
+      operationId: 'operation-1', expectedStatus: 'staged', reason: 'teste',
+    })).rejects.toBeInstanceOf(StorageOperationAmbiguousStateError);
+
+    const torto = await comOperacao('staged');
+    await putRawOperationReceipt(torto.factory, torto.name, { operationId: 'torto', kind: 'import' });
+    await expect(torto.adapter.revertStorageOperationAfterTransitionConflict({
+      operationId: 'operation-1', expectedStatus: 'staged', reason: 'teste',
+    })).rejects.toBeInstanceOf(StorageOperationReceiptIntegrityError);
+    expect((await torto.adapter.readStorageOperationReceipt('operation-1'))?.status).toBe('staged');
+  });
+
+  it('recusa metadata malformada e CompletionReceipt malformado', async () => {
+    const metadata = await comOperacao('staged');
+    await putMetadataRecord(metadata.factory, metadata.name, 'activeGeneration', 42);
+    await expect(metadata.adapter.revertStorageOperationAfterTransitionConflict({
+      operationId: 'operation-1', expectedStatus: 'staged', reason: 'teste',
+    })).rejects.toBeInstanceOf(HistoryMetadataIntegrityError);
+
+    const conclusao = await comOperacao('staged');
+    await withStore(
+      conclusao.factory, conclusao.name, COMPLETION_RECEIPTS_STORE, 'readwrite',
+      (transaction) => requestResult(
+        transaction.objectStore(COMPLETION_RECEIPTS_STORE).put({ receiptId: 'torto' } as never),
+      ),
+    );
+    await expect(conclusao.adapter.revertStorageOperationAfterTransitionConflict({
+      operationId: 'operation-1', expectedStatus: 'staged', reason: 'teste',
+    })).rejects.toBeInstanceOf(CompletionReceiptIntegrityError);
+  });
+
+  it('confere o CAS da geração ativa quando ele é informado, e o ignora quando não é', async () => {
+    const comCas = await comOperacao('staged');
+    await expect(comCas.adapter.revertStorageOperationAfterTransitionConflict({
+      operationId: 'operation-1',
+      expectedStatus: 'staged',
+      expectedActiveGenerationId: 'generation-outra',
+      reason: 'teste',
+    })).rejects.toBeInstanceOf(StorageOperationTransitionError);
+    expect((await comCas.adapter.readStorageOperationReceipt('operation-1'))?.status).toBe('staged');
+
+    const semCas = await comOperacao('staged');
+    await putMetadataRecord(semCas.factory, semCas.name, 'activeGeneration', 'generation-divergente');
+    const revertido = await semCas.adapter.revertStorageOperationAfterTransitionConflict({
+      operationId: 'operation-1', expectedStatus: 'staged', reason: 'teste',
+    });
+    expect(revertido.status).toBe('reverted');
+  });
+
+  it('CompletionReceipt pendente não bloqueia a reversão e não é alterado', async () => {
+    const { adapter, generationId } = await comOperacao('activating');
+    const session = makeSession(96);
+    await adapter.appendSessionWithCompletionReceipt(session, await makeReceipt(session, generationId));
+    const antes = await adapter.readPendingCompletionReceipts();
+
+    const revertido = await adapter.revertStorageOperationAfterTransitionConflict({
+      operationId: 'operation-1', expectedStatus: 'activating', reason: 'teste',
+    });
+    expect(revertido.status).toBe('reverted');
+    expect(await adapter.readPendingCompletionReceipts()).toEqual(antes);
+  });
+
+  it('não altera histórico, manifests, metadata nem snapshot legado', async () => {
+    const { adapter, factory, name, generationId } = await comOperacao('activating');
+    const historicoAntes = await adapter.readHistoryGeneration(generationId);
+    const manifestAntes = await adapter.readGenerationManifest(generationId);
+    const metadataAntes = await adapter.readMetadata();
+    const legadoAntes = await adapter.readLegacySnapshot();
+
+    await adapter.revertStorageOperationAfterTransitionConflict({
+      operationId: 'operation-1', expectedStatus: 'activating', reason: 'teste',
+    });
+
+    expect(await adapter.readHistoryGeneration(generationId)).toEqual(historicoAntes);
+    expect(await adapter.readGenerationManifest(generationId)).toEqual(manifestAntes);
+    expect(await adapter.readMetadata()).toEqual(metadataAntes);
+    expect(await adapter.readLegacySnapshot()).toEqual(legadoAntes);
+    // O receipt continua existindo: reversão nunca é exclusão.
+    const registros = await withStore(
+      factory, name, STORAGE_OPERATION_RECEIPTS_STORE, 'readonly',
+      (transaction) => requestResult(transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE).getAll()),
+    ) as StorageOperationReceipt[];
+    expect(registros).toHaveLength(1);
+    expect(registros[0].status).toBe('reverted');
+  });
+
+  it('duas reversões concorrentes em conexões diferentes: só uma vence', async () => {
+    const { adapter, factory, name } = await comOperacao('activating');
+    const esquerda = new IndexedDbWorkoutHistoryStorage({
+      factory, databaseName: name, now: () => new Date('2026-07-24T12:00:00.000Z'),
+    });
+    const direita = new IndexedDbWorkoutHistoryStorage({
+      factory, databaseName: name, now: () => new Date('2026-07-24T12:00:00.000Z'),
+    });
+    await esquerda.open();
+    await direita.open();
+
+    const resultados = await Promise.allSettled([
+      esquerda.revertStorageOperationAfterTransitionConflict({
+        operationId: 'operation-1', expectedStatus: 'activating', reason: 'teste',
+      }),
+      direita.revertStorageOperationAfterTransitionConflict({
+        operationId: 'operation-1', expectedStatus: 'activating', reason: 'teste',
+      }),
+    ]);
+    expect(resultados.filter((resultado) => resultado.status === 'fulfilled')).toHaveLength(1);
+    expect((await adapter.readStorageOperationReceipt('operation-1'))?.status).toBe('reverted');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Corretivo 038 — as duas ordens de serialização entre transição e conclusão de
+// treino. Nenhuma delas é atomicidade violada: elas descrevem quem adquiriu os
+// stores primeiro.
+// ---------------------------------------------------------------------------
+describe('transição × conclusão de treino nas duas ordens (038)', () => {
+  it('conclusão JÁ pendente quando a transição adquire os stores bloqueia a transição', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    await adapter.createStorageOperationReceiptIfIdle({
+      receipt: makeOperationReceipt({ operationId: 'operation-1', previousGenerationId: generationId }),
+      expectedActiveGenerationId: generationId,
+    });
+    const session = makeSession(97);
+    await adapter.appendSessionWithCompletionReceipt(session, await makeReceipt(session, generationId));
+
+    await expect(adapter.transitionStorageOperationIfUnambiguous({
+      operationId: 'operation-1',
+      expectedStatus: 'staged',
+      nextStatus: 'activating',
+      expectedActiveGenerationId: generationId,
+    })).rejects.toBeInstanceOf(StorageCompletionPendingError);
+    expect((await adapter.readStorageOperationReceipt('operation-1'))?.status).toBe('staged');
+  });
+
+  it('conclusão iniciada DEPOIS do commit da transição é novo evento, não violação', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    await adapter.createStorageOperationReceiptIfIdle({
+      receipt: makeOperationReceipt({ operationId: 'operation-1', previousGenerationId: generationId }),
+      expectedActiveGenerationId: generationId,
+    });
+
+    const avancado = await adapter.transitionStorageOperationIfUnambiguous({
+      operationId: 'operation-1',
+      expectedStatus: 'staged',
+      nextStatus: 'activating',
+      expectedActiveGenerationId: generationId,
+    });
+    expect(avancado.status).toBe('activating');
+
+    const session = makeSession(98);
+    await adapter.appendSessionWithCompletionReceipt(session, await makeReceipt(session, generationId));
+
+    // As duas coexistem porque a conclusão nasceu depois. O snapshot seguinte
+    // enxerga o conflito — nada aqui promete exclusão mútua eterna.
+    const snapshot = await adapter.readStorageAdministrationSnapshot();
+    expect(snapshot.unsettledOperations).toHaveLength(1);
+    expect(snapshot.pendingCompletionReceipts).toHaveLength(1);
   });
 });

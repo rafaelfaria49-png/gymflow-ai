@@ -453,4 +453,33 @@ recomendação · dependências · próximo passo.**
 - **17B-002D-A2-P6 — recuperação de operação interrompida continua manual.**
   *Aberto · P1.* Ver 17B-002D-A2-P1: o corretivo 036 melhorou o diagnóstico
   (agora um receipt incoerente com core/metadata vira `conflicted` em vez de
-  `interrupted` genérico), mas continua não existindo resolução automática.
+  `interrupted` genérico), mas continua não existindo resolução automática. O
+  corretivo 038 acrescentou `revertStorageOperationSafely`, que ao menos garante
+  uma saída — encerrar a operação como `reverted` sem ficar preso —, mas ela é
+  um caminho interno sem call site: alguém precisa chamá-la. *Próximo passo:* o
+  coordenador de 002D-C/D decide quando encerrar automaticamente.
+- **17B-002D-A2-P7 — TOCTOU do core na transição.** *Resolvido no corretivo 038
+  (2026-07-25) · era Classe C.* Auditoria independente reproduziu, com fault
+  injection real, a transição avançando `staged → activating` sobre um core do
+  `localStorage` já trocado — antes da transação e durante ela. O receipt ficava
+  **preso em `activating`**: o `inspect` seguinte virava
+  `conflicted/operation-incompatible` e `transitionStorageOperation`, que exige
+  `interrupted`, recusava até a reversão. Agora a transição relê o core antes,
+  exige igualdade byte a byte com o core do diagnóstico, revalida o envelope,
+  reconfere a compatibilidade, e depois do commit relê o core, o receipt e a
+  metadata. Qualquer divergência compensa para `reverted` e devolve
+  `StorageOperationTransitionConflictError` com `phase`, `reason` fechada,
+  resultado da compensação e último status conhecido.
+- **17B-002D-A2-P8 — a saída de emergência não tem call site.** *Aberto · P3.*
+  `revertStorageOperationSafely` existe e é testada, mas nada no produto a
+  chama: não há UI, Provider nem boot ligados à fachada administrativa. Um
+  receipt preso por falha de compensação continua exigindo uma chamada
+  deliberada. *Próximo passo:* 002D-C/D expõe a resolução junto do coordenador
+  atômico.
+- **17B-002D-A2-P9 — sem owner-token, duas abas continuam podendo disputar.**
+  *Aberto · P2.* O protocolo do 038 garante que a transição não conclui sobre um
+  core obsoleto, mas não impede uma segunda aba de escrever no `localStorage`
+  durante a operação — ela só faz a operação falhar de forma honesta. A exclusão
+  real depende do owner-token, que continua fora de escopo. *Próximo passo:*
+  owner-token em etapa posterior, antes de qualquer operação administrativa
+  real.

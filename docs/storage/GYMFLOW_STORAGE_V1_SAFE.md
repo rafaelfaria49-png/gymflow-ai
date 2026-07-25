@@ -714,6 +714,11 @@ Recusa em `unavailable`, `ready`, `conflicted`, com dois receipts, com receipt
 malformado, com conclusão pendente, com staging incompatível, com core ausente
 ou inválido, em runtime legado e com metadata malformada.
 
+> **Correção do 038:** essa reconferência cobre apenas o lado IndexedDB. O core
+> v2 vive no `localStorage` e **não participa** da transação — a auditoria
+> seguinte provou que a transição avançava sobre um core já trocado. A proteção
+> do core é o protocolo descrito na seção do corretivo 038, não esta transação.
+
 A transição também valida o estado **projetado**: `activating → activated` é
 recusada no A2, porque `activated` afirma efeitos (geração preparada ativa, core
 alvo gravado) que nenhum fluxo desta fase produz. Reverter é sempre permitido.
@@ -743,6 +748,104 @@ leitura ou escrita. Os campos ficam reservados para 002D-C/D.
 nenhuma recuperação automática, nenhuma operação administrativa executada de
 verdade, `rollbackToHistoryGeneration` fora da fachada, owner-token e gate de
 WebView físico pendentes, e 002D-B/C/D/E/F não iniciados.
+
+### Corretivo 038 — transição protegida contra core obsoleto
+
+Uma segunda auditoria independente classificou o 002D-A2 novamente como
+**Classe C**: a transição administrativa avançava um receipt de `staged` para
+`activating` usando um core do `localStorage` que já tinha sido trocado, e o
+receipt ficava **preso em `activating`** — o `inspect` seguinte virava
+`conflicted` e a própria fachada recusava até a reversão.
+
+**Não existe atomicidade única entre `localStorage` e IndexedDB.** O core v2 não
+participa da transação IndexedDB e nenhuma transação pode fazê-lo participar. O
+que o 038 entrega é um protocolo explícito, e a garantia é exatamente esta:
+
+> A transição só retorna sucesso quando o core observado **antes** e
+> **imediatamente depois** da transação continua byte a byte igual ao core
+> compatível com o receipt.
+
+**Protocolo pré-transação.** Depois de exigir `interrupted` e o receipt
+correspondente, `transitionStorageOperation`:
+
+1. relê `storage.getItem(key)`, produzindo `coreRawBeforeTransition`;
+2. exige igualdade byte a byte com `snapshot.coreRawObserved`;
+3. revalida que esse raw ainda é um envelope físico v2;
+4. reavalia a compatibilidade do receipt contra o raw **recém-lido**;
+5. só então abre a transação atômica.
+
+Divergência aqui não avança nada: o receipt é compensado para `reverted` e o
+erro sai com `phase: 'pre-transition'`.
+
+**Protocolo pós-commit.** Assim que a transação conclui:
+
+1. relê o core (`coreRawAfterTransition`) e compara byte a byte com o core de
+   antes;
+2. relê o receipt persistido e confirma o `nextStatus`;
+3. relê a metadata e confirma a geração ativa;
+4. reconfirma a compatibilidade do receipt persistido contra o core relido.
+
+Qualquer divergência: compensação para `reverted` e erro com
+`phase: 'post-transition'`. **A compensação nunca tenta desfazer a alteração
+externa do `localStorage`** — o core alheio fica exatamente como está. Ela só
+encerra honestamente a operação administrativa. Histórico, manifests, metadata,
+CompletionReceipts e snapshot legado não são tocados em nenhum caminho de erro.
+
+**A compensação pode falhar, e isso aparece.**
+`StorageOperationTransitionConflictError` carrega `operationId`,
+`expectedStatus`, `attemptedStatus`, `phase`, `reason` (fechada), `compensation`
+(`reverted` | `failed` | `not-attempted`), `finalReceiptStatus` (`staged` |
+`activating` | `activated` | `reverted` | `settled` | `missing` | `unknown`),
+`cause`, `compensationCause`, `finalStatusReadCause` e `observedCoreDigest`.
+Nenhuma mensagem carrega core bruto — só o digest.
+
+**Saída para a operação presa.** `revertStorageOperationSafely({ operationId,
+expectedStatus })` leva a operação para `reverted` e **só** para lá, mesmo com o
+`inspect` em `conflicted` por incoerência (core incompatível, ativação não
+reconhecida, operação incompatível com a metadata, compensação anterior que
+falhou). Ela continua recusando ambiguidade estrutural: mais de um receipt não
+terminal, receipt malformado, `operationId` ou status divergentes, metadata
+malformada e adapter indisponível. CompletionReceipt pendente **não** bloqueia
+a reversão — reverter apenas reduz o conflito —, o store participa da transação,
+todos os registros são validados e nenhum dado de conclusão é alterado.
+
+**Fingerprint completo dos cores do receipt.** `previousCoreRaw` e
+`targetCoreRaw` entravam no fingerprint apenas pelo comprimento: dois cores
+diferentes de mesmo tamanho produziam o mesmo fingerprint e o double-read não
+enxergava a troca. Agora entra o conteúdo integral, via SHA-256 do raw completo
+(`sha256Checksum`, calculado fora da transação IndexedDB) — ou o raw inteiro no
+material canônico quando não há Web Crypto. Nunca comprimento, presença, prefixo
+ou sufixo. O fingerprint não expõe o core bruto.
+
+**`readCause` deixou de ser descartada.** Quando a compensação falha **e** a
+releitura do status final também falha, a causa da releitura viaja em
+`finalStatusReadCause`, aparece na mensagem e o status vira `unknown`. `missing`
+passou a ser um valor distinto: o registro foi lido e não existe mais.
+
+**Metadata malformada é `metadata-malformed`.** `activeGeneration` ou
+`migrationGeneration` com valor que não seja `string` nem `null` (number, Date,
+ArrayBuffer, objeto, array) invalidam a leitura com
+`HistoryMetadataIntegrityError`. Antes viravam `null` e o diagnóstico dizia "não
+existe geração ativa" (`core-invalid`) — um motivo falso. Nada é reparado,
+convertido ou apagado.
+
+**Transição × conclusão de treino, as duas ordens.** A serialização pelo store
+compartilhado continua igual. Uma conclusão **já pendente** quando a transação
+da transição adquire os stores bloqueia a transição. Uma conclusão iniciada
+**depois** que a transição adquiriu e concluiu os stores é um evento novo: as
+duas coexistem e o conflito aparece no próximo `inspect`. **Não existe exclusão
+mútua eterna depois que a transação termina** — e nada aqui promete isso.
+
+**Limite honesto.** Uma alteração do core iniciada depois da leitura
+pós-transição é um novo evento externo. Ela aparece no próximo `inspect` como
+`operation-incompatible`; este protocolo garante a janela que observou, não o
+futuro.
+
+**Continua valendo, sem mudança:** nenhuma UI, nenhum Provider, nenhum call site
+real, nenhuma operação administrativa executada de verdade, nenhuma recuperação
+automática no boot, nenhuma sincronização entre abas,
+`rollbackToHistoryGeneration` fora da fachada, owner-token e gate de WebView
+físico pendentes, e 002D-B/C/D/E/F não iniciados.
 
 ## Recuperação manual
 

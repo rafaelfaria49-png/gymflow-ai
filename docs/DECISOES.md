@@ -920,8 +920,11 @@ preservado; nada de amend, squash ou rebase.
   `interrupted` (o que já implica core válido e estável, geração ativa
   verificada, exatamente um receipt não terminal, zero conclusão pendente e
   receipt coerente) e a primitiva do adapter reconfere tudo DENTRO da transação
-  de escrita, com CAS da geração ativa. Duas defesas porque o diagnóstico e a
-  escrita são momentos diferentes.
+  de escrita, com CAS da geração ativa. *Corrigido em 038:* essa reconferência
+  cobre apenas o lado IndexedDB. O core v2 vive no `localStorage` e não
+  participa da transação — a redação original sugeria uma segunda defesa que
+  conferia o core, e ela não conferia. A proteção do core é o protocolo
+  pré/pós-transação do 038.
 - **A transição também valida o estado PROJETADO:** recusar só o estado atual
   deixaria o chamador criar um beco sem saída — `activating → activated` produz
   um receipt afirmando efeitos (geração preparada ativa, core alvo gravado) que
@@ -960,3 +963,70 @@ preservado; nada de amend, squash ou rebase.
 - **`summarizeGenerations` compartilhado entre `listHistoryGenerations` e o
   snapshot atômico:** duas enumerações de geração divergentes seriam
   exatamente o tipo de inconsistência que este slice existe para impedir.
+
+## GOAL-17B-002D-A2 corretivo 038 — TOCTOU do core na transição (2026-07-25)
+
+Segunda auditoria independente reprovou o 002D-A2 de novo (**Classe C**): a
+transição avançava `staged → activating` sobre um core do `localStorage` já
+trocado, e o receipt ficava preso em `activating`. Os dois commits anteriores
+foram preservados; nada de amend, squash ou rebase.
+
+- **O modelo de consistência do core passou a ser explícito, não implícito.** A
+  redação anterior deixava entender que a transação readwrite do adapter era a
+  defesa final. Ela nunca foi: o core v2 mora no `localStorage` e não pode
+  entrar numa transação IndexedDB. O que existe agora é um protocolo declarado —
+  leitura antes, comparação byte a byte, transação, leitura depois, compensação
+  — e uma garantia que cabe numa frase: *a transição só retorna sucesso quando o
+  core observado antes e imediatamente depois da transação continua byte a byte
+  igual ao core compatível com o receipt.* Nada de atomicidade única entre os
+  dois armazenamentos, porque ela não existe.
+- **Compensação em vez de "recusar e pronto" no pré-transação.** Um core
+  divergente antes da transação poderia simplesmente abortar sem tocar no
+  receipt. Optamos por compensar para `reverted`: a operação nasceu descrevendo
+  um mundo que já não existe, e deixá-la em aberto bloquearia todo begin futuro
+  por um estado que ninguém mais consegue retomar. O erro sai com
+  `phase: 'pre-transition'`, então a diferença é observável.
+- **`revertStorageOperationAfterTransitionConflict` é uma primitiva separada, e
+  não `transitionStorageOperationIfUnambiguous` com `nextStatus: 'reverted'`.**
+  A primitiva de avanço bloqueia com CompletionReceipt pendente e exige o CAS da
+  geração ativa. Numa compensação isso é exatamente o comportamento errado: o
+  mundo JÁ divergiu, e recusar a reversão foi o que criou a armadilha do receipt
+  preso. A nova primitiva só sabe ir para `reverted`, mantém os três stores na
+  transação, valida todos os registros dos dois stores de receipt, relê e valida
+  a metadata, e aceita o CAS como opcional. Ela nunca apaga o receipt nem faz
+  `put` sem conferência.
+- **`revertStorageOperationSafely` na fachada, separada do caminho de avanço.**
+  Misturar as duas exigiria afrouxar o gate de `transitionStorageOperation`, que
+  é justamente o que protege contra avanço em estado ambíguo. A saída de
+  emergência aceita `conflicted` por incoerência, mas continua recusando
+  ambiguidade estrutural — mais de um receipt não terminal, receipt malformado,
+  `operationId`/status divergentes, metadata malformada, adapter indisponível.
+  CompletionReceipt pendente não bloqueia porque reverter só REDUZ o conflito.
+- **`StorageOperationTransitionConflictError` separado de
+  `StorageOperationBeginConflictError`:** o begin e a transição falham em fases
+  diferentes e precisam de campos diferentes (`phase`, `attemptedStatus`,
+  `observedCoreDigest`). Reaproveitar o erro do begin obrigaria o chamador a
+  adivinhar de onde veio. Nenhum dos dois carrega core bruto na mensagem — só
+  digest, porque `previousCoreRaw` é o estado inteiro do usuário.
+- **`finalReceiptStatus` ganhou `missing` e `unknown`.** `null` significava as
+  duas coisas ao mesmo tempo: "o registro não existe" e "nem consegui ler".
+  Agora são valores distintos, e `unknown` sempre vem acompanhado de
+  `finalStatusReadCause` — a variável que o 036 capturava e descartava.
+- **Fingerprint com o conteúdo integral dos cores do receipt.** O comprimento
+  era um atalho: dois cores diferentes de mesmo tamanho colidiam e o double-read
+  não via a troca. Usamos `sha256Checksum` (a função que já existe, calculada
+  fora da transação) e caímos para o raw inteiro no material canônico quando não
+  há Web Crypto — nunca para comprimento, presença, prefixo ou sufixo. O
+  fingerprint continua sem expor o core.
+- **Ponteiro de metadata não textual invalida a leitura em vez de virar `null`.**
+  Converter para `null` transformava metadata corrompida em "não existe geração
+  ativa" (`core-invalid`), que é um motivo falso e aponta para o lugar errado.
+  Agora é `HistoryMetadataIntegrityError` → `metadata-malformed`, com a causa
+  preservada. A validação ficou nos dois ponteiros estruturais
+  (`activeGeneration`, `migrationGeneration`), que são os que decidem a
+  enumeração; as demais chaves continuam com o tratamento de sempre.
+- **`reverted` não passa pelo protocolo pós-commit completo.** Status terminal
+  não afirma efeito nenhum, então um core que mude depois dele não invalida
+  coisa alguma — e "compensar" um receipt já revertido só produziria uma falha
+  de CAS inventada. A confirmação de `reverted` se limita à releitura do status
+  persistido.

@@ -4,6 +4,7 @@ import type {
   HistoryGenerationSummary,
   HistoryStorageMetadata,
   LegacySnapshotRecord,
+  RevertStorageOperationAfterTransitionConflictInput,
   RollbackHistoryGenerationInput,
   RollbackHistoryGenerationResult,
   StorageAdministrationSnapshotRead,
@@ -186,6 +187,83 @@ export class StorageOperationTransitionError extends Error {
   }
 }
 
+// Em que ponto do protocolo de transição o conflito apareceu.
+export type StorageOperationTransitionPhase =
+  | 'pre-transition'
+  | 'post-transition'
+  | 'compensation';
+
+// Razões fechadas do conflito de transição. Nenhuma delas carrega core bruto.
+export type StorageOperationTransitionConflictReason =
+  | 'core-unreadable'
+  | 'core-missing-before-transition'
+  | 'core-invalid-before-transition'
+  | 'core-changed-before-transition'
+  | 'receipt-incompatible-before-transition'
+  | 'core-changed-during-transition'
+  | 'receipt-missing-after-transition'
+  | 'receipt-status-unexpected-after-transition'
+  | 'active-generation-changed-after-transition'
+  | 'receipt-incompatible-after-transition'
+  | 'administration-unreadable-after-transition';
+
+// Último status conhecido do receipt. `missing` é "o registro não existe mais";
+// `unknown` é "nem a releitura funcionou" — os dois são honestos e diferentes.
+export type StorageOperationFinalReceiptStatus =
+  | StorageOperationStatus
+  | 'missing'
+  | 'unknown';
+
+// A transição administrativa foi recusada porque o core v2 do `localStorage`
+// (que não participa da transação IndexedDB) divergiu, ou porque o estado
+// projetado não se confirmou depois do commit.
+//
+// A mensagem nunca contém core bruto — nem `previousCoreRaw`, nem
+// `targetCoreRaw`, nem o core atual. Quando é útil identificar qual core foi
+// observado, o campo `observedCoreDigest` carrega apenas o checksum.
+export class StorageOperationTransitionConflictError extends Error {
+  readonly operationId: string;
+  readonly expectedStatus: StorageOperationStatus;
+  readonly attemptedStatus: StorageOperationStatus;
+  readonly phase: StorageOperationTransitionPhase;
+  readonly reason: StorageOperationTransitionConflictReason;
+  readonly compensation: StorageOperationCompensationOutcome;
+  readonly compensationCause: unknown;
+  // Causa da falha ao RELER o status final depois de uma compensação que já
+  // tinha falhado. Nunca é descartada: sem ela, `finalReceiptStatus: 'unknown'`
+  // seria um silêncio.
+  readonly finalStatusReadCause: unknown;
+  readonly finalReceiptStatus: StorageOperationFinalReceiptStatus;
+  readonly observedCoreDigest: string | null;
+
+  constructor(message: string, options: {
+    operationId: string;
+    expectedStatus: StorageOperationStatus;
+    attemptedStatus: StorageOperationStatus;
+    phase: StorageOperationTransitionPhase;
+    reason: StorageOperationTransitionConflictReason;
+    compensation?: StorageOperationCompensationOutcome;
+    compensationCause?: unknown;
+    finalStatusReadCause?: unknown;
+    finalReceiptStatus?: StorageOperationFinalReceiptStatus;
+    observedCoreDigest?: string | null;
+    cause?: unknown;
+  }) {
+    super(message, 'cause' in options ? { cause: options.cause } : undefined);
+    this.name = 'StorageOperationTransitionConflictError';
+    this.operationId = options.operationId;
+    this.expectedStatus = options.expectedStatus;
+    this.attemptedStatus = options.attemptedStatus;
+    this.phase = options.phase;
+    this.reason = options.reason;
+    this.compensation = options.compensation ?? 'not-attempted';
+    this.compensationCause = options.compensationCause;
+    this.finalStatusReadCause = options.finalStatusReadCause;
+    this.finalReceiptStatus = options.finalReceiptStatus ?? 'unknown';
+    this.observedCoreDigest = options.observedCoreDigest ?? null;
+  }
+}
+
 // Bloqueio fail-closed de `createStorageOperationReceiptIfIdle`: já existe um
 // receipt administrativo não terminal. Carrega o receipt existente para que o
 // chamador (002D-A2) saiba exatamente qual operação está em aberto sem uma
@@ -219,20 +297,26 @@ export class StorageOperationBeginConflictError extends Error {
   readonly operationId: string | null;
   readonly compensation: StorageOperationCompensationOutcome;
   readonly compensationCause: unknown;
-  readonly finalReceiptStatus: StorageOperationStatus | null;
+  // Causa da falha ao reler o status final depois de uma compensação que já
+  // tinha falhado. Antes ela era capturada e descartada; agora viaja junto,
+  // porque `finalReceiptStatus: 'unknown'` sem causa é silêncio.
+  readonly finalStatusReadCause: unknown;
+  readonly finalReceiptStatus: StorageOperationFinalReceiptStatus | null;
 
   constructor(message: string, options: {
     cause?: unknown;
     operationId?: string | null;
     compensation?: StorageOperationCompensationOutcome;
     compensationCause?: unknown;
-    finalReceiptStatus?: StorageOperationStatus | null;
+    finalStatusReadCause?: unknown;
+    finalReceiptStatus?: StorageOperationFinalReceiptStatus | null;
   } = {}) {
     super(message, 'cause' in options ? { cause: options.cause } : undefined);
     this.name = 'StorageOperationBeginConflictError';
     this.operationId = options.operationId ?? null;
     this.compensation = options.compensation ?? 'not-attempted';
     this.compensationCause = options.compensationCause;
+    this.finalStatusReadCause = options.finalStatusReadCause;
     this.finalReceiptStatus = options.finalReceiptStatus ?? null;
   }
 }
@@ -436,11 +520,22 @@ interface GenerationEnumeration {
 // administrativo atômico. Uma implementação só: duas versões divergentes da
 // mesma leitura seriam exatamente o tipo de inconsistência que o 002D-A2 existe
 // para impedir.
-function summarizeGenerations(
-  metadataRecords: readonly unknown[],
-  manifestRecords: readonly unknown[],
-  recordCounts: ReadonlyMap<string, number>,
-): GenerationEnumeration {
+interface MetadataPointers {
+  activeGeneration: string | null;
+  migrationGeneration: string | null;
+  stagedMarkers: Set<string>;
+}
+
+// Leitura dos ponteiros estruturais do store `metadata`.
+//
+// `activeGeneration` e `migrationGeneration` só admitem `string` ou `null`.
+// Qualquer outro tipo (number, Date, ArrayBuffer, objeto, array) invalida a
+// leitura inteira com `HistoryMetadataIntegrityError`. Converter para `null`
+// — o que esta função fazia antes do corretivo 038 — transformava metadata
+// corrompida em "não existe geração ativa", um diagnóstico falso que apontava
+// para `core-invalid` em vez de `metadata-malformed`. Nada é reparado,
+// convertido ou apagado: a leitura apenas se recusa a adivinhar.
+function readMetadataPointers(metadataRecords: readonly unknown[]): MetadataPointers {
   let activeGeneration: string | null = null;
   let migrationGeneration: string | null = null;
   const stagedMarkers = new Set<string>();
@@ -454,14 +549,38 @@ function summarizeGenerations(
         'O store metadata contém uma chave não textual; a enumeração de gerações não é confiável.',
       );
     }
-    if (record.key === 'activeGeneration') {
-      activeGeneration = typeof record.value === 'string' ? record.value : null;
-    } else if (record.key === 'migrationGeneration') {
-      migrationGeneration = typeof record.value === 'string' ? record.value : null;
+    if (record.key === 'activeGeneration' || record.key === 'migrationGeneration') {
+      if (record.value !== null && record.value !== undefined && typeof record.value !== 'string') {
+        throw new HistoryMetadataIntegrityError(
+          `O ponteiro ${record.key} da metadata não é textual nem nulo`
+          + ` (tipo ${describeMetadataValueType(record.value)}); a metadata está malformada.`,
+        );
+      }
+      const value = typeof record.value === 'string' ? record.value : null;
+      if (record.key === 'activeGeneration') activeGeneration = value;
+      else migrationGeneration = value;
     } else if (record.key.startsWith(INTERNAL_NEXT_ORDER_PREFIX)) {
       stagedMarkers.add(record.key.slice(INTERNAL_NEXT_ORDER_PREFIX.length));
     }
   }
+  return { activeGeneration, migrationGeneration, stagedMarkers };
+}
+
+// Descrição de tipo suficiente para o diagnóstico, nunca o valor em si.
+function describeMetadataValueType(value: unknown): string {
+  if (Array.isArray(value)) return 'array';
+  if (value instanceof Date) return 'Date';
+  if (value instanceof ArrayBuffer) return 'ArrayBuffer';
+  if (ArrayBuffer.isView(value)) return 'ArrayBufferView';
+  return typeof value;
+}
+
+function summarizeGenerations(
+  metadataRecords: readonly unknown[],
+  manifestRecords: readonly unknown[],
+  recordCounts: ReadonlyMap<string, number>,
+): GenerationEnumeration {
+  const { activeGeneration, migrationGeneration, stagedMarkers } = readMetadataPointers(metadataRecords);
 
   const manifests = new Map<string, HistoryGenerationManifest | null>();
   for (const record of manifestRecords) {
@@ -522,12 +641,20 @@ function summarizeGenerations(
 // conteúdo canônico de TODOS os registros de histórico (não só a contagem — uma
 // sessão trocada mantendo id, ordem e digest tem de mudar o fingerprint), todos
 // os receipts administrativos e todos os CompletionReceipts pendentes.
+//
+// Desde o corretivo 038 o material canônico dos receipts inclui o CONTEÚDO
+// INTEGRAL de `previousCoreRaw` e `targetCoreRaw` (via checksum SHA-256 do raw
+// completo, ou o raw inteiro quando não há Web Crypto). Antes eles entravam só
+// pelo comprimento, e dois cores diferentes de mesmo tamanho produziam o mesmo
+// fingerprint — o double-read não enxergava a troca.
 function fingerprintAdministrationSnapshot(input: {
   metadataRecords: readonly unknown[];
   manifests: ReadonlyMap<string, HistoryGenerationManifest | null>;
   historyRecords: readonly HistoryRecord[];
   operationReceipts: readonly StorageOperationReceipt[];
   pendingCompletionReceipts: readonly WorkoutCompletionReceipt[];
+  // operationId → marcadores determinísticos dos dois cores do receipt.
+  receiptCoreMarkers: ReadonlyMap<string, ReceiptCoreMarkers>;
 }): string {
   const metadata = (input.metadataRecords as Partial<MetadataRecord>[])
     .map((record) => [String(record?.key), JSON.stringify(record?.value ?? null)] as const)
@@ -560,18 +687,21 @@ function fingerprintAdministrationSnapshot(input: {
     .sort();
 
   const operations = input.operationReceipts
-    .map((receipt) => [
-      receipt.operationId,
-      receipt.kind,
-      receipt.status,
-      receipt.createdAt,
-      receipt.updatedAt,
-      receipt.previousGenerationId,
-      receipt.stagedGenerationId ?? 'nenhuma',
-      receipt.sourceDigest ?? 'nenhum',
-      String(receipt.previousCoreRaw.length),
-      receipt.targetCoreRaw === null ? 'nenhum' : String(receipt.targetCoreRaw.length),
-    ].join('|'))
+    .map((receipt) => {
+      const markers = input.receiptCoreMarkers.get(receipt.operationId);
+      return [
+        receipt.operationId,
+        receipt.kind,
+        receipt.status,
+        receipt.createdAt,
+        receipt.updatedAt,
+        receipt.previousGenerationId,
+        receipt.stagedGenerationId ?? 'nenhuma',
+        receipt.sourceDigest ?? 'nenhum',
+        markers?.previousCoreRaw ?? 'marcador-ausente',
+        markers?.targetCoreRaw ?? 'marcador-ausente',
+      ].join('|');
+    })
     .sort();
 
   const completions = input.pendingCompletionReceipts
@@ -586,6 +716,45 @@ function fingerprintAdministrationSnapshot(input: {
     .sort();
 
   return JSON.stringify({ metadata, manifests, history, operations, completions });
+}
+
+interface ReceiptCoreMarkers {
+  previousCoreRaw: string;
+  targetCoreRaw: string;
+}
+
+// Marcador determinístico do conteúdo INTEGRAL de um core bruto guardado num
+// receipt. Reaproveita `sha256Checksum` (a mesma função de sempre, nenhuma
+// definição paralela) e é sempre calculado FORA da transação IndexedDB.
+//
+// Sem Web Crypto o marcador carrega o raw inteiro: o fingerprint fica maior,
+// mas continua determinístico e continua distinguindo dois raws de mesmo
+// comprimento. O que ele nunca faz é cair para comprimento, presença, prefixo
+// ou sufixo.
+async function markReceiptCoreRaw(
+  raw: string | null,
+  subtleCrypto: SubtleCrypto | null | undefined,
+): Promise<string> {
+  if (raw === null) return 'nenhum';
+  try {
+    return await sha256Checksum(raw, subtleCrypto ?? undefined);
+  } catch {
+    return `raw:${raw}`;
+  }
+}
+
+async function markReceiptCores(
+  receipts: readonly StorageOperationReceipt[],
+  subtleCrypto: SubtleCrypto | null | undefined,
+): Promise<Map<string, ReceiptCoreMarkers>> {
+  const markers = new Map<string, ReceiptCoreMarkers>();
+  for (const receipt of receipts) {
+    markers.set(receipt.operationId, {
+      previousCoreRaw: await markReceiptCoreRaw(receipt.previousCoreRaw, subtleCrypto),
+      targetCoreRaw: await markReceiptCoreRaw(receipt.targetCoreRaw, subtleCrypto),
+    });
+  }
+  return markers;
 }
 
 export async function checksumLegacySnapshot(
@@ -1557,6 +1726,129 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     }
   }
 
+  // Reversão segura de uma operação administrativa cuja transição entrou em
+  // conflito. Existe SÓ para compensar: o único destino possível é `reverted`,
+  // um status terminal que não afirma efeito nenhum.
+  //
+  // Por que ela não é `transitionStorageOperationIfUnambiguous` com
+  // `nextStatus: 'reverted'`: aquela primitiva bloqueia quando existe
+  // CompletionReceipt pendente, e o CAS da geração ativa é obrigatório. Numa
+  // compensação isso é exatamente o errado — o mundo JÁ divergiu, e recusar a
+  // reversão deixaria o receipt preso em `activating` para sempre, bloqueando
+  // todo begin futuro. Reverter só reduz o conflito.
+  //
+  // O que ela mantém: os três stores na transação, validação de TODOS os
+  // registros dos dois stores de receipt, exatamente uma operação não terminal
+  // que precisa ser a informada, releitura e validação da metadata, CAS opcional
+  // da geração ativa, e validação do registro final antes do commit. Nenhum
+  // CompletionReceipt é lido para fora, alterado ou liquidado; histórico,
+  // manifests e metadata não são tocados; o receipt nunca é apagado nem
+  // sobrescrito por `put` sem conferência.
+  async revertStorageOperationAfterTransitionConflict(
+    input: RevertStorageOperationAfterTransitionConflictInput,
+  ): Promise<StorageOperationReceipt> {
+    const { operationId, expectedStatus, expectedActiveGenerationId, reason } = input;
+    if (!operationId) throw new Error('A reversão administrativa exige um operationId.');
+    if (!canTransitionStorageOperation(expectedStatus, 'reverted')) {
+      throw new StorageOperationTransitionError(
+        `A transição ${expectedStatus} → reverted não é permitida.`,
+      );
+    }
+    const database = this.requireDatabase();
+    const updatedAt = this.now().toISOString();
+    const transaction = database.transaction(
+      [STORAGE_OPERATION_RECEIPTS_STORE, COMPLETION_RECEIPTS_STORE, METADATA_STORE],
+      'readwrite',
+    );
+    const completed = transactionResult(transaction);
+
+    try {
+      const store = transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE);
+      const records = await requestResult(store.getAll()) as unknown[];
+      const unsettled: StorageOperationReceipt[] = [];
+      for (const record of records) {
+        if (!isStorageOperationReceipt(record)) {
+          throw new StorageOperationReceiptIntegrityError(
+            'Existe um receipt administrativo com formato inválido no armazenamento.',
+          );
+        }
+        if (UNSETTLED_OPERATION_STATUSES.includes(record.status)) unsettled.push(record);
+      }
+      const unsettledIds = unsettled.map((receipt) => receipt.operationId);
+      if (unsettled.length === 0) {
+        throw new StorageOperationAmbiguousStateError(
+          'no-unsettled-operation',
+          'Não existe operação administrativa em aberto para reverter.',
+        );
+      }
+      if (unsettled.length > 1) {
+        throw new StorageOperationAmbiguousStateError(
+          'multiple-unsettled-operations',
+          `Existem ${unsettled.length} operações administrativas em aberto; nenhuma pode ser revertida às cegas.`,
+          unsettledIds,
+        );
+      }
+      const current = unsettled[0];
+      if (current.operationId !== operationId) {
+        throw new StorageOperationAmbiguousStateError(
+          'operation-not-the-unsettled-one',
+          `A operação em aberto é ${current.operationId}, e não ${operationId}.`,
+          unsettledIds,
+        );
+      }
+      if (current.status !== expectedStatus) {
+        throw new StorageOperationTransitionError(
+          `O receipt ${operationId} está em ${current.status}, e não em ${expectedStatus}.`,
+        );
+      }
+
+      // Os CompletionReceipts entram na transação para serializar com
+      // `appendSessionWithCompletionReceipt` e são todos validados — mas uma
+      // conclusão pendente NÃO bloqueia a reversão, e nenhum deles é alterado.
+      const completionRecords = await requestResult(
+        transaction.objectStore(COMPLETION_RECEIPTS_STORE).getAll(),
+      ) as unknown[];
+      for (const record of completionRecords) {
+        if (!isWorkoutCompletionReceipt(record)) {
+          throw new CompletionReceiptIntegrityError(
+            'Existe um receipt de conclusão de treino com formato inválido no armazenamento.',
+          );
+        }
+      }
+
+      // Metadata precisa ser legível e estruturalmente válida: `readMetadataPointers`
+      // recusa ponteiro não textual em vez de convertê-lo para `null`.
+      const metadataRecords = await requestResult(
+        transaction.objectStore(METADATA_STORE).getAll(),
+      ) as unknown[];
+      const pointers = readMetadataPointers(metadataRecords);
+      if (
+        expectedActiveGenerationId !== undefined
+        && pointers.activeGeneration !== expectedActiveGenerationId
+      ) {
+        throw new StorageOperationTransitionError(
+          `A geração ativa é ${pointers.activeGeneration ?? 'nenhuma'},`
+          + ` e não ${expectedActiveGenerationId ?? 'nenhuma'}.`,
+        );
+      }
+
+      const next: StorageOperationReceipt = { ...current, status: 'reverted', updatedAt };
+      if (!isStorageOperationReceipt(next)) {
+        throw new StorageOperationReceiptIntegrityError(
+          `A reversão deixaria o receipt ${operationId} com formato inválido (${reason}).`,
+        );
+      }
+
+      await requestResult(store.put(next));
+      await completed;
+      return next;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
   async readStorageOperationReceipt(operationId: string): Promise<StorageOperationReceipt | null> {
     if (!operationId) throw new Error('A leitura do receipt administrativo exige um operationId.');
     const database = this.requireDatabase();
@@ -1780,6 +2072,10 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
         (entry as Partial<MetadataRecord> | null)?.key === `${INTERNAL_NEXT_ORDER_PREFIX}${activeGeneration}`
       ));
 
+      // Depois do commit da transação readonly: o digest dos cores brutos dos
+      // receipts é assíncrono e não pode rodar com uma transação aberta.
+      const receiptCoreMarkers = await markReceiptCores(operationReceipts, this.subtleCrypto);
+
       return {
         metadata: {
           ...METADATA_DEFAULTS,
@@ -1821,6 +2117,7 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
           historyRecords,
           operationReceipts,
           pendingCompletionReceipts,
+          receiptCoreMarkers,
         }),
       };
     } catch (error) {
