@@ -1030,3 +1030,76 @@ foram preservados; nada de amend, squash ou rebase.
   coisa alguma — e "compensar" um receipt já revertido só produziria uma falha
   de CAS inventada. A confirmação de `reverted` se limita à releitura do status
   persistido.
+
+## GOAL-17B-002D-B — formato lógico de backup v2 (2026-07-25)
+
+Slice B do 002D. O A2 foi integrado e encerrado; nada dele mudou aqui. Esta
+etapa entrega **somente** formato, captura read-only, digest, serialização e
+inspeção. Não existe importação v2, restauração, rollback, reset, retenção,
+recuperação automática, UI, Provider, download nem call site.
+
+- **Módulo próprio (`storage-logical-backup.ts`), e não `storage-export.ts`.**
+  Os dois protocolos têm formatos, limites, validações e caminhos de falha
+  diferentes. Misturá-los no mesmo arquivo faria o fluxo v1 — que continua sendo
+  o único com importação real — carregar ramos v2 em cada função. `storage-export.ts`
+  não foi tocado e não conhece este módulo.
+- **O payload é lógico, não `StorageEnvelope<PersistedState>`.** O envelope é um
+  detalhe do armazenamento (`v`, `savedAt`), e o v2 físico nem sequer contém o
+  histórico. Copiar o envelope reintroduziria a dependência física que o híbrido
+  quebrou. O arquivo carrega `PersistedState` puro; `sourceSavedAt` e
+  `sourcePhysicalStorageVersion` ficam no envelope EXTERNO do backup, como
+  proveniência, não como estrutura.
+- **Validação v2 nova em vez de endurecer `validatePersistedStateShape`.** O
+  validador permissivo existe para tolerar estados salvos por versões antigas do
+  app; apertá-lo quebraria hidratação legítima. `validateLogicalBackupPayload`
+  **reutiliza** o permissivo como base e só acrescenta exigências (16 campos
+  raiz obrigatórios, tipos por campo, ids de sessão não vazios e sem
+  duplicidade, ausência dos campos físicos, ausência de chaves de protótipo).
+- **`exercises` da sessão conferido só quando presente.** Exigir a presença
+  recusaria históricos hoje válidos. O objetivo é recusar o inválido, não apertar
+  o domínio de treino.
+- **Lista explícita de campos físicos proibidos, e não "tudo que não conheço".**
+  Uma versão futura pode acrescentar um campo lógico novo; recusá-lo por
+  desconhecimento transformaria evolução em corrupção. Vazamento físico continua
+  recusado sempre.
+- **A forma canônica é o que vai para o arquivo, não só para o digest.** Assinar
+  uma ordenação e publicar outra permitiria que `content` e `payloadDigest`
+  divergissem por reordenação. Com o payload canônico gravado, o mesmo estado
+  lógico produz `content` e `bytes` idênticos, e a reconferência na inspeção é
+  exatamente a mesma conta.
+- **Número não finito PARA a serialização em vez de virar `null`.**
+  `JSON.stringify` converte `NaN`/`Infinity` silenciosamente — e um digest assim
+  assinaria um estado diferente do que existe. `LogicalBackupSerializationError`
+  carrega o CAMINHO (`payload.weightHistory[0].value`), nunca o valor.
+  `JSON.parse('1e999')` é o único jeito de um arquivo carregar `Infinity`, e a
+  inspeção o recusa.
+- **Domínio explícito no material do digest** (`gymflow:logical-backup:v2:`),
+  pelo mesmo motivo dos digests de histórico: um SHA-256 sem domínio pode ser
+  confundido com o de outro artefato. Reutiliza `sha256Checksum` — não nasceu
+  uma segunda implementação de SHA-256.
+- **Sem Web Crypto não existe backup.** Nada de hash fraco, comprimento,
+  contagem ou "digest opcional": `crypto-unavailable` com a causa original
+  preservada. Um arquivo sem digest verificável não é um backup, é um palpite.
+- **`LogicalBackupRuntime = Pick<StorageAdminRuntime, 'inspect…' | 'readVerified…'>`.**
+  A captura é read-only por TIPO, não por disciplina: `beginStorageOperation`,
+  `transitionStorageOperation` e `revertStorageOperationSafely` sequer existem
+  no parâmetro recebido.
+- **Duas fotos do estado físico com a leitura verificada no meio.** O core mora
+  no `localStorage` e o histórico no IndexedDB; não há atomicidade entre eles. A
+  garantia declarada é: *o backup só existe quando o core observado antes e
+  depois da leitura verificada do histórico é byte a byte o mesmo, com o mesmo
+  `activeGenerationId`, o mesmo `administrationFingerprint`, a mesma versão
+  física, zero receipt administrativo e zero conclusão pendente nas duas pontas.*
+  Divergência não escolhe leitura: `snapshot-changed-during-export`.
+- **`core.data.historyStorage.generationId === activeGenerationId` é exigência,
+  não detalhe.** Sem ela o arquivo poderia casar o core de uma geração com o
+  histórico de outra — o defeito exato que o protocolo existe para impedir.
+- **Limites v2 separados dos do v1.** `MAX_IMPORT_BYTES` continua 5 MiB para o
+  envelope monolítico. O arquivo lógico ganha `LOGICAL_BACKUP_LARGE_WARNING_BYTES`
+  (8 MiB) e `MAX_LOGICAL_BACKUP_BYTES` (25 MiB), medidos em bytes UTF-8 reais —
+  contagem de caracteres subestima acentuação e emoji, que existem em nome de
+  usuário e nome de treino.
+- **`JSON.stringify(backup)` sem indentação.** O histórico completo já é grande;
+  `null, 2` gastaria megabytes em espaço de apresentação. O v1 continua indentado.
+- **A inspeção termina em preview.** Não existe `commitLogicalStorageImportV2` e
+  nenhuma função deste módulo escreve. Importar é 002D-C.

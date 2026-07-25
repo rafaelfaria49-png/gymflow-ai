@@ -483,3 +483,54 @@ recomendação · dependências · próximo passo.**
   real depende do owner-token, que continua fora de escopo. *Próximo passo:*
   owner-token em etapa posterior, antes de qualquer operação administrativa
   real.
+
+## GOAL-17B-002D-B — formato lógico de backup v2 (2026-07-25)
+
+- **17B-002D-B-P1 — performance da exportação no WebView físico não foi medida.**
+  *Aberto · P2.* A captura roda três diagnósticos administrativos completos (o
+  primeiro, o interno de `readVerifiedAdministrationGeneration` e o segundo),
+  cada um com duas leituras atômicas e verificação criptográfica integral da
+  geração ativa, mais um SHA-256 sobre o payload canônico inteiro. Com histórico
+  grande isso não é barato, e o custo herda o 17B-002D-A2-P4. Não há call site
+  real, então nada regride hoje. *Próximo passo:* medir com histórico real no
+  WebView Android antes de 002D-E ligar a exportação a uma tela; se necessário,
+  reaproveitar o primeiro diagnóstico em vez de refazê-lo dentro da leitura
+  verificada — nunca enfraquecer o double-check.
+- **17B-002D-B-P2 — download do arquivo v2 no aparelho físico continua
+  pendente.** *Aberto · P1.* Este slice devolve `content`, `filename` e `bytes`
+  e para aí: não cria `Blob`, `URL` nem elemento de âncora, e `downloadTextFile`
+  continua sendo do fluxo v1. Salvar 8–25 MiB num WebView Capacitor é
+  exatamente o cenário que o 17B-002A-PHYSICAL nunca validou. *Próximo passo:*
+  002D-E decide o mecanismo de entrega (download, Share Sheet ou Filesystem do
+  Capacitor) e valida em aparelho real.
+- **17B-002D-B-P3 — o arquivo v2 carrega dados pessoais em texto puro.**
+  *Aberto · P2.* O payload traz perfil (nome, e-mail, idade, peso, altura),
+  medidas corporais, nutrição e todas as sessões, sem anonimização e sem
+  criptografia. É o mesmo nível do backup v1, mas agora num arquivo maior e mais
+  fácil de compartilhar por engano. *Próximo passo:* a etapa de UI precisa
+  avisar explicitamente antes de exportar; criptografia opcional com senha, se
+  vier, é GOAL próprio.
+- **17B-002D-B-P4 — não existe importação, restauração ou rollback do v2.**
+  *Aberto · P0 para o produto, por design nesta etapa.* Um arquivo v2 pode ser
+  gerado e conferido, mas nada consegue trazê-lo de volta: `commitStorageImport`
+  só aceita envelope v1 monolítico, e escrever o payload lógico exige o
+  coordenador atômico que ainda não existe. Enquanto isso, o usuário v2 tem
+  backup **verificável e inútil para restaurar**. *Próximo passo:* 002D-C
+  implementa a importação lógica com staging físico + receipt administrativo.
+- **17B-002D-B-P5 — o backup não tem call site, então o usuário ainda não pode
+  gerar arquivo nenhum.** *Aberto · P1.* Nenhum componente, Provider, boot ou
+  `AdminPanel` importa `storage-logical-backup`. No modo v2 a exportação
+  continua bloqueada na UI exatamente como antes deste slice. *Próximo passo:*
+  002D-E liga a exportação ao painel administrativo, junto do aviso de dados
+  pessoais e do tratamento de arquivo grande.
+- **17B-002D-B-P6 — retenção, rotação e limpeza de backups não existem.**
+  *Aberto · P3.* Nada apaga, roda ou limita backups antigos: cada exportação é
+  um arquivo solto sob responsabilidade do usuário. *Próximo passo:* 002D-F, se
+  o produto decidir manter cópias no aparelho.
+- **17B-002D-B-P7 — a janela da captura protege o que observou, não o futuro.**
+  *Aberto · P2.* Herda 17B-002D-A2-P9: sem owner-token, uma segunda aba pode
+  escrever no `localStorage` durante a exportação. O protocolo garante que isso
+  **derruba** a exportação (`snapshot-changed-during-export`) em vez de produzir
+  um arquivo inconsistente — não garante exclusão mútua. Uma escrita iniciada
+  depois da leitura final é um evento novo e aparece na próxima exportação.
+  *Próximo passo:* owner-token antes de qualquer operação administrativa real.

@@ -847,6 +847,147 @@ automática no boot, nenhuma sincronização entre abas,
 `rollbackToHistoryGeneration` fora da fachada, owner-token e gate de WebView
 físico pendentes, e 002D-B/C/D/E/F não iniciados.
 
+## Formato lógico de backup v2 (GOAL-17B-002D-B)
+
+O **002D-A2 está integrado e encerrado**. O slice B cria **somente** formato,
+exportação read-only e inspeção read-only. Não existe importação v2, restauração,
+rollback, reset, retenção, recuperação automática, UI, Provider, download nem
+call site.
+
+### Por que um formato novo
+
+O backup v1 (`storage-export.ts`) copia o envelope monolítico inteiro. No
+híbrido v2 o estado do usuário vive em dois lugares — core v2 no `localStorage`
+e histórico numa geração verificada do IndexedDB — e nenhum dos dois sozinho
+descreve o usuário. Copiar o envelope físico exportaria
+`historyStorage.generationId`: um ponteiro para um banco que não existe no
+aparelho de destino.
+
+O formato v2 é **lógico**. O v1 continua existindo, intocado, e continua sendo o
+único com importação real.
+
+### Contrato
+
+```
+{
+  format: 'gymflow-backup',
+  formatVersion: 2,
+  logicalSchemaVersion: 1,
+  exportedAt: <ISO-8601>,
+  sourcePhysicalStorageVersion: 2,
+  sourceSavedAt: <ISO-8601>,
+  payloadDigest: 'sha256:<64 hex>',
+  payload: PersistedState
+}
+```
+
+O `payload` tem os 16 campos raiz de `PersistedState` e **nada mais**: `user`,
+`weeklyPlan`, `customPrograms`, `activeWorkout`, `activeWorkoutStartedAt`,
+`restTimerEndAt`, `restTimerTotalSeconds`, `restTimerLabel`, `workoutHistory`,
+`weightHistory`, `measurementsHistory`, `nutrition`, `achievements`,
+`challenges`, `favoriteExercises`, `recentlyViewedVideoIds`.
+
+Nunca entram no arquivo: `historyStorage`, `generationId`, `activeGeneration`,
+`migrationGeneration`, `generationManifests`, `recordDigests`,
+`storageOperationReceipts`, `completionReceipts`, `legacySnapshots`,
+`quarantine`, `previousCoreRaw`, `targetCoreRaw`, o raw do `localStorage`, o
+nome da chave, fingerprints administrativos e metadados internos do IndexedDB.
+**Nenhum id físico de geração é necessário para importar o arquivo no futuro.**
+
+### Captura estável
+
+`captureLogicalBackupSnapshot` recebe um `LogicalBackupRuntime` — um `Pick` da
+fachada administrativa com apenas `inspectStorageAdministration` e
+`readVerifiedAdministrationGeneration`. A leitura é read-only **por tipo**:
+`beginStorageOperation`, `transitionStorageOperation` e
+`revertStorageOperationSafely` não existem no parâmetro recebido.
+
+O protocolo é diagnóstico → leitura verificada do histórico → diagnóstico. As
+duas pontas precisam descrever o mesmo mundo: `ready` nas duas, `coreRawObserved`
+byte a byte igual, mesmo `activeGenerationId`, mesmo `administrationFingerprint`,
+mesma versão física, zero receipt administrativo e zero conclusão pendente. O
+core também precisa apontar para a geração ativa
+(`core.data.historyStorage.generationId === activeGenerationId`) — sem isso o
+arquivo poderia casar o core de uma geração com o histórico de outra.
+
+> **Garantia:** o backup só existe quando o core observado antes e depois da
+> leitura verificada do histórico é byte a byte o mesmo, com o mesmo
+> `activeGenerationId`, o mesmo `administrationFingerprint`, a mesma versão
+> física, zero receipt administrativo e zero conclusão pendente nas duas pontas.
+
+Divergência não escolhe leitura: falha com `snapshot-changed-during-export`,
+sem produzir conteúdo. Como no 038, **não existe atomicidade entre
+`localStorage` e IndexedDB**; uma alteração iniciada depois da leitura final é
+um evento novo e aparece na próxima exportação.
+
+### Digest
+
+Serialização canônica: chaves de objeto ordenadas recursivamente, ordem de
+array preservada (`workoutHistory` continua newest-first), nada reordenado por
+conteúdo. Número não finito e `BigInt` **param** a serialização em vez de virar
+`null` silencioso — `LogicalBackupSerializationError` carrega o caminho do
+campo, nunca o valor.
+
+Material: `gymflow:logical-backup:v2:<payload-canônico>`, com `sha256Checksum`
+— a mesma função dos digests de histórico, sem segunda implementação. A forma
+canônica é o que vai para o arquivo, então o digest assina exatamente o que está
+publicado.
+
+Sem Web Crypto **não existe backup**: `crypto-unavailable`, causa original
+preservada, nenhum hash fraco, nenhum comprimento como integridade.
+
+### Tamanho
+
+`JSON.stringify(backup)` sem indentação; `bytes` são os bytes UTF-8 reais.
+
+| Faixa | Comportamento |
+| --- | --- |
+| até 8 MiB | sem aviso |
+| acima de 8 MiB e até 25 MiB | sucesso com aviso de arquivo grande |
+| acima de 25 MiB | `too-large`, sem conteúdo |
+
+`MAX_IMPORT_BYTES` do fluxo v1 continua **5 MiB** e não foi tocado.
+
+### Inspeção
+
+`inspectLogicalStorageBackupV2(raw, declaredBytes?, subtleCrypto?)` usa
+`max(declaredBytes, utf8Bytes(raw))`, recusa acima de 25 MiB antes de operações
+caras, e valida formato, `formatVersion`, `logicalSchemaVersion`, datas,
+`sourcePhysicalStorageVersion`, payload completo e digest recalculado. Ela não
+abre `localStorage` nem IndexedDB e não conhece a chave do app: um arquivo pode
+ser conferido inteiro num aparelho onde o GymFlow nunca rodou.
+
+Preview: `exportedAt`, `sourceSavedAt`, `workoutSessions`, `hasActiveWorkout`,
+`customPrograms`, `weightEntries`, `measurementEntries`, `bytes`, `warning`.
+
+**Não existe `commitLogicalStorageImportV2`.** A inspeção termina em preview.
+
+### Dados pessoais
+
+O arquivo v2 contém **dados pessoais e histórico de treino**: perfil (nome,
+e-mail, idade, peso, altura), medidas corporais, nutrição e todas as sessões.
+Ele não é anonimizado nem criptografado. Nenhum payload, perfil, histórico ou
+raw é registrado em console, e nenhuma mensagem de erro carrega conteúdo do
+payload — só caminho de campo e tamanho.
+
+### Estados que bloqueiam a exportação v2
+
+Legacy v1, armazenamento vazio, core v2 inválido, IndexedDB indisponível, versão
+física divergente, metadata malformada, geração ativa ausente, geração ativa
+corrompida, operação `interrupted`, estado `conflicted`, CompletionReceipt
+pendente e snapshot instável. Nenhum deles cai em recuperação bruta automática:
+o download do raw (`createRawRecoveryExport`) continua sendo uma ação separada
+do v1.
+
+### Continua valendo, sem mudança
+
+Nenhuma UI, nenhum Provider, nenhum call site real, nenhuma operação
+administrativa executada de verdade, nenhuma recuperação automática no boot,
+nenhuma sincronização entre abas, `rollbackToHistoryGeneration` fora da fachada,
+owner-token e gate de WebView físico pendentes. **002D-C/D/E/F não iniciados** —
+importação v2, restauração, rollback completo, reset e retenção seguem fora de
+escopo.
+
 ## Recuperação manual
 
 Na seção **Painel administrativo → Dados locais**:
