@@ -1,21 +1,30 @@
 import type {
   AdministrableWorkoutHistoryStorageAdapter,
   HistoryGenerationSummary,
-  HistoryStorageMetadata,
+  StorageAdministrationSnapshotRead,
   VerifiedHistoryGeneration,
 } from './storage-adapter';
-import type { WorkoutCompletionReceipt } from './storage-completion-receipt';
 import { sha256Checksum } from './storage-history-integrity';
 import {
+  type HistoryGenerationVerification,
+  verifyHistoryGeneration,
+} from './storage-history-integrity';
+import {
+  CompletionReceiptIntegrityError,
   HistoryManifestIntegrityError,
   HistoryMetadataIntegrityError,
+  StorageCompletionPendingError,
   StorageOperationAlreadyInProgressError,
+  StorageOperationAmbiguousStateError,
   StorageOperationBeginConflictError,
   StorageOperationReceiptIntegrityError,
+  StorageOperationTransitionError,
 } from './storage-indexeddb';
 import { parsePhysicalEnvelope } from './storage-hybrid';
 import {
+  type StorageOperationCompatibility,
   createStorageOperationReceipt,
+  evaluateStorageOperationCompatibility,
   type StorageOperationKind,
   type StorageOperationReceipt,
   type StorageOperationReceiptPatch,
@@ -27,7 +36,7 @@ import {
   type StorageLike,
 } from './storage-types';
 
-// Fachada administrativa interna do runtime híbrido (002D-A2).
+// Fachada administrativa interna do runtime híbrido (002D-A2 + corretivo 036).
 //
 // Ela fica entre as primitivas físicas do IndexedDB (002D-A1: receipts,
 // enumeração de gerações, leitura verificada, rollback físico, CAS) e os
@@ -35,8 +44,20 @@ import {
 // (002D-C/D). Nada aqui executa uma dessas operações: `beginStorageOperation`
 // só cria um receipt `staged`. Nada aqui é chamado pelo Provider, por um
 // componente ou pelo boot — não há call site real nesta etapa.
+//
+// O corretivo 036 fechou os conflitos Classe C da auditoria independente:
+// `ready` agora exige verificação criptográfica integral da geração ativa (a
+// flag persistida do manifest nunca foi prova), o diagnóstico usa leitura
+// atômica + double-read com fingerprint, a criação do receipt serializa com os
+// CompletionReceipts na mesma transação, a transição é bloqueada em qualquer
+// estado ambíguo e a falha da compensação nunca mais é silenciosa.
 
-export { StorageOperationAlreadyInProgressError, StorageOperationBeginConflictError };
+export {
+  StorageCompletionPendingError,
+  StorageOperationAlreadyInProgressError,
+  StorageOperationAmbiguousStateError,
+  StorageOperationBeginConflictError,
+};
 
 export type StorageAdministrationUnavailableReason =
   | 'storage-blocked'
@@ -48,14 +69,34 @@ export type StorageAdministrationUnavailableReason =
 export type StorageAdministrationConflictReason =
   | 'multiple-unsettled-operations'
   | 'malformed-operation-receipt'
+  | 'malformed-completion-receipt'
   | 'metadata-malformed'
   | 'completion-pending'
   | 'completion-pending-with-operation'
   | 'staging-without-receipt'
-  | 'active-generation-corrupt';
+  | 'active-generation-corrupt'
+  // Duas leituras atômicas consecutivas descreveram estados físicos diferentes:
+  // alguém escreveu durante o diagnóstico. O snapshot não escolhe qual leitura
+  // está certa — recusa as duas.
+  | 'administration-snapshot-unstable'
+  // O core v2 do localStorage mudou entre as leituras que cercam o snapshot.
+  | 'core-changed-during-inspection'
+  // Existe exatamente uma operação em aberto, mas ela não descreve o mesmo
+  // mundo que o core e a metadata observados agora.
+  | 'operation-incompatible'
+  | 'no-unsettled-operation'
+  | 'operation-not-the-unsettled-one';
 
 export type StorageAdministrationState =
-  | { status: 'unavailable'; reason: StorageAdministrationUnavailableReason; detail: string }
+  // `cause` carrega a falha interna original quando existe uma. Ela nunca é
+  // reduzida a texto em `detail`: quem transforma o estado em exceção precisa
+  // conseguir repassar a raiz.
+  | {
+      status: 'unavailable';
+      reason: StorageAdministrationUnavailableReason;
+      detail: string;
+      cause?: unknown;
+    }
   | { status: 'ready' }
   | { status: 'interrupted'; operation: StorageOperationReceipt }
   | {
@@ -63,6 +104,7 @@ export type StorageAdministrationState =
       reason: StorageAdministrationConflictReason;
       detail: string;
       operations: readonly StorageOperationReceipt[];
+      cause?: unknown;
     };
 
 // Snapshot diagnóstico. Sempre a partir de dados reais: nunca repara, nunca
@@ -70,6 +112,10 @@ export type StorageAdministrationState =
 // localStorage ou IndexedDB. Campos que dependem de uma leitura que falhou
 // ficam em seu valor neutro (`null`/`[]`/`0`) — o motivo da falha vive em
 // `state`.
+//
+// O estado descrito é o de um instante observado em DUAS leituras atômicas
+// idênticas. Uma alteração iniciada depois da leitura final aparece no próximo
+// `inspect`; ela nunca é misturada a este snapshot.
 export interface StorageAdministrationSnapshot {
   state: StorageAdministrationState;
   physicalStorageVersion: number | null;
@@ -83,11 +129,25 @@ export interface StorageAdministrationSnapshot {
   // puramente informativo, um jeito barato de comparar dois snapshots sem
   // carregar o core inteiro.
   coreDigest: string | null;
+  // Resultado da verificação criptográfica integral da geração ativa, feita
+  // DENTRO da janela do double-read. `null` quando não havia geração ativa ou
+  // quando o diagnóstico parou antes de chegar nela.
+  activeGenerationIntegrity: HistoryGenerationVerification | null;
+  // Impressão digital determinística do estado físico observado. Igual em duas
+  // leituras consecutivas é o que autoriza qualquer conclusão estável.
+  administrationFingerprint: string | null;
+  // Core v2 bruto exatamente como observado na janela estável. Fica aqui para
+  // que qualquer decisão posterior use o MESMO core que o diagnóstico usou, em
+  // vez de reler e reabrir a janela que o double-read acabou de fechar.
+  coreRawObserved: string | null;
 }
 
 export interface BeginStorageOperationInput {
   kind: StorageOperationKind;
   sourceDigest: string | null;
+  // No A2 os dois precisam ser `null`: nenhum fluxo desta etapa cria staging
+  // físico ou core alvo, então aceitar valor aqui gravaria no receipt uma
+  // promessa que nada cumpriu. Reservados para 002D-C/D.
   stagedGenerationId: string | null;
   targetCoreRaw: string | null;
 }
@@ -105,6 +165,7 @@ export interface StorageAdminRuntimeOptions {
   adapter: AdministrableWorkoutHistoryStorageAdapter;
   now?: () => Date;
   idFactory?: () => string;
+  subtleCrypto?: SubtleCrypto | null;
 }
 
 export interface StorageAdminRuntime {
@@ -130,7 +191,7 @@ export class StorageAdministrationUnavailableError extends Error {
 // A camada física está de pé, mas o estado administrativo é ambíguo demais
 // para autorizar uma mutação (mais de um receipt em aberto, staging sem
 // explicação, geração ativa corrompida, conclusão de treino coexistindo com
-// operação administrativa etc.).
+// operação administrativa, snapshot instável etc.).
 export class StorageAdministrationConflictError extends Error {
   readonly reason: StorageAdministrationConflictReason;
 
@@ -140,6 +201,37 @@ export class StorageAdministrationConflictError extends Error {
     this.reason = reason;
   }
 }
+
+export type StorageAdministrationInputField =
+  | 'operationId'
+  | 'generationId'
+  | 'stagedGenerationId'
+  | 'targetCoreRaw'
+  | 'now'
+  | 'kind';
+
+// Entrada recusada ANTES de qualquer leitura ou escrita. Nunca é um TypeError
+// nem um RangeError cru: quando encapsula um, a causa original continua em
+// `cause`.
+export class StorageAdministrationInputError extends Error {
+  readonly field: StorageAdministrationInputField;
+
+  constructor(field: StorageAdministrationInputField, message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'StorageAdministrationInputError';
+    this.field = field;
+  }
+}
+
+// Conflitos que tornam a própria identificação/verificação de uma geração não
+// confiável. Só eles bloqueiam a leitura diagnóstica read-only; os demais
+// (receipt malformado, operação ambígua, conclusão pendente) não atrapalham
+// verificar uma geração nomeada explicitamente pelo chamador.
+const CONFLICTS_BLOCKING_VERIFIED_READ: readonly StorageAdministrationConflictReason[] = [
+  'metadata-malformed',
+  'administration-snapshot-unstable',
+  'core-changed-during-inspection',
+];
 
 function defaultOperationId(): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
@@ -155,16 +247,18 @@ function describeError(error: unknown): string {
 function unavailableState(
   reason: StorageAdministrationUnavailableReason,
   detail: string,
+  cause?: unknown,
 ): StorageAdministrationState {
-  return { status: 'unavailable', reason, detail };
+  return { status: 'unavailable', reason, detail, cause };
 }
 
 function conflictedState(
   reason: StorageAdministrationConflictReason,
   detail: string,
   operations: readonly StorageOperationReceipt[],
+  cause?: unknown,
 ): StorageAdministrationState {
-  return { status: 'conflicted', reason, detail, operations };
+  return { status: 'conflicted', reason, detail, operations, cause };
 }
 
 function emptySnapshot(
@@ -180,8 +274,23 @@ function emptySnapshot(
     unsettledOperations: [],
     pendingCompletionReceiptCount: 0,
     coreDigest: null,
+    activeGenerationIntegrity: null,
+    administrationFingerprint: null,
+    coreRawObserved: null,
   };
 }
+
+// Resultado da tentativa de compensar (`staged → reverted`) um receipt que já
+// nasceu mas cuja revalidação foi recusada.
+type CompensationResult =
+  | { status: 'reverted'; receipt: StorageOperationReceipt }
+  | { status: 'failed'; cause: unknown; finalStatus: StorageOperationStatus | null; readCause: unknown };
+
+// Uma passada completa do protocolo de leitura estável.
+type StableRead<T> =
+  | { status: 'stable'; raw: string; snapshot: StorageAdministrationSnapshotRead; value: T }
+  | { status: 'core-changed'; detail: string }
+  | { status: 'snapshot-unstable'; detail: string };
 
 class StorageAdminRuntimeImpl implements StorageAdminRuntime {
   private readonly key: string;
@@ -189,6 +298,7 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
   private readonly adapter: AdministrableWorkoutHistoryStorageAdapter;
   private readonly now: () => Date;
   private readonly idFactory: () => string;
+  private readonly subtleCrypto: SubtleCrypto | null | undefined;
 
   constructor(options: StorageAdminRuntimeOptions) {
     this.key = options.key;
@@ -196,114 +306,276 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
     this.adapter = options.adapter;
     this.now = options.now ?? (() => new Date());
     this.idFactory = options.idFactory ?? defaultOperationId;
+    this.subtleCrypto = options.subtleCrypto === undefined
+      ? globalThis.crypto?.subtle
+      : options.subtleCrypto;
   }
 
   async inspectStorageAdministration(): Promise<StorageAdministrationSnapshot> {
+    // Uma segunda tentativa é aceita quando a primeira pegou o armazenamento em
+    // movimento. Instabilidade persistente continua fail-closed: nunca vira
+    // `ready`, nunca escolhe uma das leituras.
+    const MAX_ATTEMPTS = 2;
+    let lastUnstable: StorageAdministrationSnapshot | null = null;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      const result = await this.inspectOnce();
+      if (result.retryable && attempt < MAX_ATTEMPTS) {
+        lastUnstable = result.snapshot;
+        continue;
+      }
+      return result.snapshot;
+    }
+    // Inalcançável na prática; mantido para que o tipo nunca dependa de sorte.
+    return lastUnstable ?? emptySnapshot(
+      conflictedState('administration-snapshot-unstable', 'O diagnóstico não estabilizou.', []),
+      HYBRID_STORAGE_VERSION,
+    );
+  }
+
+  private async inspectOnce(): Promise<{ snapshot: StorageAdministrationSnapshot; retryable: boolean }> {
     let raw: string | null;
     try {
       raw = this.storage.getItem(this.key);
     } catch (error) {
-      return emptySnapshot(
-        unavailableState('storage-blocked', describeError(error)),
-        null,
-      );
+      return {
+        retryable: false,
+        snapshot: emptySnapshot(unavailableState('storage-blocked', describeError(error), error), null),
+      };
     }
 
-    if (raw === null) {
-      return emptySnapshot(
-        unavailableState('not-hybrid', 'Não existe core físico gravado nesta chave.'),
-        null,
-      );
-    }
-
-    const parsed = parsePhysicalEnvelope(raw);
-    if (parsed.status === 'v1') {
-      return emptySnapshot(
-        unavailableState('not-hybrid', 'O core físico ainda é o envelope legado v1.'),
-        MONOLITHIC_STORAGE_VERSION,
-      );
-    }
-    if (parsed.status === 'unsupported-version') {
-      return emptySnapshot(
-        unavailableState(
-          'physical-version-mismatch',
-          `A versão física ${String(parsed.version)} não é suportada.`,
+    const envelope = this.classifyEnvelope(raw);
+    if (envelope.status !== 'v2') {
+      return {
+        retryable: false,
+        snapshot: emptySnapshot(
+          unavailableState(envelope.reason, envelope.detail),
+          envelope.physicalStorageVersion,
         ),
-        typeof parsed.version === 'number' ? parsed.version : null,
-      );
-    }
-    if (parsed.status === 'corrupt') {
-      return emptySnapshot(
-        unavailableState('core-invalid', parsed.error),
-        parsed.physicalVersion,
-      );
+      };
     }
 
     const physicalStorageVersion = HYBRID_STORAGE_VERSION;
 
     const available = await this.adapterAvailable();
     if (!available) {
-      return emptySnapshot(
-        unavailableState('indexeddb-unavailable', 'O adapter IndexedDB reportou indisponibilidade.'),
-        physicalStorageVersion,
-      );
+      return {
+        retryable: false,
+        snapshot: emptySnapshot(
+          unavailableState('indexeddb-unavailable', 'O adapter IndexedDB reportou indisponibilidade.'),
+          physicalStorageVersion,
+        ),
+      };
     }
     try {
       await this.adapter.open();
     } catch (error) {
-      return emptySnapshot(
-        unavailableState('indexeddb-unavailable', describeError(error)),
-        physicalStorageVersion,
-      );
+      return {
+        retryable: false,
+        snapshot: emptySnapshot(
+          unavailableState('indexeddb-unavailable', describeError(error)),
+          physicalStorageVersion,
+        ),
+      };
     }
 
-    let metadata: HistoryStorageMetadata;
-    let generations: HistoryGenerationSummary[];
-    let unsettledOperations: StorageOperationReceipt[];
-    let pendingCompletionReceipts: WorkoutCompletionReceipt[];
+    let stable: StableRead<HistoryGenerationVerification | null>;
     try {
-      [metadata, generations, unsettledOperations, pendingCompletionReceipts] = await Promise.all([
-        this.adapter.readMetadata(),
-        this.adapter.listHistoryGenerations(),
-        this.adapter.listUnsettledStorageOperationReceipts(),
-        this.adapter.readPendingCompletionReceipts(),
-      ]);
-    } catch (error) {
-      if (error instanceof StorageOperationReceiptIntegrityError) {
-        return emptySnapshot(
-          conflictedState('malformed-operation-receipt', describeError(error), []),
-          physicalStorageVersion,
-        );
-      }
-      if (error instanceof HistoryMetadataIntegrityError || error instanceof HistoryManifestIntegrityError) {
-        return emptySnapshot(
-          conflictedState('metadata-malformed', describeError(error), []),
-          physicalStorageVersion,
-        );
-      }
-      return emptySnapshot(
-        unavailableState('indexeddb-unavailable', describeError(error)),
-        physicalStorageVersion,
+      // A verificação integral da geração ativa roda DENTRO da janela, entre os
+      // dois snapshots: uma mutação durante a verificação muda o fingerprint e
+      // impede `ready` em vez de aprovar um conteúdo que já não existe mais.
+      stable = await this.readStableAdministration(
+        (snapshotA) => this.verifyActiveGeneration(snapshotA),
       );
+    } catch (error) {
+      return {
+        retryable: false,
+        snapshot: emptySnapshot(this.classifyReadFailure(error), physicalStorageVersion),
+      };
     }
 
+    if (stable.status === 'core-changed') {
+      return {
+        retryable: true,
+        snapshot: emptySnapshot(
+          conflictedState('core-changed-during-inspection', stable.detail, []),
+          physicalStorageVersion,
+        ),
+      };
+    }
+    if (stable.status === 'snapshot-unstable') {
+      return {
+        retryable: true,
+        snapshot: emptySnapshot(
+          conflictedState('administration-snapshot-unstable', stable.detail, []),
+          physicalStorageVersion,
+        ),
+      };
+    }
+
+    return {
+      retryable: false,
+      snapshot: await this.buildStableSnapshot(stable.raw, stable.snapshot, stable.value),
+    };
+  }
+
+  private classifyEnvelope(raw: string | null):
+    | { status: 'v2' }
+    | {
+        status: 'other';
+        reason: StorageAdministrationUnavailableReason;
+        detail: string;
+        physicalStorageVersion: number | null;
+      } {
+    if (raw === null) {
+      return {
+        status: 'other',
+        reason: 'not-hybrid',
+        detail: 'Não existe core físico gravado nesta chave.',
+        physicalStorageVersion: null,
+      };
+    }
+    const parsed = parsePhysicalEnvelope(raw);
+    if (parsed.status === 'v1') {
+      return {
+        status: 'other',
+        reason: 'not-hybrid',
+        detail: 'O core físico ainda é o envelope legado v1.',
+        physicalStorageVersion: MONOLITHIC_STORAGE_VERSION,
+      };
+    }
+    if (parsed.status === 'unsupported-version') {
+      return {
+        status: 'other',
+        reason: 'physical-version-mismatch',
+        detail: `A versão física ${String(parsed.version)} não é suportada.`,
+        physicalStorageVersion: typeof parsed.version === 'number' ? parsed.version : null,
+      };
+    }
+    if (parsed.status === 'corrupt') {
+      return {
+        status: 'other',
+        reason: 'core-invalid',
+        detail: parsed.error,
+        physicalStorageVersion: parsed.physicalVersion,
+      };
+    }
+    return { status: 'v2' };
+  }
+
+  // Protocolo de estabilidade: core → snapshot A → (trabalho) → core → snapshot
+  // B → core. Só um estado observado igual nas duas pontas autoriza qualquer
+  // conclusão. Nada aqui escreve.
+  private async readStableAdministration<T>(
+    between: (snapshotA: StorageAdministrationSnapshotRead) => Promise<T>,
+  ): Promise<StableRead<T>> {
+    const coreRawBefore = this.readCoreRaw();
+    const snapshotA = await this.adapter.readStorageAdministrationSnapshot();
+    const value = await between(snapshotA);
+    const coreRawMiddle = this.readCoreRaw();
+    const snapshotB = await this.adapter.readStorageAdministrationSnapshot();
+    const coreRawAfter = this.readCoreRaw();
+
+    if (coreRawBefore !== coreRawMiddle || coreRawMiddle !== coreRawAfter) {
+      return {
+        status: 'core-changed',
+        detail: 'O core físico v2 mudou durante o diagnóstico administrativo.',
+      };
+    }
+    if (coreRawBefore === null) {
+      return {
+        status: 'core-changed',
+        detail: 'O core físico v2 desapareceu durante o diagnóstico administrativo.',
+      };
+    }
+    if (snapshotA.fingerprint !== snapshotB.fingerprint) {
+      return {
+        status: 'snapshot-unstable',
+        detail: 'O estado administrativo mudou entre as duas leituras atômicas do diagnóstico.',
+      };
+    }
+    return { status: 'stable', raw: coreRawBefore, snapshot: snapshotA, value };
+  }
+
+  // Verificação criptográfica integral a partir do snapshot atômico já lido:
+  // contagem, ordem física, digests por registro e orderedDigest do manifest.
+  // Reutiliza `verifyHistoryGeneration` — não existe segunda implementação.
+  private async verifyActiveGeneration(
+    snapshot: StorageAdministrationSnapshotRead,
+  ): Promise<HistoryGenerationVerification | null> {
+    const generationId = snapshot.activeGenerationId;
+    if (!generationId) return null;
+    const records = snapshot.activeGenerationRecords;
+    return verifyHistoryGeneration(
+      generationId,
+      {
+        present: snapshot.activeGenerationPresent,
+        manifest: snapshot.activeGenerationManifest,
+        sessions: records.map((record) => record.session),
+        recordDigests: records.map((record) => record.digest),
+      },
+      this.subtleCrypto,
+    );
+  }
+
+  // Leitura do core sempre pelo mesmo caminho: um `localStorage` que passa a
+  // recusar acesso no meio do diagnóstico vira `storage-blocked`, e não um
+  // genérico "IndexedDB indisponível".
+  private readCoreRaw(): string | null {
+    try {
+      return this.storage.getItem(this.key);
+    } catch (error) {
+      throw new StorageAdministrationUnavailableError(
+        'storage-blocked',
+        describeError(error),
+        { cause: error },
+      );
+    }
+  }
+
+  private classifyReadFailure(error: unknown): StorageAdministrationState {
+    if (error instanceof StorageAdministrationUnavailableError) {
+      return unavailableState(error.reason, error.message, error.cause ?? error);
+    }
+    if (error instanceof StorageOperationReceiptIntegrityError) {
+      return conflictedState('malformed-operation-receipt', describeError(error), [], error);
+    }
+    if (error instanceof CompletionReceiptIntegrityError) {
+      return conflictedState('malformed-completion-receipt', describeError(error), [], error);
+    }
+    if (error instanceof HistoryMetadataIntegrityError || error instanceof HistoryManifestIntegrityError) {
+      return conflictedState('metadata-malformed', describeError(error), [], error);
+    }
+    return unavailableState('indexeddb-unavailable', describeError(error), error);
+  }
+
+  private async buildStableSnapshot(
+    raw: string,
+    read: StorageAdministrationSnapshotRead,
+    integrity: HistoryGenerationVerification | null,
+  ): Promise<StorageAdministrationSnapshot> {
     let coreDigest: string | null = null;
     try {
-      coreDigest = await sha256Checksum(raw);
+      coreDigest = await sha256Checksum(raw, this.subtleCrypto ?? undefined);
     } catch {
       coreDigest = null;
     }
 
-    const activeGenerationId = metadata.activeGeneration;
-    const stagedGenerationId = metadata.migrationGeneration;
+    const activeGenerationId = read.activeGenerationId;
+    const stagedGenerationId = read.migrationGenerationId;
+    const unsettledOperations = read.unsettledOperations;
+    const pendingCompletionReceipts = read.pendingCompletionReceipts;
     const base = {
-      physicalStorageVersion,
+      physicalStorageVersion: HYBRID_STORAGE_VERSION,
       activeGenerationId,
       stagedGenerationId,
-      generations,
+      generations: read.generations,
       unsettledOperations,
       pendingCompletionReceiptCount: pendingCompletionReceipts.length,
       coreDigest,
+      activeGenerationIntegrity: integrity,
+      administrationFingerprint: read.fingerprint,
+      coreRawObserved: raw,
     };
 
     if (unsettledOperations.length > 1) {
@@ -338,14 +610,16 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
       };
     }
 
-    const activeSummary = generations.find((entry) => entry.generationId === activeGenerationId);
-    const activeGenerationCorrupt = !activeSummary || !activeSummary.hasManifest || activeSummary.verified !== true;
-    if (activeGenerationCorrupt) {
+    // Integridade REAL, recalculada agora. A flag persistida do manifest segue
+    // visível em `generations[].verified`, mas não decide nada.
+    if (!integrity || integrity.status !== 'verified') {
+      const reason = integrity && integrity.status === 'invalid' ? integrity.reason : 'generation-absent';
+      const message = integrity && integrity.status === 'invalid' ? integrity.message : '';
       return {
         ...base,
         state: conflictedState(
           'active-generation-corrupt',
-          `A geração ativa ${activeGenerationId} não tem manifest confirmado.`,
+          `A geração ativa ${activeGenerationId} não passou na verificação integral (${reason}). ${message}`.trim(),
           unsettledOperations,
         ),
       };
@@ -377,6 +651,23 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
     }
 
     if (operation) {
+      const compatibility = evaluateStorageOperationCompatibility({
+        receipt: operation,
+        coreRaw: raw,
+        metadata: { activeGeneration: activeGenerationId, migrationGeneration: stagedGenerationId },
+        generations: read.generations,
+      });
+      if (compatibility.status !== 'compatible') {
+        return {
+          ...base,
+          state: conflictedState(
+            'operation-incompatible',
+            `A operação ${operation.operationId} não é coerente com o estado físico`
+            + ` (${compatibility.reason}): ${compatibility.message}`,
+            unsettledOperations,
+          ),
+        };
+      }
       return { ...base, state: { status: 'interrupted', operation } };
     }
 
@@ -384,11 +675,32 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
   }
 
   async readVerifiedAdministrationGeneration(generationId: string): Promise<VerifiedHistoryGeneration> {
-    if (!generationId) throw new Error('A leitura administrativa exige um generationId.');
+    if (!generationId) {
+      throw new StorageAdministrationInputError(
+        'generationId',
+        'A leitura administrativa exige um generationId.',
+      );
+    }
     const snapshot = await this.inspectStorageAdministration();
     if (snapshot.state.status === 'unavailable') {
-      throw new StorageAdministrationUnavailableError(snapshot.state.reason, snapshot.state.detail);
+      throw new StorageAdministrationUnavailableError(
+        snapshot.state.reason,
+        snapshot.state.detail,
+        { cause: snapshot.state.cause },
+      );
     }
+    if (
+      snapshot.state.status === 'conflicted'
+      && CONFLICTS_BLOCKING_VERIFIED_READ.includes(snapshot.state.reason)
+    ) {
+      throw new StorageAdministrationConflictError(
+        snapshot.state.reason,
+        snapshot.state.detail,
+        { cause: snapshot.state.cause },
+      );
+    }
+    // Sempre a verificação integral do adapter: nunca devolve `[]` por ausência
+    // e nunca repara.
     const verified = await this.adapter.readVerifiedHistoryGeneration(generationId);
     return {
       generationId: verified.generationId,
@@ -398,6 +710,22 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
   }
 
   async beginStorageOperation(input: BeginStorageOperationInput): Promise<StorageOperationReceipt> {
+    // Entrada validada antes de qualquer leitura ou escrita.
+    if (input.stagedGenerationId !== null && input.stagedGenerationId !== undefined) {
+      throw new StorageAdministrationInputError(
+        'stagedGenerationId',
+        'O 002D-A2 não cria staging físico: stagedGenerationId precisa ser null até o 002D-C/D.',
+      );
+    }
+    if (input.targetCoreRaw !== null && input.targetCoreRaw !== undefined) {
+      throw new StorageAdministrationInputError(
+        'targetCoreRaw',
+        'O 002D-A2 não materializa core alvo: targetCoreRaw precisa ser null até o 002D-C/D.',
+      );
+    }
+    const createdAt = this.requireTimestamp();
+    const operationId = this.requireOperationId();
+
     const snapshot = await this.inspectStorageAdministration();
     this.requireReadyForMutation(snapshot);
 
@@ -433,19 +761,28 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
         'Não existe geração ativa de histórico ao iniciar a operação.',
       );
     }
-    // Verificação integral, não a flag do manifest: o begin nunca parte de uma
-    // geração cuja integridade não foi recalculada agora.
-    await this.adapter.readVerifiedHistoryGeneration(activeGenerationId);
+    // Verificação integral independente do snapshot, imediatamente antes da
+    // escrita. O erro de integridade é encapsulado num erro de domínio, mas a
+    // causa original continua acessível em `cause`.
+    try {
+      await this.adapter.readVerifiedHistoryGeneration(activeGenerationId);
+    } catch (error) {
+      throw new StorageAdministrationConflictError(
+        'active-generation-corrupt',
+        `A geração ativa ${activeGenerationId} não passou na verificação integral ao iniciar a operação.`,
+        { cause: error },
+      );
+    }
 
     const receipt = createStorageOperationReceipt({
-      operationId: this.idFactory(),
+      operationId,
       kind: input.kind,
       previousCoreRaw: raw,
       previousGenerationId: activeGenerationId,
-      createdAt: this.now().toISOString(),
+      createdAt,
       sourceDigest: input.sourceDigest ?? null,
-      stagedGenerationId: input.stagedGenerationId ?? null,
-      targetCoreRaw: input.targetCoreRaw ?? null,
+      stagedGenerationId: null,
+      targetCoreRaw: null,
     });
 
     const created = await this.adapter.createStorageOperationReceiptIfIdle({
@@ -453,68 +790,241 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
       expectedActiveGenerationId: activeGenerationId,
     });
 
-    // O core v2 vive no localStorage, fora da transação IndexedDB que acabou
-    // de criar o receipt: esta releitura fecha a janela que o CAS por si só
-    // não cobre. Qualquer divergência reverte o receipt em vez de deixá-lo
-    // staged e utilizável sobre um estado que já mudou.
-    let rawAfter: string | null;
+    // Revalidação pós-criação. O core v2 vive no localStorage, fora da transação
+    // IndexedDB que acabou de criar o receipt: só uma releitura estável fecha a
+    // janela que o CAS por si só não cobre.
+    await this.confirmBegunOperation(created, raw, activeGenerationId);
+    return created;
+  }
+
+  private async confirmBegunOperation(
+    created: StorageOperationReceipt,
+    expectedRaw: string,
+    expectedActiveGenerationId: string,
+  ): Promise<void> {
+    let stable: StableRead<null>;
     try {
-      rawAfter = this.storage.getItem(this.key);
+      stable = await this.readStableAdministration(async () => null);
     } catch (error) {
-      await this.revertBegunOperation(created.operationId);
-      throw new StorageOperationBeginConflictError(
-        `O core físico não pôde ser relido após iniciar a operação ${created.operationId}: ${describeError(error)}`,
-      );
+      await this.failBegin(created.operationId, describeError(error), error);
+      return;
     }
-    const metadataAfter = await this.adapter.readMetadata();
-    if (rawAfter !== raw || metadataAfter.activeGeneration !== activeGenerationId) {
-      await this.revertBegunOperation(created.operationId);
-      throw new StorageOperationBeginConflictError(
-        `O core ou a geração ativa mudaram durante o início da operação ${created.operationId}.`,
-      );
+    if (stable.status !== 'stable') {
+      await this.failBegin(created.operationId, stable.detail, null);
+      return;
     }
 
-    return created;
+    const { raw, snapshot } = stable;
+    const unsettled = snapshot.unsettledOperations;
+    const mine = unsettled[0];
+    const problem = raw !== expectedRaw
+      ? 'o core físico mudou durante o início da operação'
+      : snapshot.activeGenerationId !== expectedActiveGenerationId
+        ? 'a geração ativa mudou durante o início da operação'
+        : snapshot.pendingCompletionReceipts.length > 0
+          ? 'uma conclusão de treino ficou pendente durante o início da operação'
+          : unsettled.length !== 1
+            ? `existem ${unsettled.length} operações administrativas em aberto`
+            : mine.operationId !== created.operationId
+              ? `a operação em aberto é ${mine.operationId}`
+              : mine.status !== 'staged'
+                ? `a operação já está em ${mine.status}`
+                : null;
+
+    if (problem !== null) await this.failBegin(created.operationId, problem, null);
+  }
+
+  // Nunca retorna: sempre lança. Compensa e relata honestamente o que aconteceu
+  // com o receipt — inclusive quando a compensação em si falhou.
+  private async failBegin(operationId: string, problem: string, cause: unknown): Promise<never> {
+    const compensation = await this.revertBegunOperation(operationId);
+    if (compensation.status === 'reverted') {
+      throw new StorageOperationBeginConflictError(
+        `A operação ${operationId} foi recusada (${problem}) e o receipt foi revertido.`,
+        {
+          cause,
+          operationId,
+          compensation: 'reverted',
+          finalReceiptStatus: compensation.receipt.status,
+        },
+      );
+    }
+    const remaining = compensation.finalStatus ?? 'desconhecido';
+    throw new StorageOperationBeginConflictError(
+      `A operação ${operationId} foi recusada (${problem}) e a compensação staged → reverted FALHOU`
+      + ` (${describeError(compensation.cause)}); o receipt permanece em ${remaining}.`,
+      {
+        cause,
+        operationId,
+        compensation: 'failed',
+        compensationCause: compensation.cause,
+        finalReceiptStatus: compensation.finalStatus,
+      },
+    );
+  }
+
+  // Compensação best-effort, porém nunca silenciosa: o resultado é estruturado e
+  // sempre chega ao chamador. O receipt jamais é apagado nem sobrescrito à
+  // força — se a transição falhar, ele continua no armazenamento e reaparece no
+  // próximo diagnóstico como `interrupted` ou `conflicted`.
+  private async revertBegunOperation(operationId: string): Promise<CompensationResult> {
+    try {
+      const receipt = await this.adapter.transitionStorageOperationReceipt(operationId, 'staged', 'reverted');
+      return { status: 'reverted', receipt };
+    } catch (cause) {
+      let finalStatus: StorageOperationStatus | null = null;
+      let readCause: unknown = null;
+      try {
+        const current = await this.adapter.readStorageOperationReceipt(operationId);
+        finalStatus = current?.status ?? null;
+      } catch (error) {
+        // A releitura do status final também falhou. Isso não vira silêncio: a
+        // causa viaja junto e `finalStatus` fica honestamente `null`.
+        readCause = error;
+      }
+      return { status: 'failed', cause, finalStatus, readCause };
+    }
   }
 
   async transitionStorageOperation(
     input: TransitionStorageOperationInput,
   ): Promise<StorageOperationReceipt> {
     const { operationId, expectedStatus, nextStatus, patch } = input;
-    if (!operationId) throw new Error('A transição administrativa exige um operationId.');
-    const available = await this.adapterAvailable();
-    if (!available) {
-      throw new StorageAdministrationUnavailableError(
-        'indexeddb-unavailable',
-        'O adapter IndexedDB está indisponível para transicionar a operação.',
+    if (!operationId) {
+      throw new StorageAdministrationInputError(
+        'operationId',
+        'A transição administrativa exige um operationId.',
       );
     }
-    await this.adapter.open();
-    // Delegação pura ao CAS do adapter: nenhuma regra de negócio, nenhum
-    // efeito colateral por status, nenhuma transição além das já declaradas
-    // em `storage-operation-receipt.ts`.
-    return this.adapter.transitionStorageOperationReceipt(operationId, expectedStatus, nextStatus, patch);
+
+    // A transição só acontece em estado inequívoco. `interrupted` já garante,
+    // por construção do diagnóstico: core v2 válido e estável, geração ativa
+    // integralmente verificada, exatamente um receipt não terminal, zero
+    // conclusão pendente e receipt coerente com core/metadata/gerações.
+    const snapshot = await this.inspectStorageAdministration();
+    if (snapshot.state.status === 'unavailable') {
+      throw new StorageAdministrationUnavailableError(
+        snapshot.state.reason,
+        snapshot.state.detail,
+        { cause: snapshot.state.cause },
+      );
+    }
+    if (snapshot.state.status === 'ready') {
+      throw new StorageAdministrationConflictError(
+        'no-unsettled-operation',
+        'Não existe operação administrativa em aberto para transicionar.',
+      );
+    }
+    if (snapshot.state.status === 'conflicted') {
+      throw new StorageAdministrationConflictError(
+        snapshot.state.reason,
+        snapshot.state.detail,
+        { cause: snapshot.state.cause },
+      );
+    }
+
+    const operation = snapshot.state.operation;
+    if (operation.operationId !== operationId) {
+      throw new StorageAdministrationConflictError(
+        'operation-not-the-unsettled-one',
+        `A operação em aberto é ${operation.operationId}, e não ${operationId}.`,
+      );
+    }
+
+    // `expectedStatus` divergente é erro do chamador, não ambiguidade do estado:
+    // conferido antes da projeção para que o erro descreva a causa certa.
+    if (operation.status !== expectedStatus) {
+      throw new StorageOperationTransitionError(
+        `O receipt ${operationId} está em ${operation.status}, e não em ${expectedStatus}.`,
+      );
+    }
+
+    // Uma transição não pode DEIXAR o receipt incoerente. No A2 isso barra, em
+    // particular, `activating → activated`: `activated` afirma efeitos (geração
+    // preparada ativa e core alvo gravado) que nenhuma etapa desta fase produz,
+    // então avançar até lá criaria um estado impossível de comprovar. Reverter
+    // é sempre permitido: status terminal não descreve efeito nenhum.
+    const coreRawObserved = snapshot.coreRawObserved;
+    if (nextStatus !== 'settled' && nextStatus !== 'reverted' && coreRawObserved !== null) {
+      const projected: StorageOperationReceipt = {
+        ...operation,
+        sourceDigest: patch?.sourceDigest === undefined ? operation.sourceDigest : patch.sourceDigest,
+        stagedGenerationId: patch?.stagedGenerationId === undefined
+          ? operation.stagedGenerationId
+          : patch.stagedGenerationId,
+        targetCoreRaw: patch?.targetCoreRaw === undefined ? operation.targetCoreRaw : patch.targetCoreRaw,
+        status: nextStatus,
+      };
+      const projection = evaluateStorageOperationCompatibility({
+        receipt: projected,
+        coreRaw: coreRawObserved,
+        metadata: {
+          activeGeneration: snapshot.activeGenerationId,
+          migrationGeneration: snapshot.stagedGenerationId,
+        },
+        generations: snapshot.generations,
+      });
+      if (projection.status !== 'compatible') {
+        throw new StorageAdministrationConflictError(
+          'operation-incompatible',
+          `A transição ${expectedStatus} → ${nextStatus} deixaria a operação ${operationId} incoerente`
+          + ` (${projection.reason}): ${projection.message}`,
+        );
+      }
+    }
+
+    // O CAS atômico reconfere tudo dentro da própria transação de escrita:
+    // nenhum estado pode mudar entre o diagnóstico e a gravação.
+    return this.adapter.transitionStorageOperationIfUnambiguous({
+      operationId,
+      expectedStatus,
+      nextStatus,
+      expectedActiveGenerationId: snapshot.activeGenerationId,
+      patch,
+    });
   }
 
   private requireReadyForMutation(snapshot: StorageAdministrationSnapshot): void {
     if (snapshot.state.status === 'ready') return;
     if (snapshot.state.status === 'unavailable') {
-      throw new StorageAdministrationUnavailableError(snapshot.state.reason, snapshot.state.detail);
+      throw new StorageAdministrationUnavailableError(
+        snapshot.state.reason,
+        snapshot.state.detail,
+        { cause: snapshot.state.cause },
+      );
     }
     if (snapshot.state.status === 'interrupted') {
       throw new StorageOperationAlreadyInProgressError(snapshot.state.operation);
     }
-    throw new StorageAdministrationConflictError(snapshot.state.reason, snapshot.state.detail);
+    throw new StorageAdministrationConflictError(
+      snapshot.state.reason,
+      snapshot.state.detail,
+      { cause: snapshot.state.cause },
+    );
   }
 
-  private async revertBegunOperation(operationId: string): Promise<void> {
+  private requireTimestamp(): string {
+    const value = this.now();
     try {
-      await this.adapter.transitionStorageOperationReceipt(operationId, 'staged', 'reverted');
-    } catch {
-      // Best-effort: se outra chamada já reverteu ou liquidou o receipt, ele
-      // continua não terminal na pior hipótese e volta a aparecer como
-      // `interrupted` no próximo diagnóstico — nunca é apagado.
+      return value.toISOString();
+    } catch (error) {
+      throw new StorageAdministrationInputError(
+        'now',
+        'O relógio injetado devolveu um instante inválido; nenhum receipt foi criado.',
+        { cause: error },
+      );
     }
+  }
+
+  private requireOperationId(): string {
+    const operationId = this.idFactory();
+    if (typeof operationId !== 'string' || operationId.length === 0) {
+      throw new StorageAdministrationInputError(
+        'operationId',
+        'A fábrica de operationId devolveu um identificador vazio; nenhum receipt foi criado.',
+      );
+    }
+    return operationId;
   }
 
   private async adapterAvailable(): Promise<boolean> {
@@ -529,3 +1039,5 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
 export function createStorageAdminRuntime(options: StorageAdminRuntimeOptions): StorageAdminRuntime {
   return new StorageAdminRuntimeImpl(options);
 }
+
+export type { StorageOperationCompatibility };

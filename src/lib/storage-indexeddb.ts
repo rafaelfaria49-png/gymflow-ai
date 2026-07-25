@@ -6,6 +6,8 @@ import type {
   LegacySnapshotRecord,
   RollbackHistoryGenerationInput,
   RollbackHistoryGenerationResult,
+  StorageAdministrationSnapshotRead,
+  TransitionStorageOperationIfUnambiguousInput,
   VerifiedHistoryGeneration,
   WorkoutHistoryAdministrationAdapter,
   WorkoutHistoryStorageAdapter,
@@ -200,13 +202,73 @@ export class StorageOperationAlreadyInProgressError extends Error {
   }
 }
 
+// Resultado da compensação `staged → reverted` tentada pelo 002D-A2 quando o
+// begin detecta divergência depois de já ter criado o receipt.
+export type StorageOperationCompensationOutcome = 'not-attempted' | 'reverted' | 'failed';
+
 // CAS de `createStorageOperationReceiptIfIdle` falhou: a geração ativa mudou
 // entre a leitura e a escrita, ou o operationId já existe. A transação inteira
 // é abortada — nenhum receipt fica gravado pela metade.
+//
+// Também é o erro do begin do 002D-A2 quando a revalidação pós-criação recusa a
+// operação. Nesse caminho ele carrega, de forma estruturada e nunca só no texto:
+// qual operação, a causa original do conflito (`cause`), o que aconteceu com a
+// compensação e o último status conhecido do receipt. Compensação que falhou
+// **nunca** é relatada como `reverted`.
 export class StorageOperationBeginConflictError extends Error {
-  constructor(message: string) {
-    super(message);
+  readonly operationId: string | null;
+  readonly compensation: StorageOperationCompensationOutcome;
+  readonly compensationCause: unknown;
+  readonly finalReceiptStatus: StorageOperationStatus | null;
+
+  constructor(message: string, options: {
+    cause?: unknown;
+    operationId?: string | null;
+    compensation?: StorageOperationCompensationOutcome;
+    compensationCause?: unknown;
+    finalReceiptStatus?: StorageOperationStatus | null;
+  } = {}) {
+    super(message, 'cause' in options ? { cause: options.cause } : undefined);
     this.name = 'StorageOperationBeginConflictError';
+    this.operationId = options.operationId ?? null;
+    this.compensation = options.compensation ?? 'not-attempted';
+    this.compensationCause = options.compensationCause;
+    this.finalReceiptStatus = options.finalReceiptStatus ?? null;
+  }
+}
+
+// Bloqueio fail-closed por conclusão de treino pendente dentro de uma transação
+// administrativa. O receipt de conclusão nunca é alterado nem liquidado aqui:
+// ele só impede a operação administrativa de nascer ou avançar.
+export class StorageCompletionPendingError extends Error {
+  readonly pendingReceiptIds: readonly string[];
+
+  constructor(pendingReceiptIds: readonly string[]) {
+    super(
+      `Existe conclusão de treino pendente (${pendingReceiptIds.join(', ') || 'sem id legível'});`
+      + ' a operação administrativa não pode prosseguir.',
+    );
+    this.name = 'StorageCompletionPendingError';
+    this.pendingReceiptIds = [...pendingReceiptIds];
+  }
+}
+
+export type StorageOperationAmbiguityReason =
+  | 'no-unsettled-operation'
+  | 'multiple-unsettled-operations'
+  | 'operation-not-the-unsettled-one';
+
+// A transação de transição encontrou um estado administrativo em que escolher
+// qual operação avançar seria um chute. Ela aborta sem tocar em nada.
+export class StorageOperationAmbiguousStateError extends Error {
+  readonly reason: StorageOperationAmbiguityReason;
+  readonly unsettledOperationIds: readonly string[];
+
+  constructor(reason: StorageOperationAmbiguityReason, message: string, unsettledOperationIds: readonly string[] = []) {
+    super(message);
+    this.name = 'StorageOperationAmbiguousStateError';
+    this.reason = reason;
+    this.unsettledOperationIds = [...unsettledOperationIds];
   }
 }
 
@@ -359,6 +421,171 @@ function generationOrderRank(summary: HistoryGenerationSummary): number {
   if (summary.isActive) return 0;
   if (summary.isStaged) return 1;
   return 2;
+}
+
+interface GenerationEnumeration {
+  activeGeneration: string | null;
+  migrationGeneration: string | null;
+  // `null` marca manifest presente porém ilegível: presença é reportada,
+  // integridade não é presumida.
+  manifests: Map<string, HistoryGenerationManifest | null>;
+  summaries: HistoryGenerationSummary[];
+}
+
+// Enumeração pura compartilhada por `listHistoryGenerations` e pelo snapshot
+// administrativo atômico. Uma implementação só: duas versões divergentes da
+// mesma leitura seriam exatamente o tipo de inconsistência que o 002D-A2 existe
+// para impedir.
+function summarizeGenerations(
+  metadataRecords: readonly unknown[],
+  manifestRecords: readonly unknown[],
+  recordCounts: ReadonlyMap<string, number>,
+): GenerationEnumeration {
+  let activeGeneration: string | null = null;
+  let migrationGeneration: string | null = null;
+  const stagedMarkers = new Set<string>();
+  for (const entry of metadataRecords) {
+    const record = entry as Partial<MetadataRecord> | null;
+    // Chave não textual não é ignorada nem convertida: ela invalida a
+    // enumeração inteira. Devolver lista parcial seria esconder de um futuro
+    // runtime de recuperação exatamente a geração que ele precisa ver.
+    if (!record || typeof record.key !== 'string') {
+      throw new HistoryMetadataIntegrityError(
+        'O store metadata contém uma chave não textual; a enumeração de gerações não é confiável.',
+      );
+    }
+    if (record.key === 'activeGeneration') {
+      activeGeneration = typeof record.value === 'string' ? record.value : null;
+    } else if (record.key === 'migrationGeneration') {
+      migrationGeneration = typeof record.value === 'string' ? record.value : null;
+    } else if (record.key.startsWith(INTERNAL_NEXT_ORDER_PREFIX)) {
+      stagedMarkers.add(record.key.slice(INTERNAL_NEXT_ORDER_PREFIX.length));
+    }
+  }
+
+  const manifests = new Map<string, HistoryGenerationManifest | null>();
+  for (const record of manifestRecords) {
+    const candidate = record as Record<string, unknown> | null;
+    const generationId = typeof candidate?.generationId === 'string' ? candidate.generationId : null;
+    if (!generationId) continue;
+    manifests.set(generationId, isHistoryGenerationManifest(record) ? record : null);
+  }
+
+  const generationIds = new Set<string>([
+    ...recordCounts.keys(),
+    ...manifests.keys(),
+    ...stagedMarkers,
+  ]);
+  if (activeGeneration) generationIds.add(activeGeneration);
+  if (migrationGeneration) generationIds.add(migrationGeneration);
+
+  const summaries = Array.from(generationIds, (generationId): HistoryGenerationSummary => {
+    const hasManifest = manifests.has(generationId);
+    const manifest = manifests.get(generationId) ?? null;
+    const recordCount = recordCounts.get(generationId) ?? 0;
+    return {
+      generationId,
+      isActive: generationId === activeGeneration,
+      isStaged: generationId === migrationGeneration,
+      hasManifest,
+      hasRecords: recordCount > 0,
+      recordCount,
+      manifestSessionCount: manifest ? manifest.sessionCount : null,
+      orderedDigest: manifest ? manifest.orderedDigest : null,
+      // Flag PERSISTIDA do manifest, não prova de integridade. Ver
+      // `HistoryGenerationSummary.verified` em storage-adapter.ts.
+      verified: hasManifest ? Boolean(manifest?.verified) : null,
+      createdAt: manifest ? manifest.createdAt : null,
+      updatedAt: manifest ? manifest.updatedAt : null,
+    };
+  }).sort((left, right) => {
+    const rankDelta = generationOrderRank(left) - generationOrderRank(right);
+    if (rankDelta !== 0) return rankDelta;
+    const leftTime = left.updatedAt ?? left.createdAt;
+    const rightTime = right.updatedAt ?? right.createdAt;
+    if (leftTime !== rightTime) {
+      if (leftTime === null) return 1;
+      if (rightTime === null) return -1;
+      return rightTime.localeCompare(leftTime);
+    }
+    return left.generationId.localeCompare(right.generationId);
+  });
+
+  return { activeGeneration, migrationGeneration, manifests, summaries };
+}
+
+// Impressão digital determinística do estado administrativo inteiro.
+//
+// Ela existe para o double-read do 002D-A2: dois snapshots com o mesmo
+// fingerprint descrevem o mesmo estado físico, então o diagnóstico não está
+// combinando momentos diferentes. Cobre metadata, ponteiros, manifests, o
+// conteúdo canônico de TODOS os registros de histórico (não só a contagem — uma
+// sessão trocada mantendo id, ordem e digest tem de mudar o fingerprint), todos
+// os receipts administrativos e todos os CompletionReceipts pendentes.
+function fingerprintAdministrationSnapshot(input: {
+  metadataRecords: readonly unknown[];
+  manifests: ReadonlyMap<string, HistoryGenerationManifest | null>;
+  historyRecords: readonly HistoryRecord[];
+  operationReceipts: readonly StorageOperationReceipt[];
+  pendingCompletionReceipts: readonly WorkoutCompletionReceipt[];
+}): string {
+  const metadata = (input.metadataRecords as Partial<MetadataRecord>[])
+    .map((record) => [String(record?.key), JSON.stringify(record?.value ?? null)] as const)
+    .sort((left, right) => left[0].localeCompare(right[0]));
+
+  const manifests = Array.from(input.manifests.entries())
+    .map(([generationId, manifest]) => [
+      generationId,
+      manifest === null
+        ? 'manifest-ilegivel'
+        : [
+          manifest.generationId,
+          manifest.sessionCount,
+          manifest.orderedDigest,
+          manifest.createdAt,
+          manifest.updatedAt,
+          manifest.verified,
+        ].join('|'),
+    ] as const)
+    .sort((left, right) => left[0].localeCompare(right[0]));
+
+  const history = input.historyRecords
+    .map((record) => [
+      record.generationId,
+      record.order,
+      record.sessionId,
+      record.digest ?? 'sem-digest',
+      serializeWorkoutSessionCanonically(record.session),
+    ].join('|'))
+    .sort();
+
+  const operations = input.operationReceipts
+    .map((receipt) => [
+      receipt.operationId,
+      receipt.kind,
+      receipt.status,
+      receipt.createdAt,
+      receipt.updatedAt,
+      receipt.previousGenerationId,
+      receipt.stagedGenerationId ?? 'nenhuma',
+      receipt.sourceDigest ?? 'nenhum',
+      String(receipt.previousCoreRaw.length),
+      receipt.targetCoreRaw === null ? 'nenhum' : String(receipt.targetCoreRaw.length),
+    ].join('|'))
+    .sort();
+
+  const completions = input.pendingCompletionReceipts
+    .map((receipt) => [
+      receipt.receiptId,
+      receipt.sessionId,
+      receipt.generationId,
+      receipt.sessionDigest,
+      receipt.status,
+      receipt.createdAt,
+    ].join('|'))
+    .sort();
+
+  return JSON.stringify({ metadata, manifests, history, operations, completions });
 }
 
 export async function checksumLegacySnapshot(
@@ -1131,12 +1358,17 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
   }
 
   // Criação atômica: só existe operação nova quando nenhuma outra está em
-  // aberto e a geração ativa observada pelo chamador ainda é a real. Varredura
-  // do store inteiro, releitura de metadata e gravação com `add` (nunca `put`)
-  // vivem na mesma transação readwrite — não há await de outra tarefa entre a
-  // checagem e o commit, então duas chamadas concorrentes nunca passam as
-  // duas: a segunda transação só começa depois que a primeira já commitou ou
-  // abortou.
+  // aberto, nenhuma conclusão de treino está pendente e a geração ativa
+  // observada pelo chamador ainda é a real. Varredura dos dois stores de
+  // receipt, releitura de metadata e gravação com `add` (nunca `put`) vivem na
+  // MESMA transação readwrite — não há await de outra tarefa entre a checagem e
+  // o commit, então duas chamadas concorrentes nunca passam as duas: a segunda
+  // transação só começa depois que a primeira já commitou ou abortou.
+  //
+  // `COMPLETION_RECEIPTS_STORE` entra no escopo justamente para serializar com
+  // `appendSessionWithCompletionReceipt`: sem ele, uma conclusão de treino
+  // gravada entre o diagnóstico e a criação passava despercebida e o begin
+  // nascia sobre um estado já obsoleto.
   async createStorageOperationReceiptIfIdle(
     input: CreateStorageOperationReceiptIfIdleInput,
   ): Promise<StorageOperationReceipt> {
@@ -1151,7 +1383,7 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     }
     const database = this.requireDatabase();
     const transaction = database.transaction(
-      [STORAGE_OPERATION_RECEIPTS_STORE, METADATA_STORE],
+      [STORAGE_OPERATION_RECEIPTS_STORE, COMPLETION_RECEIPTS_STORE, METADATA_STORE],
       'readwrite',
     );
     const completed = transactionResult(transaction);
@@ -1168,6 +1400,24 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
         if (UNSETTLED_OPERATION_STATUSES.includes(record.status)) {
           throw new StorageOperationAlreadyInProgressError(record);
         }
+      }
+
+      // Store inteiro, não o índice `byStatus`: um registro sem status válido
+      // não aparece em índice nenhum e não pode virar "zero pendentes".
+      const completionRecords = await requestResult(
+        transaction.objectStore(COMPLETION_RECEIPTS_STORE).getAll(),
+      ) as unknown[];
+      const pendingCompletionIds: string[] = [];
+      for (const record of completionRecords) {
+        if (!isWorkoutCompletionReceipt(record)) {
+          throw new CompletionReceiptIntegrityError(
+            'Existe um receipt de conclusão de treino com formato inválido no armazenamento.',
+          );
+        }
+        if (record.status === 'pending') pendingCompletionIds.push(record.receiptId);
+      }
+      if (pendingCompletionIds.length > 0) {
+        throw new StorageCompletionPendingError(pendingCompletionIds);
       }
 
       const activeGeneration = await this.readMetadataValue<string | null>(transaction, 'activeGeneration');
@@ -1187,6 +1437,119 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       await requestResult(receiptStore.add(receipt));
       await completed;
       return receipt;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  // Transição atômica em estado inequívoco. Tudo — validação dos dois stores de
+  // receipt, contagem de operações não terminais, CAS da geração ativa e a
+  // escrita — na mesma transação readwrite. É o que elimina a corrida entre o
+  // diagnóstico e a mutação: nenhum estado pode mudar entre "conferi" e "gravei".
+  //
+  // Nunca escolhe um receipt sozinha: o `operationId` tem de ser exatamente a
+  // única operação não terminal encontrada.
+  async transitionStorageOperationIfUnambiguous(
+    input: TransitionStorageOperationIfUnambiguousInput,
+  ): Promise<StorageOperationReceipt> {
+    const { operationId, expectedStatus, nextStatus, expectedActiveGenerationId, patch = {} } = input;
+    if (!operationId) throw new Error('A transição administrativa exige um operationId.');
+    if (!canTransitionStorageOperation(expectedStatus, nextStatus)) {
+      throw new StorageOperationTransitionError(
+        `A transição ${expectedStatus} → ${nextStatus} não é permitida.`,
+      );
+    }
+    const database = this.requireDatabase();
+    const updatedAt = this.now().toISOString();
+    const transaction = database.transaction(
+      [STORAGE_OPERATION_RECEIPTS_STORE, COMPLETION_RECEIPTS_STORE, METADATA_STORE],
+      'readwrite',
+    );
+    const completed = transactionResult(transaction);
+
+    try {
+      const store = transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE);
+      const records = await requestResult(store.getAll()) as unknown[];
+      const unsettled: StorageOperationReceipt[] = [];
+      for (const record of records) {
+        if (!isStorageOperationReceipt(record)) {
+          throw new StorageOperationReceiptIntegrityError(
+            'Existe um receipt administrativo com formato inválido no armazenamento.',
+          );
+        }
+        if (UNSETTLED_OPERATION_STATUSES.includes(record.status)) unsettled.push(record);
+      }
+      const unsettledIds = unsettled.map((receipt) => receipt.operationId);
+      if (unsettled.length === 0) {
+        throw new StorageOperationAmbiguousStateError(
+          'no-unsettled-operation',
+          'Não existe operação administrativa em aberto para transicionar.',
+        );
+      }
+      if (unsettled.length > 1) {
+        throw new StorageOperationAmbiguousStateError(
+          'multiple-unsettled-operations',
+          `Existem ${unsettled.length} operações administrativas em aberto; nenhuma pode ser escolhida.`,
+          unsettledIds,
+        );
+      }
+      const current = unsettled[0];
+      if (current.operationId !== operationId) {
+        throw new StorageOperationAmbiguousStateError(
+          'operation-not-the-unsettled-one',
+          `A operação em aberto é ${current.operationId}, e não ${operationId}.`,
+          unsettledIds,
+        );
+      }
+
+      const completionRecords = await requestResult(
+        transaction.objectStore(COMPLETION_RECEIPTS_STORE).getAll(),
+      ) as unknown[];
+      const pendingCompletionIds: string[] = [];
+      for (const record of completionRecords) {
+        if (!isWorkoutCompletionReceipt(record)) {
+          throw new CompletionReceiptIntegrityError(
+            'Existe um receipt de conclusão de treino com formato inválido no armazenamento.',
+          );
+        }
+        if (record.status === 'pending') pendingCompletionIds.push(record.receiptId);
+      }
+      if (pendingCompletionIds.length > 0) {
+        throw new StorageCompletionPendingError(pendingCompletionIds);
+      }
+
+      const activeGeneration = await this.readMetadataValue<string | null>(transaction, 'activeGeneration');
+      if (activeGeneration !== expectedActiveGenerationId) {
+        throw new StorageOperationTransitionError(
+          `A geração ativa é ${activeGeneration ?? 'nenhuma'}, e não ${expectedActiveGenerationId ?? 'nenhuma'}.`,
+        );
+      }
+
+      if (current.status !== expectedStatus) {
+        throw new StorageOperationTransitionError(
+          `O receipt ${operationId} está em ${current.status}, e não em ${expectedStatus}.`,
+        );
+      }
+
+      const next: StorageOperationReceipt = {
+        ...current,
+        sourceDigest: patchedField(patch.sourceDigest, current.sourceDigest),
+        stagedGenerationId: patchedField(patch.stagedGenerationId, current.stagedGenerationId),
+        targetCoreRaw: patchedField(patch.targetCoreRaw, current.targetCoreRaw),
+        status: nextStatus,
+        updatedAt,
+      };
+      if (!isStorageOperationReceipt(next)) {
+        throw new StorageOperationReceiptIntegrityError(
+          `A transição deixaria o receipt ${operationId} com formato inválido.`,
+        );
+      }
+
+      await requestResult(store.put(next));
+      await completed;
+      return next;
     } catch (error) {
       abortQuietly(transaction);
       await completed.catch(() => undefined);
@@ -1327,83 +1690,144 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     ]);
     await completed;
 
-    let activeGeneration: string | null = null;
-    let migrationGeneration: string | null = null;
-    const stagedMarkers = new Set<string>();
-    for (const entry of metadataRecords) {
-      const record = entry as Partial<MetadataRecord> | null;
-      // Chave não textual não é ignorada nem convertida: ela invalida a
-      // enumeração inteira. Devolver lista parcial seria esconder de um futuro
-      // runtime de recuperação exatamente a geração que ele precisa ver.
-      if (!record || typeof record.key !== 'string') {
-        throw new HistoryMetadataIntegrityError(
-          'O store metadata contém uma chave não textual; a enumeração de gerações não é confiável.',
-        );
-      }
-      if (record.key === 'activeGeneration') {
-        activeGeneration = typeof record.value === 'string' ? record.value : null;
-      } else if (record.key === 'migrationGeneration') {
-        migrationGeneration = typeof record.value === 'string' ? record.value : null;
-      } else if (record.key.startsWith(INTERNAL_NEXT_ORDER_PREFIX)) {
-        stagedMarkers.add(record.key.slice(INTERNAL_NEXT_ORDER_PREFIX.length));
-      }
-    }
-
-    // `null` no mapa marca manifest presente porém ilegível: presença é
-    // reportada, integridade não é presumida.
-    const manifests = new Map<string, HistoryGenerationManifest | null>();
-    for (const record of manifestRecords) {
-      const candidate = record as Record<string, unknown> | null;
-      const generationId = typeof candidate?.generationId === 'string' ? candidate.generationId : null;
-      if (!generationId) continue;
-      manifests.set(generationId, isHistoryGenerationManifest(record) ? record : null);
-    }
-
     const recordCounts = new Map<string, number>();
     for (const key of historyKeys) {
       if (!Array.isArray(key) || typeof key[0] !== 'string') continue;
       recordCounts.set(key[0], (recordCounts.get(key[0]) ?? 0) + 1);
     }
 
-    const generationIds = new Set<string>([
-      ...recordCounts.keys(),
-      ...manifests.keys(),
-      ...stagedMarkers,
-    ]);
-    if (activeGeneration) generationIds.add(activeGeneration);
-    if (migrationGeneration) generationIds.add(migrationGeneration);
+    return summarizeGenerations(metadataRecords, manifestRecords, recordCounts).summaries;
+  }
 
-    const summaries = Array.from(generationIds, (generationId): HistoryGenerationSummary => {
-      const hasManifest = manifests.has(generationId);
-      const manifest = manifests.get(generationId) ?? null;
-      const recordCount = recordCounts.get(generationId) ?? 0;
-      return {
-        generationId,
-        isActive: generationId === activeGeneration,
-        isStaged: generationId === migrationGeneration,
-        hasManifest,
-        hasRecords: recordCount > 0,
-        recordCount,
-        manifestSessionCount: manifest ? manifest.sessionCount : null,
-        orderedDigest: manifest ? manifest.orderedDigest : null,
-        verified: hasManifest ? Boolean(manifest?.verified) : null,
-        createdAt: manifest ? manifest.createdAt : null,
-        updatedAt: manifest ? manifest.updatedAt : null,
-      };
-    });
+  // Retrato administrativo coerente: UMA transação readonly cobrindo os cinco
+  // stores relevantes. Nenhuma transação auxiliar, nenhuma releitura por fora —
+  // é isso que garante que metadata, gerações, receipts e conclusões pendentes
+  // descrevem o MESMO instante. Não repara, não apaga, não cria manifest, não
+  // liquida receipt, não move ponteiro, não escreve nada.
+  async readStorageAdministrationSnapshot(): Promise<StorageAdministrationSnapshotRead> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(
+      [
+        METADATA_STORE,
+        WORKOUT_HISTORY_STORE,
+        GENERATION_MANIFESTS_STORE,
+        STORAGE_OPERATION_RECEIPTS_STORE,
+        COMPLETION_RECEIPTS_STORE,
+      ],
+      'readonly',
+    );
+    const completed = transactionResult(transaction);
 
-    return summaries.sort((left, right) => {
-      const rankDelta = generationOrderRank(left) - generationOrderRank(right);
-      if (rankDelta !== 0) return rankDelta;
-      const leftTime = left.updatedAt ?? left.createdAt;
-      const rightTime = right.updatedAt ?? right.createdAt;
-      if (leftTime !== rightTime) {
-        if (leftTime === null) return 1;
-        if (rightTime === null) return -1;
-        return rightTime.localeCompare(leftTime);
+    try {
+      const [metadataRecords, historyRecords, manifestRecords, operationRecords, completionRecords] =
+        await Promise.all([
+          requestResult(transaction.objectStore(METADATA_STORE).getAll()) as Promise<unknown[]>,
+          requestResult(transaction.objectStore(WORKOUT_HISTORY_STORE).getAll()) as Promise<HistoryRecord[]>,
+          requestResult(transaction.objectStore(GENERATION_MANIFESTS_STORE).getAll()) as Promise<unknown[]>,
+          requestResult(transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE).getAll()) as Promise<unknown[]>,
+          requestResult(transaction.objectStore(COMPLETION_RECEIPTS_STORE).getAll()) as Promise<unknown[]>,
+        ]);
+      await completed;
+
+      // Todo receipt é validado antes de qualquer filtragem: um registro
+      // malformado nunca vira "nada em aberto".
+      const operationReceipts: StorageOperationReceipt[] = [];
+      for (const record of operationRecords) {
+        if (!isStorageOperationReceipt(record)) {
+          throw new StorageOperationReceiptIntegrityError(
+            'Existe um receipt administrativo com formato inválido no armazenamento.',
+          );
+        }
+        operationReceipts.push(record);
       }
-      return left.generationId.localeCompare(right.generationId);
-    });
+      operationReceipts.sort((left, right) => (
+        left.createdAt === right.createdAt
+          ? left.operationId.localeCompare(right.operationId)
+          : left.createdAt.localeCompare(right.createdAt)
+      ));
+
+      const completionReceipts: WorkoutCompletionReceipt[] = [];
+      for (const record of completionRecords) {
+        if (!isWorkoutCompletionReceipt(record)) {
+          throw new CompletionReceiptIntegrityError(
+            'Existe um receipt de conclusão de treino com formato inválido no armazenamento.',
+          );
+        }
+        completionReceipts.push(record);
+      }
+      const pendingCompletionReceipts = completionReceipts
+        .filter((receipt) => receipt.status === 'pending')
+        .sort((left, right) => (
+          left.createdAt === right.createdAt
+            ? left.receiptId.localeCompare(right.receiptId)
+            : left.createdAt.localeCompare(right.createdAt)
+        ));
+
+      const recordCounts = new Map<string, number>();
+      for (const record of historyRecords) {
+        if (typeof record?.generationId !== 'string') continue;
+        recordCounts.set(record.generationId, (recordCounts.get(record.generationId) ?? 0) + 1);
+      }
+
+      const enumeration = summarizeGenerations(metadataRecords, manifestRecords, recordCounts);
+      const { activeGeneration, migrationGeneration, manifests, summaries } = enumeration;
+
+      const activeGenerationRecords = activeGeneration
+        ? sortHistoryRecords(historyRecords.filter((record) => record.generationId === activeGeneration))
+        : [];
+      const activeManifestEntry = activeGeneration ? manifests.get(activeGeneration) : undefined;
+      const hasActiveStagingMarker = metadataRecords.some((entry) => (
+        (entry as Partial<MetadataRecord> | null)?.key === `${INTERNAL_NEXT_ORDER_PREFIX}${activeGeneration}`
+      ));
+
+      return {
+        metadata: {
+          ...METADATA_DEFAULTS,
+          ...Object.fromEntries(
+            (metadataRecords as Partial<MetadataRecord>[])
+              .filter((record) => typeof record?.key === 'string'
+                && Object.prototype.hasOwnProperty.call(METADATA_DEFAULTS, record.key))
+              .map((record) => [record.key as string, record.value]),
+          ),
+          activeGeneration,
+          migrationGeneration,
+        } as HistoryStorageMetadata,
+        activeGenerationId: activeGeneration,
+        migrationGenerationId: migrationGeneration,
+        generations: summaries,
+        manifests: Array.from(manifests.values()).filter((manifest): manifest is HistoryGenerationManifest => (
+          manifest !== null
+        )),
+        activeGenerationRecords: activeGenerationRecords.map((record) => ({
+          generationId: record.generationId,
+          sessionId: record.sessionId,
+          order: record.order,
+          // Cópia estrutural: o chamador nunca recebe referência viva do IDB.
+          session: JSON.parse(JSON.stringify(record.session)) as WorkoutSession,
+          digest: record.digest ?? null,
+        })),
+        activeGenerationManifest: activeManifestEntry ?? null,
+        activeGenerationPresent: Boolean(activeGeneration) && (
+          activeGenerationRecords.length > 0 || activeManifestEntry !== undefined || hasActiveStagingMarker
+        ),
+        operationReceipts,
+        unsettledOperations: operationReceipts.filter((receipt) => (
+          UNSETTLED_OPERATION_STATUSES.includes(receipt.status)
+        )),
+        pendingCompletionReceipts,
+        fingerprint: fingerprintAdministrationSnapshot({
+          metadataRecords,
+          manifests,
+          historyRecords,
+          operationReceipts,
+          pendingCompletionReceipts,
+        }),
+      };
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
   }
 
   // Leitura verificada: presença física, manifest obrigatório, digest

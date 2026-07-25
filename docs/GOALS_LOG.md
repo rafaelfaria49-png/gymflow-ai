@@ -2423,3 +2423,189 @@ de treino foi tocado.
 - Gate de WebView físico (17B-002A-PHYSICAL) continua obrigatório.
 
 ---
+
+## GOAL-17B-002D-A2 corretivo 036 — fechamento dos conflitos Classe C (2026-07-24)
+
+Auditoria independente e estritamente read-only do commit `429c87d`
+(`feat(storage): adicionar runtime administrativo seguro`) classificou o slice
+como **Classe C — NÃO APTO PARA PUBLICAÇÃO**, com três bloqueantes reproduzidos
+por fault injection real em `fake-indexeddb`, não por leitura de código. Este
+commit corrige os três e mais quatro achados P1/P2. **O commit original foi
+preservado integralmente** — sem amend, squash, rebase ou merge.
+
+### O que a auditoria provou
+
+1. **`inspectStorageAdministration` devolvia `ready` sobre histórico
+   fisicamente corrompido.** Seis corrupções da geração ativa (conteúdo alterado
+   mantendo o digest persistido, digest alterado, ordem física trocada, sessão
+   removida, sessão adicionada, `orderedDigest` incorreto com `verified=true`)
+   retornavam `ready` enquanto `readVerifiedAdministrationGeneration` reprovava a
+   MESMA geração com `HistoryGenerationIntegrityError`. No caso da sessão
+   removida o próprio payload carregava a contradição: `recordCount: 1`,
+   `manifestSessionCount: 2`, `verified: true`, estado `ready`.
+2. **Corrida com `CompletionReceipt` permitia o begin.** Uma conclusão de treino
+   gravada entre o `inspect` e a criação do receipt passava despercebida: o begin
+   criava a operação e fabricava o `completion-pending-with-operation` que existe
+   para impedir.
+3. **`transitionStorageOperation` avançava operação em estado ambíguo.** A
+   transição só checava `isAvailable()`; avançou receipts em `conflicted` com dois
+   receipts, com conclusão pendente, com receipt malformado e — pior — com o core
+   v2 **removido** do `localStorage` (`unavailable`).
+
+Além disso: snapshot sem prova de estabilidade (devolveu `ready` com receipt não
+terminal já gravado), falha de compensação engolida por `catch {}` vazio,
+incompatibilidade receipt × metadata classificada como `interrupted` genérico, e
+documentação com três afirmações incorretas.
+
+### Snapshot atômico (`readStorageAdministrationSnapshot`)
+
+Nova primitiva do adapter. **Uma** transação readonly sobre `metadata` +
+`workoutHistory` + `generationManifests` + `storageOperationReceipts` +
+`completionReceipts`, sem nenhuma transação auxiliar. Devolve metadata real,
+ponteiros, resumo das gerações, manifests, os registros da geração ativa
+(necessários para verificar integralmente sem reabrir a janela), todos os
+receipts administrativos, os CompletionReceipts pendentes e um `fingerprint`
+determinístico. Todo receipt é validado antes de qualquer filtragem — malformado
+vira `StorageOperationReceiptIntegrityError` ou `CompletionReceiptIntegrityError`,
+nunca "nada em aberto". Cópia segura: mutar o snapshot não alcança o IDB. Não
+repara, não apaga, não cria manifest, não liquida receipt, não move ponteiro,
+não escreve nada.
+
+### `ready` agora verifica de verdade
+
+`inspectStorageAdministration` não usa mais `activeSummary.verified` como prova.
+Ele roda `verifyHistoryGeneration` — a MESMA primitiva do A1, sem segunda
+implementação — sobre os registros do snapshot atômico: manifest obrigatório,
+contagem, ordem física, digests por registro recalculados e `orderedDigest`. O
+resultado viaja em `snapshot.activeGenerationIntegrity`. A flag persistida
+continua visível em `generations[].verified`, agora documentada como flag e
+explicitamente **não** como prova.
+
+### Protocolo double-read
+
+`coreRawBefore` → snapshot A → verificação integral → `coreRawMiddle` →
+snapshot B → `coreRawAfter`. Conclui apenas com os três cores idênticos e
+`fingerprint(A) === fingerprint(B)`. O fingerprint cobre metadata, ponteiros,
+manifests, o **conteúdo canônico de todos os registros de histórico**, todos os
+receipts administrativos e todos os CompletionReceipts pendentes — nunca só
+contagem. A verificação roda dentro da janela de propósito: mutação durante ela
+muda o fingerprint em vez de aprovar conteúdo que já não existe.
+
+Divergência nunca vira escolha: `conflicted` com
+`administration-snapshot-unstable` ou `core-changed-during-inspection`. Uma
+segunda tentativa é feita (blip isolado resolve); instabilidade persistente
+continua fail-closed. O snapshot descreve a janela estável observada — alteração
+iniciada depois da leitura final aparece no próximo `inspect`.
+
+### Criação atômica com CompletionReceipts
+
+`createStorageOperationReceiptIfIdle` passou a incluir `COMPLETION_RECEIPTS_STORE`
+no escopo da transação readwrite. Como `appendSessionWithCompletionReceipt`
+disputa o mesmo store, o IndexedDB serializa as duas. Dentro da transação: lê e
+valida todos os admin receipts, recusa qualquer não terminal, lê e valida todos
+os CompletionReceipts, recusa qualquer pendente (`StorageCompletionPendingError`),
+relê metadata, confere o CAS da geração ativa, valida o novo receipt e grava com
+`add`, nunca `put`. Nenhum CompletionReceipt é lido por fora, alterado ou
+liquidado.
+
+### Transição só em estado inequívoco
+
+Nova primitiva `transitionStorageOperationIfUnambiguous`, com transação readwrite
+sobre os três stores. A fachada exige `interrupted` (que já implica core válido e
+estável, geração ativa verificada, exatamente um receipt não terminal, zero
+conclusão pendente e receipt coerente) e a primitiva reconfere tudo dentro da
+transação de escrita. Ela **nunca escolhe** um receipt: o `operationId` tem de
+ser exatamente a única operação não terminal.
+
+A transição também valida o estado **projetado**, para não deixar o chamador
+criar um beco sem saída: `activating → activated` é recusada no A2 porque
+`activated` afirma efeitos que nenhum fluxo desta fase produz. Reverter é sempre
+permitido — status terminal não descreve efeito nenhum.
+
+### Coerência receipt × core × metadata
+
+`evaluateStorageOperationCompatibility`, helper puro em
+`storage-operation-receipt.ts`, devolve `compatible`, `incompatible` (razão
+fechada) ou `insufficient-evidence`. `staged` exige geração anterior existente e
+ativa, core idêntico ao `previousCoreRaw` e ponteiro de staging coerente;
+`activating` só é compatível com nenhum efeito aplicado, e efeitos já aplicados
+viram `insufficient-evidence`; `activated` exige evidência completa. Um receipt
+não terminal incoerente vira `conflicted` (`operation-incompatible`), não
+`interrupted` genérico. `insufficient-evidence` **nunca** é tratado como
+compatível.
+
+### Compensação honesta
+
+Zero `catch {}`. `StorageOperationBeginConflictError` carrega `operationId`,
+`compensation` (`reverted` | `failed` | `not-attempted`), `compensationCause`,
+`finalReceiptStatus` e a `cause` original. Compensação que falha nunca é
+relatada como revertida: a mensagem diz FALHOU, informa o status remanescente, o
+receipt não é apagado nem sobrescrito à força e reaparece no próximo diagnóstico.
+Quando até a releitura do status final falha, `finalReceiptStatus` fica `null` e
+a causa continua acessível.
+
+### Entrada e erros
+
+`stagedGenerationId` e `targetCoreRaw` precisam ser `null` no A2 — valor não nulo
+vira `StorageAdministrationInputError` antes de qualquer leitura ou escrita. O
+mesmo erro cobre `now()` inválido (com o `RangeError` preservado em `cause`),
+`idFactory` vazia e `generationId` vazio: nada de `RangeError`/`TypeError` cru
+como contrato. `StorageAdministrationState` ganhou `cause?: unknown`, então o
+caminho `storage-blocked` não perde mais a exceção original do `localStorage`.
+
+### Testes
+
+- `storage-admin-runtime.test.ts`: **43 → 97**. Inclui as sete corrupções da
+  auditoria como testes permanentes (cada uma provando que a mutação física
+  ocorreu antes de julgar), fault injection de snapshot instável com escrita
+  contínua e com blip isolado, dez cenários de transição ambígua, quatro de
+  compensação (sucesso, falha por erro de IDB, falha por CAS com status já
+  mudado, falha somada a releitura impossível) e invariância física em cada
+  recusa.
+- `storage-indexeddb.test.ts`: **110 → 125**. Concorrência entre **duas conexões
+  independentes** (o cenário que faltava): duas criações simultâneas, begin
+  contra `appendSessionWithCompletionReceipt`, cada ordem de chegada, registro
+  malformado em qualquer store e duas transições atômicas simultâneas. Mais sete
+  testes do snapshot atômico.
+- `storage-operation-receipt.test.ts`: **8 → 26**, cobrindo o helper puro em
+  tabela.
+
+Nenhum threshold rígido de tempo; nenhuma resposta final simulada — os spies só
+abrem janelas reais sobre o adapter físico.
+
+### Validações
+
+- `npx vitest run`: **42 arquivos, 1088 testes** aprovados (998 → 1088). Zero
+  falha.
+- `storage-admin-runtime.test.ts` embaralhado com as seeds 11036/22036/33036:
+  97 testes, zero falha, cada vez. `storage-indexeddb.test.ts` com as mesmas três
+  seeds: 125 testes, zero falha.
+- `npx tsc --noEmit`: aprovado. `npm run build` e `npm run build:mobile`:
+  aprovados.
+- `npx eslint src`: **12 erros + 6 warnings**, baseline idêntica; zero ocorrência
+  nova nos arquivos alterados.
+- `git diff --check`: limpo. `package.json` e `package-lock.json` inalterados.
+
+### Preservado
+
+Commit `429c87d` intacto. Versão física do IndexedDB continua v4 — nenhum store
+novo, nenhuma migração. Todas as primitivas do A1 (rollback atomicamente
+verificável incluído), o isolamento entre `StorageOperationReceipt` e
+`WorkoutCompletionReceipt`, o protocolo de conclusão de treino, o runtime híbrido
+v2, a recuperação honesta do A0 e o comportamento legado v1 seguem idênticos.
+Nenhum arquivo de UI, Provider, Android ou domínio de treino foi tocado.
+
+### Continuação
+
+- **Nenhum call site real:** nenhum componente, `GymFlowContext`, `AdminPanel`,
+  `StorageRecoveryNotice`, boot ou layout chama a fachada. Confirmado por busca.
+- **`rollbackToHistoryGeneration` continua fora da interface pública**, só no
+  adapter de baixo nível.
+- **Nenhuma operação administrativa real:** o begin cria somente o receipt
+  `staged`. Importação, exportação v2, restauração, reset e rollback completo
+  ficam para 002D-C/D.
+- **Nenhuma recuperação automática no boot; nenhuma sincronização entre abas.**
+- **Owner-token continua pendente.** Gate de WebView físico
+  (17B-002A-PHYSICAL) continua obrigatório.
+- **002D-B/C/D/E/F não iniciados.**
+---

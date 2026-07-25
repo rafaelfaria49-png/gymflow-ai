@@ -1,15 +1,17 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import type { WorkoutSession } from '../types';
-import type { AdministrableWorkoutHistoryStorageAdapter, HistoryStorageMetadata } from './storage-adapter';
 import {
   type BeginStorageOperationInput,
   StorageAdministrationConflictError,
+  StorageAdministrationInputError,
   StorageAdministrationUnavailableError,
+  StorageCompletionPendingError,
   StorageOperationAlreadyInProgressError,
   StorageOperationBeginConflictError,
   createStorageAdminRuntime,
 } from './storage-admin-runtime';
+import type { StorageOperationReceipt } from './storage-operation-receipt';
 import {
   type WorkoutCompletionEffects,
   createWorkoutCompletionReceipt,
@@ -17,13 +19,17 @@ import {
 import {
   createHybridStorageRuntime,
 } from './storage-hybrid';
+import type { HistoryGenerationManifest } from './storage-history-integrity';
 import {
+  COMPLETION_RECEIPTS_STORE,
   GENERATION_MANIFESTS_STORE,
   GYMFLOW_INDEXEDDB_VERSION,
   IndexedDbWorkoutHistoryStorage,
   METADATA_STORE,
   STORAGE_OPERATION_RECEIPTS_STORE,
+  StorageOperationAmbiguousStateError,
   StorageOperationTransitionError,
+  WORKOUT_HISTORY_STORE,
 } from './storage-indexeddb';
 import {
   HYBRID_STORAGE_VERSION,
@@ -51,62 +57,6 @@ class MemoryStorage implements StorageLike {
   }
 }
 
-// Envolve uma `StorageLike` real e substitui o valor devolvido por
-// `getItem(key)` numa chamada específica (contada só para essa chave) — usada
-// para abrir, de forma determinística, a janela entre a leitura do core e a
-// releitura de confirmação do `beginStorageOperation`.
-class RacingCoreStorage implements StorageLike {
-  private calls = 0;
-  setItemCalls = 0;
-
-  constructor(
-    private readonly inner: StorageLike,
-    private readonly key: string,
-    private readonly mutateOnCall: number,
-    private readonly mutatedValue: string,
-  ) {}
-
-  getItem(key: string): string | null {
-    const value = this.inner.getItem(key);
-    if (key !== this.key) return value;
-    this.calls += 1;
-    return this.calls === this.mutateOnCall ? this.mutatedValue : value;
-  }
-
-  setItem(key: string, value: string): void {
-    this.setItemCalls += 1;
-    this.inner.setItem(key, value);
-  }
-
-  removeItem(key: string): void {
-    this.inner.removeItem(key);
-  }
-}
-
-// Intercepta `readMetadata()` numa chamada específica para rodar uma mutação
-// real (segunda ativação de geração) antes de devolver o resultado —
-// reproduz, com o adapter físico de verdade, a janela em que a geração ativa
-// muda durante o begin.
-function withMetadataRace(
-  adapter: AdministrableWorkoutHistoryStorageAdapter,
-  mutateOnCall: number,
-  mutate: () => Promise<void>,
-): AdministrableWorkoutHistoryStorageAdapter {
-  let calls = 0;
-  return new Proxy(adapter, {
-    get(target, prop, receiver) {
-      const value = Reflect.get(target, prop, receiver);
-      if (prop !== 'readMetadata' || typeof value !== 'function') {
-        return typeof value === 'function' ? value.bind(target) : value;
-      }
-      return async (): Promise<HistoryStorageMetadata> => {
-        calls += 1;
-        if (calls === mutateOnCall) await mutate();
-        return (value as () => Promise<HistoryStorageMetadata>).call(target);
-      };
-    },
-  }) as AdministrableWorkoutHistoryStorageAdapter;
-}
 
 function makeSession(index: number, overrides: Partial<WorkoutSession> = {}): WorkoutSession {
   const startedAt = 1_767_225_600_000 + index * 86_400_000;
@@ -299,6 +249,42 @@ function deleteManifest(factory: IDBFactory, name: string, generationId: string)
   ));
 }
 
+// `workoutHistory` tem keyPath ['generationId','order'] e índice único
+// ['generationId','sessionId'].
+interface RawHistoryRecord {
+  generationId: string;
+  sessionId: string;
+  order: number;
+  session: WorkoutSession;
+  digest: string;
+}
+
+function readHistoryRecords(factory: IDBFactory, name: string): Promise<RawHistoryRecord[]> {
+  return withStore(factory, name, WORKOUT_HISTORY_STORE, 'readonly', (transaction) => (
+    requestResult(transaction.objectStore(WORKOUT_HISTORY_STORE).getAll()) as Promise<RawHistoryRecord[]>
+  ));
+}
+
+function putHistoryRecord(factory: IDBFactory, name: string, record: RawHistoryRecord): Promise<unknown> {
+  return withStore(factory, name, WORKOUT_HISTORY_STORE, 'readwrite', (transaction) => (
+    requestResult(transaction.objectStore(WORKOUT_HISTORY_STORE).put(record))
+  ));
+}
+
+function readManifest(factory: IDBFactory, name: string, generationId: string): Promise<HistoryGenerationManifest> {
+  return withStore(factory, name, GENERATION_MANIFESTS_STORE, 'readonly', (transaction) => (
+    requestResult(
+      transaction.objectStore(GENERATION_MANIFESTS_STORE).get(generationId),
+    ) as Promise<HistoryGenerationManifest>
+  ));
+}
+
+function putManifest(factory: IDBFactory, name: string, manifest: unknown): Promise<unknown> {
+  return withStore(factory, name, GENERATION_MANIFESTS_STORE, 'readwrite', (transaction) => (
+    requestResult(transaction.objectStore(GENERATION_MANIFESTS_STORE).put(manifest as never))
+  ));
+}
+
 async function readAllStores(
   factory: IDBFactory,
   name: string,
@@ -374,6 +360,110 @@ function beginInput(overrides: Partial<BeginStorageOperationInput> = {}): BeginS
   };
 }
 
+// Receipt COERENTE com o estado físico observado: `previousCoreRaw` é o core v2
+// real e `previousGenerationId` é a geração ativa real. Desde o corretivo 036 um
+// receipt que não descreve o mesmo mundo que o core/metadata vira `conflicted`
+// (`operation-incompatible`), e não `interrupted` — então todo teste que quer
+// diagnosticar uma interrupção legítima precisa partir daqui.
+function coherentReceipt(
+  harness: { storage: MemoryStorage; generationId: string },
+  overrides: Partial<StorageOperationReceipt> = {},
+): StorageOperationReceipt {
+  return {
+    operationId: 'operation-interrompida',
+    kind: 'restore',
+    sourceDigest: null,
+    previousCoreRaw: harness.storage.getItem(KEY) as string,
+    previousGenerationId: harness.generationId,
+    stagedGenerationId: null,
+    targetCoreRaw: null,
+    status: 'staged',
+    createdAt: '2026-07-24T12:15:00.000Z',
+    updatedAt: '2026-07-24T12:15:00.000Z',
+    ...overrides,
+  };
+}
+
+// Roda `mutate` DEPOIS da execução real da n-ésima chamada de `method`. É assim
+// que as sondas abrem janelas verdadeiras: a mutação acontece no meio do
+// protocolo, com o adapter físico de verdade, nunca simulando o retorno.
+function afterCall<T extends object>(
+  target: T,
+  method: keyof T & string,
+  nth: number,
+  mutate: () => Promise<void>,
+): T {
+  let calls = 0;
+  return new Proxy(target, {
+    get(object, prop, receiver) {
+      const value = Reflect.get(object, prop, receiver);
+      if (prop !== method || typeof value !== 'function') {
+        return typeof value === 'function' ? value.bind(object) : value;
+      }
+      return async (...args: unknown[]) => {
+        const result = await (value as (...a: unknown[]) => Promise<unknown>).apply(object, args);
+        calls += 1;
+        if (calls === nth) await mutate();
+        return result;
+      };
+    },
+  }) as T;
+}
+
+// Roda `mutate` ANTES da n-ésima chamada de `method`.
+function beforeCall<T extends object>(
+  target: T,
+  method: keyof T & string,
+  nth: number,
+  mutate: () => Promise<void>,
+): T {
+  let calls = 0;
+  return new Proxy(target, {
+    get(object, prop, receiver) {
+      const value = Reflect.get(object, prop, receiver);
+      if (prop !== method || typeof value !== 'function') {
+        return typeof value === 'function' ? value.bind(object) : value;
+      }
+      return async (...args: unknown[]) => {
+        calls += 1;
+        if (calls === nth) await mutate();
+        return (value as (...a: unknown[]) => Promise<unknown>).apply(object, args);
+      };
+    },
+  }) as T;
+}
+
+// Substitui um método do adapter por uma falha real.
+function breakMethod<T extends object>(target: T, method: keyof T & string, error: () => Error): T {
+  return new Proxy(target, {
+    get(object, prop, receiver) {
+      const value = Reflect.get(object, prop, receiver);
+      if (prop !== method || typeof value !== 'function') {
+        return typeof value === 'function' ? value.bind(object) : value;
+      }
+      return async () => { throw error(); };
+    },
+  }) as T;
+}
+
+interface PhysicalState {
+  raw: string | null;
+  stores: Record<string, unknown[]>;
+}
+
+async function capturePhysicalState(
+  factory: IDBFactory,
+  name: string,
+  storage: MemoryStorage,
+): Promise<PhysicalState> {
+  return { raw: storage.getItem(KEY), stores: await readAllStores(factory, name) };
+}
+
+function expectUnchanged(before: PhysicalState, after: PhysicalState): void {
+  expect(after.raw).toBe(before.raw);
+  expect(JSON.stringify(after.stores)).toBe(JSON.stringify(before.stores));
+}
+
 describe('estado administrativo (inspectStorageAdministration)', () => {
   it('envelope legado v1 → unavailable (not-hybrid)', async () => {
     const storage = new MemoryStorage();
@@ -433,32 +523,18 @@ describe('estado administrativo (inspectStorageAdministration)', () => {
     expect(snapshot.physicalStorageVersion).toBe(HYBRID_STORAGE_VERSION);
   });
 
-  it.each(['staged', 'activating', 'activated'] as const)(
-    'exatamente um receipt %s → interrupted, identificado por operationId/kind/status',
+  it.each(['staged', 'activating'] as const)(
+    'exatamente um receipt %s COERENTE → interrupted, identificado por operationId/kind/status',
     async (status) => {
-      const { adapter, runtime, generationId } = await createReadyHarness();
-      const receipt = await adapter.createStorageOperationReceiptIfIdle({
-        receipt: {
-          operationId: 'operation-interrompida',
-          kind: 'restore',
-          sourceDigest: null,
-          previousCoreRaw: '{"placeholder":true}',
-          previousGenerationId: generationId,
-          stagedGenerationId: null,
-          targetCoreRaw: null,
-          status: 'staged',
-          createdAt: '2026-07-24T12:15:00.000Z',
-          updatedAt: '2026-07-24T12:15:00.000Z',
-        },
+      const harness = await createReadyHarness();
+      const { adapter, runtime, generationId } = harness;
+      await adapter.createStorageOperationReceiptIfIdle({
+        receipt: coherentReceipt(harness),
         expectedActiveGenerationId: generationId,
       });
-      if (status !== 'staged') {
+      if (status === 'activating') {
         await adapter.transitionStorageOperationReceipt('operation-interrompida', 'staged', 'activating');
       }
-      if (status === 'activated') {
-        await adapter.transitionStorageOperationReceipt('operation-interrompida', 'activating', 'activated');
-      }
-      void receipt;
 
       const snapshot = await runtime.inspectStorageAdministration();
       expect(snapshot.state.status).toBe('interrupted');
@@ -469,6 +545,20 @@ describe('estado administrativo (inspectStorageAdministration)', () => {
       }
     },
   );
+
+  it('receipt activated sem efeitos comprovados → conflicted, nunca interrupted', async () => {
+    // No A2 nada cria staging físico nem grava core alvo, então `activated`
+    // afirma efeitos que o diagnóstico não consegue comprovar. Isso é conflito,
+    // não uma interrupção retomável.
+    const harness = await createReadyHarness();
+    await harness.adapter.putStorageOperationReceipt(coherentReceipt(harness, { status: 'activated' }));
+
+    const snapshot = await harness.runtime.inspectStorageAdministration();
+    expect(snapshot.state).toMatchObject({ status: 'conflicted', reason: 'operation-incompatible' });
+    if (snapshot.state.status === 'conflicted') {
+      expect(snapshot.state.detail).toContain('activated-target-missing');
+    }
+  });
 
   it('dois receipts não terminais → conflicted (multiple-unsettled-operations)', async () => {
     const { adapter, runtime, generationId } = await createReadyHarness();
@@ -692,16 +782,15 @@ describe('beginStorageOperation', () => {
     expect(await adapter.listUnsettledStorageOperationReceipts()).toHaveLength(1);
   });
 
-  it('reverte o receipt quando a geração ativa muda durante o begin', async () => {
-    const { adapter, storage, factory, name, generationId } = await createReadyHarness({ sessions: [makeSession(1)] });
+  it('reverte o receipt quando a geração ativa muda depois da criação', async () => {
+    const { adapter, storage, factory, name } = await createReadyHarness({ sessions: [makeSession(1)] });
     // Segunda geração real, fisicamente preparada. O ponteiro de staging é
     // limpo logo em seguida para que o `inspect()` inicial do begin veja
-    // `ready` — a mutação real do ponteiro ativo só acontece dentro da
-    // corrida, direto no store de metadata (mesma técnica de escrita crua já
-    // usada pelas sondas de janela do 002D-A1).
+    // `ready` — a mutação real do ponteiro ativo acontece DEPOIS de o receipt
+    // já ter sido criado, direto no store de metadata.
     const otherGeneration = await adapter.prepareHistoryGeneration([makeSession(2)]);
     await putRawMetadata(factory, name, 'migrationGeneration', null);
-    const racingAdapter = withMetadataRace(adapter, 3, async () => {
+    const racingAdapter = afterCall(adapter, 'createStorageOperationReceiptIfIdle', 1, async () => {
       await putRawMetadata(factory, name, 'activeGeneration', otherGeneration);
     });
     const runtime = createStorageAdminRuntime({
@@ -715,6 +804,10 @@ describe('beginStorageOperation', () => {
     const error = await runtime.beginStorageOperation(beginInput())
       .then(() => null, (caught: unknown) => caught);
     expect(error).toBeInstanceOf(StorageOperationBeginConflictError);
+    const conflict = error as StorageOperationBeginConflictError;
+    expect(conflict.operationId).toBe('operation-racing-generation');
+    expect(conflict.compensation).toBe('reverted');
+    expect(conflict.finalReceiptStatus).toBe('reverted');
 
     const reverted = await adapter.readStorageOperationReceipt('operation-racing-generation');
     expect(reverted?.status).toBe('reverted');
@@ -722,10 +815,9 @@ describe('beginStorageOperation', () => {
     // A geração ativa real da mutação continua valendo; o begin não reverteu
     // o ponteiro que a corrida moveu.
     expect((await adapter.readMetadata()).activeGeneration).toBe(otherGeneration);
-    void generationId;
   });
 
-  it('reverte o receipt quando o core físico muda durante o begin', async () => {
+  it('reverte o receipt quando o core físico muda depois da criação', async () => {
     const { adapter, storage } = await createReadyHarness();
     const rawBefore = storage.getItem(KEY) as string;
     const mutatedRaw = JSON.stringify({
@@ -733,11 +825,13 @@ describe('beginStorageOperation', () => {
       savedAt: '2030-01-01T00:00:00.000Z',
       data: JSON.parse(rawBefore).data,
     });
-    const racingStorage = new RacingCoreStorage(storage, KEY, 3, mutatedRaw);
+    const racingAdapter = afterCall(adapter, 'createStorageOperationReceiptIfIdle', 1, async () => {
+      storage.setItem(KEY, mutatedRaw);
+    });
     const runtime = createStorageAdminRuntime({
       key: KEY,
-      storage: racingStorage,
-      adapter,
+      storage,
+      adapter: racingAdapter,
       now: () => new Date('2026-07-24T13:00:00.000Z'),
       idFactory: () => 'operation-racing-core',
     });
@@ -745,14 +839,44 @@ describe('beginStorageOperation', () => {
     const error = await runtime.beginStorageOperation(beginInput())
       .then(() => null, (caught: unknown) => caught);
     expect(error).toBeInstanceOf(StorageOperationBeginConflictError);
+    expect((error as StorageOperationBeginConflictError).compensation).toBe('reverted');
 
     const reverted = await adapter.readStorageOperationReceipt('operation-racing-core');
     expect(reverted?.status).toBe('reverted');
     expect(await adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
-    // O runtime nunca escreve no storage por conta própria — só leu através
-    // do wrapper, nunca chamou `setItem`.
-    expect(racingStorage.setItemCalls).toBe(0);
-    expect(storage.getItem(KEY)).toBe(rawBefore);
+    // Só a corrida escreveu no core; o runtime nunca o alterou por conta própria.
+    expect(storage.getItem(KEY)).toBe(mutatedRaw);
+  });
+
+  it('recusa CompletionReceipt que aparece entre o inspect e a criação (mesma transação)', async () => {
+    // A janela que a auditoria explorou: o diagnóstico via zero conclusões
+    // pendentes e o begin criava o receipt assim mesmo. Agora a criação disputa
+    // `completionReceipts` na própria transação, então a conclusão gravada nesse
+    // intervalo bloqueia a operação em vez de coexistir com ela.
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const { adapter, storage, factory, name, generationId } = harness;
+    const racingAdapter = beforeCall(adapter, 'createStorageOperationReceiptIfIdle', 1, async () => {
+      await seedPendingCompletion(adapter, generationId);
+    });
+    const runtime = createStorageAdminRuntime({
+      key: KEY,
+      storage,
+      adapter: racingAdapter,
+      now: () => new Date('2026-07-24T13:00:00.000Z'),
+      idFactory: () => 'operation-race-completion',
+    });
+
+    const error = await runtime.beginStorageOperation(beginInput())
+      .then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StorageCompletionPendingError);
+    expect((error as StorageCompletionPendingError).pendingReceiptIds).toEqual(['receipt-session-90']);
+
+    // Nenhum receipt administrativo nasceu, e a conclusão pendente segue intacta.
+    expect(await adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
+    expect(await adapter.readStorageOperationReceipt('operation-race-completion')).toBeNull();
+    expect(await adapter.readPendingCompletionReceipts()).toHaveLength(1);
+    void factory;
+    void name;
   });
 
   it('um begin recusado não altera core, metadata ou histórico', async () => {
@@ -772,7 +896,7 @@ describe('beginStorageOperation', () => {
 });
 
 describe('transitionStorageOperation', () => {
-  it('percorre staged → activating → activated → settled', async () => {
+  it('percorre staged → activating em estado coerente', async () => {
     const { runtime } = await createReadyHarness();
     const receipt = await runtime.beginStorageOperation(beginInput());
 
@@ -782,21 +906,49 @@ describe('transitionStorageOperation', () => {
       nextStatus: 'activating',
     });
     expect(activating.status).toBe('activating');
+  });
 
-    const activated = await runtime.transitionStorageOperation({
+  it('recusa activating → activated: o A2 não produz os efeitos que activated afirma', async () => {
+    // `activated` significa "geração preparada já ativa e core alvo já gravado".
+    // Nenhum fluxo do A2 faz isso, então a transição deixaria o receipt afirmando
+    // um mundo que não existe. A recusa acontece ANTES de qualquer escrita.
+    const { runtime, adapter } = await createReadyHarness();
+    const receipt = await runtime.beginStorageOperation(beginInput());
+    await runtime.transitionStorageOperation({
+      operationId: receipt.operationId,
+      expectedStatus: 'staged',
+      nextStatus: 'activating',
+    });
+
+    const error = await runtime.transitionStorageOperation({
       operationId: receipt.operationId,
       expectedStatus: 'activating',
       nextStatus: 'activated',
       patch: { targetCoreRaw: '{"schemaVersion":1}' },
-    });
-    expect(activated).toMatchObject({ status: 'activated', targetCoreRaw: '{"schemaVersion":1}' });
+    }).then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StorageAdministrationConflictError);
+    expect((error as StorageAdministrationConflictError).reason).toBe('operation-incompatible');
 
-    const settled = await runtime.transitionStorageOperation({
+    const current = await adapter.readStorageOperationReceipt(receipt.operationId);
+    expect(current?.status).toBe('activating');
+    expect(current?.targetCoreRaw).toBeNull();
+  });
+
+  it('permite activating → reverted: status terminal não afirma efeito nenhum', async () => {
+    const { runtime } = await createReadyHarness();
+    const receipt = await runtime.beginStorageOperation(beginInput());
+    await runtime.transitionStorageOperation({
       operationId: receipt.operationId,
-      expectedStatus: 'activated',
-      nextStatus: 'settled',
+      expectedStatus: 'staged',
+      nextStatus: 'activating',
     });
-    expect(settled.status).toBe('settled');
+
+    const reverted = await runtime.transitionStorageOperation({
+      operationId: receipt.operationId,
+      expectedStatus: 'activating',
+      nextStatus: 'reverted',
+    });
+    expect(reverted.status).toBe('reverted');
   });
 
   it('permite staged → reverted diretamente', async () => {
@@ -811,72 +963,65 @@ describe('transitionStorageOperation', () => {
     expect(reverted.status).toBe('reverted');
   });
 
-  it('recusa expectedStatus divergente, operação ausente e transição a partir de terminal', async () => {
+  it('recusa expectedStatus divergente, operationId estranho e ausência de operação', async () => {
     const { runtime } = await createReadyHarness();
     const receipt = await runtime.beginStorageOperation(beginInput());
 
+    // expectedStatus divergente: o CAS do adapter continua sendo quem recusa.
     await expect(runtime.transitionStorageOperation({
       operationId: receipt.operationId,
       expectedStatus: 'activating',
       nextStatus: 'activated',
     })).rejects.toBeInstanceOf(StorageOperationTransitionError);
 
-    await expect(runtime.transitionStorageOperation({
+    // operationId que não é a operação em aberto: a fachada não "escolhe" outra.
+    const stranger = await runtime.transitionStorageOperation({
       operationId: 'operation-inexistente',
       expectedStatus: 'staged',
       nextStatus: 'activating',
-    })).rejects.toBeInstanceOf(StorageOperationTransitionError);
+    }).then(() => null, (caught: unknown) => caught);
+    expect(stranger).toBeInstanceOf(StorageAdministrationConflictError);
+    expect((stranger as StorageAdministrationConflictError).reason).toBe('operation-not-the-unsettled-one');
 
+    // Depois de terminal não existe mais operação em aberto.
     await runtime.transitionStorageOperation({
       operationId: receipt.operationId,
       expectedStatus: 'staged',
       nextStatus: 'reverted',
     });
-    await expect(runtime.transitionStorageOperation({
+    const afterTerminal = await runtime.transitionStorageOperation({
       operationId: receipt.operationId,
       expectedStatus: 'reverted',
       nextStatus: 'activating',
-    })).rejects.toBeInstanceOf(StorageOperationTransitionError);
+    }).then(() => null, (caught: unknown) => caught);
+    expect(afterTerminal).toBeInstanceOf(StorageAdministrationConflictError);
+    expect((afterTerminal as StorageAdministrationConflictError).reason).toBe('no-unsettled-operation');
   });
 
-  it('não altera core, metadata, histórico ou CompletionReceipt', async () => {
-    const { runtime, adapter, storage, factory, name, generationId } = await createReadyHarness({
-      sessions: [makeSession(1)],
-    });
+  it('uma transição bem-sucedida altera só o receipt', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const { runtime, adapter, storage, factory, name } = harness;
     const receipt = await runtime.beginStorageOperation(beginInput());
-    const session = makeSession(50);
-    const completionReceipt = await createWorkoutCompletionReceipt({
-      receiptId: `receipt-${session.id}`,
-      generationId,
-      finalSession: session,
-      coreEnvelopeAfter: makeCoreEnvelope(generationId) as never,
-      effects: EMPTY_EFFECTS,
-      createdAt: '2026-07-24T12:45:00.000Z',
-    });
-    await adapter.appendSessionWithCompletionReceipt(session, completionReceipt);
 
     const rawBefore = storage.getItem(KEY);
     const historyBefore = await adapter.readActiveHistory();
-    const completionBefore = await adapter.readPendingCompletionReceipts();
     const metadataBefore = await adapter.readMetadata();
+    const before = await capturePhysicalState(factory, name, storage);
 
     await runtime.transitionStorageOperation({
       operationId: receipt.operationId,
       expectedStatus: 'staged',
       nextStatus: 'activating',
     });
-    await runtime.transitionStorageOperation({
-      operationId: receipt.operationId,
-      expectedStatus: 'activating',
-      nextStatus: 'activated',
-    });
 
     expect(storage.getItem(KEY)).toBe(rawBefore);
     expect(await adapter.readActiveHistory()).toEqual(historyBefore);
-    expect(await adapter.readPendingCompletionReceipts()).toEqual(completionBefore);
     expect(await adapter.readMetadata()).toEqual(metadataBefore);
-    void factory;
-    void name;
+    const after = await capturePhysicalState(factory, name, storage);
+    const changed = Object.keys(after.stores).filter((store) => (
+      JSON.stringify(after.stores[store]) !== JSON.stringify(before.stores[store])
+    ));
+    expect(changed).toEqual([STORAGE_OPERATION_RECEIPTS_STORE]);
   });
 });
 
@@ -987,5 +1132,830 @@ describe('regressões e ausência de call site real', () => {
     });
     const result = await hybrid.hydrate();
     expect(result.mode).toBe('legacy-v1');
+  });
+});
+
+// As sete corrupções que a auditoria independente reproduziu contra o A2
+// original, agora permanentes. Todas partem de uma geração ativa REAL e
+// verificam que a corrupção física foi de fato aplicada antes de julgar —
+// nenhuma pode passar pelo motivo errado.
+describe('geração ativa fisicamente corrompida nunca é ready', () => {
+  async function corruptibleHarness() {
+    const harness = await createReadyHarness({ sessions: [makeSession(2), makeSession(1)] });
+    const records = await readHistoryRecords(harness.factory, harness.name);
+    const manifest = await readManifest(harness.factory, harness.name, harness.generationId);
+    expect(records).toHaveLength(2);
+    return { ...harness, records, manifest };
+  }
+
+  async function expectFailClosed(
+    harness: Awaited<ReturnType<typeof corruptibleHarness>>,
+    before: PhysicalState,
+  ) {
+    const snapshot = await harness.runtime.inspectStorageAdministration();
+    // 1. nunca ready
+    expect(snapshot.state.status).not.toBe('ready');
+    expect(snapshot.state).toMatchObject({ status: 'conflicted', reason: 'active-generation-corrupt' });
+    // 2. o motivo da reprovação é explícito, vindo da verificação integral
+    expect(snapshot.activeGenerationIntegrity?.status).toBe('invalid');
+    // 3. readVerified continua falhando
+    await expect(harness.runtime.readVerifiedAdministrationGeneration(harness.generationId))
+      .rejects.toThrow();
+    // 4. begin nunca cria receipt
+    await expect(harness.runtime.beginStorageOperation(beginInput())).rejects.toBeInstanceOf(
+      StorageAdministrationConflictError,
+    );
+    expect(await harness.adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
+    // 5. nenhuma mutação
+    expectUnchanged(before, await capturePhysicalState(harness.factory, harness.name, harness.storage));
+    return snapshot;
+  }
+
+  it('A. conteúdo da sessão alterado mantendo o digest persistido', async () => {
+    const harness = await corruptibleHarness();
+    const victim = harness.records.find((record) => record.sessionId === 'session-1') as RawHistoryRecord;
+    await putHistoryRecord(harness.factory, harness.name, {
+      ...victim,
+      session: { ...victim.session, totalVolume: 999_999 },
+    });
+    const after = await readHistoryRecords(harness.factory, harness.name);
+    expect(after.find((record) => record.sessionId === 'session-1')?.session.totalVolume).toBe(999_999);
+    expect(after.find((record) => record.sessionId === 'session-1')?.digest).toBe(victim.digest);
+
+    const before = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+    const snapshot = await expectFailClosed(harness, before);
+    expect(snapshot.activeGenerationIntegrity).toMatchObject({ reason: 'record-digest-mismatch' });
+  });
+
+  it('B. somente o digest persistido alterado', async () => {
+    const harness = await corruptibleHarness();
+    const victim = harness.records.find((record) => record.sessionId === 'session-1') as RawHistoryRecord;
+    await putHistoryRecord(harness.factory, harness.name, { ...victim, digest: 'sha256:0000000000000000' });
+    const after = await readHistoryRecords(harness.factory, harness.name);
+    expect(after.find((record) => record.sessionId === 'session-1')?.digest).toBe('sha256:0000000000000000');
+
+    const before = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+    const snapshot = await expectFailClosed(harness, before);
+    expect(snapshot.activeGenerationIntegrity).toMatchObject({ reason: 'record-digest-mismatch' });
+  });
+
+  it('C. ordem física trocada com manifest intacto', async () => {
+    const harness = await corruptibleHarness();
+    const first = harness.records.find((record) => record.sessionId === 'session-1') as RawHistoryRecord;
+    const second = harness.records.find((record) => record.sessionId === 'session-2') as RawHistoryRecord;
+    // Delete + re-add na mesma transação: o índice único por sessionId impede
+    // um put direto com a ordem trocada.
+    await withStore(harness.factory, harness.name, WORKOUT_HISTORY_STORE, 'readwrite', async (transaction) => {
+      const store = transaction.objectStore(WORKOUT_HISTORY_STORE);
+      await requestResult(store.delete([first.generationId, first.order]));
+      await requestResult(store.delete([second.generationId, second.order]));
+      await requestResult(store.put({ ...first, order: second.order }));
+      await requestResult(store.put({ ...second, order: first.order }));
+    });
+    const after = await readHistoryRecords(harness.factory, harness.name);
+    expect(after.find((record) => record.order === first.order)?.sessionId).toBe('session-2');
+
+    const before = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+    const snapshot = await expectFailClosed(harness, before);
+    expect(snapshot.activeGenerationIntegrity).toMatchObject({ reason: 'ordered-digest-mismatch' });
+  });
+
+  it('D. sessão removida: recordCount=1 contra manifestSessionCount=2', async () => {
+    const harness = await corruptibleHarness();
+    const victim = harness.records.find((record) => record.sessionId === 'session-1') as RawHistoryRecord;
+    await withStore(harness.factory, harness.name, WORKOUT_HISTORY_STORE, 'readwrite', (transaction) => (
+      requestResult(transaction.objectStore(WORKOUT_HISTORY_STORE).delete([victim.generationId, victim.order]))
+    ));
+    expect(await readHistoryRecords(harness.factory, harness.name)).toHaveLength(1);
+
+    const before = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+    const snapshot = await expectFailClosed(harness, before);
+    // O payload diagnóstico carrega a contradição explicitamente.
+    const summary = snapshot.generations.find((entry) => entry.generationId === harness.generationId);
+    expect(summary?.recordCount).toBe(1);
+    expect(summary?.manifestSessionCount).toBe(2);
+    expect(snapshot.activeGenerationIntegrity).toMatchObject({ reason: 'session-count-mismatch' });
+  });
+
+  it('E. sessão adicionada', async () => {
+    const harness = await corruptibleHarness();
+    const model = harness.records[0];
+    await putHistoryRecord(harness.factory, harness.name, {
+      ...model,
+      sessionId: 'session-99',
+      order: 99,
+      session: makeSession(99),
+    });
+    expect(await readHistoryRecords(harness.factory, harness.name)).toHaveLength(3);
+
+    const before = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+    const snapshot = await expectFailClosed(harness, before);
+    expect(snapshot.activeGenerationIntegrity).toMatchObject({ reason: 'session-count-mismatch' });
+  });
+
+  it('F. orderedDigest incorreto com verified=true', async () => {
+    const harness = await corruptibleHarness();
+    await putManifest(harness.factory, harness.name, {
+      ...harness.manifest,
+      verified: true,
+      orderedDigest: 'sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+    });
+    const stored = await readManifest(harness.factory, harness.name, harness.generationId);
+    expect(stored.verified).toBe(true);
+    expect(stored.orderedDigest).toContain('deadbeef');
+
+    const before = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+    const snapshot = await expectFailClosed(harness, before);
+    // A flag persistida continua visível no resumo — e continua não valendo nada.
+    const summary = snapshot.generations.find((entry) => entry.generationId === harness.generationId);
+    expect(summary?.verified).toBe(true);
+    expect(snapshot.activeGenerationIntegrity).toMatchObject({ reason: 'ordered-digest-mismatch' });
+  });
+
+  it('G. verified=false com conteúdo aparentemente íntegro', async () => {
+    const harness = await corruptibleHarness();
+    await putManifest(harness.factory, harness.name, { ...harness.manifest, verified: false });
+
+    const before = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+    const snapshot = await expectFailClosed(harness, before);
+    // Manifest que nunca confirmou não é prova de nada: a verificação integral
+    // recusa pelo mesmo motivo que a leitura verificada do A1.
+    expect(snapshot.activeGenerationIntegrity).toMatchObject({ reason: 'manifest-unverified' });
+  });
+
+  it('manifest ausente e geração ativa inexistente também são conflicted', async () => {
+    const semManifest = await corruptibleHarness();
+    await deleteManifest(semManifest.factory, semManifest.name, semManifest.generationId);
+    const s1 = await semManifest.runtime.inspectStorageAdministration();
+    expect(s1.state).toMatchObject({ status: 'conflicted', reason: 'active-generation-corrupt' });
+    expect(s1.activeGenerationIntegrity).toMatchObject({ reason: 'manifest-absent' });
+
+    const fantasma = await corruptibleHarness();
+    await putRawMetadata(fantasma.factory, fantasma.name, 'activeGeneration', 'generation-inexistente');
+    const s2 = await fantasma.runtime.inspectStorageAdministration();
+    expect(s2.state).toMatchObject({ status: 'conflicted', reason: 'active-generation-corrupt' });
+    expect(s2.activeGenerationIntegrity).toMatchObject({ reason: 'generation-absent' });
+  });
+
+  it('a geração íntegra continua ready (controle da suíte de corrupção)', async () => {
+    const harness = await corruptibleHarness();
+    const snapshot = await harness.runtime.inspectStorageAdministration();
+    expect(snapshot.state).toEqual({ status: 'ready' });
+    expect(snapshot.activeGenerationIntegrity?.status).toBe('verified');
+  });
+});
+
+// Fault injection real entre as duas leituras atômicas do diagnóstico. Em todos
+// os casos a mutação acontece de verdade, com o adapter físico, dentro da janela
+// — nenhuma resposta final é simulada.
+describe('snapshot instável nunca vira ready', () => {
+  async function inspectWithMutationInWindow(
+    harness: Awaited<ReturnType<typeof createReadyHarness>>,
+    mutate: () => Promise<void>,
+  ) {
+    // A primeira chamada é o snapshot A do inspect; a mutação roda logo depois
+    // dele e antes do snapshot B.
+    const racing = afterCall(harness.adapter, 'readStorageAdministrationSnapshot', 1, mutate);
+    const runtime = createStorageAdminRuntime({ key: KEY, storage: harness.storage, adapter: racing });
+    return runtime.inspectStorageAdministration();
+  }
+
+  // Escrita CONTÍNUA: cada leitura atômica encontra um estado diferente, então
+  // as duas tentativas do protocolo divergem e o diagnóstico continua
+  // fail-closed em vez de escolher uma delas.
+  function inspectUnderContinuousChurn(
+    harness: Awaited<ReturnType<typeof createReadyHarness>>,
+    mutate: (round: number) => Promise<void>,
+  ) {
+    let round = 0;
+    const racing = new Proxy(harness.adapter, {
+      get(object, prop, receiver) {
+        const value = Reflect.get(object, prop, receiver);
+        if (prop !== 'readStorageAdministrationSnapshot' || typeof value !== 'function') {
+          return typeof value === 'function' ? value.bind(object) : value;
+        }
+        return async () => {
+          const result = await (value as () => Promise<unknown>).call(object);
+          round += 1;
+          await mutate(round);
+          return result;
+        };
+      },
+    });
+    const runtime = createStorageAdminRuntime({ key: KEY, storage: harness.storage, adapter: racing });
+    return runtime.inspectStorageAdministration();
+  }
+
+  it.each([
+    ['admin receipts nascendo sem parar', async (h: Awaited<ReturnType<typeof createReadyHarness>>, round: number) => {
+      await h.adapter.putStorageOperationReceipt(coherentReceipt(h, { operationId: `operation-${round}` }));
+    }],
+    ['migrationGeneration mudando sem parar', async (h: Awaited<ReturnType<typeof createReadyHarness>>, round: number) => {
+      await putRawMetadata(h.factory, h.name, 'migrationGeneration', `generation-staged-${round}`);
+    }],
+    ['manifest mudando sem parar', async (h: Awaited<ReturnType<typeof createReadyHarness>>, round: number) => {
+      const manifest = await readManifest(h.factory, h.name, h.generationId);
+      await putManifest(h.factory, h.name, { ...manifest, updatedAt: `2030-01-0${round}T00:00:00.000Z` });
+    }],
+    ['sessão mudando sem parar', async (h: Awaited<ReturnType<typeof createReadyHarness>>, round: number) => {
+      const records = await readHistoryRecords(h.factory, h.name);
+      const victim = records[0];
+      await putHistoryRecord(h.factory, h.name, {
+        ...victim,
+        session: { ...victim.session, totalVolume: 100_000 + round },
+      });
+    }],
+  ])('%s → conflicted (administration-snapshot-unstable), nunca ready', async (_label, mutate) => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const snapshot = await inspectUnderContinuousChurn(harness, (round) => mutate(harness, round));
+
+    expect(snapshot.state.status).not.toBe('ready');
+    expect(snapshot.state).toMatchObject({ status: 'conflicted', reason: 'administration-snapshot-unstable' });
+  });
+
+  it('core raw mudando sem parar → conflicted (core-changed-during-inspection), nunca ready', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const raw = harness.storage.getItem(KEY) as string;
+
+    const snapshot = await inspectUnderContinuousChurn(harness, async (round) => {
+      harness.storage.setItem(KEY, JSON.stringify({
+        ...JSON.parse(raw),
+        savedAt: `2030-01-0${round}T00:00:00.000Z`,
+      }));
+    });
+
+    expect(snapshot.state.status).not.toBe('ready');
+    expect(snapshot.state).toMatchObject({ status: 'conflicted', reason: 'core-changed-during-inspection' });
+  });
+
+  // Blip único: a segunda tentativa observa um estado já estável. O diagnóstico
+  // pode concluir — mas tem de concluir sobre o estado NOVO, inteiro, nunca
+  // misturando o momento anterior com o posterior nem devolvendo `ready` sobre
+  // um mundo que mudou.
+  it.each([
+    ['admin receipt criado', 'interrupted', async (h: Awaited<ReturnType<typeof createReadyHarness>>) => {
+      await h.adapter.putStorageOperationReceipt(coherentReceipt(h, { operationId: 'operation-na-janela' }));
+    }],
+    ['CompletionReceipt criado', 'conflicted', async (h: Awaited<ReturnType<typeof createReadyHarness>>) => {
+      await seedPendingCompletion(h.adapter, h.generationId);
+    }],
+    ['activeGeneration alterada', 'conflicted', async (h: Awaited<ReturnType<typeof createReadyHarness>>) => {
+      await putRawMetadata(h.factory, h.name, 'activeGeneration', 'generation-outra');
+    }],
+    ['migrationGeneration alterada', 'conflicted', async (h: Awaited<ReturnType<typeof createReadyHarness>>) => {
+      await putRawMetadata(h.factory, h.name, 'migrationGeneration', 'generation-staged');
+    }],
+    ['sessão alterada', 'conflicted', async (h: Awaited<ReturnType<typeof createReadyHarness>>) => {
+      const records = await readHistoryRecords(h.factory, h.name);
+      const victim = records[0];
+      await putHistoryRecord(h.factory, h.name, {
+        ...victim,
+        session: { ...victim.session, totalVolume: 123_456 },
+      });
+    }],
+    ['dois receipts criados', 'conflicted', async (h: Awaited<ReturnType<typeof createReadyHarness>>) => {
+      await h.adapter.putStorageOperationReceipt(coherentReceipt(h, { operationId: 'operation-a' }));
+      await h.adapter.putStorageOperationReceipt(coherentReceipt(h, { operationId: 'operation-b' }));
+    }],
+  ])('%s numa janela isolada → %s na releitura, nunca ready', async (_label, expected, mutate) => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const snapshot = await inspectWithMutationInWindow(harness, () => mutate(harness));
+
+    expect(snapshot.state.status).not.toBe('ready');
+    expect(snapshot.state.status).toBe(expected);
+  });
+
+  it('receipt liquidado numa janela isolada → o estado novo, nunca uma mistura', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    await harness.adapter.putStorageOperationReceipt(coherentReceipt(harness, { operationId: 'operation-liquidada' }));
+
+    const snapshot = await inspectWithMutationInWindow(harness, async () => {
+      await harness.adapter.transitionStorageOperationReceipt('operation-liquidada', 'staged', 'reverted');
+    });
+    // Depois de liquidada não há operação em aberto: `ready` aqui descreve o
+    // estado real e inteiro, e o snapshot não continua exibindo a operação.
+    expect(snapshot.state).toEqual({ status: 'ready' });
+    expect(snapshot.unsettledOperations).toEqual([]);
+  });
+
+  it('core raw alterado numa janela isolada → o snapshot descreve o core NOVO', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const raw = harness.storage.getItem(KEY) as string;
+    const mutated = JSON.stringify({ ...JSON.parse(raw), savedAt: '2030-01-01T00:00:00.000Z' });
+
+    const snapshot = await inspectWithMutationInWindow(harness, async () => {
+      harness.storage.setItem(KEY, mutated);
+    });
+    // Nenhuma mistura: o core observado é o novo, não o de antes da janela.
+    expect(snapshot.coreRawObserved).toBe(mutated);
+    expect(snapshot.coreRawObserved).not.toBe(raw);
+  });
+
+  it('mutação que acontece DEPOIS da leitura final não contamina o snapshot já devolvido', async () => {
+    // O contrato documentado: o snapshot descreve a janela estável observada.
+    // Uma escrita iniciada depois dela aparece no PRÓXIMO inspect.
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const primeiro = await harness.runtime.inspectStorageAdministration();
+    expect(primeiro.state).toEqual({ status: 'ready' });
+
+    await harness.adapter.putStorageOperationReceipt(coherentReceipt(harness, { operationId: 'operation-depois' }));
+
+    const segundo = await harness.runtime.inspectStorageAdministration();
+    expect(segundo.state.status).toBe('interrupted');
+    expect(primeiro.administrationFingerprint).not.toBe(segundo.administrationFingerprint);
+  });
+});
+
+describe('transição só em estado inequívoco', () => {
+  async function expectRefusedTransition(
+    harness: Awaited<ReturnType<typeof createReadyHarness>>,
+    operationId: string,
+    expectedStatus: 'staged' | 'activating',
+  ) {
+    const before = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+    const statusBefore = (await harness.adapter.readStorageOperationReceipt(operationId))?.status ?? null;
+
+    const error = await harness.runtime.transitionStorageOperation({
+      operationId,
+      expectedStatus,
+      nextStatus: 'activating',
+    }).then(() => null, (caught: unknown) => caught);
+
+    expect(error).not.toBeNull();
+    // O status do receipt não mudou e nada foi escrito.
+    expect((await harness.adapter.readStorageOperationReceipt(operationId))?.status ?? null).toBe(statusBefore);
+    expectUnchanged(before, await capturePhysicalState(harness.factory, harness.name, harness.storage));
+    return error as Error;
+  }
+
+  it('dois admin receipts não terminais', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    await harness.adapter.putStorageOperationReceipt(coherentReceipt(harness, { operationId: 'operation-a' }));
+    await harness.adapter.putStorageOperationReceipt(coherentReceipt(harness, { operationId: 'operation-b' }));
+
+    const error = await expectRefusedTransition(harness, 'operation-a', 'staged');
+    expect(error).toBeInstanceOf(StorageAdministrationConflictError);
+    expect((error as StorageAdministrationConflictError).reason).toBe('multiple-unsettled-operations');
+  });
+
+  it('admin receipt + CompletionReceipt pendente', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const receipt = await harness.runtime.beginStorageOperation(beginInput());
+    await seedPendingCompletion(harness.adapter, harness.generationId);
+
+    const error = await expectRefusedTransition(harness, receipt.operationId, 'staged');
+    expect(error).toBeInstanceOf(StorageAdministrationConflictError);
+    expect((error as StorageAdministrationConflictError).reason).toBe('completion-pending-with-operation');
+  });
+
+  it('receipt malformado coexistente', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const receipt = await harness.runtime.beginStorageOperation(beginInput());
+    await putRawOperationReceipt(harness.factory, harness.name, { operationId: 'operation-torto', kind: 'import' });
+
+    const error = await expectRefusedTransition(harness, receipt.operationId, 'staged');
+    expect(error).toBeInstanceOf(StorageAdministrationConflictError);
+    expect((error as StorageAdministrationConflictError).reason).toBe('malformed-operation-receipt');
+  });
+
+  it('core v2 ausente', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const receipt = await harness.runtime.beginStorageOperation(beginInput());
+    harness.storage.removeItem(KEY);
+
+    const error = await expectRefusedTransition(harness, receipt.operationId, 'staged');
+    expect(error).toBeInstanceOf(StorageAdministrationUnavailableError);
+    expect((error as StorageAdministrationUnavailableError).reason).toBe('not-hybrid');
+  });
+
+  it('core v2 inválido', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const receipt = await harness.runtime.beginStorageOperation(beginInput());
+    harness.storage.setItem(KEY, `{"v":${HYBRID_STORAGE_VERSION},"corrompido":true`);
+
+    const error = await expectRefusedTransition(harness, receipt.operationId, 'staged');
+    expect(error).toBeInstanceOf(StorageAdministrationUnavailableError);
+    expect((error as StorageAdministrationUnavailableError).reason).toBe('core-invalid');
+  });
+
+  it('runtime legado (v1)', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const receipt = await harness.runtime.beginStorageOperation(beginInput());
+    harness.storage.setItem(KEY, v1Envelope(defaults()));
+
+    const error = await expectRefusedTransition(harness, receipt.operationId, 'staged');
+    expect(error).toBeInstanceOf(StorageAdministrationUnavailableError);
+    expect((error as StorageAdministrationUnavailableError).reason).toBe('not-hybrid');
+  });
+
+  it('metadata malformada', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const receipt = await harness.runtime.beginStorageOperation(beginInput());
+    await withStore(harness.factory, harness.name, METADATA_STORE, 'readwrite', (transaction) => (
+      requestResult(transaction.objectStore(METADATA_STORE).put({ key: 42, value: 'lixo' } as never))
+    ));
+
+    const error = await expectRefusedTransition(harness, receipt.operationId, 'staged');
+    expect(error).toBeInstanceOf(StorageAdministrationConflictError);
+    expect((error as StorageAdministrationConflictError).reason).toBe('metadata-malformed');
+  });
+
+  it('staging incompatível com o receipt', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const receipt = await harness.runtime.beginStorageOperation(beginInput());
+    await putRawMetadata(harness.factory, harness.name, 'migrationGeneration', 'generation-orfa');
+
+    const error = await expectRefusedTransition(harness, receipt.operationId, 'staged');
+    expect(error).toBeInstanceOf(StorageAdministrationConflictError);
+    expect((error as StorageAdministrationConflictError).reason).toBe('staging-without-receipt');
+  });
+
+  it('receipt incompatível com o core observado', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    await harness.adapter.putStorageOperationReceipt(coherentReceipt(harness, {
+      operationId: 'operation-core-antigo',
+      previousCoreRaw: '{"core":"de outro momento"}',
+    }));
+
+    const error = await expectRefusedTransition(harness, 'operation-core-antigo', 'staged');
+    expect(error).toBeInstanceOf(StorageAdministrationConflictError);
+    expect((error as StorageAdministrationConflictError).reason).toBe('operation-incompatible');
+    expect(error.message).toContain('core-not-previous');
+  });
+
+  it('receipt cuja geração anterior não existe mais', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    await harness.adapter.putStorageOperationReceipt(coherentReceipt(harness, {
+      operationId: 'operation-geracao-fantasma',
+      previousGenerationId: 'generation-que-nunca-existiu',
+    }));
+
+    const error = await expectRefusedTransition(harness, 'operation-geracao-fantasma', 'staged');
+    expect(error).toBeInstanceOf(StorageAdministrationConflictError);
+    expect(error.message).toContain('previous-generation-absent');
+  });
+
+  it('activated sem efeitos comprovados', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    await harness.adapter.putStorageOperationReceipt(coherentReceipt(harness, {
+      operationId: 'operation-activated',
+      status: 'activated',
+    }));
+
+    const error = await expectRefusedTransition(harness, 'operation-activated', 'activating');
+    expect(error).toBeInstanceOf(StorageAdministrationConflictError);
+    expect(error.message).toContain('activated-target-missing');
+  });
+
+  it('a primitiva atômica do adapter também recusa sozinha quando o estado é ambíguo', async () => {
+    // Mesmo chamada diretamente, sem passar pela fachada, ela nunca escolhe um
+    // receipt: é a defesa contra a corrida entre diagnóstico e escrita.
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    await harness.adapter.putStorageOperationReceipt(coherentReceipt(harness, { operationId: 'operation-a' }));
+    await harness.adapter.putStorageOperationReceipt(coherentReceipt(harness, { operationId: 'operation-b' }));
+
+    const error = await harness.adapter.transitionStorageOperationIfUnambiguous({
+      operationId: 'operation-a',
+      expectedStatus: 'staged',
+      nextStatus: 'activating',
+      expectedActiveGenerationId: harness.generationId,
+    }).then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StorageOperationAmbiguousStateError);
+    expect((error as StorageOperationAmbiguousStateError).reason).toBe('multiple-unsettled-operations');
+    expect([...(error as StorageOperationAmbiguousStateError).unsettledOperationIds].sort())
+      .toEqual(['operation-a', 'operation-b']);
+    expect((await harness.adapter.readStorageOperationReceipt('operation-a'))?.status).toBe('staged');
+  });
+
+  it('a primitiva atômica recusa quando surge conclusão pendente', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const receipt = await harness.runtime.beginStorageOperation(beginInput());
+    await seedPendingCompletion(harness.adapter, harness.generationId);
+
+    const error = await harness.adapter.transitionStorageOperationIfUnambiguous({
+      operationId: receipt.operationId,
+      expectedStatus: 'staged',
+      nextStatus: 'activating',
+      expectedActiveGenerationId: harness.generationId,
+    }).then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StorageCompletionPendingError);
+    expect((await harness.adapter.readStorageOperationReceipt(receipt.operationId))?.status).toBe('staged');
+  });
+});
+
+describe('compensação honesta do begin', () => {
+  // Corrida real (a geração ativa muda depois da criação) somada a uma falha
+  // real da compensação. O begin não pode afirmar que reverteu o que não
+  // reverteu.
+  async function beginWithBrokenCompensation(options: {
+    breakWith: () => Error;
+    breakRead?: boolean;
+  }) {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const other = await harness.adapter.prepareHistoryGeneration([makeSession(2)]);
+    await putRawMetadata(harness.factory, harness.name, 'migrationGeneration', null);
+
+    const racing = afterCall(harness.adapter, 'createStorageOperationReceiptIfIdle', 1, async () => {
+      await putRawMetadata(harness.factory, harness.name, 'activeGeneration', other);
+    });
+    let broken = breakMethod(racing, 'transitionStorageOperationReceipt', options.breakWith);
+    if (options.breakRead) {
+      broken = breakMethod(broken, 'readStorageOperationReceipt', () => new Error('store de receipts ilegível'));
+    }
+    const runtime = createStorageAdminRuntime({
+      key: KEY,
+      storage: harness.storage,
+      adapter: broken,
+      now: () => new Date('2026-07-24T13:00:00.000Z'),
+      idFactory: () => 'operation-compensacao',
+    });
+
+    const error = await runtime.beginStorageOperation(beginInput())
+      .then(() => null, (caught: unknown) => caught) as StorageOperationBeginConflictError | null;
+    return { harness, error };
+  }
+
+  it('compensação bem-sucedida é relatada como reverted, com a causa do conflito', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const other = await harness.adapter.prepareHistoryGeneration([makeSession(2)]);
+    await putRawMetadata(harness.factory, harness.name, 'migrationGeneration', null);
+    const racing = afterCall(harness.adapter, 'createStorageOperationReceiptIfIdle', 1, async () => {
+      await putRawMetadata(harness.factory, harness.name, 'activeGeneration', other);
+    });
+    const runtime = createStorageAdminRuntime({
+      key: KEY, storage: harness.storage, adapter: racing, idFactory: () => 'operation-ok',
+    });
+
+    const error = await runtime.beginStorageOperation(beginInput())
+      .then(() => null, (caught: unknown) => caught) as StorageOperationBeginConflictError;
+    expect(error).toBeInstanceOf(StorageOperationBeginConflictError);
+    expect(error.compensation).toBe('reverted');
+    expect(error.finalReceiptStatus).toBe('reverted');
+    expect(error.compensationCause).toBeUndefined();
+    expect(error.message).toContain('revertido');
+    expect((await harness.adapter.readStorageOperationReceipt('operation-ok'))?.status).toBe('reverted');
+    expect(await harness.adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
+  });
+
+  it('compensação que falha NÃO é relatada como reverted e preserva a causa', async () => {
+    const { harness, error } = await beginWithBrokenCompensation({
+      breakWith: () => new Error('IndexedDB caiu durante a compensação'),
+    });
+    expect(error).toBeInstanceOf(StorageOperationBeginConflictError);
+    const conflict = error as StorageOperationBeginConflictError;
+    expect(conflict.operationId).toBe('operation-compensacao');
+    expect(conflict.compensation).toBe('failed');
+    expect(conflict.message).not.toContain('foi revertido');
+    expect(conflict.message).toContain('FALHOU');
+    expect((conflict.compensationCause as Error).message).toBe('IndexedDB caiu durante a compensação');
+    // O status remanescente é lido e relatado honestamente.
+    expect(conflict.finalReceiptStatus).toBe('staged');
+
+    // O receipt não foi apagado nem sobrescrito à força: ele continua lá e
+    // reaparece no próximo diagnóstico.
+    const remaining = await harness.adapter.readStorageOperationReceipt('operation-compensacao');
+    expect(remaining?.status).toBe('staged');
+    const snapshot = await harness.runtime.inspectStorageAdministration();
+    expect(['interrupted', 'conflicted']).toContain(snapshot.state.status);
+  });
+
+  it('falha da compensação POR CAS (status já mudou) é reportada com o status real', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const other = await harness.adapter.prepareHistoryGeneration([makeSession(2)]);
+    await putRawMetadata(harness.factory, harness.name, 'migrationGeneration', null);
+    const racing = afterCall(harness.adapter, 'createStorageOperationReceiptIfIdle', 1, async () => {
+      await putRawMetadata(harness.factory, harness.name, 'activeGeneration', other);
+      // Outro ator avança o receipt antes de a compensação tentar staged → reverted.
+      await harness.adapter.transitionStorageOperationReceipt('operation-cas', 'staged', 'activating');
+    });
+    const runtime = createStorageAdminRuntime({
+      key: KEY, storage: harness.storage, adapter: racing, idFactory: () => 'operation-cas',
+    });
+
+    const error = await runtime.beginStorageOperation(beginInput())
+      .then(() => null, (caught: unknown) => caught) as StorageOperationBeginConflictError;
+    expect(error.compensation).toBe('failed');
+    expect(error.compensationCause).toBeInstanceOf(StorageOperationTransitionError);
+    expect(error.finalReceiptStatus).toBe('activating');
+    expect((await harness.adapter.readStorageOperationReceipt('operation-cas'))?.status).toBe('activating');
+  });
+
+  it('falha da compensação + falha ao reler o status final → finalReceiptStatus null, sem silêncio', async () => {
+    const { error } = await beginWithBrokenCompensation({
+      breakWith: () => new Error('transação abortada'),
+      breakRead: true,
+    });
+    const conflict = error as StorageOperationBeginConflictError;
+    expect(conflict.compensation).toBe('failed');
+    expect(conflict.finalReceiptStatus).toBeNull();
+    expect(conflict.message).toContain('desconhecido');
+    expect((conflict.compensationCause as Error).message).toBe('transação abortada');
+  });
+
+  it('nenhuma compensação altera core, histórico ou metadata além do receipt', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const historyBefore = await harness.adapter.readActiveHistory();
+    const rawBefore = harness.storage.getItem(KEY);
+    const other = await harness.adapter.prepareHistoryGeneration([makeSession(2)]);
+    await putRawMetadata(harness.factory, harness.name, 'migrationGeneration', null);
+    const racing = afterCall(harness.adapter, 'createStorageOperationReceiptIfIdle', 1, async () => {
+      await putRawMetadata(harness.factory, harness.name, 'activeGeneration', other);
+    });
+    const runtime = createStorageAdminRuntime({
+      key: KEY, storage: harness.storage, adapter: racing, idFactory: () => 'operation-inv',
+    });
+
+    await runtime.beginStorageOperation(beginInput()).catch(() => undefined);
+
+    expect(harness.storage.getItem(KEY)).toBe(rawBefore);
+    expect(await harness.adapter.readHistoryGeneration(harness.generationId)).toEqual(historyBefore);
+  });
+});
+
+describe('entrada, erros de domínio e causes', () => {
+  it('stagedGenerationId e targetCoreRaw precisam ser null no A2', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const before = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+
+    const staged = await harness.runtime.beginStorageOperation(
+      beginInput({ stagedGenerationId: 'generation-x' }),
+    ).then(() => null, (caught: unknown) => caught);
+    expect(staged).toBeInstanceOf(StorageAdministrationInputError);
+    expect((staged as StorageAdministrationInputError).field).toBe('stagedGenerationId');
+
+    const target = await harness.runtime.beginStorageOperation(
+      beginInput({ targetCoreRaw: '{"core":"alvo"}' }),
+    ).then(() => null, (caught: unknown) => caught);
+    expect(target).toBeInstanceOf(StorageAdministrationInputError);
+    expect((target as StorageAdministrationInputError).field).toBe('targetCoreRaw');
+
+    // Recusa antes de qualquer escrita.
+    expect(await harness.adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
+    expectUnchanged(before, await capturePhysicalState(harness.factory, harness.name, harness.storage));
+  });
+
+  it('now() inválido vira erro de domínio com o RangeError preservado em cause', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)], now: () => new Date(NaN) });
+    const before = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+
+    const error = await harness.runtime.beginStorageOperation(beginInput())
+      .then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StorageAdministrationInputError);
+    expect(error).not.toBeInstanceOf(RangeError);
+    expect((error as StorageAdministrationInputError).field).toBe('now');
+    expect((error as StorageAdministrationInputError).cause).toBeInstanceOf(RangeError);
+    expect(await harness.adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
+    expectUnchanged(before, await capturePhysicalState(harness.factory, harness.name, harness.storage));
+  });
+
+  it('idFactory vazio vira erro de domínio antes de qualquer escrita', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)], idFactory: () => '' });
+    const error = await harness.runtime.beginStorageOperation(beginInput())
+      .then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StorageAdministrationInputError);
+    expect((error as StorageAdministrationInputError).field).toBe('operationId');
+    expect(await harness.adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
+  });
+
+  it('geração ativa corrompida no begin encapsula a causa original', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    await deleteManifest(harness.factory, harness.name, harness.generationId);
+    const error = await harness.runtime.beginStorageOperation(beginInput())
+      .then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StorageAdministrationConflictError);
+    expect((error as StorageAdministrationConflictError).reason).toBe('active-generation-corrupt');
+  });
+
+  it('storage bloqueado preserva a causa original', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const raiz = new Error('localStorage negou acesso');
+    const explosive = {
+      getItem() { throw raiz; },
+      setItem() {},
+      removeItem() {},
+    };
+    const runtime = createStorageAdminRuntime({ key: KEY, storage: explosive, adapter: harness.adapter });
+
+    const snapshot = await runtime.inspectStorageAdministration();
+    expect(snapshot.state).toMatchObject({ status: 'unavailable', reason: 'storage-blocked' });
+
+    const error = await runtime.beginStorageOperation(beginInput())
+      .then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StorageAdministrationUnavailableError);
+    expect((error as StorageAdministrationUnavailableError).reason).toBe('storage-blocked');
+    expect((error as StorageAdministrationUnavailableError).cause).toBe(raiz);
+  });
+
+  it('os erros de domínio têm instanceof estável e não são TypeError', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    await harness.runtime.beginStorageOperation(beginInput());
+    const error = await harness.runtime.beginStorageOperation(beginInput({ kind: 'reset' }))
+      .then(() => null, (caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(StorageOperationAlreadyInProgressError);
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(TypeError);
+    expect((error as Error).name).toBe('StorageOperationAlreadyInProgressError');
+    expect((error as StorageOperationAlreadyInProgressError).existing.operationId).toBe('operation-test-1');
+  });
+
+  it('falha ao ler CompletionReceipts nunca vira contagem zero', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const broken = breakMethod(
+      harness.adapter,
+      'readStorageAdministrationSnapshot',
+      () => new Error('store de conclusão ilegível'),
+    );
+    const runtime = createStorageAdminRuntime({ key: KEY, storage: harness.storage, adapter: broken });
+
+    const snapshot = await runtime.inspectStorageAdministration();
+    expect(snapshot.state.status).not.toBe('ready');
+    expect(snapshot.state).toMatchObject({ status: 'unavailable', reason: 'indexeddb-unavailable' });
+    await expect(runtime.beginStorageOperation(beginInput())).rejects.toBeInstanceOf(
+      StorageAdministrationUnavailableError,
+    );
+  });
+
+  it('CompletionReceipt malformado é conflito explícito, nunca "zero pendentes"', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    await withStore(harness.factory, harness.name, COMPLETION_RECEIPTS_STORE, 'readwrite', (transaction) => (
+      requestResult(transaction.objectStore(COMPLETION_RECEIPTS_STORE).put({ receiptId: 'torto' } as never))
+    ));
+
+    const snapshot = await harness.runtime.inspectStorageAdministration();
+    expect(snapshot.state).toMatchObject({ status: 'conflicted', reason: 'malformed-completion-receipt' });
+    await expect(harness.runtime.beginStorageOperation(beginInput())).rejects.toBeInstanceOf(
+      StorageAdministrationConflictError,
+    );
+    expect(await harness.adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
+  });
+});
+
+describe('leitura verificada fail-closed', () => {
+  it('bloqueia quando o conflito impede confiar na identificação da geração', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    await withStore(harness.factory, harness.name, METADATA_STORE, 'readwrite', (transaction) => (
+      requestResult(transaction.objectStore(METADATA_STORE).put({ key: 7, value: 'lixo' } as never))
+    ));
+
+    const error = await harness.runtime.readVerifiedAdministrationGeneration(harness.generationId)
+      .then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StorageAdministrationConflictError);
+    expect((error as StorageAdministrationConflictError).reason).toBe('metadata-malformed');
+  });
+
+  it('bloqueia enquanto o armazenamento não estabiliza', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    let round = 0;
+    const racing = new Proxy(harness.adapter, {
+      get(object, prop, receiver) {
+        const value = Reflect.get(object, prop, receiver);
+        if (prop !== 'readStorageAdministrationSnapshot' || typeof value !== 'function') {
+          return typeof value === 'function' ? value.bind(object) : value;
+        }
+        return async () => {
+          const result = await (value as () => Promise<unknown>).call(object);
+          round += 1;
+          await putRawMetadata(harness.factory, harness.name, 'migrationGeneration', `generation-movendo-${round}`);
+          return result;
+        };
+      },
+    });
+    const runtime = createStorageAdminRuntime({ key: KEY, storage: harness.storage, adapter: racing });
+
+    const error = await runtime.readVerifiedAdministrationGeneration(harness.generationId)
+      .then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StorageAdministrationConflictError);
+    expect((error as StorageAdministrationConflictError).reason).toBe('administration-snapshot-unstable');
+  });
+
+  it('permite a leitura diagnóstica quando o conflito não afeta a geração pedida', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(2), makeSession(1)] });
+    await harness.adapter.putStorageOperationReceipt(coherentReceipt(harness, { operationId: 'operation-a' }));
+    await harness.adapter.putStorageOperationReceipt(coherentReceipt(harness, { operationId: 'operation-b' }));
+    const before = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+
+    const verified = await harness.runtime.readVerifiedAdministrationGeneration(harness.generationId);
+    expect(verified.sessions.map((session) => session.id)).toEqual(['session-2', 'session-1']);
+    expectUnchanged(before, await capturePhysicalState(harness.factory, harness.name, harness.storage));
+  });
+
+  it('generationId vazio é erro de domínio, não TypeError', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const error = await harness.runtime.readVerifiedAdministrationGeneration('')
+      .then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StorageAdministrationInputError);
+    expect((error as StorageAdministrationInputError).field).toBe('generationId');
+  });
+
+  it('devolve cópia defensiva: mutar o retorno não afeta a próxima leitura', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(2), makeSession(1)] });
+    const first = await harness.runtime.readVerifiedAdministrationGeneration(harness.generationId);
+    first.sessions.pop();
+    first.manifest.sessionCount = 999;
+
+    const second = await harness.runtime.readVerifiedAdministrationGeneration(harness.generationId);
+    expect(second.sessions).toHaveLength(2);
+    expect(second.manifest.sessionCount).toBe(2);
   });
 });

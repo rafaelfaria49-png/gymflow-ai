@@ -830,20 +830,24 @@ Detalhe por ADR (status · decisão-chave · riscos residuais · validação · 
   mesma razão passa a existir isolada (`completion-pending`) e combinada com
   operação administrativa (`completion-pending-with-operation`), preservando o
   isolamento entre os dois tipos de receipt.
-- **`active-generation-corrupt` usa a flag do manifest, não verificação
-  integral:** `inspectStorageAdministration` é diagnóstico e não pode custar
-  uma verificação criptográfica completa a cada leitura. Só
-  `beginStorageOperation` (passo 6 do protocolo) chama
-  `readVerifiedHistoryGeneration` de fato. O snapshot documenta isso
-  explicitamente no tipo — o mesmo cuidado que `HistoryGenerationSummary.verified`
-  já exige desde o A1.
+- **~~`active-generation-corrupt` usa a flag do manifest, não verificação
+  integral~~ — DECISÃO REVERTIDA pelo corretivo 036 (ver ADR abaixo).** A
+  justificativa original era custo, e ela estava errada em dois pontos: (a)
+  `ready` passou a ser uma afirmação falsa sobre armazenamento corrompido, e
+  (b) a afirmação "o snapshot documenta isso explicitamente no tipo" era
+  incorreta — nem `StorageAdministrationState`, nem `'ready'`, nem
+  `'active-generation-corrupt'` tinham qualquer comentário a respeito. O único
+  comentário sobre a flag vivia dentro do `beginStorageOperation`, descrevendo o
+  que o begin faz, não o que o inspect deixava de fazer.
 - **`beginStorageOperation` relê `raw` e `activeGeneration` depois do CAS, não
   reaproveita o snapshot inicial:** o core v2 vive no `localStorage`, fora da
   transação IndexedDB que cria o receipt. O CAS do adapter garante consistência
   só do lado IndexedDB; a releitura pós-criação fecha a janela do lado
-  `localStorage`. Divergência em qualquer um dos dois transiciona o receipt
-  recém-criado para `reverted` (nunca apaga) e devolve
-  `StorageOperationBeginConflictError`.
+  `localStorage`. Divergência em qualquer um dos dois **tenta** transicionar o
+  receipt recém-criado para `reverted` (nunca apaga) e devolve
+  `StorageOperationBeginConflictError`. *Corrigido em 036:* a redação original
+  afirmava a reversão como garantia incondicional; ela é uma tentativa, e o
+  resultado real viaja no erro.
 - **`coreDigest` é best-effort e nunca decide estado:** calculado via
   `sha256Checksum` (já existente, reaproveitado de
   `storage-history-integrity.ts`) só para diagnóstico comparável entre
@@ -855,3 +859,104 @@ Detalhe por ADR (status · decisão-chave · riscos residuais · validação · 
   opção nativa. `LegacySnapshotIntegrityError` do A1 usa `originalError`
   porque antecede essa exigência; não foi alterada por estar fora do escopo
   autorizado deste GOAL.
+
+## GOAL-17B-002D-A2 corretivo 036 — fechamento dos conflitos Classe C (2026-07-24)
+
+Auditoria independente do A2 classificou o commit `429c87d` como **Classe C /
+NÃO APTO**, com três bloqueantes reproduzidos por fault injection real. Este
+corretivo fecha os três e mais quatro achados P1/P2. O commit original foi
+preservado; nada de amend, squash ou rebase.
+
+- **`ready` passa a exigir verificação criptográfica integral da geração
+  ativa:** era o bloqueante principal. Seis corrupções físicas (conteúdo
+  alterado mantendo o digest persistido, digest alterado, ordem física trocada,
+  sessão removida, sessão adicionada, `orderedDigest` incorreto com
+  `verified=true`) devolviam `ready` enquanto
+  `readVerifiedAdministrationGeneration` reprovava a MESMA geração na mesma
+  fachada. A defesa "o begin verifica de novo" não vale: `inspect` é resultado
+  público e não pode mentir. Agora o diagnóstico roda
+  `verifyHistoryGeneration` — a MESMA primitiva do A1, não uma segunda
+  implementação — sobre os registros do snapshot atômico, e o resultado viaja em
+  `snapshot.activeGenerationIntegrity`. A flag persistida continua em
+  `generations[].verified`, agora explicitamente documentada como flag e nunca
+  como prova.
+- **Snapshot atômico no adapter em vez de quatro leituras independentes:**
+  `readStorageAdministrationSnapshot()` abre UMA transação readonly sobre
+  `metadata` + `workoutHistory` + `generationManifests` +
+  `storageOperationReceipts` + `completionReceipts`. Antes, `inspect` combinava
+  quatro leituras que podiam descrever momentos diferentes. Ela também devolve
+  os registros da geração ativa, para que a verificação integral não precise de
+  uma transação auxiliar que reabriria a janela.
+- **Double-read com fingerprint determinístico:** transação atômica sozinha não
+  basta, porque o core v2 vive no `localStorage`, fora do IndexedDB. O protocolo
+  é core → snapshot A → verificação integral → core → snapshot B → core, e só
+  conclui quando os três cores são idênticos e `fingerprint(A) ===
+  fingerprint(B)`. O fingerprint cobre metadata, ponteiros, manifests, o
+  conteúdo canônico de todos os registros de histórico, todos os receipts
+  administrativos e todos os CompletionReceipts pendentes — nunca só a
+  contagem, senão uma sessão trocada mantendo id, ordem e digest passaria
+  despercebida. A verificação roda DENTRO da janela de propósito: uma mutação
+  durante ela muda o fingerprint em vez de aprovar conteúdo que já não existe.
+- **Uma segunda tentativa, não um loop:** instabilidade costuma ser um blip. O
+  `inspect` repete o protocolo no máximo uma vez; divergência persistente vira
+  `conflicted` (`administration-snapshot-unstable` ou
+  `core-changed-during-inspection`) e nunca escolhe qual das leituras seria a
+  "certa". Um blip isolado resolve na segunda tentativa — e resolve descrevendo
+  o estado NOVO inteiro, nunca uma mistura dos dois momentos.
+- **`COMPLETION_RECEIPTS_STORE` entra na transação de criação do receipt:** era
+  o segundo bloqueante. Uma conclusão de treino gravada entre o diagnóstico e a
+  criação passava despercebida e o begin nascia sobre um estado obsoleto,
+  fabricando exatamente o `completion-pending-with-operation` que ele existe
+  para impedir. Colocar o store no escopo faz o IndexedDB serializar
+  `createStorageOperationReceiptIfIdle` com
+  `appendSessionWithCompletionReceipt`: as duas disputam o mesmo store, então
+  uma espera a outra. O receipt de conclusão nunca é lido por fora da transação,
+  nunca é alterado e nunca é liquidado — só bloqueia, com
+  `StorageCompletionPendingError`.
+- **`transitionStorageOperationIfUnambiguous` em vez de delegação pura:** era o
+  terceiro bloqueante. A transição antiga só checava `isAvailable()`, e a
+  auditoria a fez avançar um receipt em `conflicted` de quatro formas — inclusive
+  com o core v2 **removido** do `localStorage`. Agora a fachada exige
+  `interrupted` (o que já implica core válido e estável, geração ativa
+  verificada, exatamente um receipt não terminal, zero conclusão pendente e
+  receipt coerente) e a primitiva do adapter reconfere tudo DENTRO da transação
+  de escrita, com CAS da geração ativa. Duas defesas porque o diagnóstico e a
+  escrita são momentos diferentes.
+- **A transição também valida o estado PROJETADO:** recusar só o estado atual
+  deixaria o chamador criar um beco sem saída — `activating → activated` produz
+  um receipt afirmando efeitos (geração preparada ativa, core alvo gravado) que
+  nenhum fluxo do A2 executa. A projeção é avaliada antes de escrever. Status
+  terminal (`settled`/`reverted`) não descreve efeito nenhum, então reverter é
+  sempre permitido.
+- **`evaluateStorageOperationCompatibility` é helper puro em
+  `storage-operation-receipt.ts`:** a coerência receipt × core × metadata ×
+  gerações não depende de IndexedDB, então não deve viver perto dele. Puro é
+  testável em tabela, e é onde os três status vivem: `compatible`,
+  `incompatible` (razão fechada) e `insufficient-evidence` — este último para
+  quando o mundo observado não é contraditório mas o A2 não consegue **provar**
+  que os efeitos declarados vieram desta operação. `insufficient-evidence` nunca
+  é tratado como `compatible`: os dois bloqueiam a mutação igualmente.
+- **Compensação com resultado estruturado, nunca `catch {}`:** o A2 original
+  engolia a falha da compensação num catch vazio e devolvia a mensagem idêntica
+  à do caso bem-sucedido — o chamador não distinguia "receipt revertido" de
+  "receipt staged travando todos os begins futuros". Agora
+  `StorageOperationBeginConflictError` carrega `operationId`, `compensation`
+  (`reverted` | `failed` | `not-attempted`), `compensationCause`,
+  `finalReceiptStatus` e a `cause` original. Quando a compensação falha, a
+  mensagem diz FALHOU e informa o status remanescente; o receipt nunca é apagado
+  nem sobrescrito à força, e reaparece no próximo diagnóstico.
+- **`stagedGenerationId` e `targetCoreRaw` obrigatoriamente `null` no A2:**
+  aceitar valor gravaria no receipt uma promessa que nada cumpre. A recusa é
+  `StorageAdministrationInputError`, antes de qualquer leitura ou escrita.
+- **`StorageAdministrationInputError` em vez de `RangeError`/`TypeError` cru:**
+  `now()` devolvendo instante inválido derrubava um `RangeError` de
+  `toISOString()` direto no chamador. Agora vira erro de domínio com `field`
+  tipado, preservando o `RangeError` em `cause`. O mesmo para `idFactory` vazia
+  e `generationId` vazio.
+- **`cause` viaja dentro do estado, não só no texto:** `StorageAdministrationState`
+  ganhou `cause?: unknown` em `unavailable` e `conflicted`. Sem isso, o caminho
+  `storage-blocked` perdia a exceção original do `localStorage`, porque o erro
+  era reconstruído a partir do snapshot, que só guardava `detail`.
+- **`summarizeGenerations` compartilhado entre `listHistoryGenerations` e o
+  snapshot atômico:** duas enumerações de geração divergentes seriam
+  exatamente o tipo de inconsistência que este slice existe para impedir.

@@ -661,6 +661,89 @@ baixo nível, para uso futuro do coordenador atômico em 002D-C/D.
 > restauração ou reset.** Owner-token e concorrência entre abas continuam para
 > etapa posterior.
 
+### Corretivo 036 — o que mudou depois da auditoria Classe C
+
+A auditoria independente do A2 reprovou o commit `429c87d` (**Classe C**) com
+três bloqueantes reproduzidos por fault injection real. O texto acima descreve
+o desenho; esta seção descreve o comportamento **atual**, que é o que vale.
+
+**1. `ready` exige verificação integral, não a flag do manifest.** Seis
+corrupções físicas da geração ativa — conteúdo alterado mantendo o digest
+persistido, digest alterado, ordem física trocada, sessão removida, sessão
+adicionada, `orderedDigest` incorreto com `verified=true` — devolviam `ready`
+enquanto `readVerifiedAdministrationGeneration` reprovava a mesma geração.
+Agora `inspectStorageAdministration` roda `verifyHistoryGeneration` (a mesma
+primitiva do A1) sobre os registros do snapshot atômico e só considera `ready`
+com contagem, ordem, digests por registro e `orderedDigest` conferidos. O
+resultado fica em `snapshot.activeGenerationIntegrity`.
+
+> `HistoryGenerationSummary.verified` é a **flag persistida** do manifest. Ela
+> continua visível no resumo diagnóstico e **não prova integridade, não
+> autoriza `ready` e não substitui a verificação integral.**
+
+**2. Snapshot atômico + double-read.** `readStorageAdministrationSnapshot()` lê
+`metadata`, `workoutHistory`, `generationManifests`, `storageOperationReceipts`
+e `completionReceipts` numa única transação readonly, sem transação auxiliar. O
+`inspect` roda o protocolo core → snapshot A → verificação → core → snapshot B
+→ core e só conclui quando os três cores são idênticos e os dois fingerprints
+batem. O fingerprint cobre metadata, ponteiros, manifests, o conteúdo canônico
+de todos os registros, todos os receipts administrativos e todos os
+CompletionReceipts pendentes — não apenas contagens.
+
+Divergência não vira escolha: o estado é `conflicted` com
+`administration-snapshot-unstable` (o IndexedDB mudou) ou
+`core-changed-during-inspection` (o core v2 mudou). Uma segunda tentativa é
+feita; instabilidade persistente continua fail-closed. **O snapshot descreve a
+janela estável observada — uma alteração iniciada depois da leitura final
+aparece no próximo `inspect`, nunca misturada a este.**
+
+**3. A criação do receipt serializa com os CompletionReceipts.**
+`createStorageOperationReceiptIfIdle` agora inclui `completionReceipts` no
+escopo da transação readwrite. Como `appendSessionWithCompletionReceipt` disputa
+o mesmo store, o IndexedDB serializa as duas: uma conclusão de treino gravada
+durante o begin bloqueia a operação (`StorageCompletionPendingError`) em vez de
+coexistir com ela. O receipt de conclusão nunca é lido fora da transação,
+alterado ou liquidado.
+
+**4. Transição só em estado inequívoco.** `transitionStorageOperation` exige
+`interrupted` e delega a `transitionStorageOperationIfUnambiguous`, que
+reconfere dentro da própria transação de escrita: todos os receipts validados,
+exatamente um não terminal, que seja o `operationId` pedido, zero conclusão
+pendente e CAS da geração ativa. Ela **nunca escolhe** um receipt sozinha.
+Recusa em `unavailable`, `ready`, `conflicted`, com dois receipts, com receipt
+malformado, com conclusão pendente, com staging incompatível, com core ausente
+ou inválido, em runtime legado e com metadata malformada.
+
+A transição também valida o estado **projetado**: `activating → activated` é
+recusada no A2, porque `activated` afirma efeitos (geração preparada ativa, core
+alvo gravado) que nenhum fluxo desta fase produz. Reverter é sempre permitido.
+
+**5. Coerência receipt × core × metadata.**
+`evaluateStorageOperationCompatibility` (puro, em `storage-operation-receipt.ts`)
+classifica em `compatible`, `incompatible` (razão fechada) ou
+`insufficient-evidence`. Um receipt não terminal incoerente com o mundo
+observado vira `conflicted` (`operation-incompatible`), não `interrupted`
+genérico. `insufficient-evidence` **nunca** é tratado como compatível.
+
+**6. A compensação pode falhar, e isso é relatado.** A afirmação anterior de que
+"qualquer divergência transiciona o receipt de `staged` para `reverted`" era
+incondicional e incorreta: é uma **tentativa**.
+`StorageOperationBeginConflictError` carrega `operationId`, `compensation`
+(`reverted` | `failed` | `not-attempted`), `compensationCause`,
+`finalReceiptStatus` e a `cause` original. Compensação que falha nunca é
+relatada como revertida; o receipt não é apagado nem sobrescrito à força e
+reaparece no próximo diagnóstico como `interrupted` ou `conflicted`.
+
+**7. `stagedGenerationId` e `targetCoreRaw` precisam ser `null`.** O A2 não cria
+staging físico nem grava core alvo, então aceitar valor gravaria uma promessa
+que nada cumpre. A recusa é `StorageAdministrationInputError`, antes de qualquer
+leitura ou escrita. Os campos ficam reservados para 002D-C/D.
+
+**Continua valendo:** nenhuma UI, nenhum call site real, nenhum Provider,
+nenhuma recuperação automática, nenhuma operação administrativa executada de
+verdade, `rollbackToHistoryGeneration` fora da fachada, owner-token e gate de
+WebView físico pendentes, e 002D-B/C/D/E/F não iniciados.
+
 ## Recuperação manual
 
 Na seção **Painel administrativo → Dados locais**:

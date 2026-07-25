@@ -411,20 +411,46 @@ recomendação · dependências · próximo passo.**
   desta etapa. Um receipt travado em `activating` depois de uma etapa futura
   real (002D-C/D) fica visível, porém irresolvido, até o coordenador atômico
   existir. *Próximo passo:* implementar a resolução em 002D-C/D.
-- **17B-002D-A2-P2 — `stagedGenerationId`/`targetCoreRaw` do begin aceitos mas
-  sem staging físico real.** *Aberto · P2.* `beginStorageOperation` permite que
-  o chamador informe esses dois campos desde já (o contrato do
-  `StorageOperationReceipt` já os previa desde o A1), mas nenhum fluxo real do
-  A2 cria geração, popula staging ou grava `targetCoreRaw` de fato — só o
-  valor bruto informado é persistido no receipt. *Próximo passo:* a criação
-  física de staging entra com importação/restauração em 002D-C/D.
-- **17B-002D-A2-P3 — `active-generation-corrupt` usa a flag do manifest, não
-  verificação integral.** *Aberto · P3.* `inspectStorageAdministration` decide
-  esse motivo a partir de `HistoryGenerationSummary.verified` (a mesma flag
-  documentada como não-prova desde o A1), por custo: verificação criptográfica
-  completa a cada diagnóstico seria caro demais para uma leitura frequente. Só
-  `beginStorageOperation` (via `readVerifiedHistoryGeneration`) verifica de
-  verdade antes de criar um receipt. Um chamador que decidir uma ação
-  destrutiva só a partir do snapshot, sem passar pelo begin, teria uma garantia
-  mais fraca do que parece. *Próximo passo:* nenhuma ação prevista — documentar
-  claramente é a mitigação enquanto não houver call site real.
+- **17B-002D-A2-P2 — `stagedGenerationId`/`targetCoreRaw` reservados para C/D.**
+  *Resolvido no corretivo 036 (2026-07-24) · era P2.* O A2 original aceitava os
+  dois campos no `beginStorageOperation` e gravava no receipt uma promessa que
+  nenhum fluxo cumpria. Agora `beginStorageOperation` **exige que ambos sejam
+  `null`** e recusa com `StorageAdministrationInputError` antes de qualquer
+  leitura ou escrita. Os campos continuam no contrato do
+  `StorageOperationReceipt` (desde o A1) para uso de 002D-C/D, quando o staging
+  físico passar a existir de verdade.
+- **17B-002D-A2-P3 — `active-generation-corrupt` usava a flag do manifest.**
+  *Resolvido no corretivo 036 (2026-07-24) · era P3, e a classificação estava
+  errada.* Auditoria independente reproduziu seis corrupções físicas
+  (conteúdo alterado mantendo digest, digest alterado, ordem trocada, sessão
+  removida, sessão adicionada, `orderedDigest` incorreto) em que
+  `inspectStorageAdministration` devolvia **`ready`** enquanto
+  `readVerifiedAdministrationGeneration` reprovava a MESMA geração — Classe C,
+  não P3. `ready` agora exige verificação criptográfica integral
+  (`verifyHistoryGeneration` sobre o snapshot atômico: contagem, ordem, digests
+  por registro e `orderedDigest`). A flag persistida continua visível em
+  `HistoryGenerationSummary.verified`, explicitamente documentada como flag e
+  não como prova.
+- **17B-002D-A2-P4 — o custo do diagnóstico cresce com o histórico.**
+  *Aberto · P2.* `inspectStorageAdministration` faz duas leituras atômicas
+  completas e uma verificação criptográfica integral da geração ativa por
+  chamada. Isso é o preço de `ready` não mentir, mas significa que o diagnóstico
+  não é barato o suficiente para rodar em loop de render ou a cada tecla. Não há
+  call site real ainda, então nada regride hoje. *Próximo passo:* quando
+  002D-C/D ligar a fachada a uma tela, medir com histórico real no WebView
+  Android e, se necessário, cachear o snapshot por fingerprint — nunca
+  enfraquecer a verificação.
+- **17B-002D-A2-P5 — operação `activating` não tem como avançar no A2.**
+  *Aberto · P3.* Como o A2 não cria staging físico nem grava core alvo, um
+  receipt só pode ir de `staged` para `activating` e daí para `reverted`:
+  `activated` exige evidência (`stagedGenerationId` e `targetCoreRaw` reais,
+  geração alvo ativa, core alvo gravado) que nenhuma etapa desta fase produz, e
+  a transição é recusada antes de escrever. É o comportamento correto — avançar
+  criaria um receipt afirmando um mundo inexistente —, mas significa que o ciclo
+  completo só fecha em 002D-C/D. *Próximo passo:* o coordenador atômico de C/D
+  passa a produzir os efeitos e, aí sim, `activated` e `settled` ficam
+  alcançáveis.
+- **17B-002D-A2-P6 — recuperação de operação interrompida continua manual.**
+  *Aberto · P1.* Ver 17B-002D-A2-P1: o corretivo 036 melhorou o diagnóstico
+  (agora um receipt incoerente com core/metadata vira `conflicted` em vez de
+  `interrupted` genérico), mas continua não existindo resolução automática.
