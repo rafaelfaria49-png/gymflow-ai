@@ -2723,3 +2723,332 @@ abriu a transação de forma síncrona. Nenhum `setTimeout`, nenhum threshold.
   obrigatório.
 - **002D-B/C/D/E/F não iniciados.**
 ---
+
+## GOAL-17B-002D-B — formato lógico de backup v2 e exportação read-only (2026-07-25)
+
+O **002D-A2 está integrado e encerrado** (A0 + A1 + A2 + corretivos 036 e 038).
+Este slice abre o **B** e entrega apenas três coisas: o formato externo lógico
+v2, a captura read-only do estado híbrido e a inspeção read-only do arquivo
+gerado. **Nada é importado, restaurado, revertido, resetado ou gravado.**
+
+### O problema
+
+O backup v1 copia o envelope monolítico inteiro. Isso descrevia o usuário
+enquanto o armazenamento ERA o envelope. No híbrido v2 o estado vive em dois
+lugares — core v2 no `localStorage` e histórico numa geração verificada do
+IndexedDB — e **nenhum dos dois sozinho descreve o usuário**. Um backup que
+copiasse o core exportaria um arquivo sem histórico; um que copiasse o envelope
+físico exportaria `historyStorage.generationId`, um ponteiro para um banco que
+não existe no aparelho de destino.
+
+### O formato
+
+`GymFlowLogicalBackupV2`:
+
+| Campo | Valor |
+| --- | --- |
+| `format` | `gymflow-backup` |
+| `formatVersion` | `2` |
+| `logicalSchemaVersion` | `1` |
+| `exportedAt` | ISO-8601 |
+| `sourcePhysicalStorageVersion` | `2` |
+| `sourceSavedAt` | ISO-8601 (`savedAt` do core observado) |
+| `payloadDigest` | `sha256:<64 hex>` |
+| `payload` | `PersistedState` completo (16 campos raiz) |
+
+O payload é **lógico**: `user`, `weeklyPlan`, `customPrograms`, `activeWorkout`,
+`activeWorkoutStartedAt`, `restTimerEndAt`, `restTimerTotalSeconds`,
+`restTimerLabel`, `workoutHistory`, `weightHistory`, `measurementsHistory`,
+`nutrition`, `achievements`, `challenges`, `favoriteExercises` e
+`recentlyViewedVideoIds`. Nada além disso.
+
+**Fora do arquivo, por contrato:** `historyStorage`, `generationId`,
+`activeGeneration`, `migrationGeneration`, `generationManifests`,
+`recordDigests`, `storageOperationReceipts`, `completionReceipts`,
+`legacySnapshots`, `quarantine`, `previousCoreRaw`, `targetCoreRaw`, raw do
+`localStorage`, o nome da chave, fingerprints administrativos e metadados
+internos do IndexedDB. **Nenhum id físico de geração é necessário para uma
+importação futura.**
+
+### Protocolo de captura estável
+
+`captureLogicalBackupSnapshot(runtime)` — read-only por tipo, porque
+`LogicalBackupRuntime` só expõe `inspectStorageAdministration` e
+`readVerifiedAdministrationGeneration`:
+
+1. `inspectStorageAdministration()` → exige `ready`;
+2. exige `physicalStorageVersion === 2`, `activeGenerationId` não vazio,
+   `coreRawObserved` não nulo, `administrationFingerprint` não nulo,
+   `pendingCompletionReceiptCount === 0`, `unsettledOperations` vazio;
+3. interpreta `coreRawObserved` como envelope físico v2 válido;
+4. confirma `core.data.historyStorage.generationId === activeGenerationId`;
+5. `readVerifiedAdministrationGeneration(activeGenerationId)`;
+6. `inspectStorageAdministration()` de novo → exige `ready` de novo;
+7. compara as duas leituras: `coreRawObserved` byte a byte,
+   `activeGenerationId`, `administrationFingerprint`, `physicalStorageVersion`,
+   ausência de receipts e ausência de conclusões pendentes;
+8. divergência → `snapshot-changed-during-export`, sem escolher leitura e sem
+   produzir conteúdo;
+9. remove `historyStorage`, insere o histórico verificado, valida o
+   `PersistedState` reconstruído e devolve uma cópia lógica independente.
+
+### Garantia declarada
+
+> O backup só existe quando o core observado antes e depois da leitura
+> verificada do histórico é byte a byte o mesmo, com o mesmo
+> `activeGenerationId`, o mesmo `administrationFingerprint`, a mesma versão
+> física, zero receipt administrativo e zero conclusão pendente nas duas pontas.
+
+Não existe atomicidade entre `localStorage` e IndexedDB, e esta documentação não
+sugere que exista. Uma alteração iniciada depois da leitura final é um evento
+novo: ela aparece na próxima exportação, não neste arquivo.
+
+### Digest e serialização
+
+Serialização canônica determinística: chaves de objeto ordenadas
+recursivamente, ordem de array preservada (`workoutHistory` continua
+newest-first), nada reordenado por conteúdo, nenhum campo obrigatório removido.
+Número não finito e `BigInt` **param** a serialização
+(`LogicalBackupSerializationError`, com o CAMINHO e nunca o valor) em vez de
+virarem `null` silencioso.
+
+Material do digest: `gymflow:logical-backup:v2:<payload-canônico>`, com
+`sha256Checksum` — a função que já existe. Sem Web Crypto não há backup:
+`crypto-unavailable`, causa original preservada, nenhum hash fraco, nenhum
+comprimento como integridade. A **forma canônica é o que vai para o arquivo**,
+então `payloadDigest` assina exatamente o que está publicado.
+
+### Tamanho
+
+`JSON.stringify(backup)` sem indentação. `bytes` são os bytes UTF-8 reais do
+conteúdo final, nunca a contagem de caracteres.
+
+| Faixa | Comportamento |
+| --- | --- |
+| até 8 MiB | `warning: null` |
+| acima de 8 MiB e até 25 MiB | sucesso com aviso explícito de arquivo grande |
+| acima de 25 MiB | `too-large`, sem conteúdo de sucesso |
+
+`MAX_IMPORT_BYTES` do v1 continua **5 MiB**, intocado.
+
+### Inspeção read-only
+
+`inspectLogicalStorageBackupV2(raw, declaredBytes?, subtleCrypto?)` usa
+`max(declaredBytes, utf8Bytes(raw))`, recusa acima de 25 MiB antes de qualquer
+operação cara e então valida na ordem: JSON, formato, `formatVersion`,
+`logicalSchemaVersion`, datas, `sourcePhysicalStorageVersion`, payload completo,
+digest recalculado e comparado. Razões fechadas: `too-large`, `invalid-json`,
+`invalid-format`, `unsupported-version`, `unsupported-schema`, `invalid-date`,
+`invalid-payload`, `duplicate-session-id`, `digest-mismatch`,
+`crypto-unavailable`.
+
+Preview: `exportedAt`, `sourceSavedAt`, `workoutSessions`, `hasActiveWorkout`,
+`customPrograms`, `weightEntries`, `measurementEntries`, `bytes`, `warning`.
+A inspeção não abre `localStorage` nem IndexedDB — um arquivo pode ser
+conferido inteiro num aparelho onde o GymFlow nunca rodou.
+
+### Privacidade
+
+O arquivo contém **dados pessoais e histórico de treino**: perfil (nome,
+e-mail, idade, peso, altura), medidas corporais, nutrição e todas as sessões.
+Ele não é anonimizado e não é criptografado. Nenhum payload, perfil, histórico
+ou raw é registrado em console, e nenhuma mensagem de erro carrega conteúdo do
+payload — só caminho de campo e tamanho.
+
+### Estados bloqueados
+
+Legacy v1, armazenamento vazio, core v2 inválido, IndexedDB indisponível,
+versão física divergente, metadata malformada, geração ativa ausente, geração
+ativa corrompida, operação administrativa `interrupted`, estado `conflicted`,
+CompletionReceipt pendente e snapshot instável. **Nenhum deles cai em
+recuperação bruta automática** — o download do raw continua sendo uma ação
+separada do v1.
+
+### Arquivos
+
+- `src/lib/storage-logical-backup.ts` (novo)
+- `src/lib/storage-logical-backup.test.ts` (novo)
+
+Nada mais mudou no código. `storage-types.ts`, `storage-validation.ts`,
+`storage-export.ts`, `storage-admin-runtime.ts`, `storage-history-integrity.ts`
+e os testes deles ficaram **byte a byte iguais**.
+
+### Testes
+
+1151 → **1224**. 43 arquivos, zero falha. 73 testes novos: contrato e conteúdo
+(13), digest e determinismo (7), limites de tamanho (7), inspeção read-only
+(12), corridas com fault injection real (11), estados bloqueados (8),
+portabilidade e privacidade (2), regressão v1 (8), invariância física (2) e
+serialização canônica (3).
+
+As nove corridas mutam o armazenamento **de verdade dentro da janela** — core
+alterado antes e depois da leitura verificada, geração ativa trocada, sessão
+adulterada, manifest adulterado, receipt administrativo criado,
+CompletionReceipt criado, `migrationGeneration` apontando para geração fantasma
+e snapshot administrativo que nunca estabiliza. Cada teste confirma que a
+mutação de fato aconteceu antes de julgar, e nenhuma corrida retorna sucesso.
+
+Prova de que os testes pegam a regressão: desativando as duas comparações do
+segundo diagnóstico (exigência de `ready` e comparação de divergência),
+**9 testes falham**; restaurando, os 73 voltam a passar.
+
+Seeds embaralhadas: `11044`, `22044`, `33044` no arquivo novo e `44044` em
+`storage-admin-runtime.test.ts` — todas verdes.
+
+### Validações
+
+`npx vitest run` (1224/1224), `npx tsc --noEmit`, `npm run build`,
+`npm run build:mobile`, `npx eslint src` (baseline preservada: 12 erros, 6
+avisos, nenhum em `src/lib`), `git diff --check` limpo. `package.json` e
+`package-lock.json` inalterados.
+
+### Continuação
+
+- **Nenhum call site real.** Nenhum componente, `GymFlowContext`, `AdminPanel`,
+  `StorageRecoveryNotice`, boot ou layout importa este módulo — verificado por
+  varredura automatizada de `src` no próprio teste.
+- **Nenhuma API de escrita v2.** Não existe `commitLogicalStorageImportV2`; o
+  teste falha se qualquer export do módulo começar com verbo de escrita ou se o
+  código (fora de comentários) mencionar `setItem`, `removeItem`, `Blob`,
+  `createObjectURL` ou qualquer método administrativo de mutação.
+- **Nenhum download.** Sem `Blob`, sem `URL`, sem elemento de âncora.
+  `downloadTextFile` continua sendo do v1 e ninguém o chama para o v2.
+- **Fluxo v1 preservado**, com regressão explícita: exportação indentada,
+  inspeção, importação com backup do anterior, recusa de `formatVersion: 2` e
+  `MAX_IMPORT_BYTES` em 5 MiB.
+- **Nenhuma operação administrativa real, nenhuma UI, nenhum Provider, nenhuma
+  recuperação automática, nenhuma sincronização entre abas, nenhuma alteração
+  Android, nenhum downgrade físico.**
+- **002D-C/D/E/F não iniciados.** Importação v2, restauração, rollback completo,
+  reset, retenção e owner-token continuam fora de escopo.
+- **Performance e download no WebView físico continuam pendentes**
+  (17B-002D-B-P1/P2 e 17B-002A-PHYSICAL).
+
+## GOAL-17B-002D-B corretivo 046 — consistência fechada do backup lógico v2 (2026-07-26)
+
+A auditoria independente do 002D-B levantou bloqueantes Classe C e achados P1
+comprovados. Este corretivo fecha **só** esses pontos: a implementação-base foi
+preservada, o módulo não recomeçou e nenhum arquivo fora dos seis consolidados
+foi tocado.
+
+### Os bloqueios
+
+**1. Corrida ABA — antes.** A captura comparava apenas os dois diagnósticos que
+cercam a leitura verificada do histórico. Com o histórico indo de `H1` para `H2`
+e **voltando byte a byte** para `H1`, os dois diagnósticos ficavam idênticos —
+mesmo `coreRawObserved`, mesmo `activeGenerationId`, mesmo
+`administrationFingerprint`, mesma versão física, zero receipt — enquanto
+`readVerifiedAdministrationGeneration` devolvia `H2`. Resultado: **exportação
+bem-sucedida contendo `H2`**, um histórico que nunca coexistiu com aquele core.
+
+**1. Corrida ABA — depois.** A leitura intermediária é comparada com a geração
+verificada **descrita por cada um dos dois diagnósticos**. De A e B passou a ser
+exigido `activeGenerationIntegrity.status === 'verified'`, manifest presente,
+sessões presentes e `manifest.generationId === activeGenerationId`. A comparação
+é integral: identidade, `sessionCount`, `orderedDigest`, manifest canônico, ids,
+ordem e sessões completas serializadas deterministicamente — inclusive geração
+vazia. Divergência devolve `snapshot-changed-during-export`, sem conteúdo, sem
+backup parcial e sem escrita. As comparações A × B antigas continuam todas lá.
+
+**2. Contrato externo aberto — antes.** O arquivo podia trazer campo externo
+extra, símbolo, propriedade não enumerável, getter/setter ou protótipo
+customizado. **Depois:** exatamente oito chaves próprias enumeráveis, conferidas
+com `Reflect.ownKeys` e descritores, tanto em memória quanto após `JSON.parse`.
+
+**3. Payload raiz aberto — antes.** A raiz recusava uma lista fixa de campos
+físicos, mas aceitava qualquer campo desconhecido. **Depois:** exatamente os 16
+campos lógicos, com recusa estrutural e mensagem genérica para o desconhecido.
+Strings funcionais do usuário contendo "generationId", "manifest" ou "receipt"
+continuam preservadas.
+
+**4. Normalização silenciosa — antes.** `undefined`, função e símbolo eram
+descartados; `Date`, `Map` e `Set` viravam `{}`; `TypedArray` virava objeto
+indexado — tudo antes do digest, que passava a assinar um estado diferente do
+que existia. **Depois:** a árvore inteira é validada e copiada antes de qualquer
+canonicalização, e cada um desses valores é recusado explicitamente.
+
+### O que mais entrou
+
+- **Chaves perigosas recursivas.** `__proto__`, `prototype` e `constructor`
+  recusadas em todos os níveis, por chave própria real — não por `in`.
+- **Datas canônicas.** `exportedAt`, `sourceSavedAt`, o `now` da exportação e o
+  `savedAt` do core só passam no formato `YYYY-MM-DDTHH:mm:ss.sssZ`, conferido
+  por regex estrita e por `new Date(value).toISOString() === value`.
+- **`declaredBytes` validado.** Novo motivo fechado `invalid-size` para `NaN`,
+  `±Infinity`, negativo, decimal, string, `null` e objeto. Nunca mais `bytes:
+  NaN`, aviso `NaN` ou tamanho decimal. Limites inalterados (8 MiB / 25 MiB).
+- **Ordem fail-fast** da inspeção: tamanho → JSON → contrato externo → `format` →
+  `formatVersion` → `logicalSchemaVersion` → datas → versão física → payload e
+  árvore JSON → formato do digest → recálculo → comparação → preview. Nenhum
+  SHA-256 sobre payload não validado.
+- **Erros sanitizados.** Sem id de sessão, nome/valor de perfil, conteúdo de
+  treino, `raw`, trecho de JSON, chave desconhecida, valor recusado ou mensagem
+  de getter/proxy. `sessionId` duplicado tem mensagem genérica. Caminho de erro
+  só com nomes conhecidos e índices; o resto vira `<campo>`. `cause` público
+  apenas em falha interna confiável.
+- **Digest inalterado:** SHA-256, `sha256:`, 64 hex minúsculos, domínio
+  `gymflow:logical-backup:v2:`, comparação exata, sem fallback fraco.
+
+### Testes
+
+1224 → **1435**. 43 arquivos, zero falha. O arquivo do backup lógico foi de 73
+para **284** testes.
+
+As nove corridas ABA são fault injection **física real**: o IndexedDB é
+reescrito de verdade — registros, digests por registro e `orderedDigest` do
+manifest recalculados juntos — e depois devolvido byte a byte ao estado
+anterior. Os cenários são ids de sessão diferentes, mesmos ids com valores
+diferentes, mesma contagem e mesmos ids em ordem diferente, manifest `M1 → M2 →
+M1`, `recordDigest` `D1 → D2 → D1`, geração vazia → sessão → vazia, geração com
+sessão → vazia → sessão original, conteúdo alterado com `orderedDigest` válido e
+`createdAt`/`updatedAt` do manifest alterados e restaurados.
+
+Cada cenário prova, no mesmo teste: `H1` exporta com sucesso; `H2` exporta com
+sucesso (logo os dois são individualmente válidos); o armazenamento voltou byte
+a byte para `H1`; A e B observaram `H1` com **fingerprints iguais**; a leitura
+intermediária devolveu `H2`; a exportação retorna
+`snapshot-changed-during-export` sem `content`, `backup` ou `preview`; e o
+estado físico final continua idêntico a `H1`, sem receipt novo.
+
+**Prova de que é a comparação nova que fecha o furo:** o teste "sem o vínculo da
+leitura intermediária, todas as corridas ABA passariam" reimplementa fielmente o
+protocolo pré-corretivo (só as comparações A × B) e mostra que ele **aprova os
+nove cenários**, entregando `H2` nos que mudam conteúdo, enquanto o protocolo
+corrigido recusa os nove. Nenhuma mutação de produção e nenhum `skip` ficaram no
+commit.
+
+Demais suítes novas: contrato externo fechado (8), raiz do payload fechada (6),
+valores que não são JSON (matriz de 17 valores × 6 níveis = 102, mais 10 testes
+estruturais de array esparso, propriedade extra, não enumerável, getter, setter,
+símbolo, ciclo, referência compartilhada, cópia independente e caminho seguro),
+chaves perigosas (3 chaves × 8 níveis = 24, mais envelope externo), datas
+canônicas (26), `declaredBytes` (15) e privacidade com sentinelas (7).
+
+O tamanho é provado com espiões: `too-large` e `invalid-size` ocorrem **antes**
+de `JSON.parse` e de qualquer `digest`, e o digest só é recalculado depois de o
+payload ser validado.
+
+Seeds embaralhadas: `11046`, `22046`, `33046` no arquivo do backup lógico e
+`44046` em `storage-admin-runtime.test.ts` — todas verdes.
+
+### Validações
+
+`npx vitest run` (1435/1435), `npx tsc --noEmit`, `npm run build`,
+`npm run build:mobile`, `npx eslint src` (baseline preservada: 12 erros, 6
+avisos, nenhum nos arquivos alterados), `git diff --check` limpo. `package.json`
+e `package-lock.json` inalterados.
+
+### Continuação
+
+- **Nenhuma importação, restauração, rollback, reset, UI, Provider, download,
+  owner-token ou sincronização entre abas** entrou neste corretivo.
+- **Nenhum call site real** — a varredura automatizada de `src` continua
+  encontrando apenas o próprio arquivo de teste.
+- **Nenhuma API de escrita v2**; `commitLogicalStorageImportV2` continua não
+  existindo.
+- **Regressão v1 preservada**: exportação indentada, inspeção, importação com
+  backup do anterior, recusa de `formatVersion: 2` e `MAX_IMPORT_BYTES` em
+  5 MiB. Um backup v1 real continua recusado como `unsupported-version`.
+- **002D-C/D/E/F não iniciados.**
+- **Não se afirma atomicidade entre `localStorage` e IndexedDB.** O protocolo
+  garante que a concorrência derruba a exportação, não que ela seja impedida.
