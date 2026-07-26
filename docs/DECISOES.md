@@ -1103,3 +1103,59 @@ recuperação automática, UI, Provider, download nem call site.
   `null, 2` gastaria megabytes em espaço de apresentação. O v1 continua indentado.
 - **A inspeção termina em preview.** Não existe `commitLogicalStorageImportV2` e
   nenhuma função deste módulo escreve. Importar é 002D-C.
+
+## GOAL-17B-002D-B corretivo 046 — consistência fechada do backup lógico v2
+
+- **A leitura intermediária é comparada com o CONTEÚDO verificado pelos dois
+  diagnósticos, não só com o estado administrativo em volta deles.** A auditoria
+  comprovou a corrida ABA: histórico indo de `H1` para `H2` e voltando byte a
+  byte para `H1` produz dois diagnósticos idênticos — mesmo core, mesma geração,
+  mesmo `administrationFingerprint` — enquanto a leitura do meio carrega `H2`.
+  `generationId`, contagem, lista de ids, `manifest.verified` e fingerprint
+  **não são prova**; a prova é o descritor canônico da geração verificada
+  (identidade + `sessionCount` + `orderedDigest` + manifest + ids + ordem +
+  sessões completas), comparado contra A e contra B. As comparações A × B
+  antigas continuam todas no lugar — o corretivo só ACRESCENTA.
+- **Contrato externo e raiz do payload são conjuntos FECHADOS.** Oito chaves no
+  envelope, 16 no payload. Lista de proibidos protege contra o que já se
+  conhece; conjunto fechado protege contra o que ainda não se conhece — e um
+  vazamento físico futuro tem nome que este código nunca viu.
+- **A validação usa `Reflect.ownKeys` e descritores, não `Object.keys` nem
+  `in`.** Símbolo, propriedade não enumerável e acessor são invisíveis para os
+  dois últimos, e ler um getter EXECUTARIA código do arquivo dentro do
+  validador. Getter é detectado por `descriptor.get`, nunca invocado.
+- **A árvore JSON é validada e COPIADA antes de qualquer canonicalização.**
+  `JSON.stringify` normaliza em silêncio (`undefined`/função/símbolo somem,
+  `Date` vira string, `Map`/`Set` viram `{}`, `TypedArray` vira objeto
+  indexado), e o digest passaria a assinar um estado diferente do que existe. A
+  cópia também dá de graça a independência do payload devolvido e garante que a
+  entrada nunca é modificada.
+- **Protótipo padrão é exigência, inclusive contra `Object.create(null)`.**
+  "Objeto simples" aqui significa `Object.prototype`; qualquer outra coisa é
+  exótica o bastante para não entrar num arquivo que um dia vai restaurar dados.
+- **Data canônica é regex estrita MAIS `toISOString()` de ida e volta.**
+  `Date.parse` aceita data sem hora, offset local, RFC textual e ISO sem
+  milissegundos — gravar isso num backup deixaria o significado da data
+  dependendo do fuso de quem abriu o arquivo.
+- **`declaredBytes` inválido é `invalid-size`, não "melhor esforço".** Aceitar
+  `NaN` produzia `bytes: NaN` e aviso `NaN`; aceitar decimal produzia tamanho
+  fracionário. O valor vem do chamador, então é entrada, e entrada inválida se
+  recusa antes de `JSON.parse` e de qualquer SHA-256.
+- **Mensagem pública não carrega conteúdo do payload — nem indiretamente.** Id
+  de sessão duplicado tem mensagem genérica (o id é do usuário); nome de campo
+  desconhecido é conteúdo do arquivo e vira `<campo>` no caminho; a mensagem
+  nativa de `JSON.parse` cita um trecho do `raw` e por isso não sobe; erro
+  produzido por getter ou proxy do payload nunca aparece em `error` nem em
+  `cause`. `cause` sobrevive só em falha interna confiável — Web Crypto,
+  runtime administrativo, IndexedDB.
+- **Nome de campo vindo de CONSTANTE do código continua sendo impresso.** Os 12
+  campos físicos proibidos e os 16 campos obrigatórios são nomeados nas
+  mensagens porque esses nomes são nossos, não do arquivo — e uma mensagem
+  precisa vale mais do que uma genérica quando não há nada a vazar.
+- **Backup v1 real continua recusado como `unsupported-version`, mesmo com o
+  contrato externo checado antes da versão.** Ele declara `formatVersion: 1`;
+  responder "formato desconhecido" esconderia a única informação útil.
+- **O teste negativo é um protocolo antigo reimplementado no arquivo de teste,
+  não uma mutação temporária do módulo.** Ele reproduz fielmente as comparações
+  pré-corretivo e prova que elas aprovam os nove cenários ABA — sem deixar
+  `skip`, código morto ou produção mutilada no commit.

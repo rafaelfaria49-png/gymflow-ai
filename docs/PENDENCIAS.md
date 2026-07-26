@@ -534,3 +534,63 @@ recomendação · dependências · próximo passo.**
   um arquivo inconsistente — não garante exclusão mútua. Uma escrita iniciada
   depois da leitura final é um evento novo e aparece na próxima exportação.
   *Próximo passo:* owner-token antes de qualquer operação administrativa real.
+
+## GOAL-17B-002D-B corretivo 046 — auditoria Classe C (2026-07-26)
+
+### Fechados por este corretivo
+
+- **17B-002D-B-C1 — corrida ABA (`H1 → H2 → H1`).** *Fechado.* A captura
+  comparava só os dois diagnósticos que cercam a leitura verificada; um
+  histórico que ia a `H2` e voltava byte a byte para `H1` produzia diagnósticos
+  idênticos, com o mesmo `administrationFingerprint`, e a exportação retornava
+  sucesso contendo `H2`. Agora a leitura intermediária é comparada
+  integralmente com a geração verificada descrita por A **e** por B.
+- **17B-002D-B-C2 — contrato externo aberto.** *Fechado.* Oito chaves próprias
+  enumeráveis, conferidas por `Reflect.ownKeys` e descritores.
+- **17B-002D-B-C3 — payload raiz aberto.** *Fechado.* Exatamente 16 campos
+  lógicos, com recusa estrutural e mensagem genérica para campo desconhecido.
+- **17B-002D-B-C4 — normalização silenciosa de valores não JSON.** *Fechado.*
+  Árvore validada e copiada antes de canonicalizar; `undefined`, função,
+  símbolo, `BigInt`, não finito, `Date`, `Map`, `Set`, `ArrayBuffer`,
+  `TypedArray`, `RegExp`, `Promise`, `WeakMap`, `WeakSet`, protótipo
+  customizado, array esparso, propriedade extra em array, propriedade
+  simbólica, propriedade não enumerável, getter, setter e ciclo são recusados.
+- **17B-002D-B-C5 — chaves perigosas aninhadas.** *Fechado.* `__proto__`,
+  `prototype` e `constructor` recusadas em todos os níveis por chave própria
+  real.
+- **17B-002D-B-C6 — datas não canônicas.** *Fechado.* Só
+  `YYYY-MM-DDTHH:mm:ss.sssZ`, com regex estrita e ida e volta por
+  `toISOString()`.
+- **17B-002D-B-C7 — `declaredBytes` inválido.** *Fechado.* Novo motivo
+  `invalid-size`; nunca mais `bytes: NaN`, aviso `NaN` ou tamanho decimal.
+- **17B-002D-B-C8 — vazamento de dados em mensagem de erro.** *Fechado.*
+  Mensagens sanitizadas, caminho só com nomes conhecidos e índices, `cause`
+  público apenas em falha interna confiável.
+- **17B-002D-B-C9 — ordem da inspeção.** *Fechado.* Fail-fast fixa; nenhum
+  SHA-256 sobre payload não validado.
+
+### Abertos
+
+- **17B-002D-B-P8 — o vínculo protege o conteúdo LÓGICO, não todo detalhe
+  físico invisível ao arquivo.** *Aberto · P3.* Uma mutação puramente física que
+  não altere manifest nem sessões — por exemplo trocar o `digest` gravado de um
+  registro por `null`, que a verificação tolera como registro legado — vai e
+  volta sem que a leitura intermediária possa enxergá-la, porque
+  `readVerifiedAdministrationGeneration` devolve apenas `generationId`,
+  `manifest` e `sessions`. O conteúdo exportado continua correto nesse caso; o
+  que não existe é detecção. *Próximo passo:* se algum dia o backup precisar
+  atestar o estado físico, a leitura verificada precisa devolver também os
+  digests por registro.
+- **17B-002D-B-P9 — `<campo>` no caminho de erro depende de uma lista de nomes
+  conhecidos.** *Aberto · P3.* A lista cobre o esquema atual; um campo novo do
+  domínio que ainda não esteja nela aparece redigido. É a falha segura correta —
+  perde precisão, nunca vaza —, mas exige manutenção junto com os tipos.
+  *Próximo passo:* revisar a lista sempre que `PersistedState` ganhar campo.
+- **17B-002D-B-P10 — a corrida ABA foi fechada na LEITURA, não na ESCRITA.**
+  *Aberto · P2.* Continua sem owner-token e sem lock entre abas: outra aba pode
+  escrever durante a exportação. A garantia é que isso **derruba** a exportação
+  (`snapshot-changed-during-export`), nunca que produza arquivo inconsistente.
+  Reforça 17B-002D-B-P7 e 17B-002D-A2-P9. *Próximo passo:* owner-token.
+- **17B-002D-B-P1 a P7 continuam abertos e inalterados.** Este corretivo **não**
+  criou importação, restauração, rollback, reset, UI, Provider, download,
+  owner-token nem call site; 002D-C/D/E/F seguem não iniciados.

@@ -979,6 +979,108 @@ pendente e snapshot instável. Nenhum deles cai em recuperação bruta automáti
 o download do raw (`createRawRecoveryExport`) continua sendo uma ação separada
 do v1.
 
+### Corretivo 046 — o que mudou depois da auditoria Classe C
+
+A auditoria independente do 002D-B provou quatro bloqueantes. Todos foram
+fechados sem recomeçar o módulo.
+
+**1. Corrida ABA (`H1 → H2 → H1`).** O protocolo comparava apenas os dois
+diagnósticos que cercam a leitura verificada. Se o histórico sai de `H1`, passa
+por `H2` e **volta byte a byte** para `H1`, os dois diagnósticos ficam
+idênticos — mesmo `coreRawObserved`, mesmo `activeGenerationId`, mesmo
+`administrationFingerprint` — enquanto a leitura do meio carregou `H2`. O
+resultado era uma exportação bem-sucedida contendo um histórico que nunca
+coexistiu com aquele core.
+
+A leitura intermediária agora é **amarrada ao conteúdo** que os diagnósticos
+verificaram. De cada diagnóstico é extraída a geração verificada
+(`activeGenerationIntegrity`), exigindo `status: verified`, manifest presente,
+sessões presentes e `manifest.generationId === activeGenerationId`. Dela sai um
+descritor canônico — identidade, contagem, `orderedDigest`, manifest inteiro,
+ids/ordem e as sessões completas serializadas deterministicamente. O protocolo
+final é:
+
+1. `inspect` A `ready` e íntegro;
+2. core de A validado (envelope v2, geração casada, `savedAt` canônico);
+3. geração verificada declarada por A;
+4. `readVerifiedAdministrationGeneration`;
+5. `inspect` B `ready` e íntegro;
+6. A × B (incluindo as comparações antigas, que **não** foram removidas);
+7. leitura intermediária × geração verificada de A;
+8. leitura intermediária × geração verificada de B;
+9. só então o payload é reconstruído.
+
+Qualquer divergência devolve `snapshot-changed-during-export`, sem conteúdo,
+sem backup parcial e sem escrita. Fingerprint administrativo, `generationId`,
+contagem, lista de ids e `manifest.verified` **deixaram de ser suficientes** —
+sozinhos, nenhum deles enxerga a volta ao estado anterior.
+
+**2. Contrato externo fechado.** O arquivo precisa ter exatamente oito chaves
+próprias enumeráveis: `format`, `formatVersion`, `logicalSchemaVersion`,
+`exportedAt`, `sourcePhysicalStorageVersion`, `sourceSavedAt`, `payloadDigest`,
+`payload`. Campo extra, campo ausente, símbolo, propriedade não enumerável,
+getter/setter, protótipo customizado e chave perigosa são recusados. A checagem
+usa `Reflect.ownKeys` e descritores — `Object.keys` e `in` não enxergam símbolo,
+propriedade oculta nem acessor, e ler um getter executaria código do arquivo
+durante a validação. Vale igual para objeto de memória e para o resultado de
+`JSON.parse`. Um backup v1 real continua sendo recusado como
+`unsupported-version`, não como formato desconhecido: ele declara
+`formatVersion: 1` e essa é a informação útil.
+
+**3. Payload raiz fechado.** O payload precisa ter exatamente os 16 campos
+lógicos. Qualquer campo raiz desconhecido é recusado estruturalmente, com
+mensagem genérica — o nome de um campo desconhecido pode ser conteúdo do
+usuário. Os campos físicos conhecidos (`historyStorage`, `generationId`,
+`recordDigests`, …) continuam sendo nomeados na mensagem, porque esses nomes vêm
+de uma constante do código. Texto funcional do usuário contendo as palavras
+"generationId", "manifest" ou "receipt" continua preservado: a validação é
+estrutural, não textual.
+
+**4. Árvore JSON estrita, sem normalização silenciosa.** Antes de canonicalizar
+ou serializar, a árvore inteira é validada e **copiada**. São aceitos apenas
+`null`, boolean, string, número finito, array denso e objeto simples com
+protótipo padrão. São recusados `undefined`, função, símbolo, `BigInt`, `NaN`,
+`±Infinity`, `Date`, `Map`, `Set`, `ArrayBuffer`, `TypedArray`, `RegExp`,
+`Promise`, `WeakMap`, `WeakSet`, objeto com protótipo customizado, array
+esparso, array com propriedade própria extra, propriedade simbólica,
+propriedade não enumerável, getter, setter e referência circular. Nada mais vira
+ausência, `{}`, objeto indexado ou `null` a caminho do digest. A leitura é feita
+por `descriptor.value`: um getter é **detectado**, nunca executado. O payload
+devolvido é uma cópia lógica independente e a entrada nunca é modificada.
+
+**Chaves perigosas** (`__proto__`, `prototype`, `constructor`) são recusadas
+recursivamente, em todos os níveis, por chave própria real — não por `in`.
+
+**Datas canônicas.** `exportedAt` e `sourceSavedAt` só são aceitos no formato
+`YYYY-MM-DDTHH:mm:ss.sssZ`, conferido por regex estrita **e** por
+`new Date(value).toISOString() === value`. Data sem hora, sem milissegundos, com
+offset, RFC textual, data impossível e string apenas parseável são recusadas. O
+`now` da exportação e o `savedAt` do core passam pelo mesmo crivo.
+
+**Tamanho declarado.** `declaredBytes` ausente usa os bytes UTF-8 reais. Quando
+informado, precisa ser número finito, inteiro e `>= 0`; `NaN`, `±Infinity`,
+negativo, decimal, string, `null` e objeto caem em `invalid-size`. Só depois
+`bytes = max(declaredBytes, utf8(raw))`. Os limites não mudaram: até 8 MiB sem
+aviso, acima disso e até 25 MiB com aviso, acima de 25 MiB `too-large`.
+
+**Ordem fail-fast da inspeção:** tamanho → JSON → contrato externo → `format` →
+`formatVersion` → `logicalSchemaVersion` → datas → versão física de origem →
+payload completo e árvore JSON → formato textual do `payloadDigest` → recálculo
+SHA-256 → comparação → preview. **Nenhum digest é calculado sobre payload não
+validado.**
+
+**Erros sanitizados.** Nenhuma mensagem pública carrega id de sessão, nome ou
+valor de perfil, conteúdo de treino, `raw`, trecho de JSON, chave dinâmica
+desconhecida, valor recusado ou mensagem produzida por getter/proxy do payload.
+`sessionId` duplicado tem mensagem genérica, sem interpolar o id. Caminho de
+erro é montado só com nomes de campo conhecidos e índices numéricos; qualquer
+outro nome vira `<campo>`. `cause` só sobrevive em falha interna confiável (Web
+Crypto indisponível, runtime administrativo, IndexedDB) — nunca quando a origem
+é conteúdo do payload.
+
+O digest não mudou: SHA-256, prefixo `sha256:`, 64 hex minúsculos, domínio
+`gymflow:logical-backup:v2:`, comparação exata, zero fallback fraco.
+
 ### Continua valendo, sem mudança
 
 Nenhuma UI, nenhum Provider, nenhum call site real, nenhuma operação
@@ -986,7 +1088,12 @@ administrativa executada de verdade, nenhuma recuperação automática no boot,
 nenhuma sincronização entre abas, `rollbackToHistoryGeneration` fora da fachada,
 owner-token e gate de WebView físico pendentes. **002D-C/D/E/F não iniciados** —
 importação v2, restauração, rollback completo, reset e retenção seguem fora de
-escopo.
+escopo. O corretivo 046 não criou importação, restauração, rollback, reset,
+download, UI nem call site.
+
+**Não existe atomicidade entre `localStorage` e IndexedDB.** O que existe é o
+protocolo acima: ele garante que uma alteração concorrente **derruba** a
+exportação, não que ela seja impedida.
 
 ## Recuperação manual
 

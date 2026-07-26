@@ -1,10 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { IDBFactory } from 'fake-indexeddb';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { WorkoutSession } from '../types';
 import { loadStateResult, STORAGE_BACKUP_SUFFIX } from './storage';
-import { createStorageAdminRuntime } from './storage-admin-runtime';
+import type { VerifiedHistoryGeneration } from './storage-adapter';
+import {
+  createStorageAdminRuntime,
+  type StorageAdministrationSnapshot,
+} from './storage-admin-runtime';
 import {
   commitStorageImport,
   createStorageExport,
@@ -12,8 +16,18 @@ import {
   MAX_IMPORT_BYTES,
   STORAGE_EXPORT_FORMAT_VERSION,
 } from './storage-export';
-import { createHybridStorageRuntime } from './storage-hybrid';
-import type { HistoryGenerationManifest } from './storage-history-integrity';
+import {
+  combineCoreWithHistory,
+  createHybridStorageRuntime,
+  parsePhysicalEnvelope,
+} from './storage-hybrid';
+import {
+  computeOrderedDigestFromSessionDigests,
+  digestWorkoutSessions,
+  EMPTY_GENERATION_DIGEST,
+  type HistoryGenerationManifest,
+  serializeWorkoutHistoryDeterministically,
+} from './storage-history-integrity';
 import {
   createWorkoutCompletionReceipt,
   type WorkoutCompletionEffects,
@@ -33,13 +47,17 @@ import {
   createLogicalStorageExportV2,
   describeLogicalBackupSize,
   inspectLogicalStorageBackupV2,
+  isCanonicalIsoInstant,
+  LOGICAL_BACKUP_ENVELOPE_FIELDS,
   LOGICAL_BACKUP_FORMAT_VERSION,
   LOGICAL_BACKUP_LARGE_WARNING_BYTES,
   LOGICAL_BACKUP_SCHEMA_VERSION,
   type LogicalBackupRuntime,
   MAX_LOGICAL_BACKUP_BYTES,
   serializeLogicalPayloadCanonically,
+  validateLogicalBackupEnvelopeContract,
   validateLogicalBackupPayload,
+  validateLogicalJsonTree,
 } from './storage-logical-backup';
 import type { StorageOperationReceipt } from './storage-operation-receipt';
 import {
@@ -356,6 +374,13 @@ function inflateCore(storage: MemoryStorage, fillerBytes: number): void {
   patchCore(storage, { favoriteExercises: ['x'.repeat(fillerBytes)] });
 }
 
+// Troca só o `savedAt` do envelope físico, preservando o core inteiro.
+function patchEnvelopeSavedAt(storage: MemoryStorage, savedAt: string): void {
+  const envelope = JSON.parse(storage.getItem(KEY) as string) as Record<string, unknown>;
+  envelope.savedAt = savedAt;
+  storage.setItem(KEY, JSON.stringify(envelope));
+}
+
 // Roda `mutate` DEPOIS da n-ésima chamada real de `method`: a mutação física
 // acontece dentro da janela do protocolo, com o adapter de verdade. Nada aqui
 // simula retorno de erro.
@@ -438,6 +463,142 @@ function breakMethod<T extends object>(target: T, method: keyof T & string, erro
       return async () => { throw error(); };
     },
   }) as T;
+}
+
+// Fault injection ABA: muda o armazenamento ANTES da n-ésima chamada real de
+// `method` e o devolve DEPOIS que ela retorna. É a corrida H1 → H2 → H1 que a
+// auditoria comprovou: os dois diagnósticos veem H1, a leitura do meio recebe
+// H2, e nada no estado administrativo em volta denuncia a diferença.
+function aroundCall<T extends object>(
+  target: T,
+  method: keyof T & string,
+  nth: number,
+  before: () => Promise<void>,
+  after: () => Promise<void>,
+): T {
+  let calls = 0;
+  return new Proxy(target, {
+    get(object, prop, receiver) {
+      const value = Reflect.get(object, prop, receiver);
+      if (prop !== method || typeof value !== 'function') {
+        return typeof value === 'function' ? value.bind(object) : value;
+      }
+      return async (...args: unknown[]) => {
+        calls += 1;
+        const mine = calls === nth;
+        if (mine) await before();
+        const result = await (value as (...a: unknown[]) => Promise<unknown>).apply(object, args);
+        if (mine) await after();
+        return result;
+      };
+    },
+  }) as T;
+}
+
+// Restaura TODOS os stores byte a byte a partir de um `capturePhysicalState`.
+// Todas as requisições são emitidas na mesma volta do laço de eventos, como
+// `stageGeneration` faz, para que a transação não feche no meio.
+async function restoreStores(
+  factory: IDBFactory,
+  name: string,
+  stores: Record<string, unknown[]>,
+): Promise<void> {
+  const database = await openDatabase(factory, name);
+  const storeNames = Array.from(database.objectStoreNames);
+  const transaction = database.transaction(storeNames, 'readwrite');
+  const completed = transactionResult(transaction);
+  const writes: Promise<unknown>[] = [];
+  for (const storeName of storeNames) {
+    const store = transaction.objectStore(storeName);
+    writes.push(requestResult(store.clear()));
+    for (const record of stores[storeName] ?? []) {
+      writes.push(requestResult(store.put(record as never)));
+    }
+  }
+  await Promise.all(writes);
+  await completed;
+  database.close();
+}
+
+// Reescreve a geração ATIVA com outro conteúdo, mantendo-a integralmente
+// válida: registros, digests por registro e orderedDigest do manifest são
+// recalculados juntos. Sem isso o H2 seria inválido e a exportação falharia
+// pelo motivo errado — `administration-conflicted`, não a corrida.
+async function writeGenerationSessions(
+  harness: Harness,
+  sessions: WorkoutSession[],
+  manifestOverrides: Partial<HistoryGenerationManifest> = {},
+): Promise<void> {
+  const { factory, name, generationId } = harness;
+  const digests = await digestWorkoutSessions(sessions);
+  const orderedDigest = sessions.length === 0
+    ? EMPTY_GENERATION_DIGEST
+    : await computeOrderedDigestFromSessionDigests(digests);
+  const current = await readManifest(factory, name, generationId);
+  const existing = (await readHistoryRecords(factory, name))
+    .filter((record) => record.generationId === generationId);
+
+  await withStore(factory, name, WORKOUT_HISTORY_STORE, 'readwrite', async (transaction) => {
+    const store = transaction.objectStore(WORKOUT_HISTORY_STORE);
+    const writes: Promise<unknown>[] = [];
+    for (const record of existing) {
+      writes.push(requestResult(store.delete([record.generationId, record.order])));
+    }
+    sessions.forEach((session, order) => {
+      writes.push(requestResult(store.put({
+        generationId,
+        sessionId: session.id,
+        order,
+        session,
+        digest: digests[order],
+      })));
+    });
+    await Promise.all(writes);
+  });
+
+  await putManifest(factory, name, {
+    ...current,
+    generationId,
+    sessionCount: sessions.length,
+    orderedDigest,
+    verified: true,
+    ...manifestOverrides,
+  });
+}
+
+// Registra o que a captura REALMENTE observou. O `inspect` interno de
+// `readVerifiedAdministrationGeneration` roda no runtime de verdade, então o log
+// contém exatamente os dois diagnósticos do protocolo (A e B) e a leitura
+// intermediária.
+interface CaptureLog {
+  snapshots: StorageAdministrationSnapshot[];
+  readings: VerifiedHistoryGeneration[];
+}
+
+function recordingRuntime(runtime: LogicalBackupRuntime, log: CaptureLog): LogicalBackupRuntime {
+  return {
+    async inspectStorageAdministration() {
+      const snapshot = await runtime.inspectStorageAdministration();
+      log.snapshots.push(snapshot);
+      return snapshot;
+    },
+    async readVerifiedAdministrationGeneration(generationId: string) {
+      const verified = await runtime.readVerifiedAdministrationGeneration(generationId);
+      log.readings.push(verified);
+      return verified;
+    },
+  };
+}
+
+function verifiedGenerationOf(snapshot: StorageAdministrationSnapshot): {
+  manifest: HistoryGenerationManifest;
+  sessions: WorkoutSession[];
+} {
+  const integrity = snapshot.activeGenerationIntegrity;
+  if (integrity === null || integrity.status !== 'verified') {
+    throw new Error('o diagnóstico não trouxe uma geração ativa verificada');
+  }
+  return { manifest: integrity.manifest, sessions: integrity.sessions };
 }
 
 function runtimeOver(harness: Harness, adapter: unknown): LogicalBackupRuntime {
@@ -1593,5 +1754,1220 @@ describe('backup lógico v2 — serialização canônica', () => {
       expect((error as Error).message).toContain('payload.weightHistory[0].value');
       expect((error as Error).message).not.toContain('2026-07-01');
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CORRIDA ABA — H1 → H2 → H1 (corretivo 046, PARTE 10)
+// ---------------------------------------------------------------------------
+//
+// A auditoria provou que comparar apenas os dois diagnósticos que cercam a
+// leitura verificada não fecha nada: se o armazenamento sai de H1, passa por H2
+// e VOLTA byte a byte para H1, os dois diagnósticos são idênticos — mesmo
+// fingerprint, mesmo core, mesma geração — e mesmo assim a leitura do meio
+// carregou H2. Cada cenário abaixo é fault injection física real: o IndexedDB é
+// reescrito de verdade, com manifest e digests coerentes, e depois devolvido ao
+// estado exato de antes.
+
+interface AbaScenario {
+  name: string;
+  sessions: WorkoutSession[];
+  // Falso quando a mutação não muda o PAYLOAD lógico (o manifest é físico): o
+  // arquivo seria o mesmo, mas a geração verificada descrita pelos diagnósticos
+  // não é a mesma que a leitura intermediária descreveu.
+  logicalContentChanges: boolean;
+  apply: (harness: Harness) => Promise<void>;
+  proveMutation?: (harness: Harness, digestsBefore: (string | null)[]) => Promise<void>;
+}
+
+async function recordDigestsOf(harness: Harness): Promise<(string | null)[]> {
+  return (await readHistoryRecords(harness.factory, harness.name))
+    .filter((record) => record.generationId === harness.generationId)
+    .sort((left, right) => left.order - right.order)
+    .map((record) => record.digest ?? null);
+}
+
+const H1_SESSIONS = [makeSession(2), makeSession(1)];
+
+const ABA_SCENARIOS: AbaScenario[] = [
+  {
+    name: '1. ids de sessão diferentes',
+    sessions: H1_SESSIONS,
+    logicalContentChanges: true,
+    apply: (harness) => writeGenerationSessions(harness, [makeSession(12), makeSession(11)]),
+  },
+  {
+    name: '2. mesmos ids, valores diferentes',
+    sessions: H1_SESSIONS,
+    logicalContentChanges: true,
+    apply: (harness) => writeGenerationSessions(harness, [
+      makeSession(2, { calories: 999 }),
+      makeSession(1, { calories: 888 }),
+    ]),
+  },
+  {
+    name: '3. mesma contagem e mesmos ids, ordem diferente',
+    sessions: H1_SESSIONS,
+    logicalContentChanges: true,
+    apply: (harness) => writeGenerationSessions(harness, [makeSession(1), makeSession(2)]),
+  },
+  {
+    name: '4. manifest M1 → M2 → M1',
+    sessions: H1_SESSIONS,
+    logicalContentChanges: false,
+    apply: (harness) => writeGenerationSessions(harness, H1_SESSIONS, {
+      updatedAt: '2027-01-01T00:00:00.000Z',
+    }),
+  },
+  {
+    name: '5. recordDigest D1 → D2 → D1',
+    sessions: H1_SESSIONS,
+    logicalContentChanges: true,
+    apply: (harness) => writeGenerationSessions(harness, [
+      makeSession(2, { totalVolume: 77_777 }),
+      makeSession(1),
+    ]),
+    proveMutation: async (harness, digestsBefore) => {
+      const digestsDuring = await recordDigestsOf(harness);
+      expect(digestsDuring[0]).not.toBe(digestsBefore[0]);
+      expect(digestsDuring[0]).not.toBeNull();
+    },
+  },
+  {
+    name: '6. geração vazia → uma sessão → vazia',
+    sessions: [],
+    logicalContentChanges: true,
+    apply: (harness) => writeGenerationSessions(harness, [makeSession(5)]),
+  },
+  {
+    name: '7. geração com sessão → vazia → sessão original',
+    sessions: [makeSession(1)],
+    logicalContentChanges: true,
+    apply: (harness) => writeGenerationSessions(harness, []),
+  },
+  {
+    name: '8. conteúdo alterado com orderedDigest válido',
+    sessions: H1_SESSIONS,
+    logicalContentChanges: true,
+    apply: (harness) => {
+      const original = makeSession(2);
+      const exercise = original.exercises[0];
+      return writeGenerationSessions(harness, [
+        { ...original, exercises: [{ ...exercise, sets: [{ ...exercise.sets[0], weight: 137.5 }] }] },
+        makeSession(1),
+      ]);
+    },
+  },
+  {
+    name: '9. createdAt e updatedAt do manifest alterados',
+    sessions: H1_SESSIONS,
+    logicalContentChanges: false,
+    apply: (harness) => writeGenerationSessions(harness, H1_SESSIONS, {
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-06-30T23:59:59.999Z',
+    }),
+  },
+];
+
+// Protocolo PRÉ-corretivo, reproduzido fielmente: só as comparações entre os
+// diagnósticos A e B, SEM amarrar a leitura intermediária às gerações que eles
+// verificaram. Existe para provar que era exatamente essa comparação que
+// faltava — sem precisar mutilar o módulo de produção nem deixar `skip` no
+// commit.
+type LegacyCapture =
+  | { status: 'ok'; state: PersistedState }
+  | { status: 'failed'; reason: string };
+
+async function legacyCaptureWithoutGenerationBinding(
+  runtime: LogicalBackupRuntime,
+): Promise<LegacyCapture> {
+  const first = await runtime.inspectStorageAdministration();
+  if (first.state.status !== 'ready') return { status: 'failed', reason: first.state.status };
+  const activeGenerationId = first.activeGenerationId;
+  const coreRawObserved = first.coreRawObserved;
+  if (!activeGenerationId || coreRawObserved === null || first.administrationFingerprint === null) {
+    return { status: 'failed', reason: 'invalid-core' };
+  }
+  if (first.pendingCompletionReceiptCount !== 0 || first.unsettledOperations.length !== 0) {
+    return { status: 'failed', reason: 'administration-conflicted' };
+  }
+  const parsed = parsePhysicalEnvelope(coreRawObserved);
+  if (parsed.status !== 'v2') return { status: 'failed', reason: 'invalid-core' };
+
+  const verified = await runtime.readVerifiedAdministrationGeneration(activeGenerationId);
+
+  const second = await runtime.inspectStorageAdministration();
+  if (second.state.status !== 'ready') {
+    return { status: 'failed', reason: 'snapshot-changed-during-export' };
+  }
+  const changed = second.coreRawObserved !== coreRawObserved
+    || second.activeGenerationId !== activeGenerationId
+    || second.administrationFingerprint !== first.administrationFingerprint
+    || second.physicalStorageVersion !== first.physicalStorageVersion
+    || second.unsettledOperations.length !== 0
+    || second.pendingCompletionReceiptCount !== 0;
+  if (changed) return { status: 'failed', reason: 'snapshot-changed-during-export' };
+
+  return {
+    status: 'ok',
+    state: combineCoreWithHistory(parsed.envelope.data, [...verified.sessions]),
+  };
+}
+
+// Monta a corrida ABA de um cenário sobre um harness já restaurado em H1.
+function abaRuntime(scenario: AbaScenario, harness: Harness, h1: PhysicalState): LogicalBackupRuntime {
+  return runtimeOver(harness, aroundCall(
+    harness.adapter,
+    'readVerifiedHistoryGeneration',
+    1,
+    () => scenario.apply(harness),
+    () => restoreStores(harness.factory, harness.name, h1.stores),
+  ));
+}
+
+describe('backup lógico v2 — corrida ABA (H1 → H2 → H1)', () => {
+  it.each(ABA_SCENARIOS)('$name é recusada com snapshot-changed-during-export', async (scenario) => {
+    const harness = await createReadyHarness({ sessions: scenario.sessions });
+    const h1 = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+    const digestsBefore = await recordDigestsOf(harness);
+
+    // H1 é individualmente válido.
+    const exportedH1 = await exportOk(harness.runtime);
+    const h1History = serializeWorkoutHistoryDeterministically(exportedH1.backup.payload.workoutHistory);
+
+    // H2 também é — e é mesmo um estado físico diferente.
+    await scenario.apply(harness);
+    const h2 = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+    expect(JSON.stringify(h2.stores)).not.toBe(JSON.stringify(h1.stores));
+    if (scenario.proveMutation) await scenario.proveMutation(harness, digestsBefore);
+    const exportedH2 = await exportOk(harness.runtime);
+    const h2History = serializeWorkoutHistoryDeterministically(exportedH2.backup.payload.workoutHistory);
+    if (scenario.logicalContentChanges) {
+      expect(exportedH2.backup.payloadDigest).not.toBe(exportedH1.backup.payloadDigest);
+      expect(h2History).not.toBe(h1History);
+    } else {
+      expect(exportedH2.backup.payloadDigest).toBe(exportedH1.backup.payloadDigest);
+    }
+
+    // Volta byte a byte para H1.
+    await restoreStores(harness.factory, harness.name, h1.stores);
+    expectUnchanged(h1, await capturePhysicalState(harness.factory, harness.name, harness.storage));
+
+    const log: CaptureLog = { snapshots: [], readings: [] };
+    const racing = recordingRuntime(abaRuntime(scenario, harness, h1), log);
+    const result = await createLogicalStorageExportV2({ runtime: racing });
+
+    expect(result).toMatchObject({ ok: false, reason: 'snapshot-changed-during-export' });
+    expect(Object.prototype.hasOwnProperty.call(result, 'content')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(result, 'backup')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(result, 'preview')).toBe(false);
+
+    // A e B observaram H1, com fingerprints iguais...
+    expect(log.snapshots).toHaveLength(2);
+    const [a, b] = log.snapshots;
+    expect(a.state.status).toBe('ready');
+    expect(b.state.status).toBe('ready');
+    expect(a.administrationFingerprint).toBe(b.administrationFingerprint);
+    expect(a.coreRawObserved).toBe(b.coreRawObserved);
+    expect(a.activeGenerationId).toBe(b.activeGenerationId);
+    const observedA = verifiedGenerationOf(a);
+    const observedB = verifiedGenerationOf(b);
+    expect(serializeWorkoutHistoryDeterministically(observedA.sessions)).toBe(h1History);
+    expect(serializeWorkoutHistoryDeterministically(observedB.sessions)).toBe(h1History);
+    expect(JSON.stringify(observedB.manifest)).toBe(JSON.stringify(observedA.manifest));
+
+    // ...enquanto a leitura intermediária devolveu H2.
+    expect(log.readings).toHaveLength(1);
+    const reading = log.readings[0];
+    const readingHistory = serializeWorkoutHistoryDeterministically(reading.sessions);
+    const readingDiffers = readingHistory !== h1History
+      || JSON.stringify(reading.manifest) !== JSON.stringify(observedA.manifest);
+    expect(readingDiffers).toBe(true);
+    if (scenario.logicalContentChanges) expect(readingHistory).toBe(h2History);
+
+    // Nenhuma escrita e nenhuma mutação adicional vieram da exportação.
+    expectUnchanged(h1, await capturePhysicalState(harness.factory, harness.name, harness.storage));
+    expect(await harness.adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
+    expect(await harness.adapter.readPendingCompletionReceipts()).toEqual([]);
+  }, 60_000);
+
+  it('sem o vínculo da leitura intermediária, todas as corridas ABA passariam', async () => {
+    for (const scenario of ABA_SCENARIOS) {
+      const harness = await createReadyHarness({ sessions: scenario.sessions });
+      const h1 = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+      const exportedH1 = await exportOk(harness.runtime);
+      const h1History = serializeWorkoutHistoryDeterministically(exportedH1.backup.payload.workoutHistory);
+
+      await scenario.apply(harness);
+      const exportedH2 = await exportOk(harness.runtime);
+      const h2History = serializeWorkoutHistoryDeterministically(exportedH2.backup.payload.workoutHistory);
+      await restoreStores(harness.factory, harness.name, h1.stores);
+
+      // Protocolo antigo: aprova, e nos cenários de conteúdo entrega justamente
+      // o H2 que já não existe mais.
+      const legacy = await legacyCaptureWithoutGenerationBinding(abaRuntime(scenario, harness, h1));
+      expect(legacy.status, `o protocolo antigo recusou "${scenario.name}"`).toBe('ok');
+      if (legacy.status === 'ok' && scenario.logicalContentChanges) {
+        const captured = serializeWorkoutHistoryDeterministically(legacy.state.workoutHistory);
+        expect(captured).toBe(h2History);
+        expect(captured).not.toBe(h1History);
+      }
+
+      // Protocolo corrigido: recusa a mesma corrida.
+      await restoreStores(harness.factory, harness.name, h1.stores);
+      const corrected = await captureLogicalBackupSnapshot(abaRuntime(scenario, harness, h1));
+      expect(corrected.status, `o protocolo corrigido aprovou "${scenario.name}"`).toBe('failed');
+      if (corrected.status === 'failed') {
+        expect(corrected.reason).toBe('snapshot-changed-during-export');
+      }
+    }
+  }, 120_000);
+
+  it('a captura exige geração verificada íntegra nos dois diagnósticos', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const blind: LogicalBackupRuntime = {
+      async inspectStorageAdministration() {
+        const snapshot = await harness.runtime.inspectStorageAdministration();
+        return { ...snapshot, activeGenerationIntegrity: null };
+      },
+      readVerifiedAdministrationGeneration: (id) => (
+        harness.runtime.readVerifiedAdministrationGeneration(id)
+      ),
+    };
+    expect(await createLogicalStorageExportV2({ runtime: blind }))
+      .toMatchObject({ ok: false, reason: 'invalid-core' });
+  });
+
+  it('a geração verificada precisa ser a geração ativa declarada', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const mismatched: LogicalBackupRuntime = {
+      async inspectStorageAdministration() {
+        const snapshot = await harness.runtime.inspectStorageAdministration();
+        const integrity = snapshot.activeGenerationIntegrity;
+        if (integrity === null || integrity.status !== 'verified') return snapshot;
+        return {
+          ...snapshot,
+          activeGenerationIntegrity: {
+            ...integrity,
+            manifest: { ...integrity.manifest, generationId: 'generation-fantasma' },
+          },
+        };
+      },
+      readVerifiedAdministrationGeneration: (id) => (
+        harness.runtime.readVerifiedAdministrationGeneration(id)
+      ),
+    };
+    expect(await createLogicalStorageExportV2({ runtime: mismatched }))
+      .toMatchObject({ ok: false, reason: 'invalid-core' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CONTRATO FECHADO — envelope externo e raiz do payload (PARTES 2, 3 e 11)
+// ---------------------------------------------------------------------------
+
+function validEnvelopeObject(): Record<string, unknown> {
+  return {
+    format: 'gymflow-backup',
+    formatVersion: LOGICAL_BACKUP_FORMAT_VERSION,
+    logicalSchemaVersion: LOGICAL_BACKUP_SCHEMA_VERSION,
+    exportedAt: '2026-07-25T09:30:00.000Z',
+    sourcePhysicalStorageVersion: HYBRID_STORAGE_VERSION,
+    sourceSavedAt: '2026-07-24T12:00:00.000Z',
+    payloadDigest: `sha256:${'0'.repeat(64)}`,
+    payload: defaults(),
+  };
+}
+
+function rawPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return { ...(defaults() as unknown as Record<string, unknown>), ...overrides };
+}
+
+const UNKNOWN_EXTERNAL_KEY = 'campoExternoInventadoPeloArquivo';
+
+describe('backup lógico v2 — contrato externo fechado', () => {
+  it('o envelope válido tem exatamente as oito chaves do contrato', () => {
+    expect(LOGICAL_BACKUP_ENVELOPE_FIELDS).toHaveLength(8);
+    expect(Object.keys(validEnvelopeObject()).sort()).toEqual([...LOGICAL_BACKUP_ENVELOPE_FIELDS].sort());
+    expect(validateLogicalBackupEnvelopeContract(validEnvelopeObject())).toEqual({ status: 'valid' });
+  });
+
+  it('campo externo extra é recusado sem citar o nome do campo', async () => {
+    const envelope = validEnvelopeObject();
+    envelope[UNKNOWN_EXTERNAL_KEY] = 'vazamento';
+    expect(validateLogicalBackupEnvelopeContract(envelope))
+      .toMatchObject({ status: 'invalid', violation: 'unknown-field' });
+
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const exported = await exportOk(harness.runtime);
+    const parsed = JSON.parse(exported.content) as Record<string, unknown>;
+    parsed[UNKNOWN_EXTERNAL_KEY] = 'vazamento';
+    const inspection = await inspectLogicalStorageBackupV2(JSON.stringify(parsed));
+    expect(inspection).toMatchObject({ ok: false, reason: 'invalid-format' });
+    if (!inspection.ok) expect(inspection.error).not.toContain(UNKNOWN_EXTERNAL_KEY);
+  });
+
+  it('campo externo obrigatório ausente é recusado', async () => {
+    for (const field of LOGICAL_BACKUP_ENVELOPE_FIELDS) {
+      const envelope = validEnvelopeObject();
+      delete envelope[field];
+      expect(validateLogicalBackupEnvelopeContract(envelope))
+        .toEqual({ status: 'invalid', violation: 'missing-field', field });
+    }
+
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const exported = await exportOk(harness.runtime);
+    for (const field of LOGICAL_BACKUP_ENVELOPE_FIELDS) {
+      const parsed = JSON.parse(exported.content) as Record<string, unknown>;
+      delete parsed[field];
+      const inspection = await inspectLogicalStorageBackupV2(JSON.stringify(parsed));
+      expect(inspection.ok).toBe(false);
+      if (!inspection.ok) {
+        expect(['invalid-format', 'unsupported-version']).toContain(inspection.reason);
+      }
+    }
+  });
+
+  it('símbolo externo é recusado', () => {
+    const envelope = validEnvelopeObject();
+    (envelope as Record<symbol, unknown>)[Symbol('externo')] = 'vazamento';
+    expect(validateLogicalBackupEnvelopeContract(envelope))
+      .toMatchObject({ status: 'invalid', violation: 'symbol-key' });
+  });
+
+  it('propriedade externa não enumerável é recusada', () => {
+    const envelope = validEnvelopeObject();
+    Object.defineProperty(envelope, 'payloadDigest', {
+      value: `sha256:${'0'.repeat(64)}`,
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    });
+    expect(validateLogicalBackupEnvelopeContract(envelope))
+      .toMatchObject({ status: 'invalid', violation: 'non-enumerable-field', field: 'payloadDigest' });
+  });
+
+  it('getter e setter externos são recusados sem serem executados', () => {
+    let reads = 0;
+    const withGetter = validEnvelopeObject();
+    Object.defineProperty(withGetter, 'payload', {
+      get() { reads += 1; return defaults(); },
+      enumerable: true,
+      configurable: true,
+    });
+    expect(validateLogicalBackupEnvelopeContract(withGetter))
+      .toMatchObject({ status: 'invalid', violation: 'accessor-field', field: 'payload' });
+    expect(reads).toBe(0);
+
+    const withSetter = validEnvelopeObject();
+    Object.defineProperty(withSetter, 'sourceSavedAt', {
+      set() { /* nunca chamado */ },
+      enumerable: true,
+      configurable: true,
+    });
+    expect(validateLogicalBackupEnvelopeContract(withSetter))
+      .toMatchObject({ status: 'invalid', violation: 'accessor-field', field: 'sourceSavedAt' });
+  });
+
+  it('prototype externo customizado e valores não-objeto são recusados', () => {
+    const custom = Object.assign(Object.create({ herdado: true }) as object, validEnvelopeObject());
+    expect(validateLogicalBackupEnvelopeContract(custom))
+      .toMatchObject({ status: 'invalid', violation: 'custom-prototype' });
+
+    const nullPrototype = Object.assign(Object.create(null) as object, validEnvelopeObject());
+    expect(validateLogicalBackupEnvelopeContract(nullPrototype))
+      .toMatchObject({ status: 'invalid', violation: 'custom-prototype' });
+
+    for (const value of [null, 42, 'texto', [], new Date()]) {
+      expect(validateLogicalBackupEnvelopeContract(value).status).toBe('invalid');
+    }
+  });
+
+  it('chave perigosa externa é recusada', () => {
+    for (const key of ['__proto__', 'constructor', 'prototype']) {
+      const envelope = validEnvelopeObject();
+      Object.defineProperty(envelope, key, {
+        value: { polluted: true },
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+      expect(validateLogicalBackupEnvelopeContract(envelope))
+        .toMatchObject({ status: 'invalid', violation: 'dangerous-key' });
+    }
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});
+
+describe('backup lógico v2 — raiz do payload fechada', () => {
+  it('exatamente os 16 campos lógicos são aceitos', () => {
+    const validation = validateLogicalBackupPayload(rawPayload());
+    expect(validation.status).toBe('valid');
+    if (validation.status === 'valid') expect(Object.keys(validation.payload)).toHaveLength(16);
+  });
+
+  it('campo raiz desconhecido é recusado sem citar o nome', async () => {
+    const unknownField = 'campoDeRaizInventado';
+    const validation = validateLogicalBackupPayload(rawPayload({ [unknownField]: 'vazamento' }));
+    expect(validation).toMatchObject({ status: 'invalid', reason: 'invalid-payload' });
+    if (validation.status === 'invalid') expect(validation.detail).not.toContain(unknownField);
+
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const exported = await exportOk(harness.runtime);
+    const parsed = JSON.parse(exported.content) as { payload: Record<string, unknown> };
+    parsed.payload[unknownField] = 'vazamento';
+    const inspection = await inspectLogicalStorageBackupV2(JSON.stringify(parsed));
+    expect(inspection).toMatchObject({ ok: false, reason: 'invalid-payload' });
+    if (!inspection.ok) expect(inspection.error).not.toContain(unknownField);
+  });
+
+  it('campo físico na raiz continua sendo nomeado, porque o nome é constante', () => {
+    for (const field of ['historyStorage', 'generationId', 'recordDigests', 'previousCoreRaw']) {
+      const validation = validateLogicalBackupPayload(rawPayload({ [field]: 'vazamento' }));
+      expect(validation).toMatchObject({ status: 'invalid', reason: 'invalid-payload' });
+      if (validation.status === 'invalid') expect(validation.detail).toContain(field);
+    }
+  });
+
+  it('campo obrigatório ausente é recusado nome a nome', () => {
+    for (const field of Object.keys(defaults())) {
+      const payload = rawPayload();
+      delete payload[field];
+      const validation = validateLogicalBackupPayload(payload);
+      expect(validation).toMatchObject({ status: 'invalid', reason: 'invalid-payload' });
+      if (validation.status === 'invalid') expect(validation.detail).toContain(field);
+    }
+  });
+
+  it('propriedade simbólica e não enumerável na raiz do payload são recusadas', () => {
+    const withSymbol = rawPayload();
+    (withSymbol as Record<symbol, unknown>)[Symbol('raiz')] = 1;
+    expect(validateLogicalBackupPayload(withSymbol).status).toBe('invalid');
+
+    const withHidden = rawPayload();
+    Object.defineProperty(withHidden, 'nutrition', {
+      value: { calories: 0, protein: 0, carbs: 0, fat: 0, water: 0 },
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    });
+    expect(validateLogicalBackupPayload(withHidden).status).toBe('invalid');
+  });
+
+  it('strings funcionais com nomes físicos continuam preservadas', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    patchCore(harness.storage, {
+      restTimerLabel: 'Descanso — anotei generationId no caderno',
+      user: { ...PROFILE, preference: 'manifest de treino pesado' },
+      customPrograms: [{
+        ...RICH_CORE.customPrograms[0],
+        description: 'recibo (receipt) do historyStorage antigo',
+      }],
+    });
+    const result = await exportOk(harness.runtime);
+    expect(result.backup.payload.restTimerLabel).toBe('Descanso — anotei generationId no caderno');
+    expect(result.backup.payload.user?.preference).toBe('manifest de treino pesado');
+    expect(result.backup.payload.customPrograms[0].description)
+      .toBe('recibo (receipt) do historyStorage antigo');
+
+    const inspection = await inspectLogicalStorageBackupV2(result.content);
+    expect(inspection.ok).toBe(true);
+    if (!inspection.ok) return;
+    expect(inspection.backup.payload.restTimerLabel).toBe('Descanso — anotei generationId no caderno');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ÁRVORE JSON ESTRITA — nada de normalização silenciosa (PARTES 4 e 12)
+// ---------------------------------------------------------------------------
+
+const NON_JSON_VALUES: { name: string; make: () => unknown }[] = [
+  { name: 'undefined', make: () => undefined },
+  { name: 'function', make: () => () => 'x' },
+  { name: 'symbol', make: () => Symbol('privado') },
+  { name: 'BigInt', make: () => BigInt(9) },
+  { name: 'NaN', make: () => Number.NaN },
+  { name: 'Infinity', make: () => Number.POSITIVE_INFINITY },
+  { name: '-Infinity', make: () => Number.NEGATIVE_INFINITY },
+  { name: 'Date', make: () => new Date('2026-07-25T09:30:00.000Z') },
+  { name: 'Map', make: () => new Map([['a', 1]]) },
+  { name: 'Set', make: () => new Set([1]) },
+  { name: 'ArrayBuffer', make: () => new ArrayBuffer(8) },
+  { name: 'Uint8Array', make: () => new Uint8Array([1, 2, 3]) },
+  { name: 'RegExp', make: () => /abc/ },
+  { name: 'Promise', make: () => Promise.resolve(1) },
+  { name: 'WeakMap', make: () => new WeakMap() },
+  { name: 'WeakSet', make: () => new WeakSet() },
+  { name: 'objeto com prototype customizado', make: () => Object.create({ herdado: true }) },
+];
+
+const INJECTION_POINTS: { name: string; inject: (value: unknown) => Record<string, unknown> }[] = [
+  { name: 'user.name', inject: (value) => rawPayload({ user: { ...PROFILE, name: value } }) },
+  {
+    name: 'activeWorkout.calories',
+    inject: (value) => rawPayload({ activeWorkout: { ...makeSession(50), calories: value } }),
+  },
+  {
+    name: 'workoutHistory[0].duration',
+    inject: (value) => rawPayload({ workoutHistory: [{ ...makeSession(1), duration: value }] }),
+  },
+  {
+    name: 'workoutHistory[0].exercises[0].sets[0].weight',
+    inject: (value) => {
+      const session = makeSession(1);
+      const exercise = session.exercises[0];
+      return rawPayload({
+        workoutHistory: [{
+          ...session,
+          exercises: [{ ...exercise, sets: [{ ...exercise.sets[0], weight: value }] }],
+        }],
+      });
+    },
+  },
+  {
+    name: 'nutrition.protein',
+    inject: (value) => rawPayload({
+      nutrition: { calories: 0, protein: value, carbs: 0, fat: 0, water: 0 },
+    }),
+  },
+  {
+    name: 'customPrograms[0].description',
+    inject: (value) => rawPayload({
+      customPrograms: [{ ...RICH_CORE.customPrograms[0], description: value }],
+    }),
+  },
+];
+
+const NON_JSON_MATRIX = NON_JSON_VALUES.flatMap((value) => (
+  INJECTION_POINTS.map((point) => ({ value: value.name, point: point.name, value_: value, point_: point }))
+));
+
+describe('backup lógico v2 — valores que não são JSON', () => {
+  it.each(NON_JSON_MATRIX)('$value em $point é recusado sem normalização', ({ value_, point_ }) => {
+    const payload = point_.inject(value_.make());
+    const validation = validateLogicalBackupPayload(payload);
+    expect(validation).toMatchObject({ status: 'invalid', reason: 'invalid-payload' });
+    expect(() => serializeLogicalPayloadCanonically(payload as unknown as PersistedState)).toThrow();
+    expect(validateLogicalJsonTree(payload).status).toBe('invalid');
+  });
+
+  it('o que JSON.stringify normalizaria em silêncio é recusado explicitamente', () => {
+    const comDate = rawPayload({ user: { ...PROFILE, name: new Date('2026-07-25T09:30:00.000Z') } });
+    const normalizado = JSON.parse(JSON.stringify(comDate)) as { user: { name: unknown } };
+    expect(typeof normalizado.user.name).toBe('string');
+    expect(validateLogicalBackupPayload(comDate).status).toBe('invalid');
+
+    const comMap = rawPayload({ nutrition: { calories: new Map(), protein: 0, carbs: 0, fat: 0, water: 0 } });
+    expect((JSON.parse(JSON.stringify(comMap)) as { nutrition: { calories: unknown } }).nutrition.calories)
+      .toEqual({});
+    expect(validateLogicalBackupPayload(comMap).status).toBe('invalid');
+
+    const comUndefined = rawPayload({ user: { ...PROFILE, name: undefined } });
+    expect(Object.prototype.hasOwnProperty.call(
+      JSON.parse(JSON.stringify(comUndefined)) as { user: object },
+      'name',
+    )).toBe(false);
+    expect(validateLogicalBackupPayload(comUndefined).status).toBe('invalid');
+
+    const comTyped = rawPayload({ favoriteExercises: new Uint8Array([1, 2]) });
+    expect(JSON.parse(JSON.stringify(comTyped)) as { favoriteExercises: unknown })
+      .toMatchObject({ favoriteExercises: { 0: 1, 1: 2 } });
+    expect(validateLogicalBackupPayload(comTyped).status).toBe('invalid');
+  });
+
+  it('array esparso é recusado em mais de um nível', () => {
+    const sparse = (): unknown[] => {
+      const list: unknown[] = [];
+      list[0] = 'a';
+      list.length = 3;
+      return list;
+    };
+    expect(validateLogicalBackupPayload(rawPayload({ favoriteExercises: sparse() })).status)
+      .toBe('invalid');
+    const session = makeSession(1);
+    expect(validateLogicalBackupPayload(rawPayload({
+      workoutHistory: [{ ...session, prsDetected: sparse() }],
+    })).status).toBe('invalid');
+  });
+
+  it('array com propriedade própria extra é recusado', () => {
+    const list: unknown[] = ['exercise-1'];
+    Object.defineProperty(list, 'extra', {
+      value: 'invisível para JSON.stringify',
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+    expect(JSON.stringify(list)).toBe('["exercise-1"]');
+    expect(validateLogicalBackupPayload(rawPayload({ favoriteExercises: list })).status).toBe('invalid');
+  });
+
+  it('propriedade não enumerável aninhada é recusada em mais de um nível', () => {
+    const hidden = (base: Record<string, unknown>): Record<string, unknown> => {
+      Object.defineProperty(base, 'oculto', {
+        value: 'escondido',
+        enumerable: false,
+        writable: true,
+        configurable: true,
+      });
+      return base;
+    };
+    expect(validateLogicalBackupPayload(rawPayload({ user: hidden({ ...PROFILE }) })).status)
+      .toBe('invalid');
+    expect(validateLogicalBackupPayload(rawPayload({
+      nutrition: hidden({ calories: 0, protein: 0, carbs: 0, fat: 0, water: 0 }),
+    })).status).toBe('invalid');
+  });
+
+  it('getter e setter aninhados são recusados sem serem executados', () => {
+    let reads = 0;
+    const user = { ...PROFILE } as Record<string, unknown>;
+    Object.defineProperty(user, 'name', {
+      get() { reads += 1; return 'nunca lido'; },
+      enumerable: true,
+      configurable: true,
+    });
+    expect(validateLogicalBackupPayload(rawPayload({ user })).status).toBe('invalid');
+    expect(reads).toBe(0);
+
+    const nutrition: Record<string, unknown> = { calories: 0, protein: 0, carbs: 0, fat: 0, water: 0 };
+    Object.defineProperty(nutrition, 'water', {
+      set() { /* nunca chamado */ },
+      enumerable: true,
+      configurable: true,
+    });
+    expect(validateLogicalBackupPayload(rawPayload({ nutrition })).status).toBe('invalid');
+  });
+
+  it('propriedade simbólica aninhada é recusada', () => {
+    const user = { ...PROFILE } as Record<string | symbol, unknown>;
+    user[Symbol('privado')] = 1;
+    expect(validateLogicalBackupPayload(rawPayload({ user })).status).toBe('invalid');
+  });
+
+  it('referência circular é recusada em objeto e em array', () => {
+    const user = { ...PROFILE } as Record<string, unknown>;
+    user.returnToTraining = user;
+    const circularObject = validateLogicalJsonTree(rawPayload({ user }));
+    expect(circularObject).toMatchObject({ status: 'invalid', rejection: 'circular-reference' });
+    expect(validateLogicalBackupPayload(rawPayload({ user })).status).toBe('invalid');
+
+    const list: unknown[] = [];
+    list.push(list);
+    expect(validateLogicalJsonTree(rawPayload({ favoriteExercises: list })))
+      .toMatchObject({ status: 'invalid', rejection: 'circular-reference' });
+  });
+
+  it('referência compartilhada sem ciclo continua válida', () => {
+    const shared = { date: '2026-07-01', value: 82.4 };
+    const validation = validateLogicalBackupPayload(rawPayload({ weightHistory: [shared, shared] }));
+    expect(validation.status).toBe('valid');
+  });
+
+  it('a validação não modifica a entrada e devolve uma cópia independente', () => {
+    const date = new Date('2026-07-25T09:30:00.000Z');
+    const hostile = rawPayload({ user: { ...PROFILE, name: date } });
+    expect(validateLogicalBackupPayload(hostile).status).toBe('invalid');
+    expect((hostile.user as Record<string, unknown>).name).toBe(date);
+
+    const source = rawPayload({ favoriteExercises: ['a'] });
+    const validation = validateLogicalBackupPayload(source);
+    expect(validation.status).toBe('valid');
+    if (validation.status !== 'valid') return;
+    validation.payload.favoriteExercises.push('b');
+    expect(source.favoriteExercises).toEqual(['a']);
+    expect(validation.payload).not.toBe(source);
+  });
+
+  it('o caminho do erro só usa nomes conhecidos e índices', () => {
+    const session = makeSession(1);
+    const exercise = session.exercises[0];
+    const payload = rawPayload({
+      workoutHistory: [{
+        ...session,
+        exercises: [{ ...exercise, sets: [{ ...exercise.sets[0], weight: Number.NaN }] }],
+      }],
+    });
+    const tree = validateLogicalJsonTree(payload);
+    expect(tree).toMatchObject({
+      status: 'invalid',
+      rejection: 'non-finite-number',
+      path: 'payload.workoutHistory[0].exercises[0].sets[0].weight',
+    });
+
+    const secreto = 'nome-de-campo-que-e-conteudo-do-usuario';
+    const opaque = validateLogicalJsonTree(rawPayload({ user: { ...PROFILE, [secreto]: undefined } }));
+    expect(opaque.status).toBe('invalid');
+    if (opaque.status === 'invalid') {
+      expect(opaque.path).not.toContain(secreto);
+      expect(opaque.path).toBe('payload.user.<campo>');
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CHAVES PERIGOSAS RECURSIVAS (PARTES 5 e 13)
+// ---------------------------------------------------------------------------
+
+function withDangerousKey<T extends object>(target: T, key: string, value: unknown): T {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+  return target;
+}
+
+const DANGEROUS_KEY_NAMES = ['__proto__', 'prototype', 'constructor'];
+
+const DANGEROUS_LEVELS: { name: string; build: (key: string) => Record<string, unknown> }[] = [
+  { name: 'payload', build: (key) => withDangerousKey(rawPayload(), key, { polluted: true }) },
+  {
+    name: 'user',
+    build: (key) => rawPayload({ user: withDangerousKey({ ...PROFILE }, key, { polluted: true }) }),
+  },
+  {
+    name: 'activeWorkout',
+    build: (key) => rawPayload({
+      activeWorkout: withDangerousKey({ ...makeSession(50) }, key, { polluted: true }),
+    }),
+  },
+  {
+    name: 'sessão',
+    build: (key) => rawPayload({
+      workoutHistory: [withDangerousKey({ ...makeSession(1) }, key, { polluted: true })],
+    }),
+  },
+  {
+    name: 'exercise',
+    build: (key) => {
+      const session = makeSession(1);
+      return rawPayload({
+        workoutHistory: [{
+          ...session,
+          exercises: [withDangerousKey({ ...session.exercises[0] }, key, { polluted: true })],
+        }],
+      });
+    },
+  },
+  {
+    name: 'set',
+    build: (key) => {
+      const session = makeSession(1);
+      const exercise = session.exercises[0];
+      return rawPayload({
+        workoutHistory: [{
+          ...session,
+          exercises: [{
+            ...exercise,
+            sets: [withDangerousKey({ ...exercise.sets[0] }, key, { polluted: true })],
+          }],
+        }],
+      });
+    },
+  },
+  {
+    name: 'customProgram',
+    build: (key) => rawPayload({
+      customPrograms: [withDangerousKey({ ...RICH_CORE.customPrograms[0] }, key, { polluted: true })],
+    }),
+  },
+  {
+    name: 'nutrition',
+    build: (key) => rawPayload({
+      nutrition: withDangerousKey(
+        { calories: 0, protein: 0, carbs: 0, fat: 0, water: 0 },
+        key,
+        { polluted: true },
+      ),
+    }),
+  },
+];
+
+const DANGEROUS_MATRIX = DANGEROUS_KEY_NAMES.flatMap((key) => (
+  DANGEROUS_LEVELS.map((level) => ({ key, level: level.name, build: level.build }))
+));
+
+describe('backup lógico v2 — chaves perigosas recursivas', () => {
+  it.each(DANGEROUS_MATRIX)('$key em $level é recusada', ({ key, build }) => {
+    const payload = build(key);
+    expect(validateLogicalBackupPayload(payload)).toMatchObject({
+      status: 'invalid',
+      reason: 'invalid-payload',
+    });
+    expect(() => serializeLogicalPayloadCanonically(payload as unknown as PersistedState)).toThrow();
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it('a chave perigosa no envelope externo é recusada em qualquer profundidade', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const exported = await exportOk(harness.runtime);
+    const poisoned = exported.content.replace(
+      '"payload":{',
+      '"payload":{"__proto__":{"polluted":true},',
+    );
+    expect(poisoned).not.toBe(exported.content);
+    expect(await inspectLogicalStorageBackupV2(poisoned))
+      .toMatchObject({ ok: false, reason: 'invalid-payload' });
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DATAS CANÔNICAS (PARTES 6 e 14)
+// ---------------------------------------------------------------------------
+
+const NON_CANONICAL_DATES = [
+  '2026-07-25',
+  '2026-07-25T09:30:00',
+  '2026-07-25T09:30:00Z',
+  '2026-07-25T09:30:00+03:00',
+  '2026-07-25T06:30:00.000+03:00',
+  '2026-02-30T00:00:00.000Z',
+  '2026-13-01T00:00:00.000Z',
+  'Sat, 25 Jul 2026 09:30:00 GMT',
+  '25/07/2026',
+  'ontem',
+  '',
+];
+
+describe('backup lógico v2 — datas canônicas', () => {
+  it('só o formato produzido por toISOString é aceito', () => {
+    expect(isCanonicalIsoInstant('2026-07-25T09:30:00.000Z')).toBe(true);
+    expect(isCanonicalIsoInstant(new Date().toISOString())).toBe(true);
+    for (const value of NON_CANONICAL_DATES) expect(isCanonicalIsoInstant(value)).toBe(false);
+    for (const value of [42, null, undefined, {}, new Date()]) {
+      expect(isCanonicalIsoInstant(value)).toBe(false);
+    }
+  });
+
+  it.each(NON_CANONICAL_DATES)('exportedAt "%s" é recusado na inspeção', async (value) => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const exported = await exportOk(harness.runtime);
+    const parsed = JSON.parse(exported.content) as Record<string, unknown>;
+    parsed.exportedAt = value;
+    expect(await inspectLogicalStorageBackupV2(JSON.stringify(parsed)))
+      .toMatchObject({ ok: false, reason: 'invalid-date' });
+  });
+
+  it.each(NON_CANONICAL_DATES)('sourceSavedAt "%s" é recusado na inspeção', async (value) => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const exported = await exportOk(harness.runtime);
+    const parsed = JSON.parse(exported.content) as Record<string, unknown>;
+    parsed.sourceSavedAt = value;
+    expect(await inspectLogicalStorageBackupV2(JSON.stringify(parsed)))
+      .toMatchObject({ ok: false, reason: 'invalid-date' });
+  });
+
+  it('now inválido falha sem produzir backup e sem escrever', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const before = await capturePhysicalState(harness.factory, harness.name, harness.storage);
+    const result = await createLogicalStorageExportV2({
+      runtime: harness.runtime,
+      now: new Date(Number.NaN),
+    });
+    expect(result).toMatchObject({ ok: false, reason: 'invalid-timestamp' });
+    expect(Object.prototype.hasOwnProperty.call(result, 'content')).toBe(false);
+    expectUnchanged(before, await capturePhysicalState(harness.factory, harness.name, harness.storage));
+  });
+
+  it('savedAt não canônico no core bloqueia a captura', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    patchEnvelopeSavedAt(harness.storage, '2026-07-24T12:00:00Z');
+    expect(await createLogicalStorageExportV2({ runtime: harness.runtime }))
+      .toMatchObject({ ok: false, reason: 'invalid-core' });
+
+    patchEnvelopeSavedAt(harness.storage, '2026-07-24T12:00:00.000Z');
+    expect((await createLogicalStorageExportV2({ runtime: harness.runtime })).ok).toBe(true);
+  });
+
+  it('o exportedAt gerado pela exportação é sempre canônico', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const result = await exportOk(harness.runtime, new Date('2026-07-25T09:30:00.000Z'));
+    expect(isCanonicalIsoInstant(result.backup.exportedAt)).toBe(true);
+    expect(isCanonicalIsoInstant(result.backup.sourceSavedAt)).toBe(true);
+    const semNow = await exportOk(harness.runtime);
+    expect(isCanonicalIsoInstant(semNow.backup.exportedAt)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TAMANHO DECLARADO (PARTES 8 e 15)
+// ---------------------------------------------------------------------------
+
+const INVALID_DECLARED_BYTES: { name: string; value: unknown }[] = [
+  { name: 'NaN', value: Number.NaN },
+  { name: 'Infinity', value: Number.POSITIVE_INFINITY },
+  { name: '-Infinity', value: Number.NEGATIVE_INFINITY },
+  { name: 'negativo', value: -1 },
+  { name: 'decimal', value: 12.5 },
+  { name: 'string', value: '1024' },
+  { name: 'null', value: null },
+  { name: 'objeto', value: {} },
+  { name: 'boolean', value: true },
+];
+
+describe('backup lógico v2 — declaredBytes', () => {
+  async function validContent(): Promise<string> {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    return (await exportOk(harness.runtime)).content;
+  }
+
+  it('declaredBytes ausente usa os bytes UTF-8 reais', async () => {
+    const content = await validContent();
+    const inspection = await inspectLogicalStorageBackupV2(content);
+    expect(inspection.ok).toBe(true);
+    if (!inspection.ok) return;
+    expect(inspection.preview.bytes).toBe(utf8(content));
+  });
+
+  it('declaredBytes zero, menor e maior que o real', async () => {
+    const content = await validContent();
+    const real = utf8(content);
+
+    const zero = await inspectLogicalStorageBackupV2(content, 0);
+    expect(zero.ok).toBe(true);
+    if (zero.ok) expect(zero.preview.bytes).toBe(real);
+
+    const menor = await inspectLogicalStorageBackupV2(content, 1);
+    expect(menor.ok).toBe(true);
+    if (menor.ok) expect(menor.preview.bytes).toBe(real);
+
+    const maior = await inspectLogicalStorageBackupV2(content, real + 4096);
+    expect(maior.ok).toBe(true);
+    if (maior.ok) expect(maior.preview.bytes).toBe(real + 4096);
+  });
+
+  it.each(INVALID_DECLARED_BYTES)('declaredBytes $name é recusado com invalid-size', async ({ value }) => {
+    const content = await validContent();
+    const inspection = await inspectLogicalStorageBackupV2(content, value as number);
+    expect(inspection).toMatchObject({ ok: false, reason: 'invalid-size' });
+    if (inspection.ok) return;
+    expect(inspection.error).not.toContain('NaN');
+    expect(inspection.error).not.toContain('Infinity');
+  });
+
+  it('os limites de 8 MiB e 25 MiB são exatos', async () => {
+    const content = await validContent();
+
+    const oitoExatos = await inspectLogicalStorageBackupV2(content, LOGICAL_BACKUP_LARGE_WARNING_BYTES);
+    expect(oitoExatos.ok).toBe(true);
+    if (oitoExatos.ok) {
+      expect(oitoExatos.preview.bytes).toBe(LOGICAL_BACKUP_LARGE_WARNING_BYTES);
+      expect(oitoExatos.preview.warning).toBeNull();
+    }
+
+    const acimaDeOito = await inspectLogicalStorageBackupV2(
+      content,
+      LOGICAL_BACKUP_LARGE_WARNING_BYTES + 1,
+    );
+    expect(acimaDeOito.ok).toBe(true);
+    if (acimaDeOito.ok) expect(acimaDeOito.preview.warning).toContain('MiB');
+
+    const vinteCincoExatos = await inspectLogicalStorageBackupV2(content, MAX_LOGICAL_BACKUP_BYTES);
+    expect(vinteCincoExatos.ok).toBe(true);
+    if (vinteCincoExatos.ok) {
+      expect(vinteCincoExatos.preview.bytes).toBe(MAX_LOGICAL_BACKUP_BYTES);
+      expect(vinteCincoExatos.preview.warning).toContain('MiB');
+    }
+
+    expect(await inspectLogicalStorageBackupV2(content, MAX_LOGICAL_BACKUP_BYTES + 1))
+      .toMatchObject({ ok: false, reason: 'too-large' });
+  });
+
+  it('bytes multibyte contam como UTF-8, não como caracteres', async () => {
+    const harness = await createReadyHarness();
+    patchCore(harness.storage, RICH_CORE);
+    const exported = await exportOk(harness.runtime);
+    const inspection = await inspectLogicalStorageBackupV2(exported.content);
+    expect(inspection.ok).toBe(true);
+    if (!inspection.ok) return;
+    expect(exported.content).toContain('🏋️');
+    expect(inspection.preview.bytes).toBe(utf8(exported.content));
+    expect(inspection.preview.bytes).toBeGreaterThan(exported.content.length);
+  });
+
+  it('too-large e invalid-size acontecem antes de JSON.parse e de qualquer SHA-256', async () => {
+    const content = await validContent();
+    const digest = vi.fn(async () => new ArrayBuffer(32));
+    const crypto = { digest } as unknown as SubtleCrypto;
+
+    const parseSpy = vi.spyOn(JSON, 'parse');
+    try {
+      expect(await inspectLogicalStorageBackupV2(content, MAX_LOGICAL_BACKUP_BYTES + 1, crypto))
+        .toMatchObject({ ok: false, reason: 'too-large' });
+      expect(parseSpy).not.toHaveBeenCalled();
+      expect(digest).not.toHaveBeenCalled();
+
+      expect(await inspectLogicalStorageBackupV2(content, Number.NaN, crypto))
+        .toMatchObject({ ok: false, reason: 'invalid-size' });
+      expect(parseSpy).not.toHaveBeenCalled();
+      expect(digest).not.toHaveBeenCalled();
+    } finally {
+      parseSpy.mockRestore();
+    }
+
+    // Controle positivo: com tamanho válido o arquivo é realmente analisado.
+    const parseAgain = vi.spyOn(JSON, 'parse');
+    try {
+      expect((await inspectLogicalStorageBackupV2(content)).ok).toBe(true);
+      expect(parseAgain).toHaveBeenCalled();
+    } finally {
+      parseAgain.mockRestore();
+    }
+  });
+
+  it('o digest só é recalculado depois de o payload ser validado', async () => {
+    const content = await validContent();
+    const digest = vi.fn(async () => new ArrayBuffer(32));
+    const parsed = JSON.parse(content) as { payload: Record<string, unknown> };
+    delete parsed.payload.nutrition;
+    expect(await inspectLogicalStorageBackupV2(
+      JSON.stringify(parsed),
+      undefined,
+      { digest } as unknown as SubtleCrypto,
+    )).toMatchObject({ ok: false, reason: 'invalid-payload' });
+    expect(digest).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PRIVACIDADE DOS ERROS (PARTES 9 e 16)
+// ---------------------------------------------------------------------------
+
+const PRIVATE_SESSION_ID = 'PRIVATE-SESSION-ID-9c1f';
+const PRIVATE_PROFILE_VALUE = 'PRIVATE-PROFILE-VALUE-4b7a';
+const PRIVATE_GETTER_MESSAGE = 'PRIVATE-GETTER-MESSAGE-2e55';
+const PRIVATE_RAW_VALUE = 'PRIVATE-RAW-VALUE-77d3';
+
+const SENTINELS = [
+  PRIVATE_SESSION_ID,
+  PRIVATE_PROFILE_VALUE,
+  PRIVATE_GETTER_MESSAGE,
+  PRIVATE_RAW_VALUE,
+];
+
+function expectNoSentinel(result: unknown): void {
+  const record = result as { error?: string; reason?: string; detail?: string; cause?: unknown };
+  const surfaces = [
+    JSON.stringify(result) ?? '',
+    String(record.error ?? ''),
+    String(record.reason ?? ''),
+    String(record.detail ?? ''),
+    String(record.cause ?? ''),
+    record.cause instanceof Error ? `${record.cause.message}${record.cause.stack ?? ''}` : '',
+  ];
+  for (const sentinel of SENTINELS) {
+    for (const surface of surfaces) expect(surface).not.toContain(sentinel);
+  }
+}
+
+describe('backup lógico v2 — privacidade das mensagens', () => {
+  it('sessionId duplicado tem mensagem genérica e não interpola o id', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(2), makeSession(1)] });
+    const exported = await exportOk(harness.runtime);
+    const parsed = JSON.parse(exported.content) as { payload: { workoutHistory: { id: string }[] } };
+    parsed.payload.workoutHistory[0].id = PRIVATE_SESSION_ID;
+    parsed.payload.workoutHistory[1].id = PRIVATE_SESSION_ID;
+
+    const inspection = await inspectLogicalStorageBackupV2(JSON.stringify(parsed));
+    expect(inspection).toMatchObject({ ok: false, reason: 'duplicate-session-id' });
+    if (!inspection.ok) expect(inspection.error).toContain('IDs de sessão duplicados');
+    expectNoSentinel(inspection);
+  });
+
+  it('valor de perfil recusado não aparece na mensagem', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const exported = await exportOk(harness.runtime);
+    const parsed = JSON.parse(exported.content) as { payload: Record<string, unknown> };
+    parsed.payload.user = PRIVATE_PROFILE_VALUE;
+    expectNoSentinel(await inspectLogicalStorageBackupV2(JSON.stringify(parsed)));
+
+    const outro = JSON.parse(exported.content) as { payload: Record<string, unknown> };
+    outro.payload[`campo-${PRIVATE_PROFILE_VALUE}`] = 1;
+    expectNoSentinel(await inspectLogicalStorageBackupV2(JSON.stringify(outro)));
+
+    expectNoSentinel(validateLogicalBackupPayload(rawPayload({
+      user: { ...PROFILE, [PRIVATE_PROFILE_VALUE]: undefined },
+    })));
+  });
+
+  it('mensagem de getter controlado pelo payload nunca sobe', () => {
+    let reads = 0;
+    const user = { ...PROFILE } as Record<string, unknown>;
+    Object.defineProperty(user, 'name', {
+      get() { reads += 1; throw new Error(PRIVATE_GETTER_MESSAGE); },
+      enumerable: true,
+      configurable: true,
+    });
+    const payload = rawPayload({ user });
+
+    const validation = validateLogicalBackupPayload(payload);
+    expect(validation.status).toBe('invalid');
+    expectNoSentinel(validation);
+    expect(reads).toBe(0);
+
+    try {
+      serializeLogicalPayloadCanonically(payload as unknown as PersistedState);
+      throw new Error('deveria ter falhado');
+    } catch (error) {
+      expect((error as Error).message).not.toContain(PRIVATE_GETTER_MESSAGE);
+    }
+    expect(reads).toBe(0);
+  });
+
+  it('proxy hostil vira recusa anônima, sem mensagem nem cause originais', () => {
+    const hostile = new Proxy({ calories: 0, protein: 0, carbs: 0, fat: 0, water: 0 }, {
+      ownKeys() { throw new Error(PRIVATE_GETTER_MESSAGE); },
+    });
+    const tree = validateLogicalJsonTree(rawPayload({ nutrition: hostile }));
+    expect(tree).toMatchObject({ status: 'invalid', rejection: 'hostile-value' });
+    expectNoSentinel(validateLogicalBackupPayload(rawPayload({ nutrition: hostile })));
+  });
+
+  it('o raw e trechos de JSON nunca aparecem na falha de parse', async () => {
+    const broken = `{"format":"gymflow-backup","payload":"${PRIVATE_RAW_VALUE}"`;
+    const inspection = await inspectLogicalStorageBackupV2(broken);
+    expect(inspection).toMatchObject({ ok: false, reason: 'invalid-json' });
+    expectNoSentinel(inspection);
+    if (!inspection.ok) expect(inspection.cause).toBeUndefined();
+  });
+
+  it('a falha de exportação por serialização não devolve mensagem nem cause do payload', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const captured = await captureLogicalBackupSnapshot(harness.runtime);
+    expect(captured.status).toBe('ok');
+    if (captured.status !== 'ok') return;
+    // A captura real nunca produz um payload hostil; o caminho é exercitado
+    // injetando o estado já capturado num runtime que o devolve adulterado.
+    const poisoned = { ...captured.snapshot.state } as unknown as Record<string, unknown>;
+    Object.defineProperty(poisoned, 'user', {
+      get() { throw new Error(PRIVATE_GETTER_MESSAGE); },
+      enumerable: true,
+      configurable: true,
+    });
+    expectNoSentinel(validateLogicalBackupPayload(poisoned));
+    try {
+      serializeLogicalPayloadCanonically(poisoned as unknown as PersistedState);
+      throw new Error('deveria ter falhado');
+    } catch (error) {
+      expect((error as Error).message).not.toContain(PRIVATE_GETTER_MESSAGE);
+    }
+  });
+
+  it('cause continua preservado nas falhas internas confiáveis', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const exported = await exportOk(harness.runtime);
+    const semCrypto = await createLogicalStorageExportV2({
+      runtime: harness.runtime,
+      subtleCrypto: null,
+    });
+    expect(semCrypto).toMatchObject({ ok: false, reason: 'crypto-unavailable' });
+    if (!semCrypto.ok) expect(semCrypto.cause).toBeInstanceOf(Error);
+
+    const inspection = await inspectLogicalStorageBackupV2(exported.content, undefined, null);
+    expect(inspection).toMatchObject({ ok: false, reason: 'crypto-unavailable' });
+    if (!inspection.ok) expect(inspection.cause).toBeInstanceOf(Error);
   });
 });
