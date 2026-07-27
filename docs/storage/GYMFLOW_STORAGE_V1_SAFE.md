@@ -1340,6 +1340,94 @@ causas aninhadas, arrays, `Map`, `Set` e o serializado — porque
 lançada pelo storage) aparece em `reason`, `error`, `backupReason`,
 `compensation`, `preview`, `cause`, `message`, `stack`, nem em `console`.
 
+## Recuperação da importação v2 interrompida (GOAL-17B-002D-C2)
+
+O C1 grava um journal correto quando cai. O C2 é quem lê esse journal depois do
+reload e leva o armazenamento de volta a um mundo íntegro. Ele está **pronto e
+testado, e ainda não é chamado por ninguém**: não há integração com o boot,
+Provider, Context, AdminPanel, UI nem call site. `hydrate` e `metadataMatchesV2`
+não foram tocados.
+
+### O arquivo original não existe mais
+
+Depois de um reload não há `raw`, não há payload lógico e não há como recalcular
+`targetCoreRaw`. `recoverLogicalStorageImportV2` não os recebe, não os
+reconstrói e não os pede: toda evidência vem do journal e do armazenamento
+atual. A direção da convergência é dedução, não preferência —
+
+- receipt `staged`: o mundo importado não foi materializado em lugar nenhum, e a
+  operação converge **para trás**, para o mundo anterior que o journal guarda
+  inteiro;
+- receipt `activating` ou `activated`: os dois mundos existem no disco, e a
+  operação converge **para a frente**.
+
+### Os quatro mundos do `activating`
+
+| Mundo | `activeGeneration` | core | Ação |
+| --- | --- | --- | --- |
+| A | anterior | anterior | verifica G integralmente e ativa com CAS |
+| B | G | anterior | verifica G e reexecuta o protocolo byte-exato do core |
+| C | G | alvo | verifica o alvo e marca `activated` pela primitiva A1 |
+| D | anterior | alvo | não nasce da ordem geração → core: bloqueia |
+
+O MUNDO D não é produzido pela ordem oficial de escrita. A recuperação não ativa,
+não reverte e não sobrescreve — ela devolve `recovery-required` com o journal
+intacto. O mesmo vale para terceira geração ativa, terceiro valor de core, G
+ausente, T ou P divergentes, receipt alterado, `migrationGeneration` preenchida,
+conclusão pendente e múltiplos receipts não terminais.
+
+### Protocolo byte-exato reexecutado
+
+O core alvo sai **exclusivamente** de `receipt.targetCoreRaw`; nada é
+reconstruído e nenhum `savedAt` novo é cunhado. Antes de gravar, a recuperação
+confirma que o alvo parseia como envelope v2, que ele aponta para a geração
+preparada, que o instante é canônico, que a geração ativa já é G e que o core
+atual ainda é o anterior. Depois, o mesmo protocolo do W6: cópia rolante,
+readback da cópia, releitura da principal, gravação e readback final.
+
+**A cópia rolante nunca é compensada para trás** — nem `setItem` do valor
+anterior, nem `removeItem`, nem escrita de melhor esforço. Se ela contém o core
+anterior, fica assim; se contém outro valor, fica assim; se a leitura falha, nem
+tentamos escrevê-la.
+
+### Laço fechado e readback obrigatório
+
+`MAX_RECOVERY_STEPS = 12`, contra sete passos do pior caminho real. Depois de
+**cada** escrita o motor relê core, metadata, receipt e snapshot administrativo e
+roda o resolvedor de novo: nunca assume que a escrita anterior venceu. Não há
+recursão, `setTimeout`, espera por tempo nem retry por atraso. Atingir o limite
+devolve `recovery-step-limit` com o journal preservado.
+
+### A geração anterior nunca é apagada
+
+Nenhum caminho chama `clearInactiveGeneration` sobre a geração anterior. A
+geração preparada só pode ser limpa quando o receipt está `reverted`, ela está
+inativa, não é a anterior, é exatamente o `stagedGenerationId` do journal, a
+metadata foi relida e a geração anterior foi verificada integralmente. Falha de
+limpeza produz **órfã segura** (`cleanupPending: true`) — nunca perda de dados, e
+nunca um receipt terminal que volta a ser não terminal.
+
+### Privacidade sem `cause`
+
+A API nova **não tem canal de `cause`**: nenhum `Error` do adapter ou do runtime
+sobe, e nenhuma mensagem nativa de `localStorage` ou de IndexedDB é repassada. O
+retorno público tem exatamente `status`/`reason` fechados, uma mensagem constante
+do módulo, `operationId`, `generationId`, contagem de passos, ação final,
+`recoveryRequired` e `cleanupPending`. O receipt completo nunca sai. Os retornos
+históricos do C1 não foram alterados.
+
+### O que continua não existindo
+
+- **Nenhuma atomicidade única entre `localStorage` e IndexedDB.** A janela é a
+  mesma da importação — uma escrita síncrona de `localStorage` — e leitura
+  ilegível ou terceiro valor preservam o journal em vez de adivinhar.
+- **Nenhuma chamada no boot.** O **slice D é obrigatório antes de qualquer
+  exposição**; ele é quem chama a recuperação antes da hidratação normal.
+- **Nenhuma UI e nenhum call site.** A importação não está disponível ao usuário.
+- **Owner-token continua pendente para o E**, e com ele a janela TOCTOU do W8 e a
+  serialização entre abas.
+- **D/E/F não iniciados.**
+
 ## Limitações restantes
 
 - `localStorage` é síncrono e não possui transação/lock entre abas; última escrita concorrente vence.

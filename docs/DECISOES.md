@@ -1321,3 +1321,71 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
   enxerga o que promete. **A política pública não mudou**; o que mudou foi a
   prova, e a única correção que ela exigiu foi parar de propagar erros do
   armazenamento como `cause`.
+
+## GOAL-17B-002D-C2 — recuperação da importação v2 interrompida (2026-07-27)
+
+- **A direção da recuperação é dedução, não preferência.** Depois de um reload o
+  arquivo não existe: um receipt `staged` descreve um mundo importado que não foi
+  materializado em lugar nenhum, então ele só pode convergir **para trás**. Um
+  receipt `activating` ou `activated` nomeia os dois mundos e ambos existem no
+  disco, então ele pode convergir **para a frente**. A fronteira é
+  `targetCoreRaw`, e é o journal que a define — nunca a função.
+- **A assinatura recusa o que poderia falsificar a evidência.** A recuperação não
+  recebe raw, payload, preview, objeto de inspeção, `generationId` escolhido,
+  `previousCoreRaw` nem `targetCoreRaw`. Aceitar qualquer um deles transferiria
+  para o chamador a confiança sobre o mundo alvo, que é exatamente o que o
+  journal existe para guardar.
+- **Um segundo resolvedor puro, em vez de dar I/O ao primeiro.**
+  `resolveLogicalImportRecovery` responde "esta importação, que ainda tem o
+  arquivo em mãos, continua de onde?"; `resolveLogicalImportRestartRecovery`
+  responde "esta importação, cujo arquivo evaporou, converge para qual mundo?".
+  São perguntas diferentes com tabelas diferentes. Transformar o primeiro numa
+  função com I/O teria destruído a única parte do C1 que é trivialmente testável.
+  Ações como `stage-generation` e `prepare-core` **não existem** no tipo novo:
+  elas exigiriam o arquivo.
+- **`verify-target` é uma ação, não um efeito colateral.** A prova criptográfica
+  de uma geração é cara e vale apenas para o estado físico sobre o qual foi
+  calculada — por isso ela fica em cache amarrada ao par
+  (`fingerprint`, `generationId`) e é descartada na menor escrita ao IndexedDB.
+  Quando o resolvedor precisa da prova e ela não vale, ele **pede** em vez de
+  supor.
+- **A geração preparada só é apagada com o mundo que fica provado.** A guarda
+  tripla — nomeada pelo journal de um receipt já terminal, não é a ativa, não é a
+  anterior — é relida do armazenamento, e sobre ela roda ainda a verificação
+  integral da geração anterior. Sem essa prova a operação é encerrada mesmo
+  assim e G vira **órfã segura**: ela não bloqueia hidratação nem diagnóstico, e
+  deixar lixo inativo é incomparavelmente melhor do que apagar o mundo errado.
+- **O laço segue a operação pelo id depois de escolhê-la.** Sem isso, a própria
+  transição para um status terminal tirava a operação da lista de "em aberto" e
+  o passo seguinte enxergava "não há nada para fazer", perdendo o que aquela
+  execução acabara de produzir. A escolha inicial continua saindo do
+  armazenamento; o `operationId` do chamador é só uma amarração que precisa bater.
+- **`reverted`/`settled` só são relatados quando ESTA execução avançou.**
+  `revertStorageOperationSafely` e `transitionStorageOperation` são idempotentes
+  por releitura, então uma segunda instância concorrente encontraria o receipt já
+  terminal e diria ter feito o trabalho. O motor distingue "a chamada venceu" de
+  "a releitura confirmou", e devolve `already-reverted`/`already-settled` no
+  segundo caso. É o que torna a prova de concorrência honesta.
+- **Sem `operationId` e sem operação pendente, o retorno é `no-operation`.**
+  Varrer receipts terminais atrás de gerações antigas seria política de
+  retenção, que é do 002D-F. A limpeza de uma órfã ligada a um receipt já
+  `reverted` só acontece quando o chamador **nomeia** a operação.
+- **A API nova não tem canal de `cause`.** O C1 ainda propaga `cause` para falhas
+  de infraestrutura confiável; a recuperação não propaga nada. O retorno público
+  tem exatamente `status`/`reason` fechados, mensagem constante deste módulo,
+  `operationId`, `generationId`, contagem de passos, ação final,
+  `recoveryRequired` e `cleanupPending`. O receipt completo nunca sai, e os
+  retornos históricos do C1 não foram alterados.
+- **O limite de passos é fechado e o journal é preservado ao atingi-lo.**
+  `MAX_RECOVERY_STEPS = 12` contra sete passos do pior caminho real. Recursão
+  ilimitada, laço sem contador, `setTimeout`, espera por tempo e retry por atraso
+  estão todos fora: o motor só avança quando a leitura seguinte prova que o mundo
+  mudou.
+- **Uma geração sem manifest continua enumerada.** Ela não some do mundo — o que
+  some é a possibilidade de prová-la. Por isso apagar o manifest de G devolve
+  `verification-failed`, e não `impossible-state`: a ativação simplesmente nunca
+  acontece.
+- **O teste 76 do C1 virou a lista exata do C2.** Ele afirmava que
+  `recoverLogicalStorageImportV2` não existia; agora afirma que o módulo exporta
+  exatamente quatro funções. O guard continua igualmente estrito — nenhuma
+  superfície nova entrou de carona.

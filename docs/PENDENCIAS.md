@@ -750,3 +750,55 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   call site, owner-token, restore manual, rollback manual, reset, retenção,
   download ou upload. **O slice C não está completo: o C2 não foi iniciado**, e
   D/E/F seguem não iniciados.
+
+## GOAL-17B-002D-C2 — recuperação da importação v2 interrompida (2026-07-27)
+
+### Fechado por este slice
+
+- **17B-002D-C1-P0 — a recuperação com I/O não existia.** *Fechado · era P1.* O
+  C1 entregava apenas um resolvedor puro; nada executava a decisão depois de um
+  reload, e uma queda entre W1 e W9 deixava um journal correto sobre um
+  aplicativo que não sabia o que fazer com ele. *Resolução:*
+  `recoverLogicalStorageImportV2`, com resolvedor de reinício próprio, laço de
+  limite fechado, releitura completa depois de cada escrita e matriz de 16 crash
+  points provados com recriação **real** das instâncias sobre o mesmo banco e o
+  mesmo `localStorage`. **A integração com o boot continua sendo do slice D.**
+
+### Abertos
+
+- **17B-002D-C2-P1 — nada chama a recuperação.** *Aberto · P1.* O motor está
+  pronto e testado, e **nenhum call site existe**. O aplicativo **não** recupera
+  automaticamente no boot, e a importação **não** está disponível ao usuário.
+  *Próximo passo:* o **slice D é obrigatório antes de qualquer exposição** —
+  chamar a recuperação antes da hidratação normal, decidir o que fazer com
+  `recoveryRequired` e `cleanupPending`, e só então pensar em UI.
+- **17B-002D-C2-P2 — não existe atomicidade única entre `localStorage` e
+  IndexedDB.** *Aberto · P2, por design.* A recuperação reduz a janela ao mesmo
+  ponto que a importação — uma única escrita síncrona de `localStorage` — e
+  jamais finge que ela não existe: leitura ilegível ou terceiro valor preservam o
+  journal em vez de adivinhar. *Próximo passo:* nenhum; fechar isso exigiria um
+  motor de persistência que o projeto não tem.
+- **17B-002D-C2-P3 — a órfã segura não tem política de retenção.** *Aberto · P3.*
+  Quando a limpeza de G falha, ela fica no disco, inativa e sinalizada por
+  `cleanupPending`. Sem `operationId` a recuperação nem a enxerga, porque varrer
+  receipts terminais atrás de gerações antigas seria retenção. *Próximo passo:*
+  002D-F; nunca apagar geração fora das compensações seguras.
+- **17B-002D-C2-P4 — a recuperação concorrente é segura, não serializada.**
+  *Aberto · P3.* Duas execuções simultâneas convergem para um mundo físico único
+  e válido, nenhuma inventa `operationId` ou `generationId`, e no máximo uma
+  relata ter avançado — mas não há lock entre abas. *Próximo passo:* owner-token
+  no E, o mesmo que fecha o W8.
+- **17B-002D-C1-P8 — a janela TOCTOU do W8 continua aberta.** *Aberto · P2,
+  inalterado.* A recuperação repete o mesmo readback do receipt depois de
+  `activating → activated` e recusa liquidar sobre um receipt mutado, mas não
+  impede a mutação. *Próximo passo:* owner-token no E.
+- **17B-002D-C1-P9 — a cópia rolante pode ficar em `previousCoreRaw`.** *Aberto ·
+  P3, por design, inalterado.* A recuperação mantém a política à risca: ela
+  **grava** `previousCoreRaw` na cópia no caminho saudável de avanço e **nunca**
+  a restaura, remove ou compensa para trás — nem quando a gravação do core alvo
+  falha. Provado nas quatro variantes do crash 10.
+- **17B-002D-C1-P1 a P7 continuam abertos e inalterados.** Este slice **não**
+  criou boot integration, Provider, Context, AdminPanel, UI, botão, modal, toast,
+  seletor de arquivo, download, upload, call site, owner-token, restore manual,
+  rollback manual exposto, reset, retenção, sincronização remota, Supabase nem
+  banco remoto. **D/E/F seguem não iniciados.**

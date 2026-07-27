@@ -27,7 +27,10 @@ import {
   type LogicalBackupInspectionFailureReason,
   type LogicalBackupPreview,
 } from './storage-logical-backup';
-import type { StorageOperationReceipt } from './storage-operation-receipt';
+import {
+  isTerminalStorageOperationStatus,
+  type StorageOperationReceipt,
+} from './storage-operation-receipt';
 import {
   HYBRID_STORAGE_VERSION,
   type PersistedCoreState,
@@ -1415,4 +1418,1010 @@ export async function commitLogicalStorageImportV2(
     savedAt,
     preview: inspection.preview,
   };
+}
+
+// ===========================================================================
+// C2 — recuperação de uma importação lógica v2 interrompida
+//
+// O C1 entrega uma importação jornalizada e um resolvedor PURO; o que faltava é
+// quem executa a decisão DEPOIS de um reload. Este bloco é esse motor.
+//
+// A PREMISSA QUE MUDA TUDO: o arquivo original NÃO EXISTE MAIS. Depois de um
+// reload não há `raw`, não há payload lógico e não há como recalcular
+// `targetCoreRaw`. Toda evidência sai de duas fontes e só delas — o journal
+// (que nomeia os dois mundos completos) e o armazenamento atual. Nada é
+// reconstruído, nada é adivinhado e nada é aceito do chamador: a assinatura
+// deliberadamente NÃO recebe raw, payload, preview, inspeção, `generationId`
+// escolhido, `previousCoreRaw` nem `targetCoreRaw`.
+//
+// A CONSEQUÊNCIA: uma operação que parou ANTES de gravar o core alvo no journal
+// não pode ser terminada para a frente — o mundo importado simplesmente não
+// existe em lugar nenhum. Ela converge para trás, para o mundo anterior, que o
+// journal guarda inteiro. Uma operação que já gravou `targetCoreRaw` E já criou
+// a geração pode ser terminada para a frente, porque os dois mundos estão
+// materializados. É essa fronteira — `staged` versus `activating` — que decide
+// a direção, nunca uma preferência.
+//
+// O QUE ESTE MOTOR CONTINUA NÃO SENDO: não há chamada no boot, não há Provider,
+// Context, AdminPanel, UI, botão, modal, toast nem call site. `hydrate` e
+// `metadataMatchesV2` não foram tocados. Quem chama isto antes da hidratação é
+// o slice D, que não foi iniciado.
+// ===========================================================================
+
+// Limite fechado de avanços. O caminho mais longo observado — `activating` no
+// MUNDO A até `settled` — consome sete passos: ativar, verificar, gravar o core,
+// marcar `activated`, verificar de novo, liquidar e confirmar. Doze deixa folga
+// para uma releitura extra sem nunca virar espera indefinida.
+//
+// Não existe recursão, `setTimeout`, espera por tempo nem retry por atraso: o
+// motor só avança quando a leitura seguinte PROVA que o mundo mudou.
+const MAX_RECOVERY_STEPS = 12;
+
+// Capacidades mínimas da fachada A2. `beginStorageOperation` está fora de
+// propósito: a recuperação nunca cria operação nova.
+export type LogicalImportRecoveryRuntime = Pick<
+  StorageAdminRuntime,
+  'inspectStorageAdministration' | 'transitionStorageOperation' | 'revertStorageOperationSafely'
+>;
+
+// Capacidades mínimas do adapter. `stageHistoryGenerationForOperation` está
+// fora de propósito: a recuperação nunca cria geração — não tem o histórico
+// importado para colocar dentro dela, e inventar uma seria fabricar dados.
+export type LogicalImportRecoveryAdapter = Pick<
+  AdministrableWorkoutHistoryStorageAdapter,
+  | 'readMetadata'
+  | 'readStorageAdministrationSnapshot'
+  | 'readStorageOperationReceipt'
+  | 'readVerifiedHistoryGeneration'
+  | 'rollbackToHistoryGeneration'
+  | 'transitionStorageOperationIfUnambiguous'
+  | 'clearInactiveGeneration'
+>;
+
+export interface RecoverLogicalStorageImportV2Input {
+  runtime: LogicalImportRecoveryRuntime;
+  adapter: LogicalImportRecoveryAdapter;
+  storage: StorageLike;
+  key: string;
+  // Amarração opcional a UMA operação. Quando informado, ele precisa
+  // corresponder ao receipt elegível; divergência bloqueia sem nenhuma escrita.
+  operationId?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Resolvedor puro de REINÍCIO
+// ---------------------------------------------------------------------------
+
+// A leitura da chave principal pode falhar, e "falhou" não é o mesmo que
+// "ausente": um `getItem` que estourou não prova nada sobre o estado canônico.
+export type LogicalImportCoreObservation =
+  | { status: 'read'; raw: string | null }
+  | { status: 'unavailable' };
+
+// Fotografia EXPLÍCITA do mundo depois do reload. Como no resolvedor do C1,
+// nada aqui é lido pelo resolvedor: quem o chama observa e declara honestamente
+// o que conseguiu — ou não conseguiu — provar.
+export interface LogicalImportRestartObservation {
+  receipt: StorageOperationReceipt | null;
+  core: LogicalImportCoreObservation;
+  metadata: {
+    activeGeneration: string | null;
+    migrationGeneration: string | null;
+    migrationStatus: HistoryStorageMetadata['migrationStatus'];
+  };
+  generations: readonly { generationId: string }[];
+  // Integridade criptográfica da geração ANTERIOR. Ela decide se a geração
+  // preparada pode ser apagada: destruir a alternativa exige provar o mundo que
+  // fica.
+  previousGenerationIntegrity: LogicalImportGenerationIntegrity;
+  // Integridade criptográfica da geração preparada (G).
+  stagedGenerationIntegrity: LogicalImportGenerationIntegrity;
+  pendingCompletionReceiptCount: number;
+  unsettledOperationCount: number;
+}
+
+export type LogicalImportRestartBlockedReason =
+  | 'not-an-import'
+  | 'multiple-unsettled-operations'
+  | 'completion-pending'
+  | 'core-unreadable'
+  | 'core-missing'
+  | 'core-not-v2'
+  | 'migration-incomplete'
+  | 'unexpected-staging-pointer'
+  | 'previous-generation-absent'
+  | 'staged-generation-absent'
+  | 'staged-generation-is-previous'
+  | 'staged-generation-invalid'
+  | 'staged-with-target-core'
+  | 'activating-without-staging'
+  | 'activating-without-target-core'
+  | 'activated-target-missing'
+  | 'target-core-invalid'
+  | 'active-generation-unexpected'
+  | 'core-not-previous'
+  | 'core-target-without-activation'
+  | 'target-verification-failed'
+  | 'activated-generation-not-active'
+  | 'activated-core-not-target'
+  | 'unrecognized-world';
+
+// União fechada. Nenhuma ação pede o arquivo original — `stage-generation` e
+// `prepare-core`, que o resolvedor do C1 produz, são impossíveis aqui e por
+// isso simplesmente não existem neste tipo.
+export type LogicalImportRestartDecision =
+  | { action: 'no-operation' }
+  | { action: 'already-settled'; operationId: string }
+  // `cleanupGenerationId` só é preenchido quando a geração preparada continua
+  // existindo, inativa e distinta da anterior. `null` significa "não há nada
+  // pendente" — é o que torna a segunda execução um no-op.
+  | { action: 'already-reverted'; operationId: string; cleanupGenerationId: string | null }
+  | {
+      action: 'revert-receipt';
+      operationId: string;
+      generationId: string | null;
+      previousGenerationId: string;
+    }
+  | {
+      action: 'revert-and-cleanup-staging';
+      operationId: string;
+      generationId: string;
+      previousGenerationId: string;
+    }
+  | {
+      action: 'activate-generation';
+      operationId: string;
+      generationId: string;
+      previousGenerationId: string;
+    }
+  | { action: 'commit-target-core'; operationId: string; generationId: string }
+  | { action: 'verify-target'; operationId: string; generationId: string }
+  | { action: 'mark-activated'; operationId: string; generationId: string }
+  | { action: 'settle'; operationId: string }
+  | { action: 'recovery-required'; reason: LogicalImportRestartBlockedReason }
+  | { action: 'impossible-state'; reason: LogicalImportRestartBlockedReason };
+
+function restartBlocked(reason: LogicalImportRestartBlockedReason): LogicalImportRestartDecision {
+  return { action: 'recovery-required', reason };
+}
+
+function restartImpossible(
+  reason: LogicalImportRestartBlockedReason,
+): LogicalImportRestartDecision {
+  return { action: 'impossible-state', reason };
+}
+
+/**
+ * Resolvedor PURO do reinício: nenhuma leitura, nenhuma escrita, nenhum
+ * relógio, nenhum UUID, nenhuma mutação da entrada.
+ *
+ * Ele é irmão de `resolveLogicalImportRecovery`, não substituto: aquele responde
+ * "esta importação, que ainda tem o arquivo em mãos, deve continuar de onde?";
+ * este responde "esta importação, cujo arquivo evaporou no reload, converge para
+ * qual dos dois mundos que o journal nomeia?". O resolvedor do C1 continua puro
+ * e intocado.
+ */
+export function resolveLogicalImportRestartRecovery(
+  observation: LogicalImportRestartObservation,
+): LogicalImportRestartDecision {
+  const { receipt, core, metadata, generations } = observation;
+
+  if (receipt === null) return { action: 'no-operation' };
+  // Restore, reset e rollback têm outros fluxos e outros invariantes. Assumir
+  // que um receipt alheio pertence à importação seria agir sobre o journal de
+  // outra operação.
+  if (receipt.kind !== IMPORT_OPERATION_KIND) return restartBlocked('not-an-import');
+
+  const known = new Set(generations.map((entry) => entry.generationId));
+  const staged = receipt.stagedGenerationId;
+
+  // Terminais primeiro: eles nunca reabrem, nunca regravam e nunca criam nada.
+  if (receipt.status === 'settled') {
+    return { action: 'already-settled', operationId: receipt.operationId };
+  }
+  if (receipt.status === 'reverted') {
+    const orphan = staged !== null
+      && known.has(staged)
+      && staged !== receipt.previousGenerationId
+      && metadata.activeGeneration !== staged;
+    return {
+      action: 'already-reverted',
+      operationId: receipt.operationId,
+      cleanupGenerationId: orphan ? staged : null,
+    };
+  }
+
+  if (observation.unsettledOperationCount > 1) return restartBlocked('multiple-unsettled-operations');
+  // Avançar uma importação com conclusão de treino pendente misturaria dois
+  // fluxos que o projeto mantém isolados; reverter sobre ela idem.
+  if (observation.pendingCompletionReceiptCount > 0) return restartBlocked('completion-pending');
+  if (core.status === 'unavailable') return restartBlocked('core-unreadable');
+  if (core.raw === null) return restartBlocked('core-missing');
+  const coreRaw = core.raw;
+  if (parsePhysicalEnvelope(coreRaw).status !== 'v2') return restartBlocked('core-not-v2');
+  if (metadata.migrationStatus !== 'completed') return restartBlocked('migration-incomplete');
+  // Esta importação nunca preenche o ponteiro de staging. Um valor aqui é obra
+  // de outro fluxo, e escolher o que fazer seria chute.
+  if (metadata.migrationGeneration !== null) return restartBlocked('unexpected-staging-pointer');
+
+  if (!known.has(receipt.previousGenerationId)) return restartImpossible('previous-generation-absent');
+  if (staged !== null && !known.has(staged)) return restartImpossible('staged-generation-absent');
+  if (staged !== null && staged === receipt.previousGenerationId) {
+    return restartImpossible('staged-generation-is-previous');
+  }
+
+  const target = receipt.targetCoreRaw;
+  const coreIsPrevious = coreRaw === receipt.previousCoreRaw;
+  const activeIsPrevious = metadata.activeGeneration === receipt.previousGenerationId;
+  const activeIsStaged = staged !== null && metadata.activeGeneration === staged;
+
+  if (receipt.status === 'staged') {
+    // `staged` afirma que NADA foi aplicado, e sem o arquivo o mundo importado
+    // não pode nascer. O único destino legítimo é encerrar a operação — e só
+    // sobre o mundo anterior INTACTO. Um mundo diferente significa que outra
+    // coisa escreveu, e reverter ali seria reverter às cegas.
+    if (target !== null) return restartImpossible('staged-with-target-core');
+    if (!activeIsPrevious) return restartBlocked('active-generation-unexpected');
+    if (!coreIsPrevious) return restartBlocked('core-not-previous');
+    if (staged === null) {
+      return {
+        action: 'revert-receipt',
+        operationId: receipt.operationId,
+        generationId: null,
+        previousGenerationId: receipt.previousGenerationId,
+      };
+    }
+    if (observation.previousGenerationIntegrity === 'invalid') {
+      // Apagar G exigiria provar o mundo que fica. Sem essa prova a operação é
+      // encerrada mesmo assim e G vira órfã SEGURA: ela não bloqueia hidratação
+      // nem diagnóstico, e perder dados seria muito pior do que deixar lixo.
+      return {
+        action: 'revert-receipt',
+        operationId: receipt.operationId,
+        generationId: staged,
+        previousGenerationId: receipt.previousGenerationId,
+      };
+    }
+    return {
+      action: 'revert-and-cleanup-staging',
+      operationId: receipt.operationId,
+      generationId: staged,
+      previousGenerationId: receipt.previousGenerationId,
+    };
+  }
+
+  // De `activating` em diante o receipt PRECISA nomear os dois mundos: é o que
+  // torna o avanço possível sem o arquivo.
+  if (staged === null) {
+    return restartImpossible(
+      receipt.status === 'activating' ? 'activating-without-staging' : 'activated-target-missing',
+    );
+  }
+  if (target === null) {
+    return restartImpossible(
+      receipt.status === 'activating' ? 'activating-without-target-core' : 'activated-target-missing',
+    );
+  }
+  // O core alvo é lido do journal e nunca reconstruído — então ele é conferido
+  // aqui, antes de qualquer decisão que o grave: envelope v2, apontando para G,
+  // com instante canônico.
+  const parsedTarget = parsePhysicalEnvelope(target);
+  if (
+    parsedTarget.status !== 'v2'
+    || parsedTarget.envelope.data.historyStorage.generationId !== staged
+    || !isCanonicalIsoInstant(parsedTarget.envelope.savedAt)
+  ) {
+    return restartBlocked('target-core-invalid');
+  }
+  const coreIsTarget = coreRaw === target;
+
+  if (receipt.status === 'activating') {
+    // MUNDO A — nada aplicado: geração anterior ativa e core anterior.
+    if (activeIsPrevious && coreIsPrevious) {
+      if (observation.stagedGenerationIntegrity === 'invalid') {
+        return restartBlocked('staged-generation-invalid');
+      }
+      // `unknown` é aceito aqui — e só aqui — porque
+      // `rollbackToHistoryGeneration` verifica a geração alvo integralmente e
+      // reconfere o conteúdo físico dentro da própria transação de escrita.
+      return {
+        action: 'activate-generation',
+        operationId: receipt.operationId,
+        generationId: staged,
+        previousGenerationId: receipt.previousGenerationId,
+      };
+    }
+    // MUNDO B — geração já ativada, core ainda o anterior.
+    if (activeIsStaged && coreIsPrevious) {
+      if (observation.stagedGenerationIntegrity === 'invalid') {
+        return restartBlocked('staged-generation-invalid');
+      }
+      if (observation.stagedGenerationIntegrity === 'unknown') {
+        return { action: 'verify-target', operationId: receipt.operationId, generationId: staged };
+      }
+      return { action: 'commit-target-core', operationId: receipt.operationId, generationId: staged };
+    }
+    // MUNDO C — geração ativa e core alvo gravado; falta fechar o journal.
+    if (activeIsStaged && coreIsTarget) {
+      if (observation.stagedGenerationIntegrity === 'invalid') {
+        return restartBlocked('target-verification-failed');
+      }
+      if (observation.stagedGenerationIntegrity === 'unknown') {
+        return { action: 'verify-target', operationId: receipt.operationId, generationId: staged };
+      }
+      return { action: 'mark-activated', operationId: receipt.operationId, generationId: staged };
+    }
+    // MUNDO D — core alvo SEM ativação. A ordem oficial é geração → core, então
+    // este estado não nasce daqui. Não ativar, não reverter, não sobrescrever.
+    if (activeIsPrevious && coreIsTarget) return restartBlocked('core-target-without-activation');
+    return restartBlocked('unrecognized-world');
+  }
+
+  // `activated` afirma efeitos completos: ou todos estão provados, ou ninguém
+  // avança e ninguém compensa.
+  if (!activeIsStaged) return restartBlocked('activated-generation-not-active');
+  if (!coreIsTarget) return restartBlocked('activated-core-not-target');
+  if (observation.stagedGenerationIntegrity === 'invalid') {
+    return restartBlocked('target-verification-failed');
+  }
+  if (observation.stagedGenerationIntegrity === 'unknown') {
+    return { action: 'verify-target', operationId: receipt.operationId, generationId: staged };
+  }
+  return { action: 'settle', operationId: receipt.operationId };
+}
+
+// ---------------------------------------------------------------------------
+// Resultado público fechado
+// ---------------------------------------------------------------------------
+
+export type LogicalImportRecoveryStatus =
+  | 'no-operation'
+  | 'already-settled'
+  | 'already-reverted'
+  | 'reverted'
+  | 'settled';
+
+export type LogicalImportRecoveryFailureReason =
+  | 'operation-conflict'
+  | 'administration-unavailable'
+  | 'administration-conflicted'
+  | 'migration-incomplete'
+  | 'storage-unavailable'
+  | 'quota'
+  | 'verification-failed'
+  | 'activation-failed'
+  | 'core-commit-failed'
+  | 'readback-failed'
+  | 'recovery-required'
+  | 'impossible-state'
+  | 'recovery-step-limit';
+
+// Ação em que a recuperação parou. `observe` é a fase anterior a qualquer
+// decisão — evidência que nem pôde ser coletada.
+export type LogicalImportRecoveryAction =
+  | LogicalImportRestartDecision['action']
+  | 'observe';
+
+export interface LogicalImportRecoverySuccess {
+  ok: true;
+  status: LogicalImportRecoveryStatus;
+  operationId: string | null;
+  generationId: string | null;
+  steps: number;
+  finalAction: LogicalImportRecoveryAction;
+  recoveryRequired: false;
+  // Uma geração preparada continua no disco, inativa e sem dono. Ela não impede
+  // hidratação nem diagnóstico; a política de retenção é do 002D-F.
+  cleanupPending: boolean;
+}
+
+export interface LogicalImportRecoveryFailure {
+  ok: false;
+  reason: LogicalImportRecoveryFailureReason;
+  // Sempre uma constante DESTE módulo.
+  error: string;
+  operationId: string | null;
+  generationId: string | null;
+  steps: number;
+  finalAction: LogicalImportRecoveryAction;
+  // O journal foi preservado: uma nova tentativa (ou o diagnóstico do A2) ainda
+  // é necessária. Existe para que o chamador não precise casar treze motivos.
+  recoveryRequired: true;
+  cleanupPending: boolean;
+}
+
+export type LogicalStorageImportRecoveryResult =
+  | LogicalImportRecoverySuccess
+  | LogicalImportRecoveryFailure;
+
+// Mensagens constantes. Nenhuma delas interpola nada: nem id, nem contagem, nem
+// texto do ambiente.
+const RECOVERY_MESSAGES: Record<LogicalImportRecoveryFailureReason, string> = {
+  'operation-conflict': 'O estado administrativo não identifica uma única importação recuperável.',
+  'administration-unavailable': 'O armazenamento administrativo não está disponível para recuperar.',
+  'administration-conflicted': 'O estado administrativo está ambíguo demais para recuperar.',
+  'migration-incomplete': 'A migração física para o formato v2 não está concluída.',
+  'storage-unavailable': 'O core físico não pôde ser lido ou gravado durante a recuperação.',
+  quota: 'O armazenamento local não tem espaço para concluir a recuperação.',
+  'verification-failed': 'A geração da importação interrompida não pôde ser comprovada.',
+  'activation-failed': 'A ativação da geração importada falhou durante a recuperação.',
+  'core-commit-failed': 'A gravação do core importado falhou durante a recuperação.',
+  'readback-failed': 'Uma escrita da recuperação não passou no readback.',
+  'recovery-required': 'A recuperação não pôde ser comprovada; o journal foi preservado.',
+  'impossible-state': 'O journal descreve um estado que esta ordem de escrita não produz.',
+  'recovery-step-limit': 'A recuperação não convergiu dentro do limite de passos.',
+};
+
+// Tradução do motivo interno do resolvedor para o motivo público. Fechada nos
+// dois lados: `Record` completo, sem `default` e sem string livre.
+const RESTART_REASON_TO_PUBLIC: Record<
+  LogicalImportRestartBlockedReason,
+  LogicalImportRecoveryFailureReason
+> = {
+  'not-an-import': 'operation-conflict',
+  'multiple-unsettled-operations': 'operation-conflict',
+  'completion-pending': 'operation-conflict',
+  'core-unreadable': 'storage-unavailable',
+  'core-missing': 'administration-unavailable',
+  'core-not-v2': 'administration-conflicted',
+  'migration-incomplete': 'migration-incomplete',
+  'unexpected-staging-pointer': 'administration-conflicted',
+  'previous-generation-absent': 'impossible-state',
+  'staged-generation-absent': 'impossible-state',
+  'staged-generation-is-previous': 'impossible-state',
+  'staged-generation-invalid': 'verification-failed',
+  'staged-with-target-core': 'impossible-state',
+  'activating-without-staging': 'impossible-state',
+  'activating-without-target-core': 'impossible-state',
+  'activated-target-missing': 'impossible-state',
+  'target-core-invalid': 'recovery-required',
+  'active-generation-unexpected': 'recovery-required',
+  'core-not-previous': 'recovery-required',
+  'core-target-without-activation': 'recovery-required',
+  'target-verification-failed': 'verification-failed',
+  'activated-generation-not-active': 'recovery-required',
+  'activated-core-not-target': 'recovery-required',
+  'unrecognized-world': 'recovery-required',
+};
+
+// ---------------------------------------------------------------------------
+// Passos com efeito
+// ---------------------------------------------------------------------------
+
+// Escolha da operação a recuperar. Ela sai SEMPRE do armazenamento; o
+// `operationId` do chamador é apenas uma amarração que precisa bater.
+function selectRecoverableOperation(
+  snapshot: {
+    operationReceipts: readonly StorageOperationReceipt[];
+    unsettledOperations: readonly StorageOperationReceipt[];
+  },
+  requested: string | undefined,
+): { status: 'selected'; receipt: StorageOperationReceipt | null } | { status: 'conflict' } {
+  const unsettled = snapshot.unsettledOperations;
+  if (requested === undefined) {
+    if (unsettled.length === 0) return { status: 'selected', receipt: null };
+    if (unsettled.length > 1) return { status: 'conflict' };
+    return { status: 'selected', receipt: unsettled[0] };
+  }
+  const named = snapshot.operationReceipts.find((entry) => entry.operationId === requested) ?? null;
+  if (named === null) return { status: 'conflict' };
+  if (isTerminalStorageOperationStatus(named.status)) {
+    // Um terminal só pode ser relatado quando ele é a única história do
+    // armazenamento: outra operação viva significaria agir sobre o journal
+    // errado.
+    return unsettled.length === 0 ? { status: 'selected', receipt: named } : { status: 'conflict' };
+  }
+  if (unsettled.length !== 1 || unsettled[0].operationId !== requested) return { status: 'conflict' };
+  return { status: 'selected', receipt: named };
+}
+
+// Reversão idempotente. `revertStorageOperationSafely` é a saída de emergência
+// da fachada A2: ela leva a operação para `reverted` e só para lá, dentro de uma
+// transação que revalida todos os receipts e a metadata. Uma exceção NÃO é
+// tratada como fracasso — a transação pode ter commitado e falhado depois, então
+// quem decide é a releitura.
+async function revertInterruptedReceipt(
+  runtime: LogicalImportRecoveryRuntime,
+  adapter: LogicalImportRecoveryAdapter,
+  operationId: string,
+): Promise<'reverted' | 'already-reverted' | 'failed' | 'readback-failed'> {
+  let advanced = false;
+  try {
+    await runtime.revertStorageOperationSafely({ operationId, expectedStatus: 'staged' });
+    advanced = true;
+  } catch {
+    // Silêncio deliberado: a causa nativa não sobe e a releitura decide.
+  }
+  const current = await adapter.readStorageOperationReceipt(operationId).catch(() => null);
+  if (current === null) return 'readback-failed';
+  if (current.status !== 'reverted') return 'failed';
+  // `already-reverted` significa que OUTRA execução venceu a corrida. O estado
+  // físico é o mesmo; o que muda é quem pode dizer que avançou.
+  return advanced ? 'reverted' : 'already-reverted';
+}
+
+// Limpeza da geração preparada, com a guarda TRIPLA relida do armazenamento:
+// ela precisa ser nomeada pelo journal de um receipt já terminal, não pode ser a
+// geração ativa e não pode ser a geração anterior. Some a isso a prova integral
+// do mundo que fica.
+//
+// A geração ANTERIOR nunca é apagada por nenhum caminho deste módulo.
+async function cleanupRevertedStagingSafely(
+  adapter: LogicalImportRecoveryAdapter,
+  operationId: string,
+  generationId: string,
+  previousGenerationId: string,
+): Promise<boolean> {
+  if (generationId === previousGenerationId) return false;
+  try {
+    const receipt = await adapter.readStorageOperationReceipt(operationId);
+    if (
+      receipt === null
+      || receipt.kind !== IMPORT_OPERATION_KIND
+      || receipt.status !== 'reverted'
+      || receipt.stagedGenerationId !== generationId
+      || receipt.previousGenerationId !== previousGenerationId
+    ) {
+      return false;
+    }
+    const metadata = await adapter.readMetadata();
+    if (metadata.activeGeneration === generationId) return false;
+    if (metadata.activeGeneration !== previousGenerationId) return false;
+    // Destruir a alternativa exige provar o mundo que fica — manifest, sessões e
+    // digest ordenado da geração anterior, tudo recalculado.
+    await adapter.readVerifiedHistoryGeneration(previousGenerationId);
+    await adapter.clearInactiveGeneration(generationId);
+    return true;
+  } catch {
+    // Órfã preservada: perder dados seria muito pior do que deixar lixo inativo.
+    return false;
+  }
+}
+
+type RecoveredCoreOutcome =
+  | 'committed'
+  | 'readback-failed'
+  | 'core-commit-failed'
+  | 'storage-unavailable'
+  | 'quota'
+  | 'recovery-required';
+
+// Protocolo byte-exato do core, reexecutado na recuperação com o MESMO
+// endurecimento do W6.
+//
+// `targetCoreRaw` sai exclusivamente do receipt — nada é reconstruído, nenhum
+// `savedAt` novo é cunhado. A cópia rolante NUNCA é compensada para trás: nem
+// `setItem` do valor anterior, nem `removeItem`, nem escrita de melhor esforço.
+// Se ela contém `previousCoreRaw`, fica assim; se contém outro valor, fica
+// assim; se está ausente, fica ausente; se a leitura dela falha, nem tentamos
+// escrevê-la.
+async function commitRecoveredTargetCore(input: {
+  adapter: LogicalImportRecoveryAdapter;
+  storage: StorageLike;
+  key: string;
+  operationId: string;
+  generationId: string;
+}): Promise<RecoveredCoreOutcome> {
+  const { adapter, storage, key, operationId, generationId } = input;
+
+  const receipt = await adapter.readStorageOperationReceipt(operationId).catch(() => null);
+  if (
+    receipt === null
+    || receipt.kind !== IMPORT_OPERATION_KIND
+    || receipt.status !== 'activating'
+    || receipt.stagedGenerationId !== generationId
+    || receipt.targetCoreRaw === null
+  ) {
+    return 'readback-failed';
+  }
+  const target = receipt.targetCoreRaw;
+  const previous = receipt.previousCoreRaw;
+  const parsedTarget = parsePhysicalEnvelope(target);
+  if (
+    parsedTarget.status !== 'v2'
+    || parsedTarget.envelope.data.historyStorage.generationId !== generationId
+    || !isCanonicalIsoInstant(parsedTarget.envelope.savedAt)
+  ) {
+    return 'recovery-required';
+  }
+
+  // A geração ativa precisa ser G AGORA: gravar o core alvo sobre outro mundo
+  // criaria exatamente a divergência que este módulo existe para impedir.
+  const metadata = await adapter.readMetadata().catch(() => null);
+  if (metadata === null) return 'recovery-required';
+  if (metadata.activeGeneration !== generationId || metadata.migrationGeneration !== null) {
+    return 'recovery-required';
+  }
+
+  const beforeCommit = readRaw(storage, key);
+  if (!beforeCommit.ok) return 'storage-unavailable';
+  if (beforeCommit.raw !== previous) return 'recovery-required';
+
+  const backupKey = `${key}${HYBRID_CORE_BACKUP_SUFFIX}`;
+  // Sonda da cópia rolante: se ela nem pode ser lida, este fluxo não tenta
+  // gravá-la.
+  const backupProbe = readRaw(storage, backupKey);
+  if (!backupProbe.ok) return 'storage-unavailable';
+
+  try {
+    storage.setItem(backupKey, previous);
+  } catch (cause) {
+    return isQuotaFailure(cause) ? 'quota' : 'storage-unavailable';
+  }
+  const backupReadback = readRaw(storage, backupKey);
+  if (!backupReadback.ok) return 'storage-unavailable';
+  if (backupReadback.raw !== previous) return 'core-commit-failed';
+
+  // Segunda releitura da chave principal: gravar a cópia rolante é uma janela em
+  // que outra aba pode ter escrito.
+  const beforeWrite = readRaw(storage, key);
+  if (!beforeWrite.ok) return 'storage-unavailable';
+  if (beforeWrite.raw !== previous) return 'recovery-required';
+
+  let writeError: unknown = null;
+  try {
+    storage.setItem(key, target);
+  } catch (cause) {
+    writeError = cause;
+  }
+
+  const afterWrite = readRaw(storage, key);
+  // Ilegível depois de uma tentativa de escrita: não dá para afirmar nada.
+  if (!afterWrite.ok) return 'recovery-required';
+  // Escreveu e lançou depois: o efeito venceu, e o journal continua coerente.
+  if (afterWrite.raw === target) return 'committed';
+  if (afterWrite.raw === previous) {
+    if (writeError !== null) return isQuotaFailure(writeError) ? 'quota' : 'storage-unavailable';
+    return 'core-commit-failed';
+  }
+  // Terceiro valor: não adivinha, não sobrescreve, não apaga geração, não marca
+  // terminal.
+  return 'recovery-required';
+}
+
+/**
+ * Recupera uma importação lógica v2 que foi interrompida por um reload, um
+ * crash ou uma queda de armazenamento.
+ *
+ * Ela converge para UM dos dois mundos que o journal nomeia — o anterior ou o
+ * importado — e nunca para um terceiro. A direção não é escolha: ela é
+ * consequência do quanto a operação já tinha materializado antes de parar.
+ *
+ * Toda evidência vem do journal e do armazenamento atual. O arquivo original não
+ * é pedido, não é reconstruído e não é necessário.
+ *
+ * ISTO NÃO É CHAMADO NO BOOT. Não há Provider, Context, UI nem call site: quem
+ * liga esta função à hidratação é o slice D.
+ */
+export async function recoverLogicalStorageImportV2(
+  input: RecoverLogicalStorageImportV2Input,
+): Promise<LogicalStorageImportRecoveryResult> {
+  const { runtime, adapter, storage, key } = input;
+  const requested = input.operationId;
+
+  let steps = 0;
+  let operationId: string | null = null;
+  let generationId: string | null = null;
+  // `null` enquanto nada foi avançado por ESTA execução. É o que distingue
+  // `settled` de `already-settled` — e o que torna a segunda execução um no-op
+  // observável.
+  let outcome: 'settled' | 'reverted' | null = null;
+  let cleanupPending = false;
+  // Verificação criptográfica válida SÓ para o par (fingerprint, geração): a
+  // menor escrita no IndexedDB muda o fingerprint e a prova é descartada.
+  let proof: { fingerprint: string; generationId: string; status: 'verified' | 'invalid' } | null = null;
+
+  const fail = (
+    reason: LogicalImportRecoveryFailureReason,
+    finalAction: LogicalImportRecoveryAction,
+  ): LogicalImportRecoveryFailure => ({
+    ok: false,
+    reason,
+    error: RECOVERY_MESSAGES[reason],
+    operationId,
+    generationId,
+    steps,
+    finalAction,
+    recoveryRequired: true,
+    cleanupPending,
+  });
+
+  const succeed = (
+    status: LogicalImportRecoveryStatus,
+    finalAction: LogicalImportRecoveryAction,
+  ): LogicalImportRecoverySuccess => ({
+    ok: true,
+    status,
+    operationId,
+    generationId,
+    steps,
+    finalAction,
+    recoveryRequired: false,
+    cleanupPending,
+  });
+
+  // Abertura e triagem física. A fachada A2 é quem abre o IndexedDB, e é ela que
+  // distingue "o armazenamento não está utilizável" de "o estado está ambíguo".
+  const opening = await runtime.inspectStorageAdministration().catch(() => null);
+  if (opening === null) return fail('administration-unavailable', 'observe');
+  if (opening.state.status === 'unavailable') {
+    return fail(
+      opening.state.reason === 'storage-blocked' ? 'storage-unavailable' : 'administration-unavailable',
+      'observe',
+    );
+  }
+
+  while (steps < MAX_RECOVERY_STEPS) {
+    steps += 1;
+
+    // -----------------------------------------------------------------------
+    // Evidência. Relida INTEIRA a cada passo: nunca se assume que a escrita
+    // anterior venceu.
+    // -----------------------------------------------------------------------
+    const coreRead = readRaw(storage, key);
+    const snapshot = await adapter.readStorageAdministrationSnapshot().catch(() => null);
+    if (snapshot === null) return fail('administration-unavailable', 'observe');
+
+    // Depois que uma operação é escolhida, o laço passa a segui-la pelo id — do
+    // contrário a própria transição para um status terminal a tiraria da lista
+    // de operações em aberto e o passo seguinte veria "não há nada para fazer",
+    // perdendo o que ESTA execução acabou de produzir.
+    const selection = selectRecoverableOperation(snapshot, requested ?? operationId ?? undefined);
+    if (selection.status === 'conflict') return fail('operation-conflict', 'observe');
+    const receipt = selection.receipt;
+    if (receipt !== null) {
+      operationId = receipt.operationId;
+      generationId = receipt.stagedGenerationId ?? generationId;
+    }
+
+    const fingerprint = snapshot.fingerprint;
+    const integrityOf = (id: string | null): LogicalImportGenerationIntegrity => (
+      id !== null && proof !== null && proof.fingerprint === fingerprint && proof.generationId === id
+        ? proof.status
+        : 'unknown'
+    );
+
+    const decision = resolveLogicalImportRestartRecovery({
+      receipt,
+      core: coreRead.ok ? { status: 'read', raw: coreRead.raw } : { status: 'unavailable' },
+      metadata: {
+        activeGeneration: snapshot.metadata.activeGeneration,
+        migrationGeneration: snapshot.metadata.migrationGeneration,
+        migrationStatus: snapshot.metadata.migrationStatus,
+      },
+      generations: snapshot.generations.map((entry) => ({ generationId: entry.generationId })),
+      previousGenerationIntegrity: integrityOf(receipt?.previousGenerationId ?? null),
+      stagedGenerationIntegrity: integrityOf(receipt?.stagedGenerationId ?? null),
+      pendingCompletionReceiptCount: snapshot.pendingCompletionReceipts.length,
+      unsettledOperationCount: snapshot.unsettledOperations.length,
+    });
+
+    // -----------------------------------------------------------------------
+    // Execução da decisão. Depois de cada escrita o laço recomeça e o resolvedor
+    // roda de novo sobre uma leitura NOVA.
+    // -----------------------------------------------------------------------
+    switch (decision.action) {
+      case 'no-operation':
+        // `outcome` só é não nulo se uma operação chegou a ser seguida — e
+        // nesse caso o laço a encontra pelo id fixado, nunca por esta ação.
+        return succeed(outcome ?? 'no-operation', decision.action);
+
+      case 'already-settled': {
+        if (outcome === 'settled') {
+          // Inspeção administrativa final: o mundo alvo precisa voltar a ser
+          // utilizável, não apenas "não contraditório".
+          const final = await runtime.inspectStorageAdministration().catch(() => null);
+          if (
+            final === null
+            || final.state.status !== 'ready'
+            || final.activeGenerationId !== generationId
+            || final.stagedGenerationId !== null
+            || final.unsettledOperations.length !== 0
+            || final.pendingCompletionReceiptCount !== 0
+            || final.activeGenerationIntegrity === null
+            || final.activeGenerationIntegrity.status !== 'verified'
+          ) {
+            return fail('recovery-required', decision.action);
+          }
+        }
+        return succeed(outcome ?? 'already-settled', decision.action);
+      }
+
+      case 'already-reverted': {
+        if (decision.cleanupGenerationId !== null) {
+          const receiptPrevious = receipt?.previousGenerationId ?? null;
+          const cleaned = receiptPrevious !== null && await cleanupRevertedStagingSafely(
+            adapter,
+            decision.operationId,
+            decision.cleanupGenerationId,
+            receiptPrevious,
+          );
+          if (!cleaned) {
+            cleanupPending = true;
+            return succeed(outcome ?? 'already-reverted', decision.action);
+          }
+          continue;
+        }
+        if (outcome === 'reverted') {
+          const final = await runtime.inspectStorageAdministration().catch(() => null);
+          if (
+            final === null
+            || final.state.status !== 'ready'
+            || final.unsettledOperations.length !== 0
+          ) {
+            return fail('recovery-required', decision.action);
+          }
+        }
+        return succeed(outcome ?? 'already-reverted', decision.action);
+      }
+
+      case 'revert-receipt':
+      case 'revert-and-cleanup-staging': {
+        const reverted = await revertInterruptedReceipt(runtime, adapter, decision.operationId);
+        if (reverted === 'readback-failed') return fail('readback-failed', decision.action);
+        if (reverted === 'failed') return fail('recovery-required', decision.action);
+        if (reverted === 'reverted') outcome = 'reverted';
+        // Sem prova do mundo que fica, G continua no disco de propósito.
+        if (decision.action === 'revert-receipt' && decision.generationId !== null) {
+          cleanupPending = true;
+        }
+        continue;
+      }
+
+      case 'activate-generation': {
+        // Verificação integral de G ANTES da ativação, além da que a própria
+        // primitiva refaz dentro da transação.
+        const verified = await adapter
+          .readVerifiedHistoryGeneration(decision.generationId)
+          .catch(() => null);
+        if (
+          verified === null
+          || verified.generationId !== decision.generationId
+          || verified.manifest.generationId !== decision.generationId
+          || !verified.manifest.verified
+        ) {
+          proof = { fingerprint, generationId: decision.generationId, status: 'invalid' };
+          return fail('verification-failed', decision.action);
+        }
+        try {
+          const activation = await adapter.rollbackToHistoryGeneration({
+            targetGenerationId: decision.generationId,
+            expectedActiveGenerationId: decision.previousGenerationId,
+          });
+          if (
+            activation.activeGeneration !== decision.generationId
+            || activation.migrationGeneration !== null
+          ) {
+            return fail('activation-failed', decision.action);
+          }
+        } catch {
+          // Idempotência: a ativação pode ter commitado e falhado só depois.
+          const observed = await adapter.readMetadata().catch(() => null);
+          if (observed === null || observed.activeGeneration !== decision.generationId) {
+            return fail('activation-failed', decision.action);
+          }
+        }
+        continue;
+      }
+
+      case 'verify-target': {
+        const verified = await adapter
+          .readVerifiedHistoryGeneration(decision.generationId)
+          .catch(() => null);
+        proof = {
+          fingerprint,
+          generationId: decision.generationId,
+          status: verified !== null
+            && verified.generationId === decision.generationId
+            && verified.manifest.generationId === decision.generationId
+            && verified.manifest.verified
+            ? 'verified'
+            : 'invalid',
+        };
+        continue;
+      }
+
+      case 'commit-target-core': {
+        const committed = await commitRecoveredTargetCore({
+          adapter,
+          storage,
+          key,
+          operationId: decision.operationId,
+          generationId: decision.generationId,
+        });
+        if (committed !== 'committed') return fail(committed, decision.action);
+        continue;
+      }
+
+      case 'mark-activated': {
+        const before = await adapter
+          .readStorageOperationReceipt(decision.operationId)
+          .catch(() => null);
+        if (
+          before === null
+          || before.kind !== IMPORT_OPERATION_KIND
+          || before.status !== 'activating'
+          || before.stagedGenerationId !== decision.generationId
+          || before.targetCoreRaw === null
+        ) {
+          return fail('readback-failed', decision.action);
+        }
+        const coreBefore = readRaw(storage, key);
+        if (!coreBefore.ok) return fail('storage-unavailable', decision.action);
+        if (coreBefore.raw !== before.targetCoreRaw) return fail('recovery-required', decision.action);
+        try {
+          const advanced = await adapter.transitionStorageOperationIfUnambiguous({
+            operationId: decision.operationId,
+            expectedStatus: 'activating',
+            nextStatus: 'activated',
+            expectedActiveGenerationId: decision.generationId,
+          });
+          if (advanced.status !== 'activated') return fail('readback-failed', decision.action);
+        } catch {
+          // Idempotência: a transação pode ter commitado e falhado depois.
+          const current = await adapter
+            .readStorageOperationReceipt(decision.operationId)
+            .catch(() => null);
+          if (current === null || current.status !== 'activated') {
+            return fail('recovery-required', decision.action);
+          }
+        }
+        // A primitiva não reconfere `stagedGenerationId`, `targetCoreRaw` nem o
+        // mundo anterior dentro da própria transação (janela TOCTOU do W8, que
+        // só um owner-token fecha). Aqui a mutação é barrada antes do
+        // settlement.
+        const after = await adapter
+          .readStorageOperationReceipt(decision.operationId)
+          .catch(() => null);
+        if (
+          after === null
+          || after.status !== 'activated'
+          || after.kind !== IMPORT_OPERATION_KIND
+          || after.stagedGenerationId !== decision.generationId
+          || after.targetCoreRaw !== before.targetCoreRaw
+          || after.previousCoreRaw !== before.previousCoreRaw
+          || after.previousGenerationId !== before.previousGenerationId
+        ) {
+          return fail('readback-failed', decision.action);
+        }
+        const coreAfter = readRaw(storage, key);
+        if (!coreAfter.ok || coreAfter.raw !== before.targetCoreRaw) {
+          return fail('recovery-required', decision.action);
+        }
+        continue;
+      }
+
+      case 'settle': {
+        let advanced = false;
+        try {
+          await runtime.transitionStorageOperation({
+            operationId: decision.operationId,
+            expectedStatus: 'activated',
+            nextStatus: 'settled',
+          });
+          advanced = true;
+        } catch {
+          // Idempotência: a releitura decide, não a exceção.
+        }
+        const settled = await adapter
+          .readStorageOperationReceipt(decision.operationId)
+          .catch(() => null);
+        if (settled === null || settled.status !== 'settled') {
+          return fail('recovery-required', decision.action);
+        }
+        // Sem `advanced`, outra execução concorrente que apenas OBSERVOU o
+        // settlement relataria tê-lo produzido.
+        if (advanced) outcome = 'settled';
+        continue;
+      }
+
+      case 'recovery-required':
+      case 'impossible-state':
+        return fail(RESTART_REASON_TO_PUBLIC[decision.reason], decision.action);
+    }
+  }
+
+  // Limite atingido: nada de recursão, nada de espera, nada de retry por atraso.
+  // O journal fica inteiro.
+  return fail('recovery-step-limit', 'observe');
 }

@@ -3253,3 +3253,161 @@ avisos, **nenhum nos arquivos alterados**), `git diff --check` limpo.
 - **A janela TOCTOU do W8 continua aberta** entre as pré-condições conferidas
   pelo módulo e o início da transação da primitiva; fechá-la exige owner-token.
 - **C2/D/E/F não iniciados.** O slice C **não** está completo.
+
+## GOAL-17B-002D-C2 — recuperação da importação lógica v2 interrompida (2026-07-27)
+
+O C1 ficou concluído **localmente** (dois commits na branch
+`feat/gymflow-goal17b-import-journal`, nada empurrado) e passou pela auditoria
+**056, Classe B**. O que ele deixou aberto era o item de maior risco do slice:
+`resolveLogicalImportRecovery` apenas **decidia** o que fazer com uma importação
+interrompida, e ninguém executava essa decisão. Uma queda no meio da sequência
+W1–W9 deixava um journal correto e um aplicativo que não sabia o que fazer com
+ele. Este slice entrega o motor que executa — testado, e ainda sem call site.
+
+### A premissa que organiza tudo
+
+**Depois de um reload o arquivo original não existe mais.** Não há `raw`, não há
+payload lógico e não há como recalcular `targetCoreRaw`. Toda evidência sai de
+duas fontes e só delas: o journal (que nomeia os dois mundos completos) e o
+armazenamento atual.
+
+A consequência não é uma preferência, é uma dedução:
+
+| Estado do receipt | Mundo importado existe? | Direção |
+| --- | --- | --- |
+| `staged` (com ou sem G) | não — `targetCoreRaw` é nulo | converge **para trás** |
+| `activating` / `activated` | sim — G e T estão materializados | converge **para a frente** |
+
+### O que passou a existir
+
+- **`recoverLogicalStorageImportV2`** — recebe runtime A2, adapter administrativo,
+  `StorageLike`, chave principal e um `operationId` opcional. **Não** recebe raw,
+  payload, preview, objeto de inspeção, `generationId` escolhido,
+  `previousCoreRaw` nem `targetCoreRaw`. Sem relógio injetável: a recuperação não
+  cunha instante nenhum.
+- **`resolveLogicalImportRestartRecovery`** — segundo resolvedor **puro**, irmão
+  e não substituto do primeiro. O do C1 continua puro e intocado.
+- **Tipos `Pick` da recuperação** — o adapter recebe sete capacidades e o runtime
+  três. `stageHistoryGenerationForOperation` e `beginStorageOperation` ficam de
+  fora: criar geração ou operação nova nem compila.
+
+### Política sem o arquivo original
+
+- **`staged` sem G** — reverte com segurança, exigindo que `previousCoreRaw` e
+  `previousGenerationId` ainda sejam o mundo atual. Nenhuma geração é criada.
+- **`staged` com G e `targetCoreRaw` nulo** — confirma que G está inativa e que o
+  core e o ponteiro ativo continuam sendo o mundo anterior, marca `reverted` e só
+  então limpa G, com guarda tripla relida do armazenamento. Falha de limpeza gera
+  **órfã segura** (`cleanupPending: true`), nunca perda de dados.
+- **G ativa ou core diferente do anterior** — não reverte às cegas:
+  `recovery-required`.
+
+### Política do `activating` — os quatro mundos
+
+| Mundo | `activeGeneration` | core | Ação |
+| --- | --- | --- | --- |
+| A | Prev | P | verifica G integralmente e ativa com CAS |
+| B | G | P | verifica G e reexecuta o protocolo byte-exato do core |
+| C | G | T | verifica o alvo e marca `activated` pela primitiva A1 |
+| D | Prev | T | **não** nasce da ordem geração → core: `recovery-required` |
+
+Mundos desconhecidos — terceira geração ativa, terceiro core, G ausente, T ou P
+divergentes, receipt alterado, `migrationGeneration` preenchida, conclusão
+pendente, múltiplos receipts não terminais — bloqueiam sem escrever.
+
+### Política do `activated`
+
+Liquida somente com o mundo alvo **inteiramente provado**: G e T presentes,
+`activeGeneration === G`, core byte a byte igual a T, G verificada
+criptograficamente, core físico v2 apontando para G, `migrationGeneration` nula,
+`migrationStatus` `completed`, zero conclusão pendente e receipt único e
+coerente. Faltando qualquer uma, não compensa e não reverte: `recovery-required`.
+
+### Laço fechado
+
+`MAX_RECOVERY_STEPS = 12`. O caminho mais longo — MUNDO A até `settled` — consome
+sete passos. Depois de **cada** escrita o motor relê core, metadata, receipt e
+snapshot administrativo e roda o resolvedor de novo: nunca assume que a escrita
+anterior venceu. Sem recursão, sem `setTimeout`, sem espera por tempo, sem retry
+por atraso. Limite atingido devolve `recovery-step-limit` com o journal inteiro.
+
+### Antes / depois do comportamento crítico
+
+| Situação | Antes (C1) | Depois (C2) |
+| --- | --- | --- |
+| Queda depois do W1 | receipt `staged` preso para sempre | `reverted`, mundo anterior intacto |
+| Queda depois do W2 | geração órfã sem dono | `reverted` + G limpa com guarda tripla |
+| Queda depois do W4 | receipt `activating` preso | avança até `settled` |
+| Queda depois do W5 | geração ativa, core antigo | grava T byte a byte e liquida |
+| Queda depois do W8 | receipt `activated` preso | liquida sem tocar core nem geração |
+| Terceiro valor no core | nada a fazer | `recovery-required`, zero escrita |
+
+### Testes
+
+**Importador (89 novos, 127 → 216).**
+
+- **Matriz de crash points (23 testes, 16 pontos).** Cada um parte do mundo
+  anterior saudável, roda a implementação **real** do C1, corta a energia depois
+  da escrita indicada, destrói adapter e fachada, cria instâncias novas sobre o
+  mesmo banco e o mesmo `localStorage`, recupera, confere o mundo físico e prova
+  idempotência. Os crash 10 e 11 têm quatro variantes cada (cópia rolante: falha
+  antes de escrever, escreveu e lançou, readback indisponível, terceiro valor;
+  chave principal: lançou antes de escrever, escreveu T e lançou, terceiro valor
+  válido, terceiro valor ilegível, readback indisponível).
+- **Prova de reinício real (7).** Instâncias diferentes, banco igual; o adapter
+  recarregado nem sequer nasce aberto, e a fábrica de `generationId` **lança** se
+  a recuperação tentar criar uma geração.
+- **Limite de passos (1).** Fingerprint artificialmente instável faz o resolvedor
+  pedir verificação para sempre; o retorno é `recovery-step-limit` entre 8 e 16
+  passos, com footprint idêntico byte a byte.
+- **Concorrência (2).** Duas recuperações em paralelo sobre o mesmo mundo: no
+  máximo uma diz que avançou, nenhuma inventa `operationId` ou `generationId`, e
+  o estado físico final é único e válido.
+- **Idempotência.** Footprint completo — `localStorage` inteiro, metadata,
+  gerações, manifests, **todos** os registros de **todas** as gerações, todos os
+  receipts com `updatedAt` e o fingerprint administrativo — comparado byte a byte
+  antes e depois. Cinco execuções seguidas não movem nada.
+- **Estados ambíguos (22).** Terceira geração ativa, core terceiro valor, MUNDO D,
+  receipt com G ou T divergente, receipt sem G, receipt sem T, G ausente, G
+  adulterada, manifest ausente, `orderedDigest` divergente,
+  `migrationGeneration` preenchida, `migrationStatus` incompleto, conclusão
+  pendente, dois receipts não terminais, receipt de restore/reset/rollback,
+  `operationId` que não corresponde, leitura da principal indisponível e
+  IndexedDB indisponível.
+- **Geração anterior (5).** Nenhum caminho chama `clearInactiveGeneration` sobre
+  Prev; manifest, sessões e digest anteriores sobrevivem à reversão E ao avanço.
+- **Privacidade (11).** Nove fases de falha provocadas uma a uma — leitura
+  inicial, snapshot administrativo, verificação, ativação, cópia rolante, core,
+  W8, liquidação e limpeza —, mais o sucesso completo. Varredura recursiva de
+  propriedades enumeráveis e não enumeráveis, `name`, `message`, `stack`, `cause`,
+  causas aninhadas, arrays, `Map`, `Set`, serializado e console.
+- **Guards de call site (6).** `recoverLogicalStorageImportV2` e
+  `resolveLogicalImportRestartRecovery` aparecem apenas no módulo e no próprio
+  teste; nenhum componente, Provider, Context, `storage-hybrid` ou AdminPanel
+  importa o módulo; nenhum arquivo Android o cita; nenhum boot o chama.
+- **Resolvedor de reinício (14).** Tabela fechada mais varredura de **2.400
+  mundos** que exige o mundo exato por trás de cada ação com efeito.
+
+Seeds embaralhadas: `11057`, `22057`, `33057` e `44057` — todas verdes.
+
+### Validações
+
+`npx vitest run` (**1673/1673**, era 1584), `npx tsc --noEmit`, `npm run build`,
+`npm run build:mobile`, `npx eslint src` (baseline preservada: 12 erros, 6
+avisos, **nenhum nos arquivos alterados**), `git diff --check` limpo.
+`package.json` e `package-lock.json` inalterados.
+
+### Continuação
+
+- **Nenhum call site.** O importador e a recuperação continuam referenciados só
+  pelo próprio teste.
+- **Nada roda no boot.** `hydrate` e `metadataMatchesV2` não foram tocados. Quem
+  chama a recuperação antes da hidratação é o **slice D, obrigatório antes de
+  qualquer exposição** — e não iniciado.
+- **Não existe atomicidade única entre `localStorage` e IndexedDB**, e este slice
+  não finge que existe.
+- **O aplicativo NÃO recupera automaticamente no boot** e **a importação não está
+  disponível ao usuário.**
+- **A janela TOCTOU do W8 continua aberta**; fechá-la exige owner-token, que
+  segue pendente para o E.
+- **D/E/F não iniciados.**
