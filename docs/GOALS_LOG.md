@@ -3052,3 +3052,362 @@ e `package-lock.json` inalterados.
 - **002D-C/D/E/F não iniciados.**
 - **Não se afirma atomicidade entre `localStorage` e IndexedDB.** O protocolo
   garante que a concorrência derruba a exportação, não que ela seja impedida.
+
+## GOAL-17B-002D-C1 — importação lógica v2 atômica (2026-07-27)
+
+Auditoria independente 052 classificou o 002D-C como **APTO PARA IMPLEMENTAÇÃO /
+Classe B** e recomendou dividir o slice. Este GOAL executa o **C1**: recepção
+programática de um backup lógico v2, journal administrativo, staging físico
+amarrado ao receipt, caminho saudável completo até `settled` e resolvedor puro
+dos estados de recuperação. O **C2** — execução da recuperação após reload e
+matriz completa de crash points — **não foi iniciado**.
+
+### O que passou a existir
+
+Antes deste GOAL um arquivo v2 podia ser gerado e conferido, e nada mais:
+`commitStorageImport` só aceita o envelope v1 monolítico, então o usuário v2
+tinha um backup **verificável e inútil para restaurar** (17B-002D-B-P4). Agora
+existe `commitLogicalStorageImportV2`, programática e sem call site.
+
+**Primitiva A1 nova — `stageHistoryGenerationForOperation`.** Cria a geração
+importada (registros + digests por registro + `orderedDigest` + manifest +
+marcador de ordem) e grava `stagedGenerationId` no receipt da operação na MESMA
+transação readwrite sobre `workoutHistory`, `metadata`, `generationManifests`,
+`storageOperationReceipts` e `completionReceipts`. Dentro da transação exige:
+exatamente um receipt não terminal, que seja o `operationId` informado, com
+`kind: 'import'`, `status: 'staged'`, `stagedGenerationId` e `targetCoreRaw`
+ainda nulos; zero conclusão de treino pendente; CAS de `activeGeneration`;
+`migrationGeneration` nulo; e identidade física ainda inexistente. O
+`generationId` sai sempre do `generationIdFactory` do adapter — **o importador
+nunca fornece identidade física, e o backup externo muito menos.** Qualquer erro
+aborta a transação inteira. Integridade reutiliza as rotinas existentes; não há
+segunda implementação.
+
+**`metadata.migrationGeneration` nunca é gravada.** `metadataMatchesV2` exige o
+ponteiro nulo para hidratar; preenchê-lo bloquearia o boot durante toda a
+preparação. O vínculo geração ↔ operação vive no receipt.
+
+### Sequência implementada (W0–W10)
+
+`W0` inspeciona o arquivo e a administração sem escrever nada; `W1` cria o
+receipt via `beginStorageOperation` com `sourceDigest = payloadDigest`; `W2` faz
+o staging atômico; `W3` relê a geração verificada e a compara integralmente com o
+payload (contagem, ids, ordem, conteúdo canônico, `orderedDigest`, manifest);
+`W4` constrói `targetCoreRaw` UMA vez e o persiste no journal junto da transição
+`staged → activating`; `W5` ativa com `rollbackToHistoryGeneration` (verificação
+integral + prova canônica + CAS + readback); `W6` grava o core byte a byte;
+`W7` verifica core, metadata e geração; `W8` marca `activated` pela primitiva A1
+direta; `W9` liquida via fachada A2; `W10` exige `ready` de novo. **Sucesso só é
+retornado depois desse último readback.**
+
+O `targetCoreRaw` é o MESMO raw do começo ao fim: nada de reconstruir o envelope,
+nada de `savedAt` novo, nada de `saveHybridCoreResult` — que cunharia um instante
+diferente e jamais bateria byte a byte com o que o receipt prometeu.
+
+### Testes
+
+**Primitiva (16 novos em `storage-indexeddb.test.ts`, 153 → 169):** gravação
+completa numa transação; recusa de `expectedStatus` inválido; receipt persistido
+fora de `staged`; kind diferente de `import`; `stagedGenerationId` ou
+`targetCoreRaw` já preenchidos; segunda operação não terminal; conclusão de
+treino pendente; CAS falho; `migrationGeneration` ocupada; identidade já
+existente; colisão com a geração ativa; ponteiro de staging intocado e geração
+ativa inalterada; histórico vazio com manifest canônico; `put` que falha
+abortando tudo; readback do receipt.
+
+**Importador (76 novos em `storage-logical-import.test.ts`):** caminho saudável
+(11, incluindo 500 sessões, Unicode/emoji, core sem `workoutHistory`, geração
+anterior intacta, `settled` e re-hidratação real do runtime híbrido); arquivo
+recusado sem nenhuma escrita (11, cada um provando `localStorage` byte a byte
+idêntico, fingerprint administrativo idêntico, zero receipt e zero geração nova);
+estado atual do armazenamento (7); concorrência e integridade (11); falhas e
+compensação (10); idempotência e invariantes (10); tabela fechada do resolvedor
+puro (16).
+
+Seeds embaralhadas: `11053` e `22053` no importador, `33053` no adapter — todas
+verdes.
+
+### Validações
+
+`npx vitest run` (**1527/1527**, era 1435), `npx tsc --noEmit`, `npm run build`,
+`npm run build:mobile`, `npx eslint src` (baseline preservada: 12 erros, 6
+avisos, **nenhum nos arquivos alterados**), `git diff --check` limpo.
+`package.json` e `package-lock.json` inalterados.
+
+### Continuação
+
+- **Nenhum call site real.** Nenhuma UI, Provider, Context, AdminPanel, boot,
+  seletor de arquivo, download ou upload foi criado. A varredura automatizada de
+  `src` confirma que o importador só é referenciado pelo próprio teste.
+- **A recuperação após reload NÃO está funcionando.** O C1 entrega apenas o
+  resolvedor PURO, que decide; `recoverLogicalStorageImportV2` com I/O real não
+  existe e nada roda no boot. Uma queda entre a ativação e o commit do core deixa
+  o estado recuperável pelo journal, mas ninguém executa essa recuperação ainda —
+  ver 17B-002D-C1-P0 em PENDENCIAS.
+- **Não se afirma atomicidade única entre `localStorage` e IndexedDB.** A janela
+  em que os dois podem discordar foi reduzida a uma única escrita síncrona, não
+  eliminada.
+- **Owner-token continua pendente:** duas abas ainda podem disputar; o protocolo
+  garante que a importação falha honestamente, não que ela seja impedida.
+- **C2/D/E/F não iniciados.**
+
+## GOAL-17B-002D-C1 corretivo 055 — compensação endurecida (2026-07-27)
+
+Auditoria independente 054: **APTO / Classe B**, com um achado **P1** na
+compensação da importação lógica v2. Este corretivo fecha o achado e as lacunas
+de teste diretamente ligadas a ele. **O C2 continua não iniciado.**
+
+### O risco encontrado
+
+`restoreRollingBackup` reescrevia (`setItem`) ou removia (`removeItem`) a cópia
+rolante do core **incondicionalmente** depois de qualquer falha do W6, usando o
+valor lido antes da operação. Entre aquela leitura e a compensação, outra aba ou
+processo pode ter atualizado a cópia: a restauração apagaria um backup mais novo,
+e o `removeItem` recriaria uma ausência que já não existia.
+
+### A correção
+
+A função foi **removida inteira**, junto das suas quatro chamadas e da última
+ocorrência de `removeItem` no módulo. A política passou a ser:
+
+- a cópia rolante é **auxiliar**; o canônico é a chave principal + geração ativa;
+- depois de gravar `previousCoreRaw` nela, a cópia já é backup válido;
+- a compensação **nunca** escreve nem remove a cópia, em nenhum caminho;
+- cópia alterada por outra aba fica intacta; cópia ausente fica ausente; cópia
+  ilegível não é escrita;
+- **uma importação abortada pode deixar a cópia em `previousCoreRaw`** — seguro,
+  porque esse raw é o core anterior verificado no W0 e guardado no journal, e
+  **não altera o estado canônico**.
+
+Falha da cópia antes do commit passou a **reler a chave principal**: só
+`previousCoreRaw` autoriza compensação completa; `targetCoreRaw` ou terceiro
+valor preservam o journal e devolvem `recovery-required`, sem sobrescrever nada.
+
+Falha de `getItem` preserva o journal em qualquer fase (`storage-unavailable`
+antes do commit, `recovery-required` a partir dele). `RawRead` deixou de carregar
+`cause`, então a mensagem nativa do armazenamento não tem por onde vazar.
+
+`isQuotaFailure` passou a exigir sinal estrutural (`error.name` conhecido, ou
+código legado 22/1014 dentro de um `DOMException` real). `storage.ts` não foi
+tocado.
+
+O W8 ganhou um **readback do receipt depois da transição** `activating →
+activated`: a primitiva não reconfere `stagedGenerationId` nem `targetCoreRaw`
+dentro da própria transação, então o readback é o que impede o settlement quando
+um deles foi mutado na janela. A primitiva IndexedDB e a fachada A2 **não foram
+alteradas**.
+
+O resolvedor ganhou o motivo `staged-generation-is-previous`: um receipt que
+nomeia a geração anterior como preparada é estado impossível, e sem a guarda ele
+avançaria para `prepare-core`.
+
+### Antes / depois do comportamento crítico
+
+| Situação | Antes | Depois |
+| --- | --- | --- |
+| falha do W6 com a cópia alterada por outra aba | cópia sobrescrita com o valor antigo | cópia intacta |
+| falha do W6 com cópia ausente antes | `removeItem(backupKey)` | cópia fica com `previousCoreRaw`, nada é removido |
+| falha da cópia com terceiro valor na chave principal | compensava como se nada tivesse sido aplicado | `recovery-required`, journal preservado |
+| `getItem` da chave principal falha no W6 | receipt marcado `reverted` | journal preservado, `storage-unavailable` |
+| `setItem` lança `TypeError('quota …')` | `reason: 'quota'` | `reason: 'storage-unavailable'` |
+| `targetCoreRaw` mutado na janela do W8 | seguia para o settlement | `recovery-required`, receipt não liquidado |
+
+### Testes
+
+**Importador (51 novos, 76 → 127):** política da cópia rolante (7, incluindo
+terceiro valor e core alvo já presente); classificação estrutural de quota (11,
+cobrindo `QuotaExceededError`, `NS_ERROR_DOM_QUOTA_REACHED`, `DOMException`,
+`TypeError` com "quota", `Error` comum com "quota", `AbortError`, `UnknownError`,
+objeto arbitrário, `null` e string); falhas de `getItem` (6 fases: antes da
+primeira leitura da chave, segunda leitura, readback da cópia, depois do
+`setItem`, verificação pós-`activated` e inspeção final); janela do W8 (7
+mutações imediatamente antes da transição); privacidade completa (5, com inspeção
+recursiva de `cause`/`message`/`stack`/não enumeráveis, varredura de console e um
+meta-teste que prova o inspetor); ramos do resolvedor (15, incluindo varredura de
+**1.296 mundos** que exige o mundo exato por trás de cada ação com efeito).
+
+**Primitiva (6 novos em `storage-indexeddb.test.ts`, 169 → 175):** fault
+injection em cada um dos seis writes lógicos de
+`stageHistoryGenerationForOperation` — primeira sessão, sessão intermediária,
+última sessão, manifest, marcador de ordem e receipt atualizado — com o adapter
+real sobre fake-indexeddb. Cada caso confere zero registro da geração nova, zero
+manifest, zero marcador, receipt original byte a byte, `stagedGenerationId` e
+`targetCoreRaw` ainda nulos, `activeGeneration` e `migrationGeneration`
+inalteradas, nenhum completion receipt alterado e **fingerprint administrativo
+idêntico ao inicial**. O teste de violação do índice único foi mantido.
+
+Seeds embaralhadas: `11055`, `22055` e `33055` no importador, `44055` no adapter
+— todas verdes.
+
+### Validações
+
+`npx vitest run` (**1584/1584**, era 1527), `npx tsc --noEmit`, `npm run build`,
+`npm run build:mobile`, `npx eslint src` (baseline preservada: 12 erros, 6
+avisos, **nenhum nos arquivos alterados**), `git diff --check` limpo.
+`package.json` e `package-lock.json` inalterados.
+
+### Continuação
+
+- **Nenhum call site.** O importador continua referenciado só pelo próprio teste.
+- **A recuperação com I/O não existe** e **nada roda no boot** — 17B-002D-C1-P0.
+- **A janela TOCTOU do W8 continua aberta** entre as pré-condições conferidas
+  pelo módulo e o início da transação da primitiva; fechá-la exige owner-token.
+- **C2/D/E/F não iniciados.** O slice C **não** está completo.
+
+## GOAL-17B-002D-C2 — recuperação da importação lógica v2 interrompida (2026-07-27)
+
+O C1 ficou concluído **localmente** (dois commits na branch
+`feat/gymflow-goal17b-import-journal`, nada empurrado) e passou pela auditoria
+**056, Classe B**. O que ele deixou aberto era o item de maior risco do slice:
+`resolveLogicalImportRecovery` apenas **decidia** o que fazer com uma importação
+interrompida, e ninguém executava essa decisão. Uma queda no meio da sequência
+W1–W9 deixava um journal correto e um aplicativo que não sabia o que fazer com
+ele. Este slice entrega o motor que executa — testado, e ainda sem call site.
+
+### A premissa que organiza tudo
+
+**Depois de um reload o arquivo original não existe mais.** Não há `raw`, não há
+payload lógico e não há como recalcular `targetCoreRaw`. Toda evidência sai de
+duas fontes e só delas: o journal (que nomeia os dois mundos completos) e o
+armazenamento atual.
+
+A consequência não é uma preferência, é uma dedução:
+
+| Estado do receipt | Mundo importado existe? | Direção |
+| --- | --- | --- |
+| `staged` (com ou sem G) | não — `targetCoreRaw` é nulo | converge **para trás** |
+| `activating` / `activated` | sim — G e T estão materializados | converge **para a frente** |
+
+### O que passou a existir
+
+- **`recoverLogicalStorageImportV2`** — recebe runtime A2, adapter administrativo,
+  `StorageLike`, chave principal e um `operationId` opcional. **Não** recebe raw,
+  payload, preview, objeto de inspeção, `generationId` escolhido,
+  `previousCoreRaw` nem `targetCoreRaw`. Sem relógio injetável: a recuperação não
+  cunha instante nenhum.
+- **`resolveLogicalImportRestartRecovery`** — segundo resolvedor **puro**, irmão
+  e não substituto do primeiro. O do C1 continua puro e intocado.
+- **Tipos `Pick` da recuperação** — o adapter recebe sete capacidades e o runtime
+  três. `stageHistoryGenerationForOperation` e `beginStorageOperation` ficam de
+  fora: criar geração ou operação nova nem compila.
+
+### Política sem o arquivo original
+
+- **`staged` sem G** — reverte com segurança, exigindo que `previousCoreRaw` e
+  `previousGenerationId` ainda sejam o mundo atual. Nenhuma geração é criada.
+- **`staged` com G e `targetCoreRaw` nulo** — confirma que G está inativa e que o
+  core e o ponteiro ativo continuam sendo o mundo anterior, marca `reverted` e só
+  então limpa G, com guarda tripla relida do armazenamento. Falha de limpeza gera
+  **órfã segura** (`cleanupPending: true`), nunca perda de dados.
+- **G ativa ou core diferente do anterior** — não reverte às cegas:
+  `recovery-required`.
+
+### Política do `activating` — os quatro mundos
+
+| Mundo | `activeGeneration` | core | Ação |
+| --- | --- | --- | --- |
+| A | Prev | P | verifica G integralmente e ativa com CAS |
+| B | G | P | verifica G e reexecuta o protocolo byte-exato do core |
+| C | G | T | verifica o alvo e marca `activated` pela primitiva A1 |
+| D | Prev | T | **não** nasce da ordem geração → core: `recovery-required` |
+
+Mundos desconhecidos — terceira geração ativa, terceiro core, G ausente, T ou P
+divergentes, receipt alterado, `migrationGeneration` preenchida, conclusão
+pendente, múltiplos receipts não terminais — bloqueiam sem escrever.
+
+### Política do `activated`
+
+Liquida somente com o mundo alvo **inteiramente provado**: G e T presentes,
+`activeGeneration === G`, core byte a byte igual a T, G verificada
+criptograficamente, core físico v2 apontando para G, `migrationGeneration` nula,
+`migrationStatus` `completed`, zero conclusão pendente e receipt único e
+coerente. Faltando qualquer uma, não compensa e não reverte: `recovery-required`.
+
+### Laço fechado
+
+`MAX_RECOVERY_STEPS = 12`. O caminho mais longo — MUNDO A até `settled` — consome
+sete passos. Depois de **cada** escrita o motor relê core, metadata, receipt e
+snapshot administrativo e roda o resolvedor de novo: nunca assume que a escrita
+anterior venceu. Sem recursão, sem `setTimeout`, sem espera por tempo, sem retry
+por atraso. Limite atingido devolve `recovery-step-limit` com o journal inteiro.
+
+### Antes / depois do comportamento crítico
+
+| Situação | Antes (C1) | Depois (C2) |
+| --- | --- | --- |
+| Queda depois do W1 | receipt `staged` preso para sempre | `reverted`, mundo anterior intacto |
+| Queda depois do W2 | geração órfã sem dono | `reverted` + G limpa com guarda tripla |
+| Queda depois do W4 | receipt `activating` preso | avança até `settled` |
+| Queda depois do W5 | geração ativa, core antigo | grava T byte a byte e liquida |
+| Queda depois do W8 | receipt `activated` preso | liquida sem tocar core nem geração |
+| Terceiro valor no core | nada a fazer | `recovery-required`, zero escrita |
+
+### Testes
+
+**Importador (89 novos, 127 → 216).**
+
+- **Matriz de crash points (23 testes, 16 pontos).** Cada um parte do mundo
+  anterior saudável, roda a implementação **real** do C1, corta a energia depois
+  da escrita indicada, destrói adapter e fachada, cria instâncias novas sobre o
+  mesmo banco e o mesmo `localStorage`, recupera, confere o mundo físico e prova
+  idempotência. Os crash 10 e 11 têm quatro variantes cada (cópia rolante: falha
+  antes de escrever, escreveu e lançou, readback indisponível, terceiro valor;
+  chave principal: lançou antes de escrever, escreveu T e lançou, terceiro valor
+  válido, terceiro valor ilegível, readback indisponível).
+- **Prova de reinício real (7).** Instâncias diferentes, banco igual; o adapter
+  recarregado nem sequer nasce aberto, e a fábrica de `generationId` **lança** se
+  a recuperação tentar criar uma geração.
+- **Limite de passos (1).** Fingerprint artificialmente instável faz o resolvedor
+  pedir verificação para sempre; o retorno é `recovery-step-limit` entre 8 e 16
+  passos, com footprint idêntico byte a byte.
+- **Concorrência (2).** Duas recuperações em paralelo sobre o mesmo mundo: no
+  máximo uma diz que avançou, nenhuma inventa `operationId` ou `generationId`, e
+  o estado físico final é único e válido.
+- **Idempotência.** Footprint completo — `localStorage` inteiro, metadata,
+  gerações, manifests, **todos** os registros de **todas** as gerações, todos os
+  receipts com `updatedAt` e o fingerprint administrativo — comparado byte a byte
+  antes e depois. Cinco execuções seguidas não movem nada.
+- **Estados ambíguos (22).** Terceira geração ativa, core terceiro valor, MUNDO D,
+  receipt com G ou T divergente, receipt sem G, receipt sem T, G ausente, G
+  adulterada, manifest ausente, `orderedDigest` divergente,
+  `migrationGeneration` preenchida, `migrationStatus` incompleto, conclusão
+  pendente, dois receipts não terminais, receipt de restore/reset/rollback,
+  `operationId` que não corresponde, leitura da principal indisponível e
+  IndexedDB indisponível.
+- **Geração anterior (5).** Nenhum caminho chama `clearInactiveGeneration` sobre
+  Prev; manifest, sessões e digest anteriores sobrevivem à reversão E ao avanço.
+- **Privacidade (11).** Nove fases de falha provocadas uma a uma — leitura
+  inicial, snapshot administrativo, verificação, ativação, cópia rolante, core,
+  W8, liquidação e limpeza —, mais o sucesso completo. Varredura recursiva de
+  propriedades enumeráveis e não enumeráveis, `name`, `message`, `stack`, `cause`,
+  causas aninhadas, arrays, `Map`, `Set`, serializado e console.
+- **Guards de call site (6).** `recoverLogicalStorageImportV2` e
+  `resolveLogicalImportRestartRecovery` aparecem apenas no módulo e no próprio
+  teste; nenhum componente, Provider, Context, `storage-hybrid` ou AdminPanel
+  importa o módulo; nenhum arquivo Android o cita; nenhum boot o chama.
+- **Resolvedor de reinício (14).** Tabela fechada mais varredura de **2.400
+  mundos** que exige o mundo exato por trás de cada ação com efeito.
+
+Seeds embaralhadas: `11057`, `22057`, `33057` e `44057` — todas verdes.
+
+### Validações
+
+`npx vitest run` (**1673/1673**, era 1584), `npx tsc --noEmit`, `npm run build`,
+`npm run build:mobile`, `npx eslint src` (baseline preservada: 12 erros, 6
+avisos, **nenhum nos arquivos alterados**), `git diff --check` limpo.
+`package.json` e `package-lock.json` inalterados.
+
+### Continuação
+
+- **Nenhum call site.** O importador e a recuperação continuam referenciados só
+  pelo próprio teste.
+- **Nada roda no boot.** `hydrate` e `metadataMatchesV2` não foram tocados. Quem
+  chama a recuperação antes da hidratação é o **slice D, obrigatório antes de
+  qualquer exposição** — e não iniciado.
+- **Não existe atomicidade única entre `localStorage` e IndexedDB**, e este slice
+  não finge que existe.
+- **O aplicativo NÃO recupera automaticamente no boot** e **a importação não está
+  disponível ao usuário.**
+- **A janela TOCTOU do W8 continua aberta**; fechá-la exige owner-token, que
+  segue pendente para o E.
+- **D/E/F não iniciados.**

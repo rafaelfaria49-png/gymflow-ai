@@ -7,6 +7,8 @@ import type {
   RevertStorageOperationAfterTransitionConflictInput,
   RollbackHistoryGenerationInput,
   RollbackHistoryGenerationResult,
+  StageHistoryGenerationForOperationInput,
+  StageHistoryGenerationForOperationResult,
   StorageAdministrationSnapshotRead,
   TransitionStorageOperationIfUnambiguousInput,
   VerifiedHistoryGeneration,
@@ -383,6 +385,17 @@ export class HistoryRollbackConflictError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'HistoryRollbackConflictError';
+  }
+}
+
+// Falha de pré-condição do staging amarrado a uma operação administrativa:
+// ponteiro de staging já ocupado, geração ativa obsoleta ou identidade física
+// já existente. A transação é abortada inteira — nem a geração nem o patch do
+// receipt sobrevivem.
+export class HistoryStagingConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'HistoryStagingConflictError';
   }
 }
 
@@ -1608,6 +1621,226 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       return receipt;
     } catch (error) {
       abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  // Staging físico amarrado ao journal — GOAL-17B-002D-C1.
+  //
+  // Cria uma geração NOVA e inativa (registros + digests + manifest + marcador
+  // de ordem) e grava `stagedGenerationId` no receipt da operação, tudo na
+  // MESMA transação readwrite sobre os cinco stores administrativos. Fazer isso
+  // em duas transações — `prepareHistoryGeneration` e depois um patch — deixaria
+  // uma janela em que a geração existe e nenhum receipt a explica: o
+  // diagnóstico do 002D-A2 não teria como provar de quem ela é, e a limpeza
+  // viraria adivinhação.
+  //
+  // POR QUE `metadata.migrationGeneration` NÃO É GRAVADA: `metadataMatchesV2`
+  // (storage-hybrid) exige o ponteiro nulo para hidratar, então preenchê-lo
+  // bloquearia o boot durante toda a preparação — inclusive durante a
+  // verificação integral de um histórico grande. O vínculo geração ↔ operação
+  // já vive no receipt, que é durável e é lido pelo mesmo snapshot atômico.
+  //
+  // A geração criada permanece INATIVA. A ativação continua sendo uma decisão
+  // separada, verificada e com CAS (`rollbackToHistoryGeneration`).
+  async stageHistoryGenerationForOperation(
+    input: StageHistoryGenerationForOperationInput,
+  ): Promise<StageHistoryGenerationForOperationResult> {
+    const { operationId, expectedStatus, expectedKind, expectedActiveGenerationId, history } = input;
+    if (!operationId) throw new Error('O staging administrativo exige um operationId.');
+    if (expectedStatus !== 'staged') {
+      throw new StorageOperationTransitionError(
+        `O staging físico só acontece sobre um receipt staged, e não ${expectedStatus}.`,
+      );
+    }
+    if (expectedKind !== 'import') {
+      throw new StorageOperationTransitionError(
+        `O staging físico desta primitiva é da importação lógica, e não de ${expectedKind}.`,
+      );
+    }
+    if (!expectedActiveGenerationId) {
+      throw new Error('O staging administrativo exige o expectedActiveGenerationId observado.');
+    }
+    for (const session of history) assertSessionIdentity(session);
+
+    const database = this.requireDatabase();
+    const generationId = this.generationIdFactory();
+    if (!generationId) throw new Error('A geração precisa de um id estável.');
+
+    // Digests fora da transação: `crypto.subtle` resolve em outra tarefa e
+    // desativaria a transação IndexedDB no meio do caminho. Mesmas primitivas
+    // do staging existente — não existe uma segunda implementação de
+    // integridade.
+    const digests = await digestWorkoutSessions(history, this.subtleCrypto);
+    const orderedDigest = await computeOrderedDigestFromSessionDigests(digests, this.subtleCrypto);
+    const stampedAt = this.now().toISOString();
+
+    const transaction = database.transaction(
+      [
+        WORKOUT_HISTORY_STORE,
+        METADATA_STORE,
+        GENERATION_MANIFESTS_STORE,
+        STORAGE_OPERATION_RECEIPTS_STORE,
+        COMPLETION_RECEIPTS_STORE,
+      ],
+      'readwrite',
+    );
+    const completed = transactionResult(transaction);
+    const writes: Promise<unknown>[] = [];
+
+    try {
+      const receiptStore = transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE);
+      const records = await requestResult(receiptStore.getAll()) as unknown[];
+      const unsettled: StorageOperationReceipt[] = [];
+      for (const record of records) {
+        if (!isStorageOperationReceipt(record)) {
+          throw new StorageOperationReceiptIntegrityError(
+            'Existe um receipt administrativo com formato inválido no armazenamento.',
+          );
+        }
+        if (UNSETTLED_OPERATION_STATUSES.includes(record.status)) unsettled.push(record);
+      }
+      const unsettledIds = unsettled.map((receipt) => receipt.operationId);
+      if (unsettled.length === 0) {
+        throw new StorageOperationAmbiguousStateError(
+          'no-unsettled-operation',
+          'Não existe operação administrativa em aberto para receber staging físico.',
+        );
+      }
+      if (unsettled.length > 1) {
+        throw new StorageOperationAmbiguousStateError(
+          'multiple-unsettled-operations',
+          `Existem ${unsettled.length} operações administrativas em aberto; nenhuma pode receber staging.`,
+          unsettledIds,
+        );
+      }
+      const current = unsettled[0];
+      if (current.operationId !== operationId) {
+        throw new StorageOperationAmbiguousStateError(
+          'operation-not-the-unsettled-one',
+          `A operação em aberto é ${current.operationId}, e não ${operationId}.`,
+          unsettledIds,
+        );
+      }
+      if (current.kind !== expectedKind) {
+        throw new StorageOperationTransitionError(
+          `A operação ${operationId} é ${current.kind}, e não ${expectedKind}.`,
+        );
+      }
+      if (current.status !== expectedStatus) {
+        throw new StorageOperationTransitionError(
+          `O receipt ${operationId} está em ${current.status}, e não em ${expectedStatus}.`,
+        );
+      }
+      // Um receipt que já nomeia staging ou core alvo descreve efeitos que esta
+      // primitiva não pode reproduzir: preparar de novo criaria uma segunda
+      // geração que o journal não conseguiria distinguir da primeira.
+      if (current.stagedGenerationId !== null) {
+        throw new StorageOperationTransitionError(
+          `O receipt ${operationId} já nomeia a geração preparada ${current.stagedGenerationId}.`,
+        );
+      }
+      if (current.targetCoreRaw !== null) {
+        throw new StorageOperationTransitionError(
+          `O receipt ${operationId} já nomeia um core alvo antes do staging físico.`,
+        );
+      }
+
+      // Store inteiro, não o índice `byStatus`: um registro sem status válido
+      // não aparece em índice nenhum e não pode virar "zero pendentes".
+      const completionRecords = await requestResult(
+        transaction.objectStore(COMPLETION_RECEIPTS_STORE).getAll(),
+      ) as unknown[];
+      const pendingCompletionIds: string[] = [];
+      for (const record of completionRecords) {
+        if (!isWorkoutCompletionReceipt(record)) {
+          throw new CompletionReceiptIntegrityError(
+            'Existe um receipt de conclusão de treino com formato inválido no armazenamento.',
+          );
+        }
+        if (record.status === 'pending') pendingCompletionIds.push(record.receiptId);
+      }
+      if (pendingCompletionIds.length > 0) {
+        throw new StorageCompletionPendingError(pendingCompletionIds);
+      }
+
+      // Metadata lida e VALIDADA: `readMetadataPointers` recusa ponteiro não
+      // textual em vez de convertê-lo para `null`.
+      const metadataRecords = await requestResult(
+        transaction.objectStore(METADATA_STORE).getAll(),
+      ) as unknown[];
+      const pointers = readMetadataPointers(metadataRecords);
+      if (pointers.activeGeneration !== expectedActiveGenerationId) {
+        throw new StorageOperationTransitionError(
+          `A geração ativa é ${pointers.activeGeneration ?? 'nenhuma'}, e não ${expectedActiveGenerationId}.`,
+        );
+      }
+      if (pointers.migrationGeneration !== null) {
+        throw new HistoryStagingConflictError(
+          `A geração ${pointers.migrationGeneration} já ocupa o ponteiro de staging.`,
+        );
+      }
+      if (generationId === pointers.activeGeneration) {
+        throw new HistoryStagingConflictError(
+          'A geração preparada precisa ser diferente da geração ativa.',
+        );
+      }
+
+      const historyStore = transaction.objectStore(WORKOUT_HISTORY_STORE);
+      const [existingRecords, existingManifest] = await Promise.all([
+        requestResult(historyStore.index(BY_GENERATION_INDEX).count(generationId)),
+        this.readManifestRecord(transaction, generationId),
+      ]);
+      if (
+        pointers.stagedMarkers.has(generationId)
+        || existingRecords > 0
+        || existingManifest !== null
+      ) {
+        throw new HistoryStagingConflictError(`A geração ${generationId} já existe.`);
+      }
+
+      history.forEach((session, order) => {
+        writes.push(requestResult(historyStore.add({
+          sessionId: session.id,
+          generationId,
+          order,
+          session,
+          digest: digests[order],
+        } satisfies HistoryRecord)));
+      });
+      const manifest = createGenerationManifest({
+        generationId,
+        sessionCount: history.length,
+        orderedDigest,
+        createdAt: stampedAt,
+      });
+      writes.push(requestResult(transaction.objectStore(GENERATION_MANIFESTS_STORE).put(manifest)));
+      writes.push(requestResult(transaction.objectStore(METADATA_STORE).put({
+        key: `${INTERNAL_NEXT_ORDER_PREFIX}${generationId}`,
+        value: -1,
+      } satisfies MetadataRecord)));
+
+      // Todos os demais campos do receipt são preservados; só
+      // `stagedGenerationId` e `updatedAt` mudam.
+      const next: StorageOperationReceipt = {
+        ...current,
+        stagedGenerationId: generationId,
+        updatedAt: stampedAt,
+      };
+      if (!isStorageOperationReceipt(next)) {
+        throw new StorageOperationReceiptIntegrityError(
+          `O staging deixaria o receipt ${operationId} com formato inválido.`,
+        );
+      }
+      writes.push(requestResult(receiptStore.put(next)));
+
+      await Promise.all(writes);
+      await completed;
+      return { generationId, receipt: next, manifest };
+    } catch (error) {
+      abortQuietly(transaction);
+      await Promise.allSettled(writes);
       await completed.catch(() => undefined);
       throw error;
     }

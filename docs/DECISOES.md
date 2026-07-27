@@ -1159,3 +1159,233 @@ recuperação automática, UI, Provider, download nem call site.
   não uma mutação temporária do módulo.** Ele reproduz fielmente as comparações
   pré-corretivo e prova que elas aprovam os nove cenários ABA — sem deixar
   `skip`, código morto ou produção mutilada no commit.
+
+## GOAL-17B-002D-C1 — importação lógica v2 atômica (2026-07-27)
+
+Auditoria independente 052 classificou o 002D-C como **APTO / Classe B**:
+arquitetura suficiente, mas exigindo extensão controlada do contrato A1. O slice
+foi dividido em **C1** (journal, staging atômico, caminho saudável até `settled`,
+resolvedor puro) e **C2** (execução da recuperação após reload e matriz completa
+de crash points). Este ADR cobre o C1.
+
+- **Módulo novo (`storage-logical-import.ts`), não dentro de
+  `storage-logical-backup.ts`.** Aquele módulo tem um guard permanente (teste 59)
+  que proíbe `setItem`, `beginStorageOperation`, `rollbackToHistoryGeneration`,
+  `writeMetadata` e qualquer nome que comece com `commit`/`save`/`write`. Ele é,
+  por contrato, read-only. A escrita mora em arquivo próprio.
+- **Uma primitiva A1 nova, `stageHistoryGenerationForOperation`, porque a
+  atomicidade exigida não pode ser obtida de fora de uma transação.**
+  `prepareHistoryGeneration` cria a geração numa transação e o patch do receipt
+  seria outra: uma queda entre as duas deixaria uma geração física que nenhum
+  receipt explica, e o diagnóstico do A2 não teria como provar de quem ela é. A
+  primitiva nova faz as duas coisas na MESMA transação readwrite sobre os cinco
+  stores administrativos, ou nenhuma delas.
+- **O staging NÃO grava `metadata.migrationGeneration`.** Foi a decisão que mais
+  mudou o desenho. `metadataMatchesV2` exige o ponteiro nulo para hidratar, então
+  preenchê-lo bloquearia o boot durante toda a preparação — inclusive durante a
+  verificação integral de um histórico grande. O vínculo geração ↔ operação já
+  vive no receipt, que é durável e é lido pelo mesmo snapshot atômico. Sem o
+  ponteiro, `migrationPointerCoherent(G, null)` continua verdadeiro e o
+  diagnóstico segue devolvendo `interrupted` — nunca `staging-without-receipt`.
+- **O importador recebe `raw` e reinspeciona internamente; não existe variante
+  que aceite payload já validado.** Um `LogicalStorageBackupV2Inspection` é
+  objeto simples e forjável; aceitá-lo transferiria a confiança para o chamador
+  (que no 002D-E será a UI). Uma única inspeção significa um único parse, uma
+  única validação, um único digest e um único objeto de payload — o mesmo que vai
+  para o staging. Não há janela entre validar e usar.
+- **`expectedPayloadDigest` é a amarração anti-TOCTOU com o preview.** O 002D-E
+  vai inspecionar para mostrar a prévia e só depois confirmar. O parâmetro
+  opcional deixa a tela declarar QUAL arquivo ela mostrou; divergência recusa
+  antes do primeiro write, com motivo fechado e mensagem constante.
+- **Ordem geração → core, não o inverso.** Não existe atomicidade única entre
+  `localStorage` e IndexedDB e este slice não finge que existe. Qualquer ordem
+  deixa uma janela em que os dois discordam. Gravando a geração primeiro, todas
+  as escritas protegidas por CAS acontecem antes da única escrita sem CAS, e essa
+  última é a mais barata de repetir (gravar o mesmo raw duas vezes dá o mesmo
+  raw) e a mais barata de desfazer (gravar de volta o raw anterior, que está
+  inteiro no journal). A ordem inversa colocaria a escrita fraca no meio e
+  exigiria desfazê-la depois de uma falha do lado forte.
+- **`targetCoreRaw` é construído UMA vez, gravado no journal antes de existir
+  fisicamente e depois gravado byte a byte.** `saveHybridCoreResult` cunha um
+  `savedAt` novo a cada chamada, então nunca gravaria o raw que o receipt
+  prometeu — e `evaluateStorageOperationCompatibility` exige, em `activated`,
+  igualdade byte a byte entre o core e `targetCoreRaw`. Por isso o commit do core
+  é próprio: relê, confere, grava a cópia rolante, relê de novo, grava o raw
+  exato e confere o readback.
+- **`rollbackToHistoryGeneration` é usada como primitiva de ATIVAÇÃO
+  verificada.** O nome diz rollback, mas ela é a única do adapter que verifica a
+  geração alvo integralmente, reconfere o conteúdo físico contra uma prova
+  canônica DENTRO da transação de escrita, aplica CAS em `activeGeneration` e
+  confirma o ponteiro por readback depois do commit. `activateHistoryGeneration`
+  não faz nada disso e ainda exigiria o ponteiro de staging, que este fluxo
+  deliberadamente não usa. A mesma primitiva, com os argumentos trocados, é a
+  compensação — o que torna ida e volta simétricas e testáveis.
+- **`activating → activated` usa a primitiva A1 diretamente, e só ela.** O
+  avaliador do A2 devolve `insufficient-evidence` para qualquer mundo
+  `activating` com efeitos já aplicados, porque o A2 não executa ativação e por
+  isso não pode atestar de onde os efeitos vieram (17B-002D-A2-P5);
+  `transitionStorageOperation` exige `interrupted` e recusaria. Quem produziu os
+  efeitos é o importador, então é ele que reconfere TODAS as pré-condições
+  (receipt único, kind, status, `stagedGenerationId`, `targetCoreRaw`, geração
+  ativa e core byte a byte, antes e depois) e chama
+  `transitionStorageOperationIfUnambiguous` com CAS. **Nada da fachada A2 e nada
+  de `evaluateStorageOperationCompatibility` foi alterado.** Já em
+  `activated → settled` o mundo volta a ser coerente para o avaliador, e a
+  fachada é usada normalmente, com todo o seu protocolo pré/pós-transação.
+- **O resolvedor é puro e não executa nada no C1.** `resolveLogicalImportRecovery`
+  recebe uma fotografia explícita e devolve uma união fechada de 14 decisões. Ele
+  é o análogo, para quem PRODUZ os efeitos, do avaliador do A2: conhece a ordem
+  exata das escritas, então distingue "ainda não ativei" de "já ativei e falta o
+  core" de "já gravei tudo". A execução dessas decisões após um reload é do C2.
+- **Compensação só quando o estado é comprovável.** Falha antes de qualquer
+  efeito reverte o receipt e limpa a geração criada por esta operação. Falha
+  depois da ativação restaura a geração anterior com CAS e só então reverte. Se a
+  restauração não se confirma, o receipt fica aberto de propósito — encerrá-lo
+  esconderia uma divergência real.
+- **Estado ambíguo preserva o journal e não adivinha.** Se a chave principal
+  contiver um terceiro valor, ou se a releitura falhar, o importador não
+  sobrescreve o valor alheio, não apaga a geração, não marca `settled` nem
+  `reverted`: devolve `recovery-required` com os dois mundos ainda registrados.
+- **A limpeza de geração tem guarda tripla.** Só é apagada a geração nomeada pelo
+  journal, que não seja a ativa e não seja a anterior — e `clearInactiveGeneration`
+  ainda recusa a ativa por conta própria. **A geração anterior nunca é apagada
+  por nenhum caminho deste módulo.**
+- **Nenhum campo novo no `StorageOperationReceipt`.** `logicalSchemaVersion` não
+  foi adicionado: o `payloadDigest` já vincula o conteúdo exato, e só o schema 1
+  é aceito. Erro sanitizado também não é persistido — o status terminal já é o
+  marcador de conclusão, e guardar texto de erro só criaria superfície de
+  vazamento.
+- **O teste 60 do slice B passou a listar o importador explicitamente.** Ele
+  afirma, por igualdade exata, quem menciona `storage-logical-backup` em `src/`.
+  O importador chama `inspectLogicalStorageBackupV2` de propósito — é o que
+  impede o TOCTOU entre validar o arquivo e gravá-lo. Ele é consumidor de
+  biblioteca, não call site real: continua sem UI, Provider, Context, boot ou
+  componente. A igualdade exata segue valendo, e é ela que prova esse limite.
+
+## GOAL-17B-002D-C1 corretivo 055 — auditoria Classe B (2026-07-27)
+
+Auditoria independente 054 classificou o C1 como **APTO / Classe B** e apontou um
+risco **P1** na compensação. Este corretivo o fecha e cobre as lacunas de teste
+diretamente ligadas a ele. **O C2 não foi iniciado.**
+
+- **A cópia rolante do core deixou de ser compensada.**
+  `restoreRollingBackup` reescrevia ou removia a cópia **incondicionalmente**
+  depois de uma falha. Entre a leitura do valor anterior e a compensação outra
+  aba pode ter atualizado a cópia: devolvê-la ao valor antigo apagaria um backup
+  mais novo, e o `removeItem` recriaria uma ausência que já não existe. A função
+  foi removida inteira, e com ela a última chamada de `removeItem` do módulo — o
+  teste 82 afirma, sobre a fonte, que nenhum dos dois nomes existe mais.
+- **A cópia é auxiliar; o canônico é a chave principal mais a geração ativa.**
+  Depois que a operação grava `previousCoreRaw` na cópia, esse valor já é um
+  backup válido do estado anterior, então nenhuma falha posterior exige voltar ao
+  valor mais antigo. Uma importação abortada pode deixar a cópia atualizada para
+  `previousCoreRaw` — e isso **não** altera o estado canônico, porque esse raw é
+  o core anterior verificado no W0 e guardado inteiro no journal.
+- **Falha da cópia relê a chave principal antes de compensar.** Só o mundo
+  `previousCoreRaw` autoriza a compensação completa. Se a chave já for
+  `targetCoreRaw`, compensar seria afirmar que nada foi aplicado; se for um
+  terceiro valor, sobrescrever seria destruir dado alheio. Nos dois casos o
+  journal é preservado e o retorno é `recovery-required`.
+- **Falha de `getItem` preserva o journal.** Uma leitura que estoura não prova
+  nada sobre o estado canônico, então o fluxo não escreve, não remove e não fecha
+  o receipt: devolve `storage-unavailable` antes do commit do core e
+  `recovery-required` a partir dele. `RawRead` deixou de carregar `cause` — a
+  causa nativa não é sequer capturada, o que torna estruturalmente impossível
+  vazar a mensagem lançada pelo `StorageLike` do chamador.
+- **Quota passou a ser classificada só por sinal estrutural.**
+  `message.includes('quota')` transformava qualquer `TypeError`, `AbortError` ou
+  erro genérico numa falha de espaço, e a mensagem de um erro vindo do
+  `StorageLike` é texto que o chamador controla. Agora contam `error.name`
+  (`QuotaExceededError`, `NS_ERROR_DOM_QUOTA_REACHED`) e os códigos legados 22 e
+  1014 **apenas dentro de um `DOMException` real**. `storage.ts` continua
+  intocado; a duplicação segue registrada como 17B-002D-C1-P7.
+- **O W8 ganhou readback do receipt depois da transição.**
+  `transitionStorageOperationIfUnambiguous` não reconfere `stagedGenerationId`
+  nem `targetCoreRaw` dentro da própria transação, então uma mutação desses
+  campos na janela passaria despercebida. O importador relê o receipt depois de
+  marcar `activated` e exige que ele ainda nomeie os dois mundos; caso contrário
+  não liquida. A primitiva IndexedDB e a fachada A2 **não foram alteradas**, e a
+  janela TOCTOU remanescente continua registrada para C2/E — fechá-la exige
+  owner-token.
+- **O resolvedor recusa `stagedGenerationId === previousGenerationId`.** O
+  staging recusa colidir com a geração ativa e o readback do W2 recusa a
+  igualdade, então um receipt assim descreve algo que esta ordem de escrita não
+  produz. Sem a guarda, o resolvedor avançaria para `prepare-core` e gravaria um
+  core alvo apontando para o mundo antigo. Motivo novo:
+  `staged-generation-is-previous`.
+- **A privacidade passou a ser provada por inspeção recursiva.**
+  `JSON.stringify(erro)` devolve `{}`: um teste que só olhasse o serializado não
+  provaria nada. A varredura agora percorre propriedades enumeráveis e não
+  enumeráveis, `name`, `message`, `stack`, `cause`, causas aninhadas, arrays,
+  `Map`, `Set` e o serializado — e um meta-teste prova que o próprio inspetor
+  enxerga o que promete. **A política pública não mudou**; o que mudou foi a
+  prova, e a única correção que ela exigiu foi parar de propagar erros do
+  armazenamento como `cause`.
+
+## GOAL-17B-002D-C2 — recuperação da importação v2 interrompida (2026-07-27)
+
+- **A direção da recuperação é dedução, não preferência.** Depois de um reload o
+  arquivo não existe: um receipt `staged` descreve um mundo importado que não foi
+  materializado em lugar nenhum, então ele só pode convergir **para trás**. Um
+  receipt `activating` ou `activated` nomeia os dois mundos e ambos existem no
+  disco, então ele pode convergir **para a frente**. A fronteira é
+  `targetCoreRaw`, e é o journal que a define — nunca a função.
+- **A assinatura recusa o que poderia falsificar a evidência.** A recuperação não
+  recebe raw, payload, preview, objeto de inspeção, `generationId` escolhido,
+  `previousCoreRaw` nem `targetCoreRaw`. Aceitar qualquer um deles transferiria
+  para o chamador a confiança sobre o mundo alvo, que é exatamente o que o
+  journal existe para guardar.
+- **Um segundo resolvedor puro, em vez de dar I/O ao primeiro.**
+  `resolveLogicalImportRecovery` responde "esta importação, que ainda tem o
+  arquivo em mãos, continua de onde?"; `resolveLogicalImportRestartRecovery`
+  responde "esta importação, cujo arquivo evaporou, converge para qual mundo?".
+  São perguntas diferentes com tabelas diferentes. Transformar o primeiro numa
+  função com I/O teria destruído a única parte do C1 que é trivialmente testável.
+  Ações como `stage-generation` e `prepare-core` **não existem** no tipo novo:
+  elas exigiriam o arquivo.
+- **`verify-target` é uma ação, não um efeito colateral.** A prova criptográfica
+  de uma geração é cara e vale apenas para o estado físico sobre o qual foi
+  calculada — por isso ela fica em cache amarrada ao par
+  (`fingerprint`, `generationId`) e é descartada na menor escrita ao IndexedDB.
+  Quando o resolvedor precisa da prova e ela não vale, ele **pede** em vez de
+  supor.
+- **A geração preparada só é apagada com o mundo que fica provado.** A guarda
+  tripla — nomeada pelo journal de um receipt já terminal, não é a ativa, não é a
+  anterior — é relida do armazenamento, e sobre ela roda ainda a verificação
+  integral da geração anterior. Sem essa prova a operação é encerrada mesmo
+  assim e G vira **órfã segura**: ela não bloqueia hidratação nem diagnóstico, e
+  deixar lixo inativo é incomparavelmente melhor do que apagar o mundo errado.
+- **O laço segue a operação pelo id depois de escolhê-la.** Sem isso, a própria
+  transição para um status terminal tirava a operação da lista de "em aberto" e
+  o passo seguinte enxergava "não há nada para fazer", perdendo o que aquela
+  execução acabara de produzir. A escolha inicial continua saindo do
+  armazenamento; o `operationId` do chamador é só uma amarração que precisa bater.
+- **`reverted`/`settled` só são relatados quando ESTA execução avançou.**
+  `revertStorageOperationSafely` e `transitionStorageOperation` são idempotentes
+  por releitura, então uma segunda instância concorrente encontraria o receipt já
+  terminal e diria ter feito o trabalho. O motor distingue "a chamada venceu" de
+  "a releitura confirmou", e devolve `already-reverted`/`already-settled` no
+  segundo caso. É o que torna a prova de concorrência honesta.
+- **Sem `operationId` e sem operação pendente, o retorno é `no-operation`.**
+  Varrer receipts terminais atrás de gerações antigas seria política de
+  retenção, que é do 002D-F. A limpeza de uma órfã ligada a um receipt já
+  `reverted` só acontece quando o chamador **nomeia** a operação.
+- **A API nova não tem canal de `cause`.** O C1 ainda propaga `cause` para falhas
+  de infraestrutura confiável; a recuperação não propaga nada. O retorno público
+  tem exatamente `status`/`reason` fechados, mensagem constante deste módulo,
+  `operationId`, `generationId`, contagem de passos, ação final,
+  `recoveryRequired` e `cleanupPending`. O receipt completo nunca sai, e os
+  retornos históricos do C1 não foram alterados.
+- **O limite de passos é fechado e o journal é preservado ao atingi-lo.**
+  `MAX_RECOVERY_STEPS = 12` contra sete passos do pior caminho real. Recursão
+  ilimitada, laço sem contador, `setTimeout`, espera por tempo e retry por atraso
+  estão todos fora: o motor só avança quando a leitura seguinte prova que o mundo
+  mudou.
+- **Uma geração sem manifest continua enumerada.** Ela não some do mundo — o que
+  some é a possibilidade de prová-la. Por isso apagar o manifest de G devolve
+  `verification-failed`, e não `impossible-state`: a ativação simplesmente nunca
+  acontece.
+- **O teste 76 do C1 virou a lista exata do C2.** Ele afirmava que
+  `recoverLogicalStorageImportV2` não existia; agora afirma que o módulo exporta
+  exatamente quatro funções. O guard continua igualmente estrito — nenhuma
+  superfície nova entrou de carona.

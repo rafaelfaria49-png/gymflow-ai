@@ -511,12 +511,14 @@ recomendação · dependências · próximo passo.**
   avisar explicitamente antes de exportar; criptografia opcional com senha, se
   vier, é GOAL próprio.
 - **17B-002D-B-P4 — não existe importação, restauração ou rollback do v2.**
-  *Aberto · P0 para o produto, por design nesta etapa.* Um arquivo v2 pode ser
-  gerado e conferido, mas nada consegue trazê-lo de volta: `commitStorageImport`
-  só aceita envelope v1 monolítico, e escrever o payload lógico exige o
-  coordenador atômico que ainda não existe. Enquanto isso, o usuário v2 tem
-  backup **verificável e inútil para restaurar**. *Próximo passo:* 002D-C
-  implementa a importação lógica com staging físico + receipt administrativo.
+  *Parcialmente fechado · P1.* Rótulo corrigido pelo corretivo 055: este item
+  vinha marcado como `Aberto · P0 para o produto`, fora da escala usada em todo o
+  resto do documento e já desatualizado — a seção do C1 o declara parcialmente
+  fechado desde 2026-07-27. `commitLogicalStorageImportV2` existe, é jornalizada
+  e leva um arquivo v2 validado até `settled`; o que continua faltando é call
+  site (002D-E) e recuperação após reload (002D-C2). Enquanto isso, o usuário v2
+  ainda não consegue restaurar pela interface. *Próximo passo:* 002D-C2 executa a
+  recuperação e 002D-E liga a importação a uma tela.
 - **17B-002D-B-P5 — o backup não tem call site, então o usuário ainda não pode
   gerar arquivo nenhum.** *Aberto · P1.* Nenhum componente, Provider, boot ou
   `AdminPanel` importa `storage-logical-backup`. No modo v2 a exportação
@@ -594,3 +596,209 @@ recomendação · dependências · próximo passo.**
 - **17B-002D-B-P1 a P7 continuam abertos e inalterados.** Este corretivo **não**
   criou importação, restauração, rollback, reset, UI, Provider, download,
   owner-token nem call site; 002D-C/D/E/F seguem não iniciados.
+
+## GOAL-17B-002D-C1 — importação lógica v2 atômica (2026-07-27)
+
+Auditoria 052: **APTO / Classe B**. O slice C foi dividido em C1 (este) e C2.
+
+### Fechado por este slice
+
+- **17B-002D-B-P4 — não existia importação do v2.** *Parcialmente fechado.*
+  `commitLogicalStorageImportV2` existe, é jornalizada e leva um arquivo v2
+  validado até `settled`. Continua **sem call site**: o usuário ainda não
+  consegue disparar uma importação pela interface (isso é 002D-E).
+
+### Abertos
+
+- **17B-002D-C1-P0 — a recuperação após interrupção existe como DECISÃO, não
+  como execução.** *Aberto · P0.* `resolveLogicalImportRecovery` é puro e diz o
+  que fazer diante de cada estado; **não existe** `recoverLogicalStorageImportV2`
+  com I/O real e **nada roda no boot**. Existe exatamente uma janela em que uma
+  queda deixa o aplicativo sem hidratar: entre o commit da ativação da geração e
+  o readback do core (`metadataMatchesV2` exige `activeGeneration ===
+  core.historyStorage.generationId`). O journal guarda os dois mundos completos,
+  então o estado é recuperável — mas ninguém o recupera ainda. Nenhum usuário
+  está exposto: não há call site. *Próximo passo:* C2 implementa a execução das
+  decisões; D liga a recuperação ao boot **antes** de qualquer confiança em
+  `hydrate()`.
+- **17B-002D-C1-P1 — a matriz completa de crash points é do C2.** *Aberto · P1.*
+  O C1 cobre falha de cada etapa e compensação imediata, mas não injeta queda
+  depois de cada write com reinício do processo, nem prova retomada após reload,
+  nem repetição idempotente de cada etapa a partir do disco. *Próximo passo:* C2.
+- **17B-002D-C1-P2 — geração órfã depois de uma falha pós-ativação.**
+  *Aberto · P2.* A compensação apaga a geração criada pela operação apenas
+  quando ela nunca foi ativada. Se a falha acontece depois da ativação, a
+  restauração devolve a geração anterior e a geração importada fica como órfã
+  inativa. Importações que falham repetidamente nesse ponto acumulam registros e
+  consomem quota. Apagar uma geração que já foi ativa é mais delicado e ficou
+  fora do C1. *Próximo passo:* política de retenção/limpeza em D/F.
+- **17B-002D-C1-P3 — custo do fluxo não foi medido em aparelho.** *Aberto · P2.*
+  Uma importação roda quatro diagnósticos administrativos completos (cada um com
+  duas leituras atômicas e verificação criptográfica integral da geração ativa),
+  mais o digest do payload, mais os digests de todas as sessões importadas, mais
+  duas verificações integrais da geração nova. Herda 17B-002D-A2-P4 e
+  17B-002D-B-P1. Com histórico grande no WebView Android isso não é barato.
+  *Próximo passo:* medir antes de 002D-E ligar a importação a uma tela; nunca
+  enfraquecer a verificação para ganhar tempo.
+- **17B-002D-C1-P4 — ABA no core do `localStorage` continua indetectável.**
+  *Aberto · P2.* O protocolo relê o core e exige igualdade byte a byte antes e
+  depois de cada passo, mas um core que sai de `P`, passa por `X` e volta a `P`
+  dentro da janela passa despercebido. Sem owner-token não há como distinguir.
+  Reforça 17B-002D-A2-P9 e 17B-002D-B-P10. *Próximo passo:* owner-token no 002D-E,
+  antes de qualquer operação administrativa real.
+- **17B-002D-C1-P5 — o receipt guarda dois cores completos.** *Aberto · P2.*
+  `previousCoreRaw` e `targetCoreRaw` são exigência do invariante "o core atual
+  deve ser preservado integralmente no journal", mas dobram o custo de
+  armazenamento por operação e continuam no IndexedDB depois de `settled` — com
+  dados pessoais em texto puro, como o próprio backup (17B-002D-B-P3). Eles nunca
+  saem no retorno público. *Próximo passo:* política de retenção/expurgo de
+  receipts liquidados em D/F.
+- **17B-002D-C1-P6 — o teste 60 do slice B passou a listar o importador.**
+  *Aberto · P3.* O guard afirma, por igualdade exata, quem menciona
+  `storage-logical-backup` em `src/`. O importador chama
+  `inspectLogicalStorageBackupV2` de propósito — é o que impede o TOCTOU entre
+  validar o arquivo e gravá-lo —, então a lista passou de um para três arquivos.
+  Ele continua sendo consumidor de biblioteca, **não** call site: nenhuma UI,
+  Provider, Context, boot ou componente importa qualquer um dos dois módulos.
+  *Próximo passo:* revisar a lista sempre que um consumidor novo aparecer, e
+  nunca relaxar a igualdade exata para um `toContain`.
+- **17B-002D-C1-P7 — `isQuotaFailure` é uma segunda classificação de erro de
+  escrita.** *Aberto · P3.* `storage.ts` já tem `classifyStorageFailure`, mas ela
+  é privada daquele módulo e `storage.ts` estava fora da allowlist deste slice.
+  O corretivo 055 endureceu a cópia local (só sinal estrutural) e a divergência
+  entre as duas implementações aumentou. *Próximo passo:* exportar a original e
+  reusar num passe de saneamento autorizado a tocar `storage.ts`.
+- **17B-002A-PHYSICAL continua obrigatório.** Nada aqui foi medido em Android
+  WebView de entrada.
+
+## GOAL-17B-002D-C1 corretivo 055 — auditoria Classe B (2026-07-27)
+
+Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
+
+### Fechado por este corretivo
+
+- **17B-002D-C1-C1 — compensação insegura da cópia rolante do core.**
+  *Fechado · era P1.* `restoreRollingBackup` reescrevia (`setItem`) ou removia
+  (`removeItem`) a cópia rolante **incondicionalmente** depois de qualquer falha
+  do W6, usando o valor lido antes da operação. Entre aquela leitura e a
+  compensação, outra aba podia ter atualizado a cópia: a restauração apagaria um
+  backup mais novo e o `removeItem` recriaria uma ausência que já não existia.
+  *Resolução:* a função foi removida inteira, junto das suas quatro chamadas e da
+  última ocorrência de `removeItem` do módulo. A cópia rolante passou a ser
+  tratada como auxiliar — o canônico é a chave principal mais a geração ativa —,
+  e nenhuma compensação a escreve ou a remove. Uma importação abortada pode
+  deixá-la em `previousCoreRaw`, o que é seguro e **não altera o estado
+  canônico**, porque esse raw é o core anterior verificado no W0 e guardado
+  inteiro no journal. Falha da cópia antes do commit passou a reler a chave
+  principal: `targetCoreRaw` ou terceiro valor preservam o journal e devolvem
+  `recovery-required`, **sem escrever sobre valor alheio**. Provado pelos testes
+  77–83, 94 e 96–98 de `storage-logical-import.test.ts`.
+- **17B-002D-C1-C2 — falha de `getItem` fechava o journal sem prova.**
+  *Fechado · era P2.* Uma leitura que estourava levava à compensação como se o
+  estado canônico fosse conhecido. *Resolução:* toda falha de leitura preserva o
+  journal e devolve `storage-unavailable` (antes do commit) ou
+  `recovery-required` (a partir dele); `RawRead` deixou de capturar a causa
+  nativa, o que também torna impossível vazar a mensagem lançada pelo storage.
+- **17B-002D-C1-C3 — quota classificada por mensagem.** *Fechado · era P2.*
+  `message.includes('quota')` transformava `TypeError`, `AbortError` e erros
+  genéricos em `reason: 'quota'`, e num erro vindo do `StorageLike` do chamador a
+  mensagem é texto que o chamador controla. *Resolução:* só sinal estrutural —
+  `error.name` conhecido, ou código legado 22/1014 dentro de um `DOMException`
+  real. Dez casos cobertos (testes 84–93).
+- **17B-002D-C1-C4 — mutação de `stagedGenerationId`/`targetCoreRaw` na janela do
+  W8 seguia para o settlement.** *Fechado · era P2.* A primitiva não reconfere
+  esses campos dentro da própria transação. *Resolução:* readback do receipt
+  depois da transição `activating → activated`; sem os dois mundos ainda
+  nomeados, não há settlement. A primitiva IndexedDB e a fachada A2 **não foram
+  alteradas**. Testes 101–107.
+- **17B-002D-C1-C5 — `stagedGenerationId === previousGenerationId` produzia ação
+  de escrita.** *Fechado · era P2.* O resolvedor avançava para `prepare-core` num
+  receipt que descreve algo que a ordem de escrita não produz. *Resolução:* novo
+  motivo `staged-generation-is-previous`, e uma varredura de 1.296 mundos que
+  exige o mundo exato por trás de cada ação com efeito (teste 126).
+- **17B-002D-C1-C6 — writes internos da primitiva sem fault injection.**
+  *Fechado · era P2.* Só a violação de índice único era exercitada. *Resolução:*
+  os seis writes lógicos de `stageHistoryGenerationForOperation` passaram a ter
+  injeção explícita com o adapter real, conferindo inclusive fingerprint
+  administrativo idêntico ao inicial (testes 17–22 de
+  `storage-indexeddb.test.ts`). O teste de índice único foi mantido.
+- **17B-002D-C1-C7 — privacidade só era provada por `JSON.stringify`.**
+  *Fechado · era P3.* `JSON.stringify(erro)` devolve `{}`, então o guard antigo
+  não enxergava `message`, `stack`, `cause` nem propriedades não enumeráveis.
+  *Resolução:* inspeção recursiva com meta-teste que prova o próprio inspetor,
+  aplicada a 11 fases de falha, ao sucesso, ao resolvedor e ao console (testes
+  108–112). **A política pública não mudou.**
+
+### Abertos
+
+- **17B-002D-C1-P8 — a janela TOCTOU do W8 continua aberta.** *Aberto · P2.* O
+  readback posterior impede o settlement, mas não impede a mutação: entre as
+  pré-condições que o importador confere e o início da transação da primitiva,
+  outra aba ainda pode alterar o receipt, a metadata ou os receipts de conclusão.
+  O resultado honesto é `recovery-required` com journal preservado, nunca um
+  settlement indevido. Reforça 17B-002D-C1-P4 e 17B-002D-A2-P9. *Próximo passo:*
+  owner-token no C2/E; a alternativa seria mover a conferência para dentro da
+  primitiva, o que exigiria alterar o contrato A1.
+- **17B-002D-C1-P9 — a cópia rolante pode ficar em `previousCoreRaw` depois de
+  um abort.** *Aberto · P3, por design.* É a consequência aceita da política
+  nova, e é segura: esse raw é o estado canônico anterior verificado. O que não
+  existe é rotação ou limpeza da cópia. *Próximo passo:* nenhum antes de 002D-F
+  decidir retenção; nunca voltar a "restaurar" a cópia.
+- **17B-002D-C1-P0 a P7 continuam abertos e inalterados.** Este corretivo **não**
+  criou `recoverLogicalStorageImportV2` com I/O, recuperação após reload, boot
+  recovery, matriz completa de crash points, UI, Provider, Context, AdminPanel,
+  call site, owner-token, restore manual, rollback manual, reset, retenção,
+  download ou upload. **O slice C não está completo: o C2 não foi iniciado**, e
+  D/E/F seguem não iniciados.
+
+## GOAL-17B-002D-C2 — recuperação da importação v2 interrompida (2026-07-27)
+
+### Fechado por este slice
+
+- **17B-002D-C1-P0 — a recuperação com I/O não existia.** *Fechado · era P1.* O
+  C1 entregava apenas um resolvedor puro; nada executava a decisão depois de um
+  reload, e uma queda entre W1 e W9 deixava um journal correto sobre um
+  aplicativo que não sabia o que fazer com ele. *Resolução:*
+  `recoverLogicalStorageImportV2`, com resolvedor de reinício próprio, laço de
+  limite fechado, releitura completa depois de cada escrita e matriz de 16 crash
+  points provados com recriação **real** das instâncias sobre o mesmo banco e o
+  mesmo `localStorage`. **A integração com o boot continua sendo do slice D.**
+
+### Abertos
+
+- **17B-002D-C2-P1 — nada chama a recuperação.** *Aberto · P1.* O motor está
+  pronto e testado, e **nenhum call site existe**. O aplicativo **não** recupera
+  automaticamente no boot, e a importação **não** está disponível ao usuário.
+  *Próximo passo:* o **slice D é obrigatório antes de qualquer exposição** —
+  chamar a recuperação antes da hidratação normal, decidir o que fazer com
+  `recoveryRequired` e `cleanupPending`, e só então pensar em UI.
+- **17B-002D-C2-P2 — não existe atomicidade única entre `localStorage` e
+  IndexedDB.** *Aberto · P2, por design.* A recuperação reduz a janela ao mesmo
+  ponto que a importação — uma única escrita síncrona de `localStorage` — e
+  jamais finge que ela não existe: leitura ilegível ou terceiro valor preservam o
+  journal em vez de adivinhar. *Próximo passo:* nenhum; fechar isso exigiria um
+  motor de persistência que o projeto não tem.
+- **17B-002D-C2-P3 — a órfã segura não tem política de retenção.** *Aberto · P3.*
+  Quando a limpeza de G falha, ela fica no disco, inativa e sinalizada por
+  `cleanupPending`. Sem `operationId` a recuperação nem a enxerga, porque varrer
+  receipts terminais atrás de gerações antigas seria retenção. *Próximo passo:*
+  002D-F; nunca apagar geração fora das compensações seguras.
+- **17B-002D-C2-P4 — a recuperação concorrente é segura, não serializada.**
+  *Aberto · P3.* Duas execuções simultâneas convergem para um mundo físico único
+  e válido, nenhuma inventa `operationId` ou `generationId`, e no máximo uma
+  relata ter avançado — mas não há lock entre abas. *Próximo passo:* owner-token
+  no E, o mesmo que fecha o W8.
+- **17B-002D-C1-P8 — a janela TOCTOU do W8 continua aberta.** *Aberto · P2,
+  inalterado.* A recuperação repete o mesmo readback do receipt depois de
+  `activating → activated` e recusa liquidar sobre um receipt mutado, mas não
+  impede a mutação. *Próximo passo:* owner-token no E.
+- **17B-002D-C1-P9 — a cópia rolante pode ficar em `previousCoreRaw`.** *Aberto ·
+  P3, por design, inalterado.* A recuperação mantém a política à risca: ela
+  **grava** `previousCoreRaw` na cópia no caminho saudável de avanço e **nunca**
+  a restaura, remove ou compensa para trás — nem quando a gravação do core alvo
+  falha. Provado nas quatro variantes do crash 10.
+- **17B-002D-C1-P1 a P7 continuam abertos e inalterados.** Este slice **não**
+  criou boot integration, Provider, Context, AdminPanel, UI, botão, modal, toast,
+  seletor de arquivo, download, upload, call site, owner-token, restore manual,
+  rollback manual exposto, reset, retenção, sincronização remota, Supabase nem
+  banco remoto. **D/E/F seguem não iniciados.**
