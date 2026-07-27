@@ -511,12 +511,14 @@ recomendação · dependências · próximo passo.**
   avisar explicitamente antes de exportar; criptografia opcional com senha, se
   vier, é GOAL próprio.
 - **17B-002D-B-P4 — não existe importação, restauração ou rollback do v2.**
-  *Aberto · P0 para o produto, por design nesta etapa.* Um arquivo v2 pode ser
-  gerado e conferido, mas nada consegue trazê-lo de volta: `commitStorageImport`
-  só aceita envelope v1 monolítico, e escrever o payload lógico exige o
-  coordenador atômico que ainda não existe. Enquanto isso, o usuário v2 tem
-  backup **verificável e inútil para restaurar**. *Próximo passo:* 002D-C
-  implementa a importação lógica com staging físico + receipt administrativo.
+  *Parcialmente fechado · P1.* Rótulo corrigido pelo corretivo 055: este item
+  vinha marcado como `Aberto · P0 para o produto`, fora da escala usada em todo o
+  resto do documento e já desatualizado — a seção do C1 o declara parcialmente
+  fechado desde 2026-07-27. `commitLogicalStorageImportV2` existe, é jornalizada
+  e leva um arquivo v2 validado até `settled`; o que continua faltando é call
+  site (002D-E) e recuperação após reload (002D-C2). Enquanto isso, o usuário v2
+  ainda não consegue restaurar pela interface. *Próximo passo:* 002D-C2 executa a
+  recuperação e 002D-E liga a importação a uma tela.
 - **17B-002D-B-P5 — o backup não tem call site, então o usuário ainda não pode
   gerar arquivo nenhum.** *Aberto · P1.* Nenhum componente, Provider, boot ou
   `AdminPanel` importa `storage-logical-backup`. No modo v2 a exportação
@@ -663,7 +665,88 @@ Auditoria 052: **APTO / Classe B**. O slice C foi dividido em C1 (este) e C2.
 - **17B-002D-C1-P7 — `isQuotaFailure` é uma segunda classificação de erro de
   escrita.** *Aberto · P3.* `storage.ts` já tem `classifyStorageFailure`, mas ela
   é privada daquele módulo e `storage.ts` estava fora da allowlist deste slice.
-  São quatro linhas duplicadas. *Próximo passo:* exportar a original e reusar num
-  passe de saneamento autorizado a tocar `storage.ts`.
+  O corretivo 055 endureceu a cópia local (só sinal estrutural) e a divergência
+  entre as duas implementações aumentou. *Próximo passo:* exportar a original e
+  reusar num passe de saneamento autorizado a tocar `storage.ts`.
 - **17B-002A-PHYSICAL continua obrigatório.** Nada aqui foi medido em Android
   WebView de entrada.
+
+## GOAL-17B-002D-C1 corretivo 055 — auditoria Classe B (2026-07-27)
+
+Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
+
+### Fechado por este corretivo
+
+- **17B-002D-C1-C1 — compensação insegura da cópia rolante do core.**
+  *Fechado · era P1.* `restoreRollingBackup` reescrevia (`setItem`) ou removia
+  (`removeItem`) a cópia rolante **incondicionalmente** depois de qualquer falha
+  do W6, usando o valor lido antes da operação. Entre aquela leitura e a
+  compensação, outra aba podia ter atualizado a cópia: a restauração apagaria um
+  backup mais novo e o `removeItem` recriaria uma ausência que já não existia.
+  *Resolução:* a função foi removida inteira, junto das suas quatro chamadas e da
+  última ocorrência de `removeItem` do módulo. A cópia rolante passou a ser
+  tratada como auxiliar — o canônico é a chave principal mais a geração ativa —,
+  e nenhuma compensação a escreve ou a remove. Uma importação abortada pode
+  deixá-la em `previousCoreRaw`, o que é seguro e **não altera o estado
+  canônico**, porque esse raw é o core anterior verificado no W0 e guardado
+  inteiro no journal. Falha da cópia antes do commit passou a reler a chave
+  principal: `targetCoreRaw` ou terceiro valor preservam o journal e devolvem
+  `recovery-required`, **sem escrever sobre valor alheio**. Provado pelos testes
+  77–83, 94 e 96–98 de `storage-logical-import.test.ts`.
+- **17B-002D-C1-C2 — falha de `getItem` fechava o journal sem prova.**
+  *Fechado · era P2.* Uma leitura que estourava levava à compensação como se o
+  estado canônico fosse conhecido. *Resolução:* toda falha de leitura preserva o
+  journal e devolve `storage-unavailable` (antes do commit) ou
+  `recovery-required` (a partir dele); `RawRead` deixou de capturar a causa
+  nativa, o que também torna impossível vazar a mensagem lançada pelo storage.
+- **17B-002D-C1-C3 — quota classificada por mensagem.** *Fechado · era P2.*
+  `message.includes('quota')` transformava `TypeError`, `AbortError` e erros
+  genéricos em `reason: 'quota'`, e num erro vindo do `StorageLike` do chamador a
+  mensagem é texto que o chamador controla. *Resolução:* só sinal estrutural —
+  `error.name` conhecido, ou código legado 22/1014 dentro de um `DOMException`
+  real. Dez casos cobertos (testes 84–93).
+- **17B-002D-C1-C4 — mutação de `stagedGenerationId`/`targetCoreRaw` na janela do
+  W8 seguia para o settlement.** *Fechado · era P2.* A primitiva não reconfere
+  esses campos dentro da própria transação. *Resolução:* readback do receipt
+  depois da transição `activating → activated`; sem os dois mundos ainda
+  nomeados, não há settlement. A primitiva IndexedDB e a fachada A2 **não foram
+  alteradas**. Testes 101–107.
+- **17B-002D-C1-C5 — `stagedGenerationId === previousGenerationId` produzia ação
+  de escrita.** *Fechado · era P2.* O resolvedor avançava para `prepare-core` num
+  receipt que descreve algo que a ordem de escrita não produz. *Resolução:* novo
+  motivo `staged-generation-is-previous`, e uma varredura de 1.296 mundos que
+  exige o mundo exato por trás de cada ação com efeito (teste 126).
+- **17B-002D-C1-C6 — writes internos da primitiva sem fault injection.**
+  *Fechado · era P2.* Só a violação de índice único era exercitada. *Resolução:*
+  os seis writes lógicos de `stageHistoryGenerationForOperation` passaram a ter
+  injeção explícita com o adapter real, conferindo inclusive fingerprint
+  administrativo idêntico ao inicial (testes 17–22 de
+  `storage-indexeddb.test.ts`). O teste de índice único foi mantido.
+- **17B-002D-C1-C7 — privacidade só era provada por `JSON.stringify`.**
+  *Fechado · era P3.* `JSON.stringify(erro)` devolve `{}`, então o guard antigo
+  não enxergava `message`, `stack`, `cause` nem propriedades não enumeráveis.
+  *Resolução:* inspeção recursiva com meta-teste que prova o próprio inspetor,
+  aplicada a 11 fases de falha, ao sucesso, ao resolvedor e ao console (testes
+  108–112). **A política pública não mudou.**
+
+### Abertos
+
+- **17B-002D-C1-P8 — a janela TOCTOU do W8 continua aberta.** *Aberto · P2.* O
+  readback posterior impede o settlement, mas não impede a mutação: entre as
+  pré-condições que o importador confere e o início da transação da primitiva,
+  outra aba ainda pode alterar o receipt, a metadata ou os receipts de conclusão.
+  O resultado honesto é `recovery-required` com journal preservado, nunca um
+  settlement indevido. Reforça 17B-002D-C1-P4 e 17B-002D-A2-P9. *Próximo passo:*
+  owner-token no C2/E; a alternativa seria mover a conferência para dentro da
+  primitiva, o que exigiria alterar o contrato A1.
+- **17B-002D-C1-P9 — a cópia rolante pode ficar em `previousCoreRaw` depois de
+  um abort.** *Aberto · P3, por design.* É a consequência aceita da política
+  nova, e é segura: esse raw é o estado canônico anterior verificado. O que não
+  existe é rotação ou limpeza da cópia. *Próximo passo:* nenhum antes de 002D-F
+  decidir retenção; nunca voltar a "restaurar" a cópia.
+- **17B-002D-C1-P0 a P7 continuam abertos e inalterados.** Este corretivo **não**
+  criou `recoverLogicalStorageImportV2` com I/O, recuperação após reload, boot
+  recovery, matriz completa de crash points, UI, Provider, Context, AdminPanel,
+  call site, owner-token, restore manual, rollback manual, reset, retenção,
+  download ou upload. **O slice C não está completo: o C2 não foi iniciado**, e
+  D/E/F seguem não iniciados.

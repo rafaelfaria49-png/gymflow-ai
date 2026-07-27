@@ -71,6 +71,18 @@ import {
 // duas vezes dá o mesmo raw) e a mais barata de desfazer (gravar de volta o raw
 // anterior, que está inteiro no journal). A ordem inversa colocaria a escrita
 // fraca no meio e exigiria desfazê-la depois de uma falha do lado forte.
+//
+// O QUE A COMPENSAÇÃO NÃO DESFAZ (corretivo 055). A cópia rolante do core é
+// AUXILIAR; o estado canônico é a chave principal mais a geração ativa. Depois
+// que esta operação grava `previousCoreRaw` na cópia, esse valor JÁ é um backup
+// válido do estado anterior, então nenhuma falha posterior exige devolver a
+// cópia ao valor mais antigo. A restauração incondicional que existia aqui era
+// insegura: entre a leitura e a compensação outra aba pode ter atualizado a
+// cópia, e reescrever "o valor de antes" apagaria um backup mais novo — ou
+// recriaria, com `removeItem`, uma ausência que já não existe. Uma importação
+// abortada pode portanto deixar a cópia rolante atualizada para
+// `previousCoreRaw`, e isso é seguro porque esse raw é exatamente o estado
+// canônico anterior, verificado no W0 e guardado inteiro no journal.
 
 const IMPORT_OPERATION_KIND = 'import' as const;
 
@@ -264,6 +276,7 @@ export type LogicalImportBlockedReason =
   | 'activating-without-staging'
   | 'activating-without-target-core'
   | 'staged-generation-invalid'
+  | 'staged-generation-is-previous'
   | 'target-verification-failed'
   | 'core-target-without-activation'
   | 'unrecognized-world'
@@ -347,6 +360,14 @@ export function resolveLogicalImportRecovery(
   const activeIsStaged = staged !== null && metadata.activeGeneration === staged;
 
   if (staged !== null && !known.has(staged)) return impossible('staged-generation-absent');
+  // A geração preparada é sempre NOVA: `stageHistoryGenerationForOperation`
+  // recusa colidir com a ativa e o readback do W2 recusa
+  // `generationId === previousGenerationId`. Um receipt que nomeia a geração
+  // anterior como preparada descreve algo que esta ordem de escrita não produz —
+  // e avançar sobre ele gravaria um core alvo apontando para o mundo antigo.
+  if (staged !== null && staged === receipt.previousGenerationId) {
+    return impossible('staged-generation-is-previous');
+  }
 
   if (receipt.status === 'staged') {
     // `staged` afirma que NADA foi aplicado. Qualquer efeito visível aqui é
@@ -408,26 +429,43 @@ export function resolveLogicalImportRecovery(
 // Leitura e escrita do core
 // ---------------------------------------------------------------------------
 
-type RawRead = { ok: true; raw: string | null } | { ok: false; cause: unknown };
+// A causa nativa de uma leitura que falhou NÃO é capturada. A mensagem de um
+// `getItem` que estourou é texto do ambiente — em teste, texto do chamador — e
+// o contrato público deste módulo só devolve constantes daqui. O que importa
+// para decidir é apenas se a leitura pôde ser provada.
+type RawRead = { ok: true; raw: string | null } | { ok: false };
 
 function readRaw(storage: StorageLike, key: string): RawRead {
   try {
     return { ok: true, raw: storage.getItem(key) };
-  } catch (cause) {
-    return { ok: false, cause };
+  } catch {
+    return { ok: false };
   }
 }
 
 // Classificação local do erro de escrita. `storage.ts` tem uma equivalente, mas
 // ela é privada daquele módulo e `storage.ts` está fora da allowlist deste
-// slice; duplicar quatro linhas é melhor do que abrir um arquivo que este GOAL
+// slice; duplicar esta função é melhor do que abrir um arquivo que este GOAL
 // não pode tocar.
+//
+// Só sinais ESTRUTURAIS classificam quota (corretivo 055). A mensagem é texto
+// livre e, num erro que veio do `StorageLike` do chamador, é texto que o
+// chamador controla: aceitar `message.includes('quota')` transformava qualquer
+// `TypeError`, `AbortError` ou erro genérico numa falha de espaço e mentia
+// sobre a causa real — inclusive devolvendo `reason: 'quota'` para uma falha
+// que nada tem a ver com armazenamento cheio.
+const QUOTA_ERROR_NAMES = new Set(['QuotaExceededError', 'NS_ERROR_DOM_QUOTA_REACHED']);
+
+// Códigos legados de `DOMException`: 22 é `QUOTA_EXCEEDED_ERR` e 1014 é o
+// `NS_ERROR_DOM_QUOTA_REACHED` do Firefox. Eles só são consultados num
+// `DOMException` de verdade — um objeto qualquer com `code: 22` não é sinal.
+const QUOTA_LEGACY_CODES = new Set([22, 1014]);
+
 function isQuotaFailure(error: unknown): boolean {
-  const name = error instanceof Error ? error.name : '';
-  const message = error instanceof Error ? error.message.toLowerCase() : '';
-  return name === 'QuotaExceededError'
-    || name === 'NS_ERROR_DOM_QUOTA_REACHED'
-    || message.includes('quota');
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
+    return QUOTA_ERROR_NAMES.has(error.name) || QUOTA_LEGACY_CODES.has(error.code);
+  }
+  return error instanceof Error && QUOTA_ERROR_NAMES.has(error.name);
 }
 
 // ---------------------------------------------------------------------------
@@ -540,20 +578,6 @@ async function restorePreviousGeneration(
     return true;
   } catch {
     return false;
-  }
-}
-
-function restoreRollingBackup(
-  storage: StorageLike,
-  backupKey: string,
-  previousValue: string | null,
-): void {
-  try {
-    if (previousValue === null) storage.removeItem(backupKey);
-    else storage.setItem(backupKey, previousValue);
-  } catch {
-    // Best-effort: a cópia rolante é auxiliar e o core principal já foi
-    // conferido pelo caminho que chamou esta função.
   }
 }
 
@@ -1091,22 +1115,58 @@ export async function commitLogicalStorageImportV2(
 
   // -------------------------------------------------------------------------
   // W6 — commit byte-exato do core. A única escrita sem CAS de todo o fluxo.
+  //
+  // A cópia rolante NUNCA é compensada: nem `setItem` do valor anterior, nem
+  // `removeItem` para recriar uma ausência, nem escrita de "melhor esforço".
+  // Ver a nota "O QUE A COMPENSAÇÃO NÃO DESFAZ" no topo do arquivo. Se a cópia
+  // contém `previousCoreRaw`, fica assim; se contém outro valor, fica assim; se
+  // está ausente, fica ausente; se a leitura dela falha, nem tentamos escrevê-la.
   // -------------------------------------------------------------------------
 
   const backupKey = `${key}${HYBRID_CORE_BACKUP_SUFFIX}`;
 
+  // Leitura do armazenamento que falhou: o estado canônico não pode ser
+  // PROVADO, então nada é escrito — nem a chave principal, nem a cópia rolante —
+  // e o journal fica aberto para o C2 decidir. `storage-unavailable` antes do
+  // commit da chave principal, `recovery-required` a partir dele.
+  const unprovableCore = (
+    reason: 'storage-unavailable' | 'recovery-required',
+  ): LogicalImportFailure => failure({
+    reason,
+    error: reason === 'storage-unavailable' ? MESSAGES.coreUnreadable : MESSAGES.coreAmbiguous,
+    operationId,
+    generationId,
+    compensation: 'not-attempted',
+  });
+
+  // Compensação de uma falha da CÓPIA ROLANTE, antes de qualquer gravação da
+  // chave principal. Ela relê a chave principal e só desfaz o que consegue
+  // provar; a cópia rolante fica exatamente como está.
+  const failAfterBackupProblem = async (
+    reason: LogicalImportFailureReason,
+    error: string,
+  ): Promise<LogicalImportFailure> => {
+    const observed = readRaw(storage, key);
+    if (!observed.ok) return unprovableCore('storage-unavailable');
+    if (observed.raw !== previousCoreRaw) {
+      // Ou a chave principal já é o core alvo — que esta operação não gravou —,
+      // ou é um terceiro valor. Nos dois casos: não sobrescreve, não remove,
+      // não fecha o journal e não finge que nada foi aplicado.
+      return unprovableCore('recovery-required');
+    }
+    return failAfterActivation(reason, error);
+  };
+
   const beforeCommit = readRaw(storage, key);
-  if (!beforeCommit.ok) {
-    return failAfterActivation('storage-unavailable', MESSAGES.coreUnreadable, beforeCommit.cause);
-  }
+  if (!beforeCommit.ok) return unprovableCore('storage-unavailable');
   if (beforeCommit.raw !== previousCoreRaw) {
     return failAfterActivation('core-commit-failed', MESSAGES.coreChangedBeforeCommit);
   }
 
-  const previousBackup = readRaw(storage, backupKey);
-  if (!previousBackup.ok) {
-    return failAfterActivation('storage-unavailable', MESSAGES.coreUnreadable, previousBackup.cause);
-  }
+  // Sonda da cópia rolante: se ela nem pode ser lida, este fluxo não tenta
+  // gravá-la.
+  const backupProbe = readRaw(storage, backupKey);
+  if (!backupProbe.ok) return unprovableCore('storage-unavailable');
 
   // Cópia rolante do core anterior, no mesmo contrato de chave que o runtime
   // híbrido já usa. O conteúdo é exatamente `previousCoreRaw`, que o journal
@@ -1114,27 +1174,22 @@ export async function commitLogicalStorageImportV2(
   try {
     storage.setItem(backupKey, previousCoreRaw);
   } catch (cause) {
-    return failAfterActivation(
+    return failAfterBackupProblem(
       isQuotaFailure(cause) ? 'quota' : 'storage-unavailable',
       MESSAGES.coreBackupFailed,
-      cause,
     );
   }
   const backupReadback = readRaw(storage, backupKey);
-  if (!backupReadback.ok || backupReadback.raw !== previousCoreRaw) {
-    restoreRollingBackup(storage, backupKey, previousBackup.raw);
-    return failAfterActivation('core-commit-failed', MESSAGES.coreBackupFailed);
+  if (!backupReadback.ok) return unprovableCore('storage-unavailable');
+  if (backupReadback.raw !== previousCoreRaw) {
+    return failAfterBackupProblem('core-commit-failed', MESSAGES.coreBackupFailed);
   }
 
   // Segunda releitura da chave principal: gravar a cópia rolante é uma janela em
   // que outra aba pode ter escrito.
   const beforeWrite = readRaw(storage, key);
-  if (!beforeWrite.ok) {
-    restoreRollingBackup(storage, backupKey, previousBackup.raw);
-    return failAfterActivation('storage-unavailable', MESSAGES.coreUnreadable, beforeWrite.cause);
-  }
+  if (!beforeWrite.ok) return unprovableCore('storage-unavailable');
   if (beforeWrite.raw !== previousCoreRaw) {
-    restoreRollingBackup(storage, backupKey, previousBackup.raw);
     return failAfterActivation('core-commit-failed', MESSAGES.coreChangedBeforeCommit);
   }
 
@@ -1149,41 +1204,22 @@ export async function commitLogicalStorageImportV2(
   }
 
   const afterWrite = readRaw(storage, key);
-  if (!afterWrite.ok) {
-    // Ilegível depois de uma tentativa de escrita: não dá para afirmar nada.
-    return failure({
-      reason: 'recovery-required',
-      error: MESSAGES.coreAmbiguous,
-      operationId,
-      generationId,
-      compensation: 'not-attempted',
-      cause: afterWrite.cause,
-    });
-  }
+  // Ilegível depois de uma tentativa de escrita: não dá para afirmar nada.
+  if (!afterWrite.ok) return unprovableCore('recovery-required');
   if (afterWrite.raw === previousCoreRaw) {
-    // A chave principal não mudou: compensação segura e comprovável.
-    restoreRollingBackup(storage, backupKey, previousBackup.raw);
+    // A chave principal não mudou: compensação segura e comprovável. A cópia
+    // rolante fica onde está — ela já contém `previousCoreRaw`.
     if (writeError !== null) {
       return failAfterActivation(
         isQuotaFailure(writeError) ? 'quota' : 'storage-unavailable',
         isQuotaFailure(writeError) ? MESSAGES.coreQuota : MESSAGES.coreWriteFailed,
-        writeError,
       );
     }
     return failAfterActivation('core-commit-failed', MESSAGES.coreReadbackDiverged);
   }
-  if (afterWrite.raw !== targetCoreRaw) {
-    // Terceiro valor: não adivinha, não sobrescreve, não apaga a geração, não
-    // marca terminal. O journal fica inteiro para o slice C2.
-    return failure({
-      reason: 'recovery-required',
-      error: MESSAGES.coreAmbiguous,
-      operationId,
-      generationId,
-      compensation: 'not-attempted',
-      cause: writeError ?? undefined,
-    });
-  }
+  // Terceiro valor: não adivinha, não sobrescreve, não apaga a geração, não
+  // marca terminal. O journal fica inteiro para o slice C2.
+  if (afterWrite.raw !== targetCoreRaw) return unprovableCore('recovery-required');
 
   // -------------------------------------------------------------------------
   // W7 — verificação final. A partir daqui o mundo alvo está aplicado: uma
@@ -1200,9 +1236,7 @@ export async function commitLogicalStorageImportV2(
   });
 
   const committedCore = readRaw(storage, key);
-  if (!committedCore.ok || committedCore.raw !== targetCoreRaw) {
-    return unprovable(committedCore.ok ? undefined : committedCore.cause);
-  }
+  if (!committedCore.ok || committedCore.raw !== targetCoreRaw) return unprovable();
   const parsedCommitted = parsePhysicalEnvelope(targetCoreRaw);
   if (
     parsedCommitted.status !== 'v2'
@@ -1256,9 +1290,7 @@ export async function commitLogicalStorageImportV2(
       return unprovable();
     }
     const coreBeforeMark = readRaw(storage, key);
-    if (!coreBeforeMark.ok || coreBeforeMark.raw !== targetCoreRaw) {
-      return unprovable(coreBeforeMark.ok ? undefined : coreBeforeMark.cause);
-    }
+    if (!coreBeforeMark.ok || coreBeforeMark.raw !== targetCoreRaw) return unprovable();
     try {
       const advanced = await adapter.transitionStorageOperationIfUnambiguous({
         operationId,
@@ -1282,8 +1314,25 @@ export async function commitLogicalStorageImportV2(
       }
     }
     const coreAfterMark = readRaw(storage, key);
-    if (!coreAfterMark.ok || coreAfterMark.raw !== targetCoreRaw) {
-      return unprovable(coreAfterMark.ok ? undefined : coreAfterMark.cause);
+    if (!coreAfterMark.ok || coreAfterMark.raw !== targetCoreRaw) return unprovable();
+    // Readback do RECEIPT depois da transição. A primitiva confere, dentro da
+    // própria transação, status, kind, unicidade da operação em aberto, ausência
+    // de conclusão pendente e CAS da geração ativa — mas não reconfere
+    // `stagedGenerationId`, `targetCoreRaw` nem o mundo anterior. Uma mutação
+    // desses campos entre a checagem acima e a transação (janela TOCTOU do W8,
+    // que só um owner-token fecha) passa despercebida lá dentro; aqui ela
+    // impede o settlement e preserva o journal.
+    const afterMark = await adapter.readStorageOperationReceipt(operationId).catch(() => null);
+    if (
+      afterMark === null
+      || afterMark.status !== 'activated'
+      || afterMark.kind !== IMPORT_OPERATION_KIND
+      || afterMark.stagedGenerationId !== generationId
+      || afterMark.targetCoreRaw !== targetCoreRaw
+      || afterMark.previousGenerationId !== previousGenerationId
+      || afterMark.previousCoreRaw !== previousCoreRaw
+    ) {
+      return unprovable();
     }
   } else if (beforeActivated.status !== 'activated' && beforeActivated.status !== 'settled') {
     return unprovable();

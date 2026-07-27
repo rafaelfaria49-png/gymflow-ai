@@ -3759,4 +3759,156 @@ describe('stageHistoryGenerationForOperation (002D-C1)', () => {
     expect(persistido?.previousGenerationId).toBe(ativa);
     expect(persistido?.updatedAt).toBe('2026-07-26T09:00:00.000Z');
   });
+
+  // -------------------------------------------------------------------------
+  // 17–22 — fault injection de CADA write lógico interno (corretivo 055).
+  //
+  // A primitiva enfileira seis writes na mesma transação: um `add` por sessão,
+  // o manifest, o marcador de ordem e o patch do receipt. Cada teste derruba um
+  // deles com o adapter REAL sobre fake-indexeddb — nada do resultado final é
+  // simulado — e confere que o armazenamento voltou byte a byte ao estado
+  // anterior, inclusive o fingerprint administrativo.
+  // -------------------------------------------------------------------------
+
+  // Aborta a transação no n-ésimo `add`/`put` do store alvo, no banco alvo. Só
+  // a instância patchada do fake-indexeddb é tocada, e o patch é desfeito no
+  // `finally` de quem o instalou.
+  function injectWriteFault(target: {
+    databaseName: string;
+    store: string;
+    method: 'add' | 'put';
+    nth: number;
+  }): () => void {
+    const original = target.method === 'add'
+      ? FakeIDBObjectStore.prototype.add
+      : FakeIDBObjectStore.prototype.put;
+    let calls = 0;
+    const patched = function (
+      this: IDBObjectStore,
+      value: unknown,
+      key?: IDBValidKey,
+    ): IDBRequest<IDBValidKey> {
+      const request = original.call(this, value, key);
+      if (this.name === target.store && this.transaction.db.name === target.databaseName) {
+        calls += 1;
+        if (calls === target.nth) this.transaction.abort();
+      }
+      return request;
+    };
+    if (target.method === 'add') FakeIDBObjectStore.prototype.add = patched;
+    else FakeIDBObjectStore.prototype.put = patched;
+    return () => {
+      if (target.method === 'add') FakeIDBObjectStore.prototype.add = original;
+      else FakeIDBObjectStore.prototype.put = original;
+    };
+  }
+
+  interface StagingFootprint {
+    fingerprint: string;
+    history: unknown[];
+    manifests: unknown[];
+    metadata: unknown[];
+    receipts: unknown[];
+    completions: unknown[];
+  }
+
+  async function stagingFootprint(
+    adapter: IndexedDbWorkoutHistoryStorage,
+    factory: IDBFactory,
+    name: string,
+  ): Promise<StagingFootprint> {
+    const snapshot = await adapter.readStorageAdministrationSnapshot();
+    const readAll = (store: string): Promise<unknown[]> => withStore(
+      factory,
+      name,
+      store,
+      'readonly',
+      (transaction) => requestResult(transaction.objectStore(store).getAll()) as Promise<unknown[]>,
+    );
+    return {
+      fingerprint: snapshot.fingerprint,
+      history: await readAll(WORKOUT_HISTORY_STORE),
+      manifests: await readAll(GENERATION_MANIFESTS_STORE),
+      metadata: await readAll(METADATA_STORE),
+      receipts: await readAll(STORAGE_OPERATION_RECEIPTS_STORE),
+      completions: await readAll(COMPLETION_RECEIPTS_STORE),
+    };
+  }
+
+  // Roda o staging com o write `nth` do `store` derrubado e prova que ele não
+  // deixou rastro nenhum.
+  async function expectWriteFaultLeavesNoTrace(target: {
+    store: string;
+    method: 'add' | 'put';
+    nth: number;
+  }): Promise<void> {
+    const { adapter, factory, name } = createStagingHarness(['generation-ativa', 'generation-nova']);
+    const ativa = await seedOperation(adapter, [makeSession(1), makeSession(2)]);
+    const antes = await stagingFootprint(adapter, factory, name);
+
+    const restore = injectWriteFault({ databaseName: name, ...target });
+    try {
+      await expect(stage(adapter, ativa, [makeSession(40), makeSession(41), makeSession(42)]))
+        .rejects.toBeTruthy();
+    } finally {
+      restore();
+    }
+
+    const depois = await stagingFootprint(adapter, factory, name);
+    // Zero registro, zero manifest e zero marcador da geração nova.
+    expect((depois.history as { generationId: string }[])
+      .every((registro) => registro.generationId === ativa)).toBe(true);
+    expect((depois.manifests as { generationId: string }[])
+      .map((manifest) => manifest.generationId)).toEqual([ativa]);
+    expect((depois.metadata as { key: string }[])
+      .some((registro) => registro.key === 'generationNextOrder:generation-nova')).toBe(false);
+    // Receipt original byte a byte, ponteiros e conclusões intocados.
+    expect(depois.receipts).toEqual(antes.receipts);
+    expect(JSON.stringify(depois.receipts)).toBe(JSON.stringify(antes.receipts));
+    expect(depois.completions).toEqual(antes.completions);
+    expect(depois.metadata).toEqual(antes.metadata);
+    expect(depois.history).toEqual(antes.history);
+    expect(depois.manifests).toEqual(antes.manifests);
+    const receipt = await adapter.readStorageOperationReceipt('operation-import-1');
+    expect(receipt?.stagedGenerationId).toBeNull();
+    expect(receipt?.targetCoreRaw).toBeNull();
+    const metadata = await adapter.readMetadata();
+    expect(metadata.activeGeneration).toBe(ativa);
+    expect(metadata.migrationGeneration).toBeNull();
+    // Fingerprint administrativo idêntico ao inicial.
+    expect(depois.fingerprint).toBe(antes.fingerprint);
+    expect(await adapter.hasHistoryGeneration('generation-nova')).toBe(false);
+  }
+
+  it('17. falha no write da primeira sessão não deixa rastro', async () => {
+    await expectWriteFaultLeavesNoTrace({ store: WORKOUT_HISTORY_STORE, method: 'add', nth: 1 });
+  });
+
+  it('18. falha no write da sessão intermediária não deixa rastro', async () => {
+    await expectWriteFaultLeavesNoTrace({ store: WORKOUT_HISTORY_STORE, method: 'add', nth: 2 });
+  });
+
+  it('19. falha no write da última sessão não deixa rastro', async () => {
+    await expectWriteFaultLeavesNoTrace({ store: WORKOUT_HISTORY_STORE, method: 'add', nth: 3 });
+  });
+
+  it('20. falha no write do manifest não deixa rastro', async () => {
+    await expectWriteFaultLeavesNoTrace({
+      store: GENERATION_MANIFESTS_STORE,
+      method: 'put',
+      nth: 1,
+    });
+  });
+
+  it('21. falha no write do marcador de ordem não deixa rastro', async () => {
+    await expectWriteFaultLeavesNoTrace({ store: METADATA_STORE, method: 'put', nth: 1 });
+  });
+
+  it('22. falha no write do receipt atualizado não deixa rastro', async () => {
+    await expectWriteFaultLeavesNoTrace({
+      store: STORAGE_OPERATION_RECEIPTS_STORE,
+      method: 'put',
+      nth: 1,
+    });
+  });
 });

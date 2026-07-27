@@ -3150,3 +3150,106 @@ avisos, **nenhum nos arquivos alterados**), `git diff --check` limpo.
 - **Owner-token continua pendente:** duas abas ainda podem disputar; o protocolo
   garante que a importação falha honestamente, não que ela seja impedida.
 - **C2/D/E/F não iniciados.**
+
+## GOAL-17B-002D-C1 corretivo 055 — compensação endurecida (2026-07-27)
+
+Auditoria independente 054: **APTO / Classe B**, com um achado **P1** na
+compensação da importação lógica v2. Este corretivo fecha o achado e as lacunas
+de teste diretamente ligadas a ele. **O C2 continua não iniciado.**
+
+### O risco encontrado
+
+`restoreRollingBackup` reescrevia (`setItem`) ou removia (`removeItem`) a cópia
+rolante do core **incondicionalmente** depois de qualquer falha do W6, usando o
+valor lido antes da operação. Entre aquela leitura e a compensação, outra aba ou
+processo pode ter atualizado a cópia: a restauração apagaria um backup mais novo,
+e o `removeItem` recriaria uma ausência que já não existia.
+
+### A correção
+
+A função foi **removida inteira**, junto das suas quatro chamadas e da última
+ocorrência de `removeItem` no módulo. A política passou a ser:
+
+- a cópia rolante é **auxiliar**; o canônico é a chave principal + geração ativa;
+- depois de gravar `previousCoreRaw` nela, a cópia já é backup válido;
+- a compensação **nunca** escreve nem remove a cópia, em nenhum caminho;
+- cópia alterada por outra aba fica intacta; cópia ausente fica ausente; cópia
+  ilegível não é escrita;
+- **uma importação abortada pode deixar a cópia em `previousCoreRaw`** — seguro,
+  porque esse raw é o core anterior verificado no W0 e guardado no journal, e
+  **não altera o estado canônico**.
+
+Falha da cópia antes do commit passou a **reler a chave principal**: só
+`previousCoreRaw` autoriza compensação completa; `targetCoreRaw` ou terceiro
+valor preservam o journal e devolvem `recovery-required`, sem sobrescrever nada.
+
+Falha de `getItem` preserva o journal em qualquer fase (`storage-unavailable`
+antes do commit, `recovery-required` a partir dele). `RawRead` deixou de carregar
+`cause`, então a mensagem nativa do armazenamento não tem por onde vazar.
+
+`isQuotaFailure` passou a exigir sinal estrutural (`error.name` conhecido, ou
+código legado 22/1014 dentro de um `DOMException` real). `storage.ts` não foi
+tocado.
+
+O W8 ganhou um **readback do receipt depois da transição** `activating →
+activated`: a primitiva não reconfere `stagedGenerationId` nem `targetCoreRaw`
+dentro da própria transação, então o readback é o que impede o settlement quando
+um deles foi mutado na janela. A primitiva IndexedDB e a fachada A2 **não foram
+alteradas**.
+
+O resolvedor ganhou o motivo `staged-generation-is-previous`: um receipt que
+nomeia a geração anterior como preparada é estado impossível, e sem a guarda ele
+avançaria para `prepare-core`.
+
+### Antes / depois do comportamento crítico
+
+| Situação | Antes | Depois |
+| --- | --- | --- |
+| falha do W6 com a cópia alterada por outra aba | cópia sobrescrita com o valor antigo | cópia intacta |
+| falha do W6 com cópia ausente antes | `removeItem(backupKey)` | cópia fica com `previousCoreRaw`, nada é removido |
+| falha da cópia com terceiro valor na chave principal | compensava como se nada tivesse sido aplicado | `recovery-required`, journal preservado |
+| `getItem` da chave principal falha no W6 | receipt marcado `reverted` | journal preservado, `storage-unavailable` |
+| `setItem` lança `TypeError('quota …')` | `reason: 'quota'` | `reason: 'storage-unavailable'` |
+| `targetCoreRaw` mutado na janela do W8 | seguia para o settlement | `recovery-required`, receipt não liquidado |
+
+### Testes
+
+**Importador (51 novos, 76 → 127):** política da cópia rolante (7, incluindo
+terceiro valor e core alvo já presente); classificação estrutural de quota (11,
+cobrindo `QuotaExceededError`, `NS_ERROR_DOM_QUOTA_REACHED`, `DOMException`,
+`TypeError` com "quota", `Error` comum com "quota", `AbortError`, `UnknownError`,
+objeto arbitrário, `null` e string); falhas de `getItem` (6 fases: antes da
+primeira leitura da chave, segunda leitura, readback da cópia, depois do
+`setItem`, verificação pós-`activated` e inspeção final); janela do W8 (7
+mutações imediatamente antes da transição); privacidade completa (5, com inspeção
+recursiva de `cause`/`message`/`stack`/não enumeráveis, varredura de console e um
+meta-teste que prova o inspetor); ramos do resolvedor (15, incluindo varredura de
+**1.296 mundos** que exige o mundo exato por trás de cada ação com efeito).
+
+**Primitiva (6 novos em `storage-indexeddb.test.ts`, 169 → 175):** fault
+injection em cada um dos seis writes lógicos de
+`stageHistoryGenerationForOperation` — primeira sessão, sessão intermediária,
+última sessão, manifest, marcador de ordem e receipt atualizado — com o adapter
+real sobre fake-indexeddb. Cada caso confere zero registro da geração nova, zero
+manifest, zero marcador, receipt original byte a byte, `stagedGenerationId` e
+`targetCoreRaw` ainda nulos, `activeGeneration` e `migrationGeneration`
+inalteradas, nenhum completion receipt alterado e **fingerprint administrativo
+idêntico ao inicial**. O teste de violação do índice único foi mantido.
+
+Seeds embaralhadas: `11055`, `22055` e `33055` no importador, `44055` no adapter
+— todas verdes.
+
+### Validações
+
+`npx vitest run` (**1584/1584**, era 1527), `npx tsc --noEmit`, `npm run build`,
+`npm run build:mobile`, `npx eslint src` (baseline preservada: 12 erros, 6
+avisos, **nenhum nos arquivos alterados**), `git diff --check` limpo.
+`package.json` e `package-lock.json` inalterados.
+
+### Continuação
+
+- **Nenhum call site.** O importador continua referenciado só pelo próprio teste.
+- **A recuperação com I/O não existe** e **nada roda no boot** — 17B-002D-C1-P0.
+- **A janela TOCTOU do W8 continua aberta** entre as pré-condições conferidas
+  pelo módulo e o início da transação da primitiva; fechá-la exige owner-token.
+- **C2/D/E/F não iniciados.** O slice C **não** está completo.

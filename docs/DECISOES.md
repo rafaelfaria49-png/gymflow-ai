@@ -1261,3 +1261,63 @@ de crash points). Este ADR cobre o C1.
   impede o TOCTOU entre validar o arquivo e gravá-lo. Ele é consumidor de
   biblioteca, não call site real: continua sem UI, Provider, Context, boot ou
   componente. A igualdade exata segue valendo, e é ela que prova esse limite.
+
+## GOAL-17B-002D-C1 corretivo 055 — auditoria Classe B (2026-07-27)
+
+Auditoria independente 054 classificou o C1 como **APTO / Classe B** e apontou um
+risco **P1** na compensação. Este corretivo o fecha e cobre as lacunas de teste
+diretamente ligadas a ele. **O C2 não foi iniciado.**
+
+- **A cópia rolante do core deixou de ser compensada.**
+  `restoreRollingBackup` reescrevia ou removia a cópia **incondicionalmente**
+  depois de uma falha. Entre a leitura do valor anterior e a compensação outra
+  aba pode ter atualizado a cópia: devolvê-la ao valor antigo apagaria um backup
+  mais novo, e o `removeItem` recriaria uma ausência que já não existe. A função
+  foi removida inteira, e com ela a última chamada de `removeItem` do módulo — o
+  teste 82 afirma, sobre a fonte, que nenhum dos dois nomes existe mais.
+- **A cópia é auxiliar; o canônico é a chave principal mais a geração ativa.**
+  Depois que a operação grava `previousCoreRaw` na cópia, esse valor já é um
+  backup válido do estado anterior, então nenhuma falha posterior exige voltar ao
+  valor mais antigo. Uma importação abortada pode deixar a cópia atualizada para
+  `previousCoreRaw` — e isso **não** altera o estado canônico, porque esse raw é
+  o core anterior verificado no W0 e guardado inteiro no journal.
+- **Falha da cópia relê a chave principal antes de compensar.** Só o mundo
+  `previousCoreRaw` autoriza a compensação completa. Se a chave já for
+  `targetCoreRaw`, compensar seria afirmar que nada foi aplicado; se for um
+  terceiro valor, sobrescrever seria destruir dado alheio. Nos dois casos o
+  journal é preservado e o retorno é `recovery-required`.
+- **Falha de `getItem` preserva o journal.** Uma leitura que estoura não prova
+  nada sobre o estado canônico, então o fluxo não escreve, não remove e não fecha
+  o receipt: devolve `storage-unavailable` antes do commit do core e
+  `recovery-required` a partir dele. `RawRead` deixou de carregar `cause` — a
+  causa nativa não é sequer capturada, o que torna estruturalmente impossível
+  vazar a mensagem lançada pelo `StorageLike` do chamador.
+- **Quota passou a ser classificada só por sinal estrutural.**
+  `message.includes('quota')` transformava qualquer `TypeError`, `AbortError` ou
+  erro genérico numa falha de espaço, e a mensagem de um erro vindo do
+  `StorageLike` é texto que o chamador controla. Agora contam `error.name`
+  (`QuotaExceededError`, `NS_ERROR_DOM_QUOTA_REACHED`) e os códigos legados 22 e
+  1014 **apenas dentro de um `DOMException` real**. `storage.ts` continua
+  intocado; a duplicação segue registrada como 17B-002D-C1-P7.
+- **O W8 ganhou readback do receipt depois da transição.**
+  `transitionStorageOperationIfUnambiguous` não reconfere `stagedGenerationId`
+  nem `targetCoreRaw` dentro da própria transação, então uma mutação desses
+  campos na janela passaria despercebida. O importador relê o receipt depois de
+  marcar `activated` e exige que ele ainda nomeie os dois mundos; caso contrário
+  não liquida. A primitiva IndexedDB e a fachada A2 **não foram alteradas**, e a
+  janela TOCTOU remanescente continua registrada para C2/E — fechá-la exige
+  owner-token.
+- **O resolvedor recusa `stagedGenerationId === previousGenerationId`.** O
+  staging recusa colidir com a geração ativa e o readback do W2 recusa a
+  igualdade, então um receipt assim descreve algo que esta ordem de escrita não
+  produz. Sem a guarda, o resolvedor avançaria para `prepare-core` e gravaria um
+  core alvo apontando para o mundo antigo. Motivo novo:
+  `staged-generation-is-previous`.
+- **A privacidade passou a ser provada por inspeção recursiva.**
+  `JSON.stringify(erro)` devolve `{}`: um teste que só olhasse o serializado não
+  provaria nada. A varredura agora percorre propriedades enumeráveis e não
+  enumeráveis, `name`, `message`, `stack`, `cause`, causas aninhadas, arrays,
+  `Map`, `Set` e o serializado — e um meta-teste prova que o próprio inspetor
+  enxerga o que promete. **A política pública não mudou**; o que mudou foi a
+  prova, e a única correção que ela exigiu foi parar de propagar erros do
+  armazenamento como `cause`.

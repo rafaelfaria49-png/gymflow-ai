@@ -1192,8 +1192,8 @@ depois gravado exatamente como está. `saveHybridCoreResult` cunha um `savedAt`
 novo a cada chamada e por isso nunca gravaria o raw que o receipt prometeu — e a
 avaliação de compatibilidade exige, em `activated`, igualdade byte a byte entre o
 core e `targetCoreRaw`. O commit do core é próprio: relê a chave, exige igualdade
-com `previousCoreRaw`, guarda o valor anterior da cópia rolante, grava a cópia,
-relê a chave de novo, grava o raw exato e confere o readback.
+com `previousCoreRaw`, sonda a cópia rolante, grava a cópia, confere o readback
+dela, relê a chave de novo, grava o raw exato e confere o readback final.
 
 ### `rollbackToHistoryGeneration` como ativação verificada
 
@@ -1255,6 +1255,90 @@ constante do módulo. Saem apenas: motivo fechado, `operationId`, `generationId`
 `payloadDigest`, contagens, datas canônicas, preview sanitizado e o resultado da
 compensação. `cause` só de infraestrutura interna confiável. Os dois cores
 completos permanecem privados dentro do receipt no IndexedDB.
+
+## Corretivo 055 — compensação da importação v2 (GOAL-17B-002D-C1)
+
+A auditoria independente 054 classificou o C1 como **APTO / Classe B** e apontou
+um risco **P1** na compensação: `restoreRollingBackup` reescrevia ou removia a
+cópia rolante do core **incondicionalmente**, mesmo quando ela já havia sido
+alterada por outra aba ou processo. O corretivo removeu essa restauração.
+
+### Política da cópia rolante
+
+1. A cópia rolante é **auxiliar**. O estado canônico é a chave principal mais a
+   geração ativa.
+2. Depois que a importação grava `previousCoreRaw` na cópia, esse valor **já é um
+   backup válido** do estado anterior.
+3. Uma falha posterior **não** exige restaurar o valor mais antigo da cópia.
+4. A compensação **nunca** executa `setItem(backupKey, valorAnterior)`,
+   **nunca** executa `removeItem(backupKey)` e não faz escrita de "melhor
+   esforço" sobre a cópia.
+5. Se outra aba mudar a cópia, a operação a deixa **intacta**.
+6. Se a leitura da cópia falhar, a operação **não tenta escrevê-la**.
+
+Resultados possíveis, todos aceitos como estão: cópia com `previousCoreRaw`,
+cópia com outro valor, cópia ausente, cópia ilegível.
+
+**Uma importação abortada pode deixar a cópia rolante atualizada para
+`previousCoreRaw`.** Isso é seguro e não altera o estado canônico: esse raw é
+exatamente o core anterior, verificado no W0 e guardado inteiro no journal.
+
+O caminho saudável não foi enfraquecido: antes de gravar o core alvo a operação
+continua salvando `previousCoreRaw` na chave oficial da cópia e continua exigindo
+o readback dela antes de tocar na chave principal.
+
+### Falha da cópia rolante antes do commit do core
+
+Quando a escrita ou o readback da cópia falha, `targetCoreRaw` não é gravado e a
+chave principal é **relida** para decidir:
+
+| Chave principal relida | Ação |
+| --- | --- |
+| ainda `previousCoreRaw` | reativa `previousGenerationId` com CAS, confirma a geração anterior, marca o receipt como `reverted`, limpa G só se inativa e sob a guarda tripla, deixa a cópia como está |
+| já `targetCoreRaw` | não finge que nada foi aplicado: preserva o journal e devolve `recovery-required` |
+| terceiro valor | não sobrescreve, não remove, preserva o journal e devolve `recovery-required` |
+
+### Falha de `getItem`
+
+Uma leitura que estoura **não prova nada** sobre o estado canônico. Nesses casos
+o fluxo preserva o journal, não escreve na chave principal, não escreve na cópia
+rolante, não remove nada e devolve `storage-unavailable` antes do commit do core
+ou `recovery-required` a partir dele. A causa nativa **não sobe**: `RawRead` nem
+sequer captura o erro lançado pelo `StorageLike`.
+
+### Classificação estrutural de quota
+
+`isQuotaFailure` passou a aceitar apenas sinais estruturais: `error.name`
+`QuotaExceededError` ou `NS_ERROR_DOM_QUOTA_REACHED`, e os códigos legados 22 e
+1014 **quando o erro é um `DOMException` de verdade**. A mensagem deixou de
+contar: num erro vindo do `StorageLike` do chamador ela é texto controlado por
+quem chamou, e `message.includes('quota')` transformava qualquer `TypeError`,
+`AbortError` ou erro genérico numa falha de espaço. `storage.ts` não foi tocado.
+
+### Readback do receipt depois de `activating → activated`
+
+`transitionStorageOperationIfUnambiguous` confere, dentro da própria transação,
+formato de todos os receipts, unicidade da operação não terminal, `status`, zero
+conclusão pendente e CAS da geração ativa — mas **não** reconfere
+`stagedGenerationId` nem `targetCoreRaw`. Uma mutação desses campos dentro da
+janela passaria despercebida lá dentro, então o importador relê o receipt depois
+da transição e exige que ele ainda nomeie os dois mundos. Se não nomear, o
+settlement não acontece, o journal é preservado e o retorno é
+`recovery-required`.
+
+**A janela TOCTOU do W8 continua aberta** entre as pré-condições conferidas por
+este módulo e o início da transação da primitiva. Fechá-la exige owner-token, que
+é do C2/E. A primitiva IndexedDB e a fachada A2 **não foram alteradas**.
+
+### Privacidade conferida por inspeção recursiva
+
+Os testes varrem o retorno público recursivamente — propriedades enumeráveis e
+**não enumeráveis**, `Error.name`, `Error.message`, `Error.stack`, `Error.cause`,
+causas aninhadas, arrays, `Map`, `Set` e o serializado — porque
+`JSON.stringify(erro)` devolve `{}` e não provaria nada. Nenhuma sentinela
+(arquivo, core anterior, core alvo, nome, e-mail, `sessionId`, treino ou mensagem
+lançada pelo storage) aparece em `reason`, `error`, `backupReason`,
+`compensation`, `preview`, `cause`, `message`, `stack`, nem em `console`.
 
 ## Limitações restantes
 
