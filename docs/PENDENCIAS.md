@@ -594,3 +594,76 @@ recomendação · dependências · próximo passo.**
 - **17B-002D-B-P1 a P7 continuam abertos e inalterados.** Este corretivo **não**
   criou importação, restauração, rollback, reset, UI, Provider, download,
   owner-token nem call site; 002D-C/D/E/F seguem não iniciados.
+
+## GOAL-17B-002D-C1 — importação lógica v2 atômica (2026-07-27)
+
+Auditoria 052: **APTO / Classe B**. O slice C foi dividido em C1 (este) e C2.
+
+### Fechado por este slice
+
+- **17B-002D-B-P4 — não existia importação do v2.** *Parcialmente fechado.*
+  `commitLogicalStorageImportV2` existe, é jornalizada e leva um arquivo v2
+  validado até `settled`. Continua **sem call site**: o usuário ainda não
+  consegue disparar uma importação pela interface (isso é 002D-E).
+
+### Abertos
+
+- **17B-002D-C1-P0 — a recuperação após interrupção existe como DECISÃO, não
+  como execução.** *Aberto · P0.* `resolveLogicalImportRecovery` é puro e diz o
+  que fazer diante de cada estado; **não existe** `recoverLogicalStorageImportV2`
+  com I/O real e **nada roda no boot**. Existe exatamente uma janela em que uma
+  queda deixa o aplicativo sem hidratar: entre o commit da ativação da geração e
+  o readback do core (`metadataMatchesV2` exige `activeGeneration ===
+  core.historyStorage.generationId`). O journal guarda os dois mundos completos,
+  então o estado é recuperável — mas ninguém o recupera ainda. Nenhum usuário
+  está exposto: não há call site. *Próximo passo:* C2 implementa a execução das
+  decisões; D liga a recuperação ao boot **antes** de qualquer confiança em
+  `hydrate()`.
+- **17B-002D-C1-P1 — a matriz completa de crash points é do C2.** *Aberto · P1.*
+  O C1 cobre falha de cada etapa e compensação imediata, mas não injeta queda
+  depois de cada write com reinício do processo, nem prova retomada após reload,
+  nem repetição idempotente de cada etapa a partir do disco. *Próximo passo:* C2.
+- **17B-002D-C1-P2 — geração órfã depois de uma falha pós-ativação.**
+  *Aberto · P2.* A compensação apaga a geração criada pela operação apenas
+  quando ela nunca foi ativada. Se a falha acontece depois da ativação, a
+  restauração devolve a geração anterior e a geração importada fica como órfã
+  inativa. Importações que falham repetidamente nesse ponto acumulam registros e
+  consomem quota. Apagar uma geração que já foi ativa é mais delicado e ficou
+  fora do C1. *Próximo passo:* política de retenção/limpeza em D/F.
+- **17B-002D-C1-P3 — custo do fluxo não foi medido em aparelho.** *Aberto · P2.*
+  Uma importação roda quatro diagnósticos administrativos completos (cada um com
+  duas leituras atômicas e verificação criptográfica integral da geração ativa),
+  mais o digest do payload, mais os digests de todas as sessões importadas, mais
+  duas verificações integrais da geração nova. Herda 17B-002D-A2-P4 e
+  17B-002D-B-P1. Com histórico grande no WebView Android isso não é barato.
+  *Próximo passo:* medir antes de 002D-E ligar a importação a uma tela; nunca
+  enfraquecer a verificação para ganhar tempo.
+- **17B-002D-C1-P4 — ABA no core do `localStorage` continua indetectável.**
+  *Aberto · P2.* O protocolo relê o core e exige igualdade byte a byte antes e
+  depois de cada passo, mas um core que sai de `P`, passa por `X` e volta a `P`
+  dentro da janela passa despercebido. Sem owner-token não há como distinguir.
+  Reforça 17B-002D-A2-P9 e 17B-002D-B-P10. *Próximo passo:* owner-token no 002D-E,
+  antes de qualquer operação administrativa real.
+- **17B-002D-C1-P5 — o receipt guarda dois cores completos.** *Aberto · P2.*
+  `previousCoreRaw` e `targetCoreRaw` são exigência do invariante "o core atual
+  deve ser preservado integralmente no journal", mas dobram o custo de
+  armazenamento por operação e continuam no IndexedDB depois de `settled` — com
+  dados pessoais em texto puro, como o próprio backup (17B-002D-B-P3). Eles nunca
+  saem no retorno público. *Próximo passo:* política de retenção/expurgo de
+  receipts liquidados em D/F.
+- **17B-002D-C1-P6 — o teste 60 do slice B passou a listar o importador.**
+  *Aberto · P3.* O guard afirma, por igualdade exata, quem menciona
+  `storage-logical-backup` em `src/`. O importador chama
+  `inspectLogicalStorageBackupV2` de propósito — é o que impede o TOCTOU entre
+  validar o arquivo e gravá-lo —, então a lista passou de um para três arquivos.
+  Ele continua sendo consumidor de biblioteca, **não** call site: nenhuma UI,
+  Provider, Context, boot ou componente importa qualquer um dos dois módulos.
+  *Próximo passo:* revisar a lista sempre que um consumidor novo aparecer, e
+  nunca relaxar a igualdade exata para um `toContain`.
+- **17B-002D-C1-P7 — `isQuotaFailure` é uma segunda classificação de erro de
+  escrita.** *Aberto · P3.* `storage.ts` já tem `classifyStorageFailure`, mas ela
+  é privada daquele módulo e `storage.ts` estava fora da allowlist deste slice.
+  São quatro linhas duplicadas. *Próximo passo:* exportar a original e reusar num
+  passe de saneamento autorizado a tocar `storage.ts`.
+- **17B-002A-PHYSICAL continua obrigatório.** Nada aqui foi medido em Android
+  WebView de entrada.

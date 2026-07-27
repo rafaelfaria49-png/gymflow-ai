@@ -1681,7 +1681,16 @@ describe('backup lógico v2 — regressão do fluxo v1', () => {
       }
     };
     for (const root of roots) walk(path.join(process.cwd(), root));
-    expect(found).toEqual(['src/lib/storage-logical-backup.test.ts']);
+    // O 002D-C1 acrescentou UM consumidor de biblioteca: o importador lógico
+    // chama `inspectLogicalStorageBackupV2` internamente, de propósito — é o
+    // que impede um TOCTOU entre validar o arquivo e gravá-lo. Ele não é um
+    // call site real: continua sem UI, Provider, Context, boot ou componente.
+    // A igualdade exata segue valendo, e é ela que prova esse limite.
+    expect(found).toEqual([
+      'src/lib/storage-logical-backup.test.ts',
+      'src/lib/storage-logical-import.test.ts',
+      'src/lib/storage-logical-import.ts',
+    ]);
   });
 });
 

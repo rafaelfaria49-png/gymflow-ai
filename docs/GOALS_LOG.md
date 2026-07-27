@@ -3052,3 +3052,101 @@ e `package-lock.json` inalterados.
 - **002D-C/D/E/F não iniciados.**
 - **Não se afirma atomicidade entre `localStorage` e IndexedDB.** O protocolo
   garante que a concorrência derruba a exportação, não que ela seja impedida.
+
+## GOAL-17B-002D-C1 — importação lógica v2 atômica (2026-07-27)
+
+Auditoria independente 052 classificou o 002D-C como **APTO PARA IMPLEMENTAÇÃO /
+Classe B** e recomendou dividir o slice. Este GOAL executa o **C1**: recepção
+programática de um backup lógico v2, journal administrativo, staging físico
+amarrado ao receipt, caminho saudável completo até `settled` e resolvedor puro
+dos estados de recuperação. O **C2** — execução da recuperação após reload e
+matriz completa de crash points — **não foi iniciado**.
+
+### O que passou a existir
+
+Antes deste GOAL um arquivo v2 podia ser gerado e conferido, e nada mais:
+`commitStorageImport` só aceita o envelope v1 monolítico, então o usuário v2
+tinha um backup **verificável e inútil para restaurar** (17B-002D-B-P4). Agora
+existe `commitLogicalStorageImportV2`, programática e sem call site.
+
+**Primitiva A1 nova — `stageHistoryGenerationForOperation`.** Cria a geração
+importada (registros + digests por registro + `orderedDigest` + manifest +
+marcador de ordem) e grava `stagedGenerationId` no receipt da operação na MESMA
+transação readwrite sobre `workoutHistory`, `metadata`, `generationManifests`,
+`storageOperationReceipts` e `completionReceipts`. Dentro da transação exige:
+exatamente um receipt não terminal, que seja o `operationId` informado, com
+`kind: 'import'`, `status: 'staged'`, `stagedGenerationId` e `targetCoreRaw`
+ainda nulos; zero conclusão de treino pendente; CAS de `activeGeneration`;
+`migrationGeneration` nulo; e identidade física ainda inexistente. O
+`generationId` sai sempre do `generationIdFactory` do adapter — **o importador
+nunca fornece identidade física, e o backup externo muito menos.** Qualquer erro
+aborta a transação inteira. Integridade reutiliza as rotinas existentes; não há
+segunda implementação.
+
+**`metadata.migrationGeneration` nunca é gravada.** `metadataMatchesV2` exige o
+ponteiro nulo para hidratar; preenchê-lo bloquearia o boot durante toda a
+preparação. O vínculo geração ↔ operação vive no receipt.
+
+### Sequência implementada (W0–W10)
+
+`W0` inspeciona o arquivo e a administração sem escrever nada; `W1` cria o
+receipt via `beginStorageOperation` com `sourceDigest = payloadDigest`; `W2` faz
+o staging atômico; `W3` relê a geração verificada e a compara integralmente com o
+payload (contagem, ids, ordem, conteúdo canônico, `orderedDigest`, manifest);
+`W4` constrói `targetCoreRaw` UMA vez e o persiste no journal junto da transição
+`staged → activating`; `W5` ativa com `rollbackToHistoryGeneration` (verificação
+integral + prova canônica + CAS + readback); `W6` grava o core byte a byte;
+`W7` verifica core, metadata e geração; `W8` marca `activated` pela primitiva A1
+direta; `W9` liquida via fachada A2; `W10` exige `ready` de novo. **Sucesso só é
+retornado depois desse último readback.**
+
+O `targetCoreRaw` é o MESMO raw do começo ao fim: nada de reconstruir o envelope,
+nada de `savedAt` novo, nada de `saveHybridCoreResult` — que cunharia um instante
+diferente e jamais bateria byte a byte com o que o receipt prometeu.
+
+### Testes
+
+**Primitiva (16 novos em `storage-indexeddb.test.ts`, 153 → 169):** gravação
+completa numa transação; recusa de `expectedStatus` inválido; receipt persistido
+fora de `staged`; kind diferente de `import`; `stagedGenerationId` ou
+`targetCoreRaw` já preenchidos; segunda operação não terminal; conclusão de
+treino pendente; CAS falho; `migrationGeneration` ocupada; identidade já
+existente; colisão com a geração ativa; ponteiro de staging intocado e geração
+ativa inalterada; histórico vazio com manifest canônico; `put` que falha
+abortando tudo; readback do receipt.
+
+**Importador (76 novos em `storage-logical-import.test.ts`):** caminho saudável
+(11, incluindo 500 sessões, Unicode/emoji, core sem `workoutHistory`, geração
+anterior intacta, `settled` e re-hidratação real do runtime híbrido); arquivo
+recusado sem nenhuma escrita (11, cada um provando `localStorage` byte a byte
+idêntico, fingerprint administrativo idêntico, zero receipt e zero geração nova);
+estado atual do armazenamento (7); concorrência e integridade (11); falhas e
+compensação (10); idempotência e invariantes (10); tabela fechada do resolvedor
+puro (16).
+
+Seeds embaralhadas: `11053` e `22053` no importador, `33053` no adapter — todas
+verdes.
+
+### Validações
+
+`npx vitest run` (**1527/1527**, era 1435), `npx tsc --noEmit`, `npm run build`,
+`npm run build:mobile`, `npx eslint src` (baseline preservada: 12 erros, 6
+avisos, **nenhum nos arquivos alterados**), `git diff --check` limpo.
+`package.json` e `package-lock.json` inalterados.
+
+### Continuação
+
+- **Nenhum call site real.** Nenhuma UI, Provider, Context, AdminPanel, boot,
+  seletor de arquivo, download ou upload foi criado. A varredura automatizada de
+  `src` confirma que o importador só é referenciado pelo próprio teste.
+- **A recuperação após reload NÃO está funcionando.** O C1 entrega apenas o
+  resolvedor PURO, que decide; `recoverLogicalStorageImportV2` com I/O real não
+  existe e nada roda no boot. Uma queda entre a ativação e o commit do core deixa
+  o estado recuperável pelo journal, mas ninguém executa essa recuperação ainda —
+  ver 17B-002D-C1-P0 em PENDENCIAS.
+- **Não se afirma atomicidade única entre `localStorage` e IndexedDB.** A janela
+  em que os dois podem discordar foi reduzida a uma única escrita síncrona, não
+  eliminada.
+- **Owner-token continua pendente:** duas abas ainda podem disputar; o protocolo
+  garante que a importação falha honestamente, não que ela seja impedida.
+- **C2/D/E/F não iniciados.**

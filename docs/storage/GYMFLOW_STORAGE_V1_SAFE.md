@@ -1117,6 +1117,145 @@ Confirme que o aviso aparece, a chave principal continua `{invalid`, a quarenten
 
 `npx vitest run` cobre load/save, corrupção, versão desconhecida, quota, falha de leitura, backup/restauração, rollback de readback, migração idempotente, arrays vazios, export/import, limite de arquivo, flush bloqueado, anonimização e as três fixtures da auditoria como golden inputs.
 
+## Importação lógica v2 atômica (GOAL-17B-002D-C1)
+
+O slice B entrega um arquivo v2 que pode ser gerado e conferido, e para aí. O C1
+entrega o coordenador que faltava: `commitLogicalStorageImportV2`, em
+`src/lib/storage-logical-import.ts`. Ela é programática e **não tem call site** —
+não existe seletor de arquivo, upload, modal, Provider nem integração com o boot.
+
+### O que ela recebe
+
+O **conteúdo bruto** do arquivo, e mais nada de confiável. Não existe variante
+que aceite um payload já validado: um objeto de inspeção é forjável, e aceitá-lo
+transferiria a confiança para quem chama. A função chama
+`inspectLogicalStorageBackupV2` internamente, então há **um único parse, uma
+única validação, um único digest e um único objeto de payload** — o mesmo que vai
+para o staging. Não existe janela entre validar e usar.
+
+O parâmetro opcional `expectedPayloadDigest` amarra a chamada a uma inspeção
+anterior (o preview que o 002D-E vai mostrar): divergência recusa antes do
+primeiro write.
+
+### Staging amarrado ao journal
+
+`stageHistoryGenerationForOperation` cria a geração importada e grava
+`stagedGenerationId` no receipt **na mesma transação readwrite**, sobre os cinco
+stores administrativos. Em duas transações separadas, uma queda entre elas
+deixaria uma geração física que nenhum receipt explica — e o diagnóstico do A2
+não teria como provar de quem ela é.
+
+A primitiva **nunca grava `metadata.migrationGeneration`**. O ponteiro faria
+`metadataMatchesV2` recusar a hidratação enquanto a operação estivesse em
+andamento, inclusive durante a verificação integral de um histórico grande. O
+vínculo geração ↔ operação já vive no receipt, que é durável e é lido pelo mesmo
+snapshot atômico. A geração nasce **inativa**.
+
+### Ordem: geração primeiro, core por último
+
+Não existe atomicidade única entre `localStorage` e IndexedDB, e este módulo não
+finge que existe. O que existe é:
+
+1. cada escrita isolada é atômica e verificável por readback;
+2. o journal nomeia os DOIS mundos completos (`previousCoreRaw` +
+   `previousGenerationId` e `targetCoreRaw` + `stagedGenerationId`) **antes** de
+   qualquer efeito;
+3. a ordem escolhida reduz a janela em que os dois motores discordam a uma única
+   escrita síncrona de `localStorage`.
+
+Gravando a geração primeiro, todas as escritas protegidas por CAS acontecem antes
+da única escrita sem CAS — e essa última é a mais barata de repetir (gravar o
+mesmo raw duas vezes dá o mesmo raw) e a mais barata de desfazer (gravar de volta
+o raw anterior, que está inteiro no journal). A ordem inversa colocaria a escrita
+fraca no meio e exigiria desfazê-la depois de uma falha do lado forte.
+
+### Sequência
+
+| Passo | O que faz | Escreve |
+| --- | --- | --- |
+| W0 | inspeciona arquivo, exige `ready`, exige `migrationStatus: completed` | nada |
+| W1 | `beginStorageOperation` com `sourceDigest = payloadDigest` | receipt |
+| W2 | staging atômico: geração nova + `stagedGenerationId` | 5 stores, 1 transação |
+| W3 | `readVerifiedHistoryGeneration` × payload validado | nada |
+| W4 | constrói `targetCoreRaw` e transiciona `staged → activating` | receipt |
+| W5 | ativa com CAS e verificação integral | metadata |
+| W6 | grava o core byte a byte | localStorage |
+| W7 | verifica core, metadata e geração | nada |
+| W8 | `activating → activated` | receipt |
+| W9 | `activated → settled` | receipt |
+| W10 | exige `ready` de novo | nada |
+
+### `targetCoreRaw` é byte-exato
+
+Ele é construído **uma vez**, gravado no journal antes de existir fisicamente e
+depois gravado exatamente como está. `saveHybridCoreResult` cunha um `savedAt`
+novo a cada chamada e por isso nunca gravaria o raw que o receipt prometeu — e a
+avaliação de compatibilidade exige, em `activated`, igualdade byte a byte entre o
+core e `targetCoreRaw`. O commit do core é próprio: relê a chave, exige igualdade
+com `previousCoreRaw`, guarda o valor anterior da cópia rolante, grava a cópia,
+relê a chave de novo, grava o raw exato e confere o readback.
+
+### `rollbackToHistoryGeneration` como ativação verificada
+
+O nome diz rollback, mas ela é a única primitiva do adapter que verifica a
+geração alvo integralmente, reconfere o conteúdo físico contra uma prova canônica
+**dentro** da transação de escrita, aplica CAS em `activeGeneration` e confirma o
+ponteiro por readback depois do commit. `activateHistoryGeneration` não faz nada
+disso e ainda exigiria o ponteiro de staging, que este fluxo não usa. A mesma
+primitiva, com os argumentos trocados, é a compensação.
+
+### Por que `activating → activated` não passa pela fachada A2
+
+O avaliador do A2 devolve `insufficient-evidence` para qualquer mundo
+`activating` com efeitos já aplicados: o A2 não executa ativação, então não pode
+atestar que os efeitos vieram daquela operação. `transitionStorageOperation`
+exige `interrupted` e recusaria. Quem produziu os efeitos é o importador, então é
+ele que reconfere todas as pré-condições — receipt único, `kind`, `status`,
+`stagedGenerationId`, `targetCoreRaw`, geração ativa e core byte a byte, antes e
+depois — e chama `transitionStorageOperationIfUnambiguous` com CAS. **A fachada
+A2 e `evaluateStorageOperationCompatibility` não foram alteradas.** Em
+`activated → settled` o mundo volta a ser coerente para o avaliador e a fachada é
+usada normalmente.
+
+### Compensação e estado ambíguo
+
+Compensação só acontece quando o estado é **comprovável**. Antes de qualquer
+efeito: reverte o receipt e limpa a geração criada por esta operação. Depois da
+ativação: restaura a geração anterior com CAS e só então reverte; se a restauração
+não se confirma, o receipt fica aberto de propósito.
+
+Se a chave principal contiver um terceiro valor, ou se a releitura falhar, o
+importador **não adivinha**: não sobrescreve o valor alheio, não apaga geração
+nenhuma, não marca `settled` nem `reverted`, e devolve `recovery-required` com os
+dois mundos ainda registrados no journal.
+
+A limpeza de geração tem guarda tripla — só a geração nomeada pelo journal, que
+não seja a ativa e não seja a anterior. **A geração anterior nunca é apagada.**
+
+### Resolvedor puro
+
+`resolveLogicalImportRecovery` recebe uma fotografia explícita (receipt, core
+atual, metadata, gerações conhecidas, integridade observada) e devolve uma união
+fechada de decisões: `no-operation`, `already-settled`, `stage-generation`,
+`verify-staging`, `prepare-core`, `activate-generation`, `commit-core`,
+`verify-target`, `mark-activated`, `settle`, `revert-safe`,
+`cleanup-inactive-staging`, `recovery-required`, `impossible-state`. Sem
+`localStorage`, sem IndexedDB, sem relógio, sem UUID, sem mutação, sem efeito.
+
+**Ele apenas decide.** A execução dessas decisões depois de um reload é o slice
+C2, e a ligação com o boot é o D. **A recuperação após interrupção ainda não
+está funcionando** — ver 17B-002D-C1-P0.
+
+### Privacidade
+
+Nenhum retorno público carrega raw, trecho de JSON, `previousCoreRaw`,
+`targetCoreRaw`, nome, e-mail, `sessionId`, conteúdo de treino, mensagem nativa
+de `JSON.parse` ou texto controlado pelo arquivo. Toda mensagem de erro é
+constante do módulo. Saem apenas: motivo fechado, `operationId`, `generationId`,
+`payloadDigest`, contagens, datas canônicas, preview sanitizado e o resultado da
+compensação. `cause` só de infraestrutura interna confiável. Os dois cores
+completos permanecem privados dentro do receipt no IndexedDB.
+
 ## Limitações restantes
 
 - `localStorage` é síncrono e não possui transação/lock entre abas; última escrita concorrente vence.

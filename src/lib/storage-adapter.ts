@@ -5,6 +5,7 @@ import type {
   HistoryGenerationSnapshot,
 } from './storage-history-integrity';
 import type {
+  StorageOperationKind,
   StorageOperationReceipt,
   StorageOperationReceiptPatch,
   StorageOperationStatus,
@@ -134,6 +135,35 @@ export interface RevertStorageOperationAfterTransitionConflictInput {
   reason: string;
 }
 
+// Staging físico de uma geração AMARRADO a uma operação administrativa
+// (GOAL-17B-002D-C1).
+//
+// Ele existe porque `prepareHistoryGeneration` e o patch do receipt seriam duas
+// transações distintas: uma queda entre elas deixaria uma geração física órfã
+// que nenhum receipt explica, e o diagnóstico do 002D-A2 não teria como decidir
+// de quem ela é. Aqui a geração nasce e o receipt passa a nomeá-la na MESMA
+// transação — ou nenhuma das duas coisas acontece.
+//
+// O `generationId` é sempre gerado pelo adapter: um backup externo nunca
+// fornece identidade física, e o importador também não escolhe.
+export interface StageHistoryGenerationForOperationInput {
+  operationId: string;
+  // Precisa ser `'staged'`: só uma operação que ainda não aplicou efeito algum
+  // pode ganhar staging físico.
+  expectedStatus: StorageOperationStatus;
+  // Precisa ser `'import'`: restauração, reset e rollback têm outros fluxos.
+  expectedKind: StorageOperationKind;
+  // CAS: a geração ativa precisa continuar sendo exatamente esta.
+  expectedActiveGenerationId: string;
+  history: readonly WorkoutSession[];
+}
+
+export interface StageHistoryGenerationForOperationResult {
+  generationId: string;
+  receipt: StorageOperationReceipt;
+  manifest: HistoryGenerationManifest;
+}
+
 // Registro físico de uma sessão dentro de uma geração, exatamente como está
 // gravado. `digest` é o digest persistido junto do registro — `null` marca
 // registro legado sem digest individual. Nada aqui é normalizado ou reparado.
@@ -213,6 +243,14 @@ export interface WorkoutHistoryAdministrationAdapter {
     nextStatus: StorageOperationStatus,
     patch?: StorageOperationReceiptPatch,
   ): Promise<StorageOperationReceipt>;
+  // Cria uma geração física NOVA e inativa e grava `stagedGenerationId` no
+  // receipt da operação, tudo numa única transação readwrite. Nunca toca em
+  // `metadata.migrationGeneration`: o ponteiro de staging faria
+  // `metadataMatchesV2` recusar a hidratação enquanto a operação estivesse em
+  // andamento, e o vínculo geração ↔ operação já vive no receipt.
+  stageHistoryGenerationForOperation(
+    input: StageHistoryGenerationForOperationInput,
+  ): Promise<StageHistoryGenerationForOperationResult>;
   listHistoryGenerations(): Promise<HistoryGenerationSummary[]>;
   readVerifiedHistoryGeneration(generationId: string): Promise<VerifiedHistoryGeneration>;
   rollbackToHistoryGeneration(

@@ -10,6 +10,7 @@ import {
   HistoryManifestIntegrityError,
   HistoryMetadataIntegrityError,
   HistoryRollbackConflictError,
+  HistoryStagingConflictError,
   IndexedDbNotOpenError,
   IndexedDbUnavailableError,
   IndexedDbWorkoutHistoryStorage,
@@ -3456,5 +3457,306 @@ describe('transição × conclusão de treino nas duas ordens (038)', () => {
     const snapshot = await adapter.readStorageAdministrationSnapshot();
     expect(snapshot.unsettledOperations).toHaveLength(1);
     expect(snapshot.pendingCompletionReceipts).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GOAL-17B-002D-C1 — staging físico amarrado ao journal.
+//
+// A primitiva cria a geração importada e grava `stagedGenerationId` no receipt
+// na MESMA transação. Duas transações separadas deixariam uma janela em que a
+// geração existe e nenhum receipt a explica — e o diagnóstico do 002D-A2 não
+// teria como provar de quem ela é.
+// ---------------------------------------------------------------------------
+describe('stageHistoryGenerationForOperation (002D-C1)', () => {
+  // Harness com id de geração controlável: alguns casos precisam colidir com
+  // uma identidade física que já existe.
+  function createStagingHarness(ids?: string[]) {
+    const factory = new IDBFactory();
+    const name = `gymflow-staging-${databaseSequence += 1}`;
+    let call = 0;
+    const adapter = new IndexedDbWorkoutHistoryStorage({
+      factory,
+      databaseName: name,
+      generationIdFactory: () => (ids ? ids[Math.min(call++, ids.length - 1)] : `generation-${call += 1}`),
+      now: () => new Date('2026-07-26T09:00:00.000Z'),
+    });
+    return { adapter, factory, name };
+  }
+
+  async function seedOperation(
+    adapter: IndexedDbWorkoutHistoryStorage,
+    sessions: WorkoutSession[] = [makeSession(1)],
+  ): Promise<string> {
+    await adapter.open();
+    const generationId = await adapter.replaceHistory(sessions);
+    await adapter.createStorageOperationReceiptIfIdle({
+      receipt: makeOperationReceipt({
+        operationId: 'operation-import-1',
+        kind: 'import',
+        previousGenerationId: generationId,
+      }),
+      expectedActiveGenerationId: generationId,
+    });
+    return generationId;
+  }
+
+  function stage(
+    adapter: IndexedDbWorkoutHistoryStorage,
+    expectedActiveGenerationId: string,
+    history: WorkoutSession[],
+    overrides: {
+      operationId?: string;
+      expectedStatus?: StorageOperationStatus;
+      expectedKind?: 'import' | 'reset';
+    } = {},
+  ) {
+    return adapter.stageHistoryGenerationForOperation({
+      operationId: overrides.operationId ?? 'operation-import-1',
+      expectedStatus: overrides.expectedStatus ?? 'staged',
+      expectedKind: overrides.expectedKind ?? 'import',
+      expectedActiveGenerationId,
+      history,
+    });
+  }
+
+  it('1. grava registros, manifest, marker e o patch do receipt numa única transação', async () => {
+    const { adapter, factory, name } = createStagingHarness();
+    const ativa = await seedOperation(adapter);
+    const importado = [makeSession(40), makeSession(41)];
+
+    const resultado = await stage(adapter, ativa, importado);
+
+    expect(resultado.generationId).not.toBe(ativa);
+    expect(resultado.manifest.sessionCount).toBe(2);
+    expect(resultado.manifest.orderedDigest).toBe(await computeOrderedHistoryDigest(importado));
+    expect(resultado.receipt.stagedGenerationId).toBe(resultado.generationId);
+
+    const registros = await withStore(factory, name, WORKOUT_HISTORY_STORE, 'readonly', (transaction) => (
+      requestResult(transaction.objectStore(WORKOUT_HISTORY_STORE)
+        .index('byGeneration')
+        .getAll(resultado.generationId)) as Promise<{ order: number; sessionId: string; digest: string }[]>
+    ));
+    expect(registros.map((registro) => [registro.order, registro.sessionId])).toEqual([
+      [0, 'session-40'],
+      [1, 'session-41'],
+    ]);
+    expect(registros[0].digest).toBe(await digestWorkoutSession(importado[0]));
+    expect(await adapter.hasHistoryGeneration(resultado.generationId)).toBe(true);
+    expect(await adapter.readGenerationManifest(resultado.generationId)).toEqual(resultado.manifest);
+    // A geração nasce íntegra pela mesma verificação de sempre.
+    const verificada = await adapter.readVerifiedHistoryGeneration(resultado.generationId);
+    expect(verificada.sessions.map((sessao) => sessao.id)).toEqual(['session-40', 'session-41']);
+  });
+
+  it('2. recusa antes de qualquer leitura quando o expectedStatus informado não é staged', async () => {
+    const { adapter } = createStagingHarness();
+    const ativa = await seedOperation(adapter);
+
+    await expect(stage(adapter, ativa, [makeSession(40)], { expectedStatus: 'activating' }))
+      .rejects.toBeInstanceOf(StorageOperationTransitionError);
+    expect((await adapter.readStorageOperationReceipt('operation-import-1'))?.stagedGenerationId).toBeNull();
+  });
+
+  it('3. aborta integralmente quando o receipt persistido não está staged', async () => {
+    const { adapter, factory, name } = createStagingHarness();
+    const ativa = await seedOperation(adapter);
+    await adapter.transitionStorageOperationIfUnambiguous({
+      operationId: 'operation-import-1',
+      expectedStatus: 'staged',
+      nextStatus: 'activating',
+      expectedActiveGenerationId: ativa,
+    });
+
+    await expect(stage(adapter, ativa, [makeSession(40)]))
+      .rejects.toBeInstanceOf(StorageOperationTransitionError);
+
+    const registros = await withStore(factory, name, WORKOUT_HISTORY_STORE, 'readonly', (transaction) => (
+      requestResult(transaction.objectStore(WORKOUT_HISTORY_STORE).getAll()) as Promise<unknown[]>
+    ));
+    expect(registros).toHaveLength(1);
+    expect((await adapter.readStorageOperationReceipt('operation-import-1'))?.stagedGenerationId).toBeNull();
+  });
+
+  it('4. recusa quando o kind da operação não é import', async () => {
+    const { adapter } = createStagingHarness();
+    await adapter.open();
+    const ativa = await adapter.replaceHistory([makeSession(1)]);
+    await adapter.createStorageOperationReceiptIfIdle({
+      receipt: makeOperationReceipt({
+        operationId: 'operation-import-1',
+        kind: 'reset',
+        previousGenerationId: ativa,
+      }),
+      expectedActiveGenerationId: ativa,
+    });
+
+    await expect(stage(adapter, ativa, [makeSession(40)]))
+      .rejects.toBeInstanceOf(StorageOperationTransitionError);
+    await expect(stage(adapter, ativa, [makeSession(40)], { expectedKind: 'reset' }))
+      .rejects.toBeInstanceOf(StorageOperationTransitionError);
+  });
+
+  it('5. aborta quando o receipt já nomeia uma geração preparada', async () => {
+    const { adapter, factory, name } = createStagingHarness();
+    const ativa = await seedOperation(adapter);
+    await putRawOperationReceipt(factory, name, makeOperationReceipt({
+      operationId: 'operation-import-1',
+      kind: 'import',
+      previousGenerationId: ativa,
+      stagedGenerationId: 'generation-fantasma',
+    }) as unknown as Record<string, unknown>);
+
+    await expect(stage(adapter, ativa, [makeSession(40)]))
+      .rejects.toBeInstanceOf(StorageOperationTransitionError);
+  });
+
+  it('6. aborta quando o receipt já nomeia um core alvo', async () => {
+    const { adapter, factory, name } = createStagingHarness();
+    const ativa = await seedOperation(adapter);
+    await putRawOperationReceipt(factory, name, makeOperationReceipt({
+      operationId: 'operation-import-1',
+      kind: 'import',
+      previousGenerationId: ativa,
+      targetCoreRaw: '{"v":2}',
+    }) as unknown as Record<string, unknown>);
+
+    await expect(stage(adapter, ativa, [makeSession(40)]))
+      .rejects.toBeInstanceOf(StorageOperationTransitionError);
+  });
+
+  it('7. aborta quando existe outra operação administrativa não terminal', async () => {
+    const { adapter, factory, name } = createStagingHarness();
+    const ativa = await seedOperation(adapter);
+    await putRawOperationReceipt(factory, name, makeOperationReceipt({
+      operationId: 'operation-intrusa',
+      kind: 'rollback',
+      previousGenerationId: ativa,
+    }) as unknown as Record<string, unknown>);
+
+    const erro = await stage(adapter, ativa, [makeSession(40)])
+      .then(() => null, (caught: unknown) => caught);
+    expect(erro).toBeInstanceOf(StorageOperationAmbiguousStateError);
+    expect((erro as StorageOperationAmbiguousStateError).reason).toBe('multiple-unsettled-operations');
+  });
+
+  it('8. aborta quando existe conclusão de treino pendente', async () => {
+    const { adapter } = createStagingHarness();
+    const ativa = await seedOperation(adapter);
+    const sessao = makeSession(97);
+    await adapter.appendSessionWithCompletionReceipt(sessao, await makeReceipt(sessao, ativa));
+
+    await expect(stage(adapter, ativa, [makeSession(40)]))
+      .rejects.toBeInstanceOf(StorageCompletionPendingError);
+    expect((await adapter.readStorageOperationReceipt('operation-import-1'))?.stagedGenerationId).toBeNull();
+  });
+
+  it('9. aborta quando o CAS da geração ativa falha', async () => {
+    const { adapter } = createStagingHarness();
+    await seedOperation(adapter);
+
+    await expect(stage(adapter, 'generation-obsoleta', [makeSession(40)]))
+      .rejects.toBeInstanceOf(StorageOperationTransitionError);
+  });
+
+  it('10. aborta quando migrationGeneration não é null', async () => {
+    const { adapter, factory, name } = createStagingHarness();
+    const ativa = await seedOperation(adapter);
+    await putMetadataRecord(factory, name, 'migrationGeneration', 'generation-ocupada');
+
+    await expect(stage(adapter, ativa, [makeSession(40)]))
+      .rejects.toBeInstanceOf(HistoryStagingConflictError);
+  });
+
+  it('11. recusa um generationId que já existe fisicamente', async () => {
+    const { adapter, factory, name } = createStagingHarness(['generation-1', 'generation-orfa']);
+    const ativa = await seedOperation(adapter);
+    await putManifestRecord(factory, name, makeManifestRecord('generation-orfa'));
+
+    await expect(stage(adapter, ativa, [makeSession(40)]))
+      .rejects.toBeInstanceOf(HistoryStagingConflictError);
+  });
+
+  it('12. recusa quando o id gerado colide com a geração ativa', async () => {
+    const { adapter } = createStagingHarness(['generation-1']);
+    const ativa = await seedOperation(adapter);
+
+    await expect(stage(adapter, ativa, [makeSession(40)]))
+      .rejects.toBeInstanceOf(HistoryStagingConflictError);
+  });
+
+  it('13. nunca grava metadata.migrationGeneration e não altera a geração ativa', async () => {
+    const { adapter, factory, name } = createStagingHarness();
+    const historicoAnterior = [makeSession(1), makeSession(2)];
+    const ativa = await seedOperation(adapter, historicoAnterior);
+    const antes = await adapter.readMetadata();
+
+    const resultado = await stage(adapter, ativa, [makeSession(40)]);
+
+    const metadata = await adapter.readMetadata();
+    expect(metadata.migrationGeneration).toBeNull();
+    expect(metadata.activeGeneration).toBe(ativa);
+    // A primitiva não mexe em nenhum campo de migração: eles saem exatamente
+    // como entraram.
+    expect(metadata.migrationStatus).toBe(antes.migrationStatus);
+    expect(metadata.migratedAt).toBe(antes.migratedAt);
+    expect(metadata.sourceStorageVersion).toBe(antes.sourceStorageVersion);
+    const registrosMetadata = await withStore(factory, name, METADATA_STORE, 'readonly', (transaction) => (
+      requestResult(transaction.objectStore(METADATA_STORE).getAll()) as Promise<{ key: string; value: unknown }[]>
+    ));
+    expect(registrosMetadata.find((registro) => registro.key === 'migrationGeneration')?.value).toBeNull();
+    expect(registrosMetadata.some((registro) => (
+      registro.key === `generationNextOrder:${resultado.generationId}`
+    ))).toBe(true);
+    // O histórico ativo continua sendo o de antes: a geração nova está inativa.
+    expect((await adapter.readActiveHistory()).map((sessao) => sessao.id))
+      .toEqual(historicoAnterior.map((sessao) => sessao.id));
+  });
+
+  it('14. histórico vazio cria manifest canônico e marker válidos', async () => {
+    const { adapter } = createStagingHarness();
+    const ativa = await seedOperation(adapter);
+
+    const resultado = await stage(adapter, ativa, []);
+
+    expect(resultado.manifest.sessionCount).toBe(0);
+    expect(resultado.manifest.orderedDigest).toBe(EMPTY_GENERATION_DIGEST);
+    expect(await adapter.hasHistoryGeneration(resultado.generationId)).toBe(true);
+    const verificada = await adapter.readVerifiedHistoryGeneration(resultado.generationId);
+    expect(verificada.sessions).toEqual([]);
+  });
+
+  it('15. falha de um put aborta a transação inteira, sem geração e sem patch', async () => {
+    const { adapter, factory, name } = createStagingHarness();
+    const ativa = await seedOperation(adapter);
+    // Duas sessões com o MESMO id violam o índice único ['generationId','sessionId'].
+    const duplicado = [makeSession(40), makeSession(40)];
+
+    await expect(stage(adapter, ativa, duplicado)).rejects.toBeTruthy();
+
+    const registros = await withStore(factory, name, WORKOUT_HISTORY_STORE, 'readonly', (transaction) => (
+      requestResult(transaction.objectStore(WORKOUT_HISTORY_STORE).getAll()) as Promise<{ generationId: string }[]>
+    ));
+    expect(registros.every((registro) => registro.generationId === ativa)).toBe(true);
+    const manifests = await withStore(factory, name, GENERATION_MANIFESTS_STORE, 'readonly', (transaction) => (
+      requestResult(transaction.objectStore(GENERATION_MANIFESTS_STORE).getAll()) as Promise<{ generationId: string }[]>
+    ));
+    expect(manifests.map((manifest) => manifest.generationId)).toEqual([ativa]);
+    expect((await adapter.readStorageOperationReceipt('operation-import-1'))?.stagedGenerationId).toBeNull();
+  });
+
+  it('16. o readback do receipt confirma exatamente o generationId criado', async () => {
+    const { adapter } = createStagingHarness();
+    const ativa = await seedOperation(adapter);
+
+    const resultado = await stage(adapter, ativa, [makeSession(40)]);
+
+    const persistido = await adapter.readStorageOperationReceipt('operation-import-1');
+    expect(persistido?.stagedGenerationId).toBe(resultado.generationId);
+    expect(persistido?.status).toBe('staged');
+    expect(persistido?.kind).toBe('import');
+    expect(persistido?.targetCoreRaw).toBeNull();
+    expect(persistido?.previousGenerationId).toBe(ativa);
+    expect(persistido?.updatedAt).toBe('2026-07-26T09:00:00.000Z');
   });
 });
