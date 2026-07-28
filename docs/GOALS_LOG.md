@@ -3595,3 +3595,32 @@ inalterados.
   Android/WebView no F. Não há executor de retenção, restore híbrido, rollback
   administrativo, reset ou política aprovada. D2 continua parcial; E e F não
   foram iniciados e o GOAL-17B-002D inteiro não está concluído.
+
+## GOAL-17B-002D-D2-070 — evidência física read-only para retenção
+
+- **Base:** `4430ffc5769a1626513e93a73bb42ef1ea6ba672`, já contendo o planner
+  conservador integrado pelo PR #8.
+- **Auditoria:** **Classe B**. O snapshot administrativo atômico enumera
+  gerações, manifests e referências; o snapshot físico por geração combinado
+  com `verifyHistoryGeneration` recalcula a prova oficial. Nenhum contrato de
+  escrita ou exclusão precisou mudar.
+- **Antes:** qualquer geração além da ativa bloqueava o planner por
+  `physical-proof-required`; não existia uma camada que verificasse todas as
+  gerações sem lhes atribuir autoridade de retenção.
+- **Depois:** `storage-retention-evidence.ts` executa snapshot A → prova física
+  de cada geração → snapshot B, exige estabilidade e devolve somente enums
+  fechados e contagens deep-frozen.
+- **Privacidade:** ids físicos ficam apenas em `Map`s locais. Raws, sessões,
+  treinos, fingerprints, digests, receipts completos, mensagens do IndexedDB,
+  stack e `cause` não aparecem no diagnóstico público.
+- **Invariância física:** teste sobre o adapter IndexedDB real confirma
+  fingerprint, metadata, summaries, manifests e receipts idênticos antes e
+  depois da inspeção.
+- **Escopo preservado:** planner existente inalterado, zero call site de
+  produção, zero política, executor, deleção ou recovery. E/F não iniciados.
+- **Validação final:** foco read-only 23/23 e regressões obrigatórias 797/797;
+  suíte completa 48 arquivos e 1826/1826 testes; `npx tsc --noEmit`,
+  `npm run build`, `npm run build:mobile` e `git diff --check` aprovados.
+  ESLint dos dois arquivos novos sem diagnósticos; baseline global idêntica à
+  base canônica em 12 erros e 6 warnings. `package.json` e
+  `package-lock.json` inalterados.
