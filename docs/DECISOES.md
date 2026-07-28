@@ -1543,3 +1543,39 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
   D2 continua parcial; owner-token e serialização entre abas continuam
   reservados ao E, e Android/WebView ao F. E e F não foram iniciados e o
   GOAL-17B-002D não está concluído.
+
+## GOAL-17B-002D-D2-072 — integração pura da decisão de retenção (2026-07-28)
+
+- **Auditoria Classe B.** A composição exige um módulo puro novo, mas nenhuma
+  alteração no planner, na evidência física, no adapter, nas transações ou nos
+  contratos de exclusão.
+- **Entradas fechadas e imutáveis.** `decideStorageRetention` recebe o resultado
+  do planner, o resultado agregado da evidência, o outcome existente do boot e
+  o booleano `rollbackReserveRequired`. Formas desconhecidas ou campos extras
+  bloqueiam; mensagens e causas das entradas nunca são propagadas.
+- **`physical-proof-required` é somente o handoff reconhecido.** O planner
+  continua bloqueando qualquer geração adicional. A decisão só atravessa esse
+  bloqueio quando a evidência está estável, estruturalmente íntegra, prova
+  fisicamente todas as gerações e descreve uma ativa mais históricas órfãs sem
+  receipts. `policy-required` continua aceito apenas para a ativa isolada.
+- **Sem IDs, a decisão é cardinalidade, não seleção.** A ativa entra em `keep`;
+  quando existem históricas, exatamente uma unidade fica em `protected` como
+  reserva conservadora, e somente o excedente entra em
+  `futureDeleteCandidate`. O resultado não afirma qual histórica é a anterior,
+  não prova rollback híbrido e não escolhe candidata.
+- **Boot é pré-condição explícita.** Somente `ready-no-operation`,
+  `ready-after-settled` ou `ready-after-reverted`, com hidratação autorizada e
+  `cleanupPending: false`, contam como prova. Ausência, bloqueio ou cleanup
+  pendente devolvem `blocked-boot-proof-missing`.
+- **Todo conflito preserva.** Snapshot instável, prova física ausente,
+  contradição estrutural, migration, operation/completion receipt, reserva
+  anterior obrigatória ausente e estado desconhecido devolvem status fechado,
+  zero candidatura e contagens de preservação.
+- **Candidatura nunca é autoridade.** Mesmo em `decision-ready`,
+  `ownerTokenRequired` é `true`, enquanto `executionAuthorized` e
+  `deleteAuthorized` são invariavelmente `false`. Política por idade/quantidade,
+  resolução de identidade, revalidação, CAS e serialização pertencem ao executor
+  futuro.
+- **Escopo preservado.** Zero I/O, relógio, aleatoriedade, React, UI, Provider,
+  boot call site, recovery, ativação, rollback ou delete. E e F não foram
+  iniciados.

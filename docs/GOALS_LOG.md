@@ -3624,3 +3624,37 @@ inalterados.
   ESLint dos dois arquivos novos sem diagnósticos; baseline global idêntica à
   base canônica em 12 erros e 6 warnings. `package.json` e
   `package-lock.json` inalterados.
+
+## GOAL-17B-002D-D2-072 — integração da decisão de retenção
+
+- **Base:** merge commit `96bf74ff73f001c2ba1edbe8b1c0a4a07336fd59`,
+  contendo planner e evidência física integrados.
+- **Auditoria:** **Classe B**. A composição é pura e local, mas exige um módulo
+  aditivo para validar e unir os dois resultados com a prova de boot.
+- **Antes:** o planner bloqueava gerações adicionais por exigir prova física, e
+  a evidência provava integridade sem atribuir papel de retenção. Não existia
+  contrato que combinasse os dois resultados.
+- **Depois:** `storage-retention-decision.ts` falha fechado para formas,
+  contradições, boot, migration, receipts, estrutura ou prova física
+  insuficientes. Quando ready, mantém a ativa, protege uma reserva histórica e
+  conta somente o excedente como candidatura futura.
+- **Sem autoridade:** nenhuma identidade atravessa a saída. Mesmo em
+  `decision-ready`, `ownerTokenRequired: true`, `executionAuthorized: false` e
+  `deleteAuthorized: false`; política, seleção, revalidação e executor não foram
+  implementados.
+- **Privacidade e pureza:** resultado deep-frozen com somente status/razão
+  fechados, contagens e booleanos. Zero adapter, IndexedDB, localStorage, React,
+  relógio, random, recovery, ativação, rollback, delete ou call site de produção.
+- **Testes:** módulo novo **32/32**; focados planner/evidência/decisão **100/100**;
+  regressões obrigatórias ampliadas **829/829** em ordem normal e nos shuffles
+  `17072`, `27072` e `37072`. A seed `27072` teve uma primeira passagem com
+  timeout de I/O no guard global e passou integralmente com um worker, sem
+  alteração de código ou timeout.
+- **Validação final:** suíte completa **49 arquivos e 1858/1858 testes**;
+  `npx tsc --noEmit`, builds web/mobile e `git diff --check` aprovados. ESLint
+  dos dois arquivos TypeScript novos sem diagnóstico; lint global preservou
+  exatamente a baseline de **12 erros e 6 warnings**, inclusive o mesmo hash
+  normalizado de diagnósticos. `package.json` e `package-lock.json` inalterados.
+- **Limites:** zero executor, deleção, política por idade/quantidade,
+  owner-token, coordenação entre abas, UI, Provider ou boot call site. E e F não
+  começaram.

@@ -887,3 +887,28 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   usuário, alteração Android ou operação mutável foi adicionada. O D2 está
   parcialmente implementado, E/F não foram iniciados e o GOAL-17B-002D não está
   concluído.
+
+## GOAL-17B-002D-D2-072 — pendências da decisão agregada de retenção
+
+- **17B-002D-D2-P8 — a decisão não seleciona identidade física.** *Aberto · P2.*
+  Por privacidade, planner, evidência e decisão expõem somente estados e
+  contagens. `futureDeleteCandidate: N` não diz quais são as N gerações nem qual
+  histórica precisa permanecer como reserva. *Próximo passo:* um executor
+  auditado deverá resolver identidades dentro de um snapshot estável, provar a
+  reserva e revalidar tudo imediatamente antes de qualquer mutação.
+- **17B-002D-D2-P9 — a prova de boot ainda não tem correlação de ciclo.**
+  *Aberto · P2.* A função pura reconhece o outcome fechado do boot e exige
+  `cleanupPending: false`, mas não existe call site que amarre esse outcome à
+  mesma coleta de evidência. Isso não concede autoridade hoje porque execução e
+  delete são sempre falsos. *Próximo passo:* a integração futura deverá carregar
+  uma prova de ciclo não reutilizável ou recolher boot/evidência sob o mesmo
+  coordenador.
+- **17B-002D-D2-P10 — candidatura não é política nem execução.** *Aberto · P2.*
+  Continua faltando política aprovada de idade/quantidade, owner-token,
+  serialização entre abas, seleção da candidata, CAS, nova prova A/B e protocolo
+  de falha/retomada. *Próximo passo:* implementar esses contratos em GOAL
+  separado antes de criar qualquer método ou call site mutável.
+- **Sem novo risco de perda nesta etapa.** O módulo não recebe storage ou
+  adapter, não publica IDs e devolve `deleteAuthorized: false` e
+  `executionAuthorized: false` em todos os estados. Slice E e Slice F continuam
+  não iniciados.
