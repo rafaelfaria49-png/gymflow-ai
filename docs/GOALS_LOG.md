@@ -3557,3 +3557,26 @@ inalterados.
   ambiguidade P2 de `administration-unavailable` foi reduzida sem alteração no
   C2. Um core v2 nunca é tratado como instalação nova quando a administração
   está indisponível. Isso não declara o slice D inteiro concluído.
+
+## GOAL-17B-002D-D2 — administração auditada e retenção conservadora
+
+- **D1 integrado:** a base é o merge commit `42356f07`.
+- **Auditoria D2-0:** resultado global **Classe B**. Restore, rollback e reset
+  foram classificados como **Classe C** e não receberam implementação. Retenção
+  foi classificada como **Classe B**.
+- **Entregue no subconjunto seguro:** planejador puro e determinístico de
+  retenção, sem adapter, sem escrita e sem deleção. O planner protege todas as
+  referências administrativas conhecidas, exige integridade estrutural e
+  retorna `policy-required` enquanto não houver política aprovada de idade ou
+  quantidade. Entrada inválida ou incoerente retorna `blocked`; `delete`
+  permanece sempre vazio.
+- **Semânticas não improvisadas:** restore não ganhou uma fonte híbrida
+  arbitrária; rollback físico não foi promovido a rollback completo; reset não
+  ganhou defaults ou recovery inventados. Os protocolos existentes de import,
+  boot recovery, hidratação e completion receipts permaneceram inalterados.
+- **Provas locais novas:** 30 testes cobrem proteções, órfãos, referências
+  quebradas, duplicidade, determinismo, idempotência, não mutação, privacidade,
+  zero call site e ausência de integração com Provider/UI/Android.
+- **Limites:** zero UI e zero call site de usuário. Owner-token continua no E e
+  Android/WebView no F. Não há executor de retenção, restore híbrido, rollback
+  administrativo nem reset. O GOAL-17B-002D inteiro não está concluído.

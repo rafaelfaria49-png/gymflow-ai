@@ -850,3 +850,33 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   localmente com um único call site estritamente guardado, sem declarar o slice
   D completo. Permanecem os riscos P2/P3 acima: saída pela interface,
   `cleanupPending`, concorrência entre abas e fechamento do adapter em cleanup.
+
+## GOAL-17B-002D-D2 — pendências após a auditoria administrativa
+
+- **17B-002D-D2-P1 — fonte de restore híbrido não definida.** *Aberto · P1 ·
+  Classe C.* Snapshot legado, cópia rolante e histórico existem, mas nenhum
+  documento escolhe uma fonte única nem prova o par core/geração. *Próximo
+  passo:* aprovar origem, vínculo e recovery antes de qualquer mutação.
+- **17B-002D-D2-P2 — rollback completo não é derivável da operação física.**
+  *Aberto · P1 · Classe C.* Trocar somente a geração ativa pode deixar o core
+  apontando para outro mundo. *Próximo passo:* definir alvo comprovadamente
+  relacionado e a fonte verificável do core correspondente.
+- **17B-002D-D2-P3 — reset não possui mundo vazio e recovery aprovados.**
+  *Aberto · P1 · Classe C.* Faltam defaults canônicos, tratamento de identidade,
+  completion receipts e protocolo de retomada. *Próximo passo:* congelar esses
+  contratos antes de criar receipt ou geração.
+- **17B-002D-D2-P4 — não existe política de retenção por idade/quantidade.**
+  *Aberto · P2 · Classe B.* O planner existe e preserva referências conhecidas,
+  mas retorna `policy-required` e autoriza zero deleção. Isso substitui a
+  expectativa antiga de simplesmente encaminhar órfãos ao F: sem política
+  aprovada, nem D2 nem F podem apagá-los por heurística.
+- **17B-002D-D2-P5 — executor de retenção não existe.** *Aberto · P2.* Uma
+  execução futura precisa reler o snapshot, comparar o fingerprint, revalidar
+  todas as referências e serializar cada limpeza. Até lá `cleanupPending` e
+  evidências terminais permanecem preservados.
+- **17B-002D-D2-P6 — serialização entre abas continua pendente.** *Aberto · P2.*
+  O planner puro não precisa de owner-token; qualquer executor mutável depende
+  do trabalho do E. Validação Android/WebView continua reservada ao F.
+- **Sem regressão de escopo:** nenhuma UI, integração no Provider, call site de
+  usuário, alteração Android ou operação mutável foi adicionada. O D2 está
+  parcialmente implementado e o GOAL-17B-002D não está concluído.

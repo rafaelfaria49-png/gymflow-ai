@@ -1486,3 +1486,56 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
   mantém restore v1 quando disponível, recomeço explícito e download do raw. O
   comando 062 preservou esse contrato sem alterar
   `GymFlowContext.storage.test.tsx`, mantendo v2 comprovado totalmente fechado.
+
+## GOAL-17B-002D-D2 — operações administrativas e retenção (2026-07-28)
+
+- **Base auditada:** o D1 está integrado à `master` pelo merge commit
+  `42356f07`. A auditoria D2-0 partiu desse commit sem reabrir contratos dos
+  slices anteriores.
+- **Classificação global: Classe B.** Há um subconjunto seguro que exige uma
+  extensão controlada, mas três frentes têm ambiguidade material. A classificação
+  individual é: restore **Classe C**, rollback **Classe C**, reset **Classe C** e
+  retenção **Classe B**.
+- **Restore híbrido permanece bloqueado.** Existem o snapshot legado congelado,
+  a cópia rolante do core e gerações históricas, mas nenhum contrato escolhe uma
+  fonte híbrida única, verificável e acompanhada do par core/geração. Restore
+  continua distinto de import; raw, generation id ou receipt fornecido pelo
+  chamador não é aceito como autoridade.
+- **Rollback administrativo permanece bloqueado.** O rollback físico existente
+  troca somente o ponteiro ativo do IndexedDB. Ele não prova qual core acompanha
+  uma geração arbitrária, e receipts históricos nem sempre fornecem uma fonte
+  única para esse par. Portanto ele não foi exposto como rollback completo.
+- **Reset permanece bloqueado.** A interpretação proposta seria criar uma
+  instalação v2 vazia preservando receipt, core e geração anteriores até a
+  liquidação. Ainda não há contrato aprovado para defaults, identidade,
+  completion receipts e recovery desse mundo novo; nenhum desses pontos foi
+  improvisado.
+- **Somente o planner puro de retenção foi implementado.**
+  `planStorageRetention` recebe um snapshot administrativo, valida forma,
+  unicidade e coerência das referências e devolve decisões determinísticas. Ele
+  não recebe adapter, `localStorage`, relógio ou callback de deleção; não possui
+  call site de produção e nunca escreve.
+- **A ausência de política é parte do resultado.** Não existe limite aprovado de
+  idade ou quantidade. Um snapshot coerente devolve `policy-required`; um
+  snapshot inválido ou com referência quebrada devolve `blocked`. Em ambos os
+  casos a lista `delete` é vazia. Geração órfã apenas aparente fica bloqueada por
+  `policy-required` ou `integrity-proof-required`, nunca autorizada por heurística.
+- **Proteções congeladas:** core atual, cópia rolante, snapshot legado, geração
+  ativa, geração de migração, gerações de completion receipts pendentes,
+  `previousGenerationId`/`stagedGenerationId` de operações não terminais,
+  evidência de receipts terminais e qualquer receipt com `cleanupPending` ficam
+  preservados. Completion receipts pendentes e operações não terminais também
+  ficam preservados.
+- **Recovery e ordem de escrita não mudaram.** O planner executa apenas
+  validar → classificar → devolver e faz zero escrita. Como restore, rollback,
+  reset e o executor de retenção ficaram bloqueados, nenhuma nova ordem mutável
+  foi declarada. Um executor futuro deverá reler o snapshot, comparar o
+  fingerprint e realizar cada limpeza como uma única unidade serializada.
+- **Idempotência, concorrência e privacidade:** a mesma entrada, inclusive
+  reordenada, produz o mesmo plano; a entrada não é mutada; não há corrida de
+  escrita porque não existe executor. Exceções e entradas adulteradas falham
+  fechadas, sem `cause`, stack, raw, nome, e-mail, sessão ou treino no retorno.
+- **Escopo:** zero UI, zero Provider, zero Android e zero call site de usuário.
+  Owner-token e serialização entre abas continuam reservados ao E; validação em
+  Android/WebView continua no F. O D2 foi implementado somente no subconjunto
+  efetivamente seguro e o GOAL-17B-002D não está concluído.

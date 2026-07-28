@@ -1521,3 +1521,59 @@ bloqueados, e `getItem` indisponível só produz mensagem sanitizada.
 - **Owner-token continua pendente para o E**, com a janela TOCTOU do W8 e a
   serialização entre abas.
 - **D2/E/F não iniciados.**
+
+## GOAL-17B-002D-D2 — contratos administrativos congelados
+
+O D1 usado como base está integrado pelo merge commit `42356f07`. A auditoria
+D2-0 foi **Classe B** global: retenção admite uma extensão pura e controlada;
+restore, rollback e reset são **Classe C** e permanecem bloqueados.
+
+### Matriz semântica
+
+| Operação | Estado D2 | Semântica comprovada |
+| --- | --- | --- |
+| restore | bloqueada | Restore v1 legado existe; não há fonte híbrida única e verificável. Restore não é import e não aceita raw ou identificador arbitrário do chamador. |
+| rollback | bloqueada | A operação física existente só troca o ponteiro ativo. Falta o core verificável correspondente à geração alvo. |
+| reset | bloqueada | O mundo v2 vazio, seus defaults, preservação de identidade, completion receipts e recovery ainda não têm contrato aprovado. |
+| retenção | planner implementado | Classifica um snapshot administrativo de forma pura; não escreve nem apaga. |
+
+Nenhuma nova operação mutável foi iniciada. Assim, não existe nova ordem de
+escritas ou recovery D2: para a parte implementada a ordem completa é
+**validar snapshot → validar referências → classificar → devolver**. Os
+protocolos anteriores de importação e boot recovery não foram alterados.
+
+### Contrato do planner de retenção
+
+`planStorageRetention` aceita `unknown`, falha fechado e devolve somente estados,
+motivos e identificadores administrativos sanitizados. A função:
+
+- exige snapshot com fingerprint, ids únicos, manifests válidos e conjunto de
+  operações não terminais coerente;
+- exige que geração ativa, migração, operações não terminais e completion
+  receipts apontem para gerações existentes;
+- preserva core atual, cópia rolante, snapshot legado, geração ativa, geração de
+  migração, referências de completion receipts, gerações anteriores/preparadas
+  de operações em curso e evidência de operações terminais;
+- preserva receipts não terminais, pendentes e marcados com `cleanupPending`;
+- classifica órfãos estruturalmente íntegros como `policy-required` e candidatos
+  sem prova como `integrity-proof-required`;
+- devolve `blocked` para entrada inválida ou referência quebrada;
+- devolve sempre `delete: []`.
+
+Não existe política aprovada de idade ou quantidade, portanto não foram
+inventados limites como “manter N” ou “apagar após N dias”. O fingerprint é
+exposto para que um executor futuro possa reler e recusar plano obsoleto; esse
+executor não faz parte do D2 seguro e deverá operar como unidade serializada.
+
+### Idempotência, concorrência, privacidade e escopo
+
+O plano é determinístico mesmo quando as coleções de entrada chegam em outra
+ordem, não muta o snapshot e pode ser repetido sem efeito colateral. Por não
+haver I/O, duas abas apenas calculam planos; nenhuma compete por deleção.
+Owner-token permanece reservado ao E para qualquer executor futuro.
+
+Entrada adulterada ou exceção inesperada não propaga mensagem nativa, `cause`,
+stack, raw, nome, e-mail, sessão ou treino. Não existe call site de produção,
+Provider, AdminPanel, botão, modal, toast, download, upload ou mudança Android.
+Android/WebView continua no F. O D2 foi implementado somente no subconjunto
+seguro; o GOAL-17B-002D inteiro permanece aberto.
