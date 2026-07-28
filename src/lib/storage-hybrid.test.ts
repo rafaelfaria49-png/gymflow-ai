@@ -822,6 +822,19 @@ describe('runtime híbrido v2', () => {
       requiresHybridRecovery: false,
     });
 
+    // Bloqueio imposto antes de confiar no runtime prevalece sobre a versão
+    // desconhecida e não reabre ações legadas por inferência.
+    expect(resolveStorageRecoveryCapabilities({
+      ...base,
+      physicalVersion: null,
+      legacyOperationsAllowed: false,
+    })).toEqual({
+      canRestoreLegacyBackup: false,
+      canStartFreshLegacy: false,
+      canDownloadRaw: true,
+      requiresHybridRecovery: true,
+    });
+
     // legacy-v1 corrompido sem backup: só recomeçar e baixar o original.
     expect(resolveStorageRecoveryCapabilities({ ...base, hasLegacyBackup: false }))
       .toMatchObject({ canRestoreLegacyBackup: false, canStartFreshLegacy: true });

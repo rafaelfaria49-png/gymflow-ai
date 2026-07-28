@@ -1439,9 +1439,14 @@ describe('importação lógica v2 — idempotência e invariantes', () => {
     }
   });
 
-  it('60. o importador não tem nenhum call site fora dos testes', () => {
+  it('60. o módulo tem somente o teste e o call site de boot autorizado pelo D1', () => {
+    // C1/C2 exigiam zero consumidor de produção. D1 autoriza exatamente um;
+    // igualdade exata continua impedindo expansão acidental.
     expect(sourceFilesImporting('storage-logical-import'))
-      .toEqual(['src/lib/storage-logical-import.test.ts']);
+      .toEqual([
+        'src/lib/storage-boot-recovery.ts',
+        'src/lib/storage-logical-import.test.ts',
+      ]);
   });
 });
 
@@ -4681,8 +4686,10 @@ function androidFilesMentioning(needle: string): string[] {
 }
 
 describe('recuperação da importação v2 — ausência de call site', () => {
-  it('195. recoverLogicalStorageImportV2 só aparece no módulo e no próprio teste', () => {
+  it('195. a recuperação só aparece no módulo, no teste e no boot autorizado', () => {
+    // A lista permanece fechada: D1 acrescenta apenas o orquestrador de boot.
     expect(sourceFilesMentioning('recoverLogicalStorageImportV2')).toEqual([
+      'src/lib/storage-boot-recovery.ts',
       'src/lib/storage-logical-import.test.ts',
       'src/lib/storage-logical-import.ts',
     ]);
@@ -4695,10 +4702,18 @@ describe('recuperação da importação v2 — ausência de call site', () => {
     ]);
   });
 
-  it('197. nenhum componente, Provider, Context, hybrid ou AdminPanel importa o módulo', () => {
-    // O guard do C1 (teste 60) continua valendo e não foi enfraquecido.
-    expect(sourceFilesImporting('storage-logical-import'))
-      .toEqual(['src/lib/storage-logical-import.test.ts']);
+  it('197. existe exatamente um call site real no boot e nenhum consumidor direto adicional', () => {
+    // Independente dos guards 60/195: igualdade exata prova o único consumidor
+    // de produção autorizado pelo D1 e falha com qualquer caminho adicional.
+    expect(sourceFilesImporting('storage-logical-import')).toEqual([
+      'src/lib/storage-boot-recovery.ts',
+      'src/lib/storage-logical-import.test.ts',
+    ]);
+    expect(sourceFilesMentioning('recoverLogicalStorageImportV2')).toEqual([
+      'src/lib/storage-boot-recovery.ts',
+      'src/lib/storage-logical-import.test.ts',
+      'src/lib/storage-logical-import.ts',
+    ]);
     for (const arquivo of [
       'src/providers/GymFlowContext.tsx',
       'src/lib/storage-hybrid.ts',
@@ -4720,6 +4735,12 @@ describe('recuperação da importação v2 — ausência de call site', () => {
     expect(adminPanel.includes('storage-logical-import')).toBe(false);
     expect(adminPanel.includes('recoverLogicalStorageImportV2')).toBe(false);
     expect(adminPanel.includes('commitLogicalStorageImportV2')).toBe(false);
+
+    // A importação lógica continua sem call site: só existe sua declaração.
+    expect(
+      sourceFilesMentioning('commitLogicalStorageImportV2(')
+        .filter((arquivo) => !arquivo.endsWith('.test.ts') && !arquivo.endsWith('.test.tsx')),
+    ).toEqual(['src/lib/storage-logical-import.ts']);
   });
 
   it('198. nenhum arquivo Android cita o módulo ou a recuperação', () => {

@@ -1435,3 +1435,89 @@ históricos do C1 não foram alterados.
 - Limites reais de quota variam por navegador/WebView.
 - Download/import precisam de validação adicional em dispositivos Capacitor físicos.
 - Não há nuvem, criptografia ou sincronização entre aparelhos.
+
+## GOAL-17B-002D-D1 — a barreira de boot
+
+O primeiro passo do boot deixou de ser a hidratação. Agora é a recuperação da
+importação lógica v2.
+
+### Ordem real
+
+1. adapter IndexedDB e runtime híbrido preparados pelo Provider;
+2. `runStorageBootRecoveryOnce` — recuperação administrativa da importação;
+3. resultado terminal seguro confirmado;
+4. `runtime.hydrate()`;
+5. conciliação dos completion receipts, dentro da hidratação, como já era;
+6. estado publicado no Context.
+
+A recuperação roda antes até da migração legada v0→v1, porque a migração
+**escreve** e nenhuma escrita pode preceder a decisão.
+
+### O que libera e o que bloqueia
+
+Liberam: `no-operation`, `settled`, `already-settled`, `reverted`,
+`already-reverted`. `administration-unavailable` só libera depois de metadados
+administrativos totalmente vazios e prova física read-only: chave principal
+ausente (instalação nova ou fluxo legado suportado antes da migração) ou envelope
+v1 válido.
+
+Bloqueiam antes do runtime: core v2 válido, corrupt com
+`physicalVersion === 2` e falha de leitura viram
+`blocked-storage-unavailable`; evidência administrativa parcial, status
+desconhecido e exceção inesperada viram `blocked-recovery-required`.
+
+Raw corrupt sem versão v2 comprovável, corrupt com outra versão numérica e
+unsupported recebem `ready-for-blocked-storage-classification`. Isso não é
+hidratação bem-sucedida: a migração é ignorada e o runtime só pode devolver
+`mode = blocked`, preservando o raw e as capacidades de restore v1, recomeço
+explícito e download já existentes. A classificação reutiliza
+`parsePhysicalEnvelope`; não há parser paralelo nem escrita durante a prova.
+
+### Quando bloqueia
+
+Não publica estado de usuário, não escreve em `localStorage`, não limpa o
+IndexedDB, não apaga geração e não publica usuário default. No bloqueio anterior
+ao runtime, `hydrated` continua falso. Na classificação bloqueada ele fica
+verdadeiro somente para liberar a superfície de recuperação; como
+`storageBlockedRef` permanece verdadeiro, autosave e flush não escrevem. O raw
+só permanece internamente no `StorageIssue` já existente para download
+explícito; o resultado do boot não o carrega.
+
+### Strict Mode
+
+As duas montagens compartilham a MESMA execução física, por uma trava de ciclo
+(`WeakMap` por `storage` e chave, removida quando a promessa assenta). Um remount
+posterior executa de novo, de forma idempotente. Sem flag global eterna, sem
+timer e sem depender de ordem de microtasks.
+
+### Guards e conclusão local
+
+A auditoria D0 foi Classe B. A implementação inicialmente parou nos guards de
+zero call site herdados de C1/C2; a liberação mínima alterou apenas os testes 60,
+195 e 197 de `storage-logical-import.test.ts`. Eles continuam com varredura de
+todo `src/` e igualdade exata, autorizando somente
+`storage-boot-recovery.ts` como call site de
+`recoverLogicalStorageImportV2`. O guard independente de
+`commitLogicalStorageImportV2` continua provando zero call site.
+
+O D1 está concluído localmente: o P0 de instalação nova/v1 foi resolvido e a
+ambiguidade P2 foi reduzida sem mudar C2. Se existe core v2, administração
+indisponível nunca equivale a instalação nova. Completion receipts continuam
+materializados e liquidados depois de `hydrate()` e antes da publicação de
+prontidão; o D1 não os cria nem os liquida.
+
+O comando 061 ficou bloqueado por dois testes baseline corretos. O desbloqueio
+062 os preservou sem alterar `GymFlowContext.storage.test.tsx`: raw corrompido
+sem v2 comprovável continua bloqueado, mas mantém recuperação legada explícita.
+Corrupt v2 e v2 válido com IndexedDB indisponível continuam totalmente
+bloqueados, e `getItem` indisponível só produz mensagem sanitizada.
+
+### O que continua não existindo
+
+- **Nenhum restore manual, rollback manual, reset ou retenção automática.**
+- **Nenhuma UI nova.** O bloqueio reutiliza `storageHealth` e o aviso existente.
+- **A importação continua indisponível ao usuário**, e
+  `commitLogicalStorageImportV2` continua sem nenhum call site.
+- **Owner-token continua pendente para o E**, com a janela TOCTOU do W8 e a
+  serialização entre abas.
+- **D2/E/F não iniciados.**

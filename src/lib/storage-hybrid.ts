@@ -1258,6 +1258,9 @@ export interface StorageRecoveryCapabilityInput {
   status: StorageHealth['status'];
   hasLegacyBackup: boolean;
   hasRawContent: boolean;
+  // O Provider pode impor false quando o boot bloqueou antes de confiar no
+  // runtime. Ausente, preserva integralmente a política derivada histórica.
+  legacyOperationsAllowed?: boolean;
 }
 
 // A interface nunca decide sozinha o que mostrar: a capacidade nasce do modo do
@@ -1268,7 +1271,8 @@ export function resolveStorageRecoveryCapabilities(
   input: StorageRecoveryCapabilityInput,
 ): StorageRecoveryCapabilities {
   const needsRecovery = input.status === 'blocked' || input.status === 'write-error';
-  const legacyAllowed = canUseLegacyAdminOperations(input.mode, input.physicalVersion);
+  const legacyAllowed = input.legacyOperationsAllowed
+    ?? canUseLegacyAdminOperations(input.mode, input.physicalVersion);
   return {
     canRestoreLegacyBackup: needsRecovery && legacyAllowed && input.hasLegacyBackup,
     canStartFreshLegacy: needsRecovery && legacyAllowed && input.status === 'blocked',

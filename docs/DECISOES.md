@@ -1389,3 +1389,100 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
   `recoverLogicalStorageImportV2` não existia; agora afirma que o módulo exporta
   exatamente quatro funções. O guard continua igualmente estrito — nenhuma
   superfície nova entrou de carona.
+
+## GOAL-17B-002D-D1 — recuperação administrativa antes da hidratação
+
+- **O slice C foi integrado à master em `4c6284da`** (merge commit do PR #6, dois
+  pais: `5b41f91a` e `50838541`). O repositório principal foi sincronizado por
+  fast-forward antes de abrir esta worktree. O D1 parte exatamente desse ponto.
+- **A auditoria D0 classificou a integração como Classe B.** A ordem não é
+  ambígua e nenhum contrato administrativo do C1/C2 precisou mudar, mas a
+  integração exige um orquestrador novo e uma alteração controlada no Provider —
+  logo, não é Classe A.
+- **A recuperação vive num módulo próprio, não dentro do híbrido.**
+  `storage-hybrid.ts` não conhece runtime administrativo nem importação lógica;
+  enfiar a recuperação dentro de `hydrate()` acoplaria o motor de hidratação aos
+  contratos administrativos do C1/C2. `storage-boot-recovery.ts` recebe
+  dependências injetadas, roda `recoverLogicalStorageImportV2`, classifica e
+  devolve uma união fechada. Ele não importa React, não importa o Provider, não
+  cria geração e não inicia importação.
+- **O bloqueio inicial era um guard de escopo, não uma falha do recovery.** C1/C2
+  exigiam zero consumidor de `recoverLogicalStorageImportV2`. A liberação 061
+  autorizou alterar somente os guards 60, 195 e 197 de
+  `storage-logical-import.test.ts`: eles continuam varrendo todo `src/` e
+  comparando listas por igualdade exata, mas agora nomeiam
+  `storage-boot-recovery.ts` como o único call site de produção permitido.
+  `commitLogicalStorageImportV2` permanece protegido por um guard separado e
+  continua sem call site.
+- **A barreira fica no início do efeito de boot do Provider, antes até da
+  migração legada.** A migração v0→v1 **escreve** em `localStorage`; colocar a
+  recuperação depois dela permitiria uma escrita antes de sabermos se existe uma
+  importação interrompida. Com a barreira primeiro, nenhuma escrita precede a
+  decisão. Na prática as duas ordens dão o mesmo resultado — a migração legada só
+  roda quando a chave principal está ausente, e sem core v2 não existe journal v2
+  —, mas a ordem escolhida é a que se sustenta sozinha.
+- **`administration-unavailable` só libera depois de prova física read-only.**
+  `steps === 0`, `operationId === null`, `generationId === null` e
+  `cleanupPending === false` são pré-condições, não prova suficiente. O
+  orquestrador lê a chave principal sem escrever e reutiliza
+  `parsePhysicalEnvelope`: chave ausente libera a instalação nova; envelope v1
+  válido libera o fluxo monolítico; chave principal ausente também preserva a
+  migração dos formatos legados oficialmente suportados. Core v2 válido bloqueia
+  como `blocked-storage-unavailable`; leitura que lança faz o mesmo. Corrupt com
+  `physicalVersion === 2` também é v2 comprovado e bloqueia antes do runtime.
+  Raw corrupt sem versão comprovável, versão física não-v2 inválida e formato
+  unsupported recebem `ready-for-blocked-storage-classification`: o runtime
+  híbrido pode somente classificá-los como `blocked`, sem migração nem publicação
+  de dados. Assim, o P0 da instalação nova/v1 foi resolvido e a ambiguidade P2
+  foi reduzida sem alterar o contrato C2: se o core é v2, ausência administrativa
+  nunca é tratada como instalação nova.
+- **`storage-unavailable` continua bloqueando.** Ele vem de `storage-blocked` —
+  o `localStorage` em si não é legível —, que é outra coisa: ali não dá para
+  afirmar nada sobre o mundo canônico.
+- **A classificação é fechada em três estados.** Há hidratação normal,
+  classificação bloqueada read-only e bloqueio anterior ao runtime. No segundo
+  estado o Provider exige `hydration.mode === 'blocked'`; qualquer sucesso
+  inesperado falha fechado com mensagem constante, sem publicar o `state`.
+  Status/motivo administrativo desconhecido e exceção inesperada continuam em
+  `blocked-recovery-required`. Não existe caminho "segue por garantia".
+- **Nenhuma mensagem dinâmica atravessa o retorno.** O orquestrador nunca repassa
+  o `error` do módulo de importação: ele devolve uma das cinco constantes
+  próprias. `previousCoreRaw`, `targetCoreRaw`, receipt, nome, e-mail, treino,
+  `sessionId`, stack e `cause` não têm como sair — o resultado liberado tem
+  exatamente três campos (`status`, `hydrationAllowed`, `cleanupPending`); o
+  resultado de classificação acrescenta apenas o booleano fechado que autoriza
+  essa operação, e o bloqueado acrescenta mensagem constante e, somente quando
+  comprovada, a versão física.
+- **O bloqueio anterior ao runtime mantém `hydrated` falso; a classificação
+  bloqueada marca `hydrated` apenas para liberar a recuperação existente.** Nesse
+  segundo caminho `storageBlockedRef` permanece verdadeiro, o runtime devolve
+  somente modo/versão/issue/raw de recuperação e nenhum estado de usuário é
+  publicado. Autosave e flush podem ser armados pelo ciclo React, mas toda
+  tentativa é recusada antes de escrever. Os dois testes baseline que exigem
+  recuperação legada explícita para raw corrompido continuam inalterados.
+- **A execução única copia o padrão que já existe no próprio repositório.**
+  `hydrate()` usa um `WeakMap` de travas por `storage` e chave, com a entrada
+  removida quando a promessa assenta. O boot recovery usa exatamente a mesma
+  forma: as duas montagens do Strict Mode observam a MESMA execução, e um remount
+  posterior executa de novo. É trava por ciclo, não flag global eterna — sem
+  `setTimeout`, sem sleep e sem depender de ordem de microtasks.
+- **A promessa memoizada nunca rejeita.** A exceção vira bloqueio dentro do
+  runner, então as duas montagens do Strict Mode recebem um valor e nenhuma
+  observa uma rejeição sem tratamento.
+- **A convergência física não foi reprovada aqui.** A matriz de crash points
+  (staged com G, `activating` nos mundos A/B/C, `activated`) já é provada em
+  `storage-logical-import.test.ts`. O teste do D1 prova o que é dele: ordem,
+  classificação, falha fechada e execução única — mais mundos físicos reais para
+  no-operation, v1, instalação nova e uma importação interrompida de verdade.
+- **Completion receipts mantêm sua responsabilidade e sua posição.** O D1 não
+  cria nem liquida esses receipts. Depois da recuperação administrativa e de
+  `runtime.hydrate()`, o Provider materializa `recoveredCompletions`, executa
+  `settleCompletion` e só então publica o armazenamento como pronto.
+- **D1 foi concluído localmente, sem superfície visual.** Nenhum botão, modal,
+  toast, AdminPanel ou fluxo de importação ao usuário foi criado. D2/E/F não
+  foram iniciados; o slice D inteiro não é declarado concluído.
+- **O bloqueio do comando 061 revelou um contrato correto, não um teste
+  obsoleto.** Raw corrompido sem versão v2 comprovável permanece bloqueado, mas
+  mantém restore v1 quando disponível, recomeço explícito e download do raw. O
+  comando 062 preservou esse contrato sem alterar
+  `GymFlowContext.storage.test.tsx`, mantendo v2 comprovado totalmente fechado.
