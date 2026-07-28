@@ -1594,3 +1594,45 @@ existe call site de produção, Provider, AdminPanel, botão, modal, toast,
 download, upload ou mudança Android. Restore, rollback e reset continuam
 bloqueados. O D2 foi implementado somente no subconjunto seguro e continua
 parcial; E e F não foram iniciados e o GOAL-17B-002D inteiro permanece aberto.
+
+## GOAL-17B-002D-D2-070 — evidência física read-only
+
+A auditoria foi **Classe B**: a infraestrutura existente já oferece toda a
+leitura necessária e não foi preciso alterar nenhum contrato transacional ou
+método de exclusão. O inspetor recebe somente
+`readStorageAdministrationSnapshot` e `readHistoryGenerationSnapshot`.
+
+O protocolo é:
+
+1. capturar um snapshot administrativo atômico;
+2. enumerar internamente a união de summaries, manifests e referências;
+3. ler o snapshot físico de cada geração;
+4. recalcular a integridade com o validador oficial
+   `verifyHistoryGeneration`;
+5. reler o snapshot administrativo;
+6. aceitar a classificação somente quando fingerprint e estrutura permanecem
+   idênticos.
+
+`physically-verified` significa, exatamente: geração fisicamente presente,
+manifest válido e confirmado, identidade correspondente, contagem coerente,
+digests individuais recalculados quando persistidos, `orderedDigest`
+recalculado e snapshot administrativo estável nas duas pontas. A flag
+`HistoryGenerationSummary.verified` isolada nunca é prova.
+
+O resultado público contém somente enums fechados e contagens. `active` e
+`migration` vêm dos ponteiros; `historical` significa não ativa/não migration;
+`orphan` significa ausência de qualquer proteção por ponteiro, operation
+receipt ou completion receipt. Assim, uma histórica pode também ser órfã — as
+categorias respondem perguntas diferentes. `incomplete`,
+`structurally-conflicted`, `physically-unverified` e `physically-verified` são
+classificações independentes da posição administrativa.
+
+IDs de geração são usados apenas em `Map`s locais para correlação e nunca
+atravessam o retorno. Sessões, raws, fingerprints, digests, receipts completos,
+mensagens nativas, stack e `cause` também não são publicados. O retorno é
+deep-frozen.
+
+Não existe call site no boot, Provider, UI ou planner. A inspeção não escreve em
+`localStorage` ou IndexedDB, não consome receipts, não altera metadata, não
+executa recovery e não chama retenção. Política de idade/quantidade, executor,
+deleção e os slices E/F continuam não iniciados.
