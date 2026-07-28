@@ -3411,3 +3411,149 @@ avisos, **nenhum nos arquivos alterados**), `git diff --check` limpo.
 - **A janela TOCTOU do W8 continua aberta**; fechá-la exige owner-token, que
   segue pendente para o E.
 - **D/E/F não iniciados.**
+
+## GOAL-17B-002D-D1 — recuperar importação interrompida antes da hidratação
+
+### Ponto de partida
+
+Slice C integrado à master pelo merge commit `4c6284da` (PR #6, pais `5b41f91a`
+e `50838541`). Repositório principal sincronizado por fast-forward
+(`25a7800 → 4c6284d`) e worktree nova em
+`feat/gymflow-goal17b-boot-recovery`.
+
+### Auditoria D0 — Classe B
+
+Caminho real de boot, lido no código e não presumido:
+
+1. `useEffect` de boot do `GymFlowProvider` (dependência `[setActiveView]`);
+2. `historyAdapterRef.current ??= new IndexedDbWorkoutHistoryStorage()`;
+3. `hybridRuntimeRef.current ??= createHybridStorageRuntime({...})`;
+4. `runtime.retain()` — uma retenção por montagem;
+5. `hydrateStorage()`: migração legada → `runtime.hydrate()` → publicação do
+   estado → materialização dos completion receipts + `settleCompletion` →
+   `setHydrated(true)`;
+6. cleanup: `cancelled = true`, `mountedRef.current = false`, `runtime.close()`.
+
+Classe B: a ordem não é ambígua e nenhum contrato do C1/C2 mudou, mas a
+integração exige um orquestrador novo mais uma alteração controlada no Provider.
+
+### Ordem final, provada por teste
+
+1. preparar dependências de armazenamento (adapter + runtime híbrido);
+2. **recuperação administrativa da importação** (`storage-boot-recovery`);
+3. confirmar resultado terminal seguro;
+4. só então `runtime.hydrate()`;
+5. materialização de `recoveredCompletions` e `settleCompletion`, na posição já
+   existente do fluxo híbrido;
+6. publicação do armazenamento como pronto no Context.
+
+`hydrate → recovery` é impossível: a barreira é a primeira instrução do
+`hydrateStorage()`, antes inclusive da migração legada.
+
+### Liberam a hidratação
+
+`no-operation`, `settled`, `already-settled`, `reverted` e `already-reverted`.
+`administration-unavailable` só libera após prova física read-only: metadados
+administrativos totalmente vazios e chave principal ausente (instalação nova,
+inclusive antes da migração legada suportada) ou envelope v1 válido.
+
+### Bloqueiam a hidratação
+
+`recovery-required`, `impossible-state`, `operation-conflict`,
+`administration-conflicted`, `storage-unavailable`, `migration-incomplete`,
+`recovery-step-limit`, `quota`, `verification-failed`, `activation-failed`,
+`core-commit-failed`, `readback-failed`, qualquer status/motivo desconhecido e
+qualquer exceção inesperada. Em `administration-unavailable`, core v2 válido ou
+corrupt com `physicalVersion === 2`, além de leitura que lança, bloqueiam como
+`blocked-storage-unavailable`. `steps > 0`, `operationId` não nulo ou qualquer
+evidência administrativa parcial bloqueiam como `blocked-recovery-required`.
+
+Raw corrupt sem versão v2 comprovável, corrupt com outra versão numérica e
+unsupported não são hidratados como dados: recebem
+`ready-for-blocked-storage-classification`, pulam a migração e só podem obter
+`mode = blocked` do runtime. Isso preserva a recuperação legada explícita sem
+transformar corrupção em sucesso.
+
+### Antes / depois
+
+- **Antes:** o boot ia direto para `runtime.hydrate()`. Uma importação lógica v2
+  interrompida permanecia interrompida e o app hidratava sobre um mundo indeciso.
+  `recoverLogicalStorageImportV2` não tinha nenhum call site.
+- **Depois:** o boot roda a recuperação primeiro. Convergindo, hidrata igual a
+  antes. Não convergindo, **não hidrata**: nada é publicado, nada é escrito, nada
+  é apagado, e a UI de erro que já existia mostra uma mensagem constante.
+  `recoverLogicalStorageImportV2` passa a ter **exatamente um** call site.
+
+### Liberação mínima dos guards
+
+O primeiro passe ficou bloqueado porque os guards 60, 195 e 197 ainda codificavam
+o contrato C1/C2 de zero call site. A liberação 061 incluiu exclusivamente
+`src/lib/storage-logical-import.test.ts` no escopo: os três testes continuam
+varrendo todo `src/`, usam igualdade exata de caminhos e autorizam somente
+`src/lib/storage-boot-recovery.ts` como consumidor de produção.
+`commitLogicalStorageImportV2` conserva uma prova independente de zero call
+site. Nenhum Provider, componente, arquivo Android ou UI chama o recovery
+diretamente.
+
+### Desbloqueio 062 — contrato legado preservado
+
+O comando 061 parou corretamente em dois testes baseline: ambos exigiam que raw
+corrompido sem v2 comprovável continuasse bloqueado, porém com as capacidades
+legadas explícitas já existentes. Os testes estavam corretos e permaneceram
+inalterados. O boot agora distingue hidratação normal, classificação bloqueada
+read-only e bloqueio anterior ao runtime.
+
+No caminho de classificação bloqueada, `runtime.hydrate()` serve somente para
+obter `mode`, `physicalVersion` e `StorageIssue`; migração legada é ignorada,
+defaults não são publicados, `storageBlockedRef` impede autosave/flush e
+completion receipts não são consumidos. Se o runtime devolver `legacy-v1` ou
+`hybrid-v2` inesperadamente, o Provider descarta o estado e bloqueia com mensagem
+constante.
+
+### Arquivos alterados
+
+- `src/lib/storage-boot-recovery.ts` (novo)
+- `src/lib/storage-boot-recovery.test.ts` (novo, 64 testes)
+- `src/lib/storage-hybrid.ts` e `src/lib/storage-hybrid.test.ts` (autoridade
+  explícita do Provider sobre capacidades em bloqueio pré-runtime)
+- `src/lib/storage-logical-import.test.ts` (somente guards 60, 195 e 197)
+- `src/providers/GymFlowContext.tsx` (import + barreira no efeito de boot)
+- `src/providers/GymFlowContext.storage-recovery.test.tsx` (novo, 21 testes)
+- `docs/DECISOES.md`, `docs/GOALS_LOG.md`, `docs/PENDENCIAS.md`,
+  `docs/storage/GYMFLOW_STORAGE_V1_SAFE.md`
+
+### Validações
+
+Focados: orquestrador **64/64**, Provider D1 **21/21**, baseline imutável do
+Context **23/23**, importação lógica **216/216** e híbrido **49/49**. Os guards
+60, 195 e 197 passaram também isoladamente, com igualdade exata e um único teste
+selecionado em cada comando.
+
+Shuffles verdes: boot `11062` e `22062` (**64/64** cada), Provider D1 `33062`
+(**21/21**), Context baseline `44062` (**23/23**) e importação lógica `55062`
+(**216/216**).
+
+`npx vitest run`: **46 arquivos e 1758/1758 testes**. `npx tsc --noEmit`,
+`npm run build` e `npm run build:mobile` aprovados. `npx eslint src` preservou
+exatamente a baseline de **12 erros e 6 warnings**; nenhum diagnóstico novo foi
+introduzido, e os arquivos alterados fora do Provider passam isoladamente com
+zero diagnóstico. Os três warnings do Provider são efeitos preexistentes, fora
+das linhas D1. `git diff --check` limpo; `package.json` e `package-lock.json`
+inalterados.
+
+### Continuação
+
+- **O D1 é só a barreira de boot.** Restore manual, rollback manual, reset,
+  retenção automática e limpeza geral de gerações órfãs **não** foram
+  implementados.
+- **Nenhuma UI nova.** O bloqueio reutiliza `storageHealth` e o
+  `StorageRecoveryNotice` que já existiam.
+- **A importação continua indisponível ao usuário** e
+  `commitLogicalStorageImportV2` continua **sem nenhum call site**.
+- **Owner-token continua pendente para o E**, e com ele a janela TOCTOU do W8 e a
+  serialização entre abas.
+- **D2/E/F não iniciados.**
+- **D1 concluído localmente.** O P0 identificado na auditoria foi resolvido; a
+  ambiguidade P2 de `administration-unavailable` foi reduzida sem alteração no
+  C2. Um core v2 nunca é tratado como instalação nova quando a administração
+  está indisponível. Isso não declara o slice D inteiro concluído.

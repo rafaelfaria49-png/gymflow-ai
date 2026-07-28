@@ -802,3 +802,51 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   seletor de arquivo, download, upload, call site, owner-token, restore manual,
   rollback manual exposto, reset, retenção, sincronização remota, Supabase nem
   banco remoto. **D/E/F seguem não iniciados.**
+
+## GOAL-17B-002D-D1 — o que ficou aberto
+
+- **17B-002D-D1-P1 — a hidratação bloqueada não tem saída pela interface.**
+  *Aberto · P2.* Quando a recuperação não converge, o app mostra o aviso de
+  armazenamento e não hidrata. Não existe botão de tentar de novo, diagnóstico ou
+  exportação bruta para esse caso específico — só reabrir o aplicativo. Os dados
+  físicos ficam intactos. *Próximo passo:* D2/E, junto com restore e diagnóstico.
+- **17B-002D-D1-P2 — `cleanupPending` é observado e ignorado.** *Aberto · P3, por
+  design.* Uma geração preparada e sem dono continua no disco depois de um
+  `reverted`. Ela não impede hidratação nem diagnóstico, e o orquestrador
+  propaga o sinal sem agir sobre ele. *Próximo passo:* 002D-F (retenção); nunca
+  apagar geração fora das compensações seguras.
+- **17B-002D-D1-P3 — ambiguidade de `administration-unavailable`.**
+  *Resolvido no D1 · antigo P2.* Sem mudar o contrato C2, o orquestrador agora
+  exige metadados administrativos vazios e inspeciona a chave principal de forma
+  read-only com o parser físico oficial. Ausência e v1 válido liberam; core v2,
+  corrupt com versão 2 ou falha de leitura bloqueiam antes do runtime. Raw
+  corrupt sem versão comprovável e unsupported permitem somente a classificação
+  bloqueada do runtime, preservando as capacidades legadas explícitas sem
+  publicar dados nem escrever. Assim, core v2 nunca é confundido com instalação
+  nova.
+- **17B-002D-D1-P0-062 — a primeira classificação removia recuperação legada
+  correta.** *Fechado · era P1.* O comando 061 fez dois testes baseline falharem
+  ao bloquear raw corrompido antes do runtime. Os testes estavam corretos:
+  corrupção sem v2 comprovável deve chegar ao modo `blocked` híbrido para manter
+  restore v1, recomeço explícito e download. O resultado
+  `ready-for-blocked-storage-classification` restaura exatamente essa superfície,
+  sem migração, defaults, autosave ou consumo de completion receipt.
+- **17B-002D-D1-P4 — não há lock entre abas no boot.** *Aberto · P3.* Duas abas
+  abrindo ao mesmo tempo rodam duas recuperações. Elas convergem para um mundo
+  físico único e válido (provado no C2) e a trava por `WeakMap` só cobre o mesmo
+  documento. *Próximo passo:* owner-token no E, o mesmo que fecha o W8.
+- **17B-002D-D1-P5 — o cleanup do Provider pode fechar o adapter durante a
+  recuperação.** *Aberto · P3.* No Strict Mode a primeira desmontagem zera a
+  contagem de retenção e chama `adapter.close()`. Na prática é inofensivo: o
+  IndexedDB só fecha de fato quando as transações em voo terminam, e `open()` é
+  reabertura sob demanda. *Próximo passo:* se algum dia doer, registrar a
+  recuperação nas operações pendentes do runtime híbrido.
+- **17B-002D-C2, C1 e anteriores continuam abertos e inalterados.** Este slice
+  **não** criou seletor de arquivo, importação ao usuário, exportação ao usuário,
+  restore manual, rollback manual, reset, retenção, limpeza de órfãs,
+  owner-token, UI, AdminPanel, modal, toast, download, upload, Android, Supabase
+  nem banco remoto. **D2/E/F seguem não iniciados.**
+- **O P0 de boot para instalação nova/v1 foi resolvido.** O D1 foi concluído
+  localmente com um único call site estritamente guardado, sem declarar o slice
+  D completo. Permanecem os riscos P2/P3 acima: saída pela interface,
+  `cleanupPending`, concorrência entre abas e fechamento do adapter em cleanup.

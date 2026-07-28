@@ -52,6 +52,10 @@ import {
   type WorkoutCompletionEffects,
 } from '../lib/storage-completion-receipt';
 import { IndexedDbWorkoutHistoryStorage } from '../lib/storage-indexeddb';
+import {
+  STORAGE_BOOT_RECOVERY_MESSAGES,
+  runStorageBootRecoveryOnce,
+} from '../lib/storage-boot-recovery';
 import { commitStorageImport, createRawRecoveryExport, downloadTextFile } from '../lib/storage-export';
 import { mergePersistedState, migrateLegacyState } from '../lib/storage-migrations';
 import type {
@@ -766,8 +770,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       status: storageHealth.status,
       hasLegacyBackup: storageHealth.hasBackup,
       hasRawContent: typeof storageHealth.issue?.raw === 'string' && storageHealth.issue.raw.length > 0,
+      legacyOperationsAllowed: legacyStorageOperationsAllowed,
     }),
-    [storageMode, storagePhysicalVersion, storageHealth],
+    [storageMode, storagePhysicalVersion, storageHealth, legacyStorageOperationsAllowed],
   );
 
   const reportWriteResult = (result: StorageWriteResult<unknown>) => {
@@ -934,13 +939,54 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       defaults,
     });
     const runtime = hybridRuntimeRef.current;
+    const historyAdapter = historyAdapterRef.current;
     // Uma retenção por montagem: o cleanup da primeira montagem do Strict Mode
     // não pode fechar um adapter ainda usado pela execução compartilhada.
     runtime.retain();
 
     const hydrateStorage = async () => {
+      let blockedClassificationOnly = false;
       try {
-        if (window.localStorage.getItem(STORAGE_KEY) === null) {
+        // GOAL-17B-002D-D1: a recuperação administrativa roda ANTES de tudo —
+        // antes da migração legada, antes da hidratação e antes de qualquer
+        // escrita. Uma importação lógica v2 interrompida precisa terminar ou ser
+        // revertida primeiro; hidratar sobre um mundo indeciso publicaria um
+        // estado que não é nem o anterior nem o importado.
+        const recovery = await runStorageBootRecoveryOnce({
+          adapter: historyAdapter,
+          storage: window.localStorage,
+          key: STORAGE_KEY,
+        });
+        if (cancelled || !mountedRef.current) return;
+
+        blockedClassificationOnly =
+          recovery.status === 'ready-for-blocked-storage-classification';
+
+        if ('message' in recovery) {
+          // Falha fechada. Sem hidratação, sem estado publicado, sem escrita e
+          // sem limpeza: os dados físicos ficam intactos para o diagnóstico ou
+          // para uma recuperação futura. `hydrated` permanece falso de
+          // propósito — assim nem o autosave nem o flush de ciclo de vida
+          // chegam a ser armados. Só a mensagem constante do orquestrador
+          // atravessa até a UI de erro que já existe.
+          storageBlockedRef.current = true;
+          storageModeRef.current = 'blocked';
+          setStorageMode('blocked');
+          setStoragePhysicalVersion(recovery.physicalVersion ?? null);
+          legacyStorageOperationsAllowedRef.current = false;
+          setLegacyStorageOperationsAllowed(false);
+          setStorageHealth({
+            status: 'blocked',
+            hasBackup: hasValidBackup(),
+            issue: { kind: 'unavailable', message: recovery.message },
+          });
+          return;
+        }
+
+        if (
+          !blockedClassificationOnly
+          && window.localStorage.getItem(STORAGE_KEY) === null
+        ) {
           const legacyMigration = migrateLegacyState(STORAGE_KEY, defaults, window.localStorage);
           if (legacyMigration.status === 'migrated' && legacyMigration.cleanupWarning) {
             toast.info(legacyMigration.cleanupWarning);
@@ -981,6 +1027,28 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
         const hydration = await runtime.hydrate();
         if (cancelled || !mountedRef.current) return;
+
+        if (blockedClassificationOnly && hydration.mode !== 'blocked') {
+          // A autorização estreita nunca aceita dados. Se o runtime contrariar
+          // a pré-classificação, falha fechado sem publicar defaults ou estado
+          // vindo do raw e sem habilitar ações legadas.
+          storageBlockedRef.current = true;
+          storageModeRef.current = 'blocked';
+          setStorageMode('blocked');
+          setStoragePhysicalVersion(hydration.physicalVersion);
+          legacyStorageOperationsAllowedRef.current = false;
+          setLegacyStorageOperationsAllowed(false);
+          setStorageHealth({
+            status: 'blocked',
+            hasBackup: hasValidBackup(),
+            issue: {
+              kind: 'unavailable',
+              message: STORAGE_BOOT_RECOVERY_MESSAGES['blocked-recovery-required'],
+            },
+          });
+          setHydrated(true);
+          return;
+        }
 
         storageModeRef.current = hydration.mode;
         setStorageMode(hydration.mode);
@@ -1058,12 +1126,19 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         storageBlockedRef.current = true;
         storageModeRef.current = 'blocked';
         setStorageMode('blocked');
+        setStoragePhysicalVersion(null);
+        legacyStorageOperationsAllowedRef.current = false;
+        setLegacyStorageOperationsAllowed(false);
         setStorageHealth({
           status: 'blocked',
           hasBackup: hasValidBackup(),
           issue: {
             kind: 'unavailable',
-            message: error instanceof Error ? error.message : 'Falha ao hidratar o armazenamento local.',
+            message: blockedClassificationOnly
+              ? STORAGE_BOOT_RECOVERY_MESSAGES['blocked-recovery-required']
+              : error instanceof Error
+                ? error.message
+                : 'Falha ao hidratar o armazenamento local.',
           },
         });
         setHydrated(true);
