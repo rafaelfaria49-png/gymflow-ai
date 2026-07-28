@@ -3564,19 +3564,34 @@ inalterados.
 - **Auditoria D2-0:** resultado global **Classe B**. Restore, rollback e reset
   foram classificados como **Classe C** e não receberam implementação. Retenção
   foi classificada como **Classe B**.
-- **Entregue no subconjunto seguro:** planejador puro e determinístico de
-  retenção, sem adapter, sem escrita e sem deleção. O planner protege todas as
-  referências administrativas conhecidas, exige integridade estrutural e
-  retorna `policy-required` enquanto não houver política aprovada de idade ou
-  quantidade. Entrada inválida ou incoerente retorna `blocked`; `delete`
-  permanece sempre vazio.
+- **Auditoria independente do primeiro commit:** resultado **Classe C**. Foram
+  comprovados vazamento do fingerprint privado, validação insuficiente de
+  metadata/manifests/receipts e uso indevido de evidência estrutural como prova
+  física. O primeiro commit foi preservado e recebeu um corretivo separado.
+- **Contrato corrigido no subconjunto seguro:** planejador puro e determinístico,
+  sem adapter, escrita, executor ou deleção. A saída contém somente `status`,
+  motivo fechado e `delete: []`; fingerprint e ids administrativos foram
+  removidos.
+- **`policy-required` agora é estrito:** exige migration concluída, ponteiros de
+  metadata e top-level iguais, exatamente uma geração ativa e não staged, um
+  manifest correspondente, registros sem referências desconhecidas e ausência
+  total de operation receipts, completion receipts, `cleanupPending` e gerações
+  não ativas. Todo o restante retorna `blocked`.
+- **Sem prova física improvisada:** `HistoryGenerationSummary.verified` é apenas
+  diagnóstico. Qualquer geração histórica, inativa, órfã, de migração ou
+  aparentemente verified bloqueia; nenhuma vira lixo ou candidata à deleção.
+- **Receipts falham fechado:** qualquer operation receipt — import, restore,
+  rollback, reset, kind/status desconhecido ou terminal — bloqueia. Qualquer
+  completion receipt, válido ou inválido, também bloqueia.
 - **Semânticas não improvisadas:** restore não ganhou uma fonte híbrida
   arbitrária; rollback físico não foi promovido a rollback completo; reset não
   ganhou defaults ou recovery inventados. Os protocolos existentes de import,
   boot recovery, hidratação e completion receipts permaneceram inalterados.
-- **Provas locais novas:** 30 testes cobrem proteções, órfãos, referências
-  quebradas, duplicidade, determinismo, idempotência, não mutação, privacidade,
-  zero call site e ausência de integração com Provider/UI/Android.
+- **Provas locais corretivas:** cobrem todas as contradições da auditoria,
+  receipts válidos e malformados, gerações históricas, snapshot congelado,
+  privacidade recursiva e meta-teste do inspetor, zero call site e ausência de
+  integração com Provider/UI/Android.
 - **Limites:** zero UI e zero call site de usuário. Owner-token continua no E e
   Android/WebView no F. Não há executor de retenção, restore híbrido, rollback
-  administrativo nem reset. O GOAL-17B-002D inteiro não está concluído.
+  administrativo, reset ou política aprovada. D2 continua parcial; E e F não
+  foram iniciados e o GOAL-17B-002D inteiro não está concluído.

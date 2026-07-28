@@ -1510,32 +1510,36 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
   liquidação. Ainda não há contrato aprovado para defaults, identidade,
   completion receipts e recovery desse mundo novo; nenhum desses pontos foi
   improvisado.
-- **Somente o planner puro de retenção foi implementado.**
-  `planStorageRetention` recebe um snapshot administrativo, valida forma,
-  unicidade e coerência das referências e devolve decisões determinísticas. Ele
-  não recebe adapter, `localStorage`, relógio ou callback de deleção; não possui
-  call site de produção e nunca escreve.
-- **A ausência de política é parte do resultado.** Não existe limite aprovado de
-  idade ou quantidade. Um snapshot coerente devolve `policy-required`; um
-  snapshot inválido ou com referência quebrada devolve `blocked`. Em ambos os
-  casos a lista `delete` é vazia. Geração órfã apenas aparente fica bloqueada por
-  `policy-required` ou `integrity-proof-required`, nunca autorizada por heurística.
-- **Proteções congeladas:** core atual, cópia rolante, snapshot legado, geração
-  ativa, geração de migração, gerações de completion receipts pendentes,
-  `previousGenerationId`/`stagedGenerationId` de operações não terminais,
-  evidência de receipts terminais e qualquer receipt com `cleanupPending` ficam
-  preservados. Completion receipts pendentes e operações não terminais também
-  ficam preservados.
-- **Recovery e ordem de escrita não mudaram.** O planner executa apenas
-  validar → classificar → devolver e faz zero escrita. Como restore, rollback,
-  reset e o executor de retenção ficaram bloqueados, nenhuma nova ordem mutável
-  foi declarada. Um executor futuro deverá reler o snapshot, comparar o
-  fingerprint e realizar cada limpeza como uma única unidade serializada.
-- **Idempotência, concorrência e privacidade:** a mesma entrada, inclusive
-  reordenada, produz o mesmo plano; a entrada não é mutada; não há corrida de
-  escrita porque não existe executor. Exceções e entradas adulteradas falham
-  fechadas, sem `cause`, stack, raw, nome, e-mail, sessão ou treino no retorno.
+- **A auditoria independente do primeiro commit foi Classe C.** O planner
+  devolvia o fingerprint privado, aceitava metadata e manifests contraditórios,
+  interpretava receipts de forma permissiva e tratava evidência estrutural como
+  prova física. O corretivo preserva esse commit no histórico e fecha esses
+  bloqueadores num segundo commit.
+- **Somente o planner puro de retenção foi corrigido.** Ele recebe `unknown`,
+  não recebe adapter, runtime, storage, relógio ou callback, não possui call
+  site de produção e nunca escreve.
+- **A saída pública foi reduzida.** Ela contém somente `status`, `reason` fechado
+  e `delete: []`. O fingerprint foi removido; nenhum id administrativo, raw,
+  core, backup, receipt, dado de perfil, sessão, treino, stack ou `cause`
+  atravessa o resultado.
+- **`policy-required` possui semântica restrita.** Só ocorre com migration
+  concluída e sem geração de migração; ponteiros top-level e metadata iguais;
+  exatamente uma geração, ativa e não staged; um único manifest correspondente;
+  registros ativos referindo essa geração; zero operation receipt, completion
+  receipt, `cleanupPending`, geração histórica/inativa e referência desconhecida.
+  Qualquer outra situação devolve `blocked`.
+- **`verified` continua apenas diagnóstico.** A coerência declarativa entre
+  resumo e manifest é comparada, mas isso não prova digest nem integridade física
+  e nunca autoriza deleção. Qualquer geração além da ativa bloqueia por exigir
+  prova física.
+- **Receipts bloqueiam sem interpretação.** Qualquer operation receipt, de
+  import, restore, rollback, reset, kind desconhecido ou status terminal/não
+  terminal, devolve `operation-receipt-present`. Qualquer completion receipt,
+  válido ou inválido, devolve `completion-receipt-present`.
+- **Recovery e ordem de escrita não mudaram.** O planner apenas valida e devolve
+  um estado fechado. Não existe política aprovada de idade/quantidade, executor
+  ou deleção; restore, rollback e reset continuam bloqueados.
 - **Escopo:** zero UI, zero Provider, zero Android e zero call site de usuário.
-  Owner-token e serialização entre abas continuam reservados ao E; validação em
-  Android/WebView continua no F. O D2 foi implementado somente no subconjunto
-  efetivamente seguro e o GOAL-17B-002D não está concluído.
+  D2 continua parcial; owner-token e serialização entre abas continuam
+  reservados ao E, e Android/WebView ao F. E e F não foram iniciados e o
+  GOAL-17B-002D não está concluído.

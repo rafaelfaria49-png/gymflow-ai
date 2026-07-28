@@ -7,14 +7,36 @@ import type {
   StorageAdministrationSnapshotRead,
 } from './storage-adapter';
 import type { WorkoutCompletionReceipt } from './storage-completion-receipt';
-import { EMPTY_GENERATION_DIGEST, type HistoryGenerationManifest } from './storage-history-integrity';
-import { createStorageOperationReceipt, type StorageOperationReceipt } from './storage-operation-receipt';
+import {
+  EMPTY_GENERATION_DIGEST,
+  type HistoryGenerationManifest,
+} from './storage-history-integrity';
+import {
+  createStorageOperationReceipt,
+  type StorageOperationKind,
+  type StorageOperationReceipt,
+} from './storage-operation-receipt';
 import {
   planStorageRetention,
-  type StorageRetentionDecision,
+  type StorageRetentionPlan,
+  type StorageRetentionReason,
 } from './storage-retention';
 
 const CREATED_AT = '2026-07-28T09:00:00.000Z';
+const ACTIVE_GENERATION_ID = 'generation-active';
+
+const PRIVATE_SENTINELS = [
+  'PRIVATE_RAW',
+  'PRIVATE_CORE',
+  'PRIVATE_BACKUP',
+  'PRIVATE_FINGERPRINT',
+  'PRIVATE_WORKOUT',
+  'PRIVATE_SESSION',
+  'PRIVATE_NAME',
+  'PRIVATE_EMAIL',
+  'PRIVATE_STORAGE_MESSAGE',
+  'PRIVATE_INDEXEDDB_MESSAGE',
+] as const;
 
 function generation(
   generationId: string,
@@ -36,7 +58,10 @@ function generation(
   };
 }
 
-function manifest(generationId: string): HistoryGenerationManifest {
+function manifest(
+  generationId: string,
+  overrides: Partial<HistoryGenerationManifest> = {},
+): HistoryGenerationManifest {
   return {
     generationId,
     sessionCount: 0,
@@ -44,48 +69,51 @@ function manifest(generationId: string): HistoryGenerationManifest {
     createdAt: CREATED_AT,
     updatedAt: CREATED_AT,
     verified: true,
+    ...overrides,
   };
 }
 
 function operation(
-  operationId: string,
+  kind: StorageOperationKind,
   overrides: Partial<StorageOperationReceipt> = {},
 ): StorageOperationReceipt {
   return {
     ...createStorageOperationReceipt({
-      operationId,
-      kind: 'import',
-      previousCoreRaw: '{"v":2,"private":"previous"}',
-      previousGenerationId: 'generation-active',
+      operationId: `operation-${kind}`,
+      kind,
+      previousCoreRaw: 'PRIVATE_RAW PRIVATE_CORE PRIVATE_BACKUP',
+      previousGenerationId: ACTIVE_GENERATION_ID,
       createdAt: CREATED_AT,
     }),
     ...overrides,
   };
 }
 
-function completion(
-  receiptId: string,
-  generationId: string,
-  coreGenerationId = generationId,
-): WorkoutCompletionReceipt {
+function completion(): WorkoutCompletionReceipt {
   return {
-    receiptId,
-    sessionId: 'session-private',
-    generationId,
-    sessionDigest: 'sha256:private',
-    finalSession: { id: 'session-private', name: 'PRIVATE_NAME' } as never,
+    receiptId: 'completion-private',
+    sessionId: 'PRIVATE_SESSION',
+    generationId: ACTIVE_GENERATION_ID,
+    sessionDigest: 'PRIVATE_WORKOUT',
+    finalSession: {
+      id: 'PRIVATE_SESSION',
+      name: 'PRIVATE_NAME',
+    } as never,
     coreEnvelopeAfter: {
       historyStorage: {
         backend: 'indexeddb',
         schemaVersion: 1,
-        generationId: coreGenerationId,
+        generationId: ACTIVE_GENERATION_ID,
       },
     } as never,
     effects: {
       xpNotifications: [],
-      communityPost: { id: 'post-private', author: 'PRIVATE_EMAIL@example.com' } as never,
+      communityPost: {
+        id: 'post-private',
+        author: 'PRIVATE_EMAIL',
+      } as never,
       unlockedAchievementIds: [],
-      markedDayName: 'PRIVATE_TRAINING',
+      markedDayName: 'PRIVATE_WORKOUT',
     },
     createdAt: CREATED_AT,
     status: 'pending',
@@ -96,275 +124,434 @@ function completion(
 function snapshot(
   overrides: Partial<StorageAdministrationSnapshotRead> = {},
 ): StorageAdministrationSnapshotRead {
-  const active = generation('generation-active', { isActive: true });
+  const active = generation(ACTIVE_GENERATION_ID, { isActive: true });
+  const activeManifest = manifest(ACTIVE_GENERATION_ID);
   return {
     metadata: {
-      activeGeneration: active.generationId,
+      activeGeneration: ACTIVE_GENERATION_ID,
       migrationGeneration: null,
       schemaVersion: 1,
       migrationStatus: 'completed',
       migratedAt: CREATED_AT,
       sourceStorageVersion: 2,
     },
-    activeGenerationId: active.generationId,
+    activeGenerationId: ACTIVE_GENERATION_ID,
     migrationGenerationId: null,
     generations: [active],
-    manifests: [manifest(active.generationId)],
+    manifests: [activeManifest],
     activeGenerationRecords: [],
-    activeGenerationManifest: manifest(active.generationId),
+    activeGenerationManifest: { ...activeManifest },
     activeGenerationPresent: true,
     operationReceipts: [],
     unsettledOperations: [],
     pendingCompletionReceipts: [],
-    fingerprint: 'fingerprint-stable',
+    fingerprint: 'PRIVATE_FINGERPRINT',
     ...overrides,
   };
 }
 
-function decision(
-  decisions: readonly StorageRetentionDecision[],
-  artifactKind: StorageRetentionDecision['artifactKind'],
-  artifactId: string,
-): StorageRetentionDecision | undefined {
-  return decisions.find((entry) => (
-    entry.artifactKind === artifactKind && entry.artifactId === artifactId
-  ));
+function findPrivateSentinels(value: unknown): string[] {
+  const found = new Set<string>();
+  const seen = new WeakSet<object>();
+
+  const inspectString = (candidate: string): void => {
+    for (const sentinel of PRIVATE_SENTINELS) {
+      if (candidate.includes(sentinel)) found.add(sentinel);
+    }
+  };
+
+  const visit = (candidate: unknown): void => {
+    if (typeof candidate === 'string') {
+      inspectString(candidate);
+      return;
+    }
+    if (
+      candidate === null
+      || (typeof candidate !== 'object' && typeof candidate !== 'function')
+    ) {
+      return;
+    }
+    if (seen.has(candidate)) return;
+    seen.add(candidate);
+
+    if (candidate instanceof Map) {
+      for (const [key, entry] of candidate) {
+        visit(key);
+        visit(entry);
+      }
+    }
+    if (candidate instanceof Set) {
+      for (const entry of candidate) visit(entry);
+    }
+    if (candidate instanceof Error) {
+      visit(candidate.name);
+      visit(candidate.message);
+      visit(candidate.stack);
+      visit((candidate as Error & { cause?: unknown }).cause);
+    }
+
+    for (const key of Reflect.ownKeys(candidate)) {
+      if (typeof key === 'string') inspectString(key);
+      const descriptor = Object.getOwnPropertyDescriptor(candidate, key);
+      if (descriptor && 'value' in descriptor) visit(descriptor.value);
+    }
+  };
+
+  visit(value);
+  try {
+    const serialized = JSON.stringify(value);
+    if (serialized !== undefined) inspectString(serialized);
+  } catch {
+    // O percurso recursivo acima também cobre estruturas cíclicas.
+  }
+  return [...found].sort();
+}
+
+function expectPrivateDataAbsent(plan: StorageRetentionPlan): void {
+  expect(findPrivateSentinels(plan)).toEqual([]);
+  expect(plan.delete).toEqual([]);
+}
+
+function expectBlocked(
+  input: unknown,
+  reason: Exclude<StorageRetentionReason, 'policy-required'>,
+): StorageRetentionPlan {
+  const plan = planStorageRetention(input);
+  expect(plan).toEqual({
+    status: 'blocked',
+    reason,
+    delete: [],
+  });
+  expectPrivateDataAbsent(plan);
+  return plan;
+}
+
+function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
+  if (value === null || typeof value !== 'object' || seen.has(value)) return value;
+  seen.add(value);
+  for (const key of Reflect.ownKeys(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor && 'value' in descriptor) deepFreeze(descriptor.value, seen);
+  }
+  return Object.freeze(value);
 }
 
 describe('planner conservador de retenção administrativa', () => {
-  it('retorna policy-required e zero deleções sem política aprovada', () => {
+  it('retorna somente policy-required, motivo fechado e zero deleções no snapshot simples', () => {
     const plan = planStorageRetention(snapshot());
+
+    expect(plan).toEqual({
+      status: 'policy-required',
+      reason: 'policy-required',
+      delete: [],
+    });
+    expect(Object.keys(plan).sort()).toEqual(['delete', 'reason', 'status']);
+    expectPrivateDataAbsent(plan);
+  });
+
+  it('ignora o fingerprint legado sem ler, transformar ou devolver dados privados', () => {
+    const input = snapshot({ fingerprint: PRIVATE_SENTINELS.join(':') });
+    const plan = planStorageRetention(input);
 
     expect(plan.status).toBe('policy-required');
-    expect(plan.reason).toBe('policy-required');
-    expect(plan.snapshotFingerprint).toBe('fingerprint-stable');
-    expect(plan.delete).toEqual([]);
+    expect('snapshotFingerprint' in plan).toBe(false);
+    expect('fingerprint' in plan).toBe(false);
+    expectPrivateDataAbsent(plan);
   });
 
-  it('mantém core atual, backup rolante e snapshot legado por contrato', () => {
-    const plan = planStorageRetention(snapshot());
-
-    expect(plan.decisions.slice(0, 3)).toEqual([
-      {
-        artifactKind: 'current-core',
-        artifactId: 'current-core',
-        disposition: 'keep',
-        reason: 'current-core',
-      },
-      {
-        artifactKind: 'rolling-core-backup',
-        artifactId: 'rolling-core-backup',
-        disposition: 'keep',
-        reason: 'rolling-core-backup',
-      },
-      {
-        artifactKind: 'legacy-snapshot',
-        artifactId: 'legacy-snapshot',
-        disposition: 'keep',
-        reason: 'legacy-snapshot',
-      },
-    ]);
-  });
-
-  it('nunca remove a geração ativa', () => {
-    const plan = planStorageRetention(snapshot());
-    expect(decision(plan.decisions, 'generation', 'generation-active')).toMatchObject({
-      disposition: 'keep',
-      reason: 'active-generation',
+  it('trata verified somente como diagnóstico e aceita false quando resumo e manifest coincidem', () => {
+    const active = generation(ACTIVE_GENERATION_ID, {
+      isActive: true,
+      verified: false,
     });
+    const activeManifest = manifest(ACTIVE_GENERATION_ID, { verified: false });
+    const plan = planStorageRetention(snapshot({
+      generations: [active],
+      manifests: [activeManifest],
+      activeGenerationManifest: { ...activeManifest },
+    }));
+
+    expect(plan.status).toBe('policy-required');
+    expectPrivateDataAbsent(plan);
   });
 
-  it('nunca remove migrationGeneration', () => {
-    const staged = generation('generation-migration', { isStaged: true });
-    const plan = planStorageRetention(snapshot({
+  it('bloqueia metadata contraditória', () => {
+    expectBlocked(snapshot({
       metadata: {
         ...snapshot().metadata,
-        migrationGeneration: staged.generationId,
+        schemaVersion: 0,
       },
-      migrationGenerationId: staged.generationId,
-      generations: [...snapshot().generations, staged],
-      manifests: [...snapshot().manifests, manifest(staged.generationId)],
-    }));
-
-    expect(decision(plan.decisions, 'generation', staged.generationId)).toMatchObject({
-      disposition: 'keep',
-      reason: 'migration-generation',
-    });
+    }), 'snapshot-invalid');
   });
 
-  it('protege previousGenerationId de operação não terminal', () => {
-    const previous = generation('generation-previous');
-    const receipt = operation('operation-open', {
-      previousGenerationId: previous.generationId,
-    });
-    const plan = planStorageRetention(snapshot({
-      generations: [...snapshot().generations, previous],
-      manifests: [...snapshot().manifests, manifest(previous.generationId)],
-      operationReceipts: [receipt],
-      unsettledOperations: [receipt],
-    }));
-
-    expect(decision(plan.decisions, 'generation', previous.generationId)).toMatchObject({
-      disposition: 'keep',
-      reason: 'unsettled-previous-generation',
-    });
+  it('bloqueia ponteiro activeGeneration divergente', () => {
+    expectBlocked(snapshot({
+      metadata: {
+        ...snapshot().metadata,
+        activeGeneration: 'PRIVATE_BACKUP',
+      },
+    }), 'snapshot-invalid');
   });
 
-  it('protege stagedGenerationId de operação não terminal', () => {
-    const staged = generation('generation-staged');
-    const receipt = operation('operation-open', {
-      stagedGenerationId: staged.generationId,
-    });
-    const plan = planStorageRetention(snapshot({
-      generations: [...snapshot().generations, staged],
-      manifests: [...snapshot().manifests, manifest(staged.generationId)],
-      operationReceipts: [receipt],
-      unsettledOperations: [receipt],
-    }));
-
-    expect(decision(plan.decisions, 'generation', staged.generationId)).toMatchObject({
-      disposition: 'keep',
-      reason: 'unsettled-staged-generation',
-    });
-  });
-
-  it('protege toda geração citada por completion receipt pendente', () => {
-    const sessionGeneration = generation('generation-session');
-    const coreGeneration = generation('generation-core-after');
-    const pending = completion('completion-1', sessionGeneration.generationId, coreGeneration.generationId);
-    const plan = planStorageRetention(snapshot({
-      generations: [...snapshot().generations, sessionGeneration, coreGeneration],
-      manifests: [
-        ...snapshot().manifests,
-        manifest(sessionGeneration.generationId),
-        manifest(coreGeneration.generationId),
-      ],
-      pendingCompletionReceipts: [pending],
-    }));
-
-    for (const generationId of [sessionGeneration.generationId, coreGeneration.generationId]) {
-      expect(decision(plan.decisions, 'generation', generationId)).toMatchObject({
-        disposition: 'keep',
-        reason: 'pending-completion-generation',
-      });
-    }
-  });
-
-  it('mantém receipt não terminal e completion receipt pendente', () => {
-    const receipt = operation('operation-open');
-    const pending = completion('completion-1', 'generation-active');
-    const plan = planStorageRetention(snapshot({
-      operationReceipts: [receipt],
-      unsettledOperations: [receipt],
-      pendingCompletionReceipts: [pending],
-    }));
-
-    expect(decision(plan.decisions, 'operation-receipt', receipt.operationId)).toMatchObject({
-      disposition: 'keep',
-      reason: 'unsettled-operation-receipt',
-    });
-    expect(decision(plan.decisions, 'completion-receipt', pending.receiptId)).toMatchObject({
-      disposition: 'keep',
-      reason: 'pending-completion-receipt',
-    });
-  });
-
-  it('mantém receipt com cleanupPending mesmo que terminal', () => {
-    const receipt = {
-      ...operation('operation-cleanup', { status: 'reverted' }),
-      cleanupPending: true,
-    } as StorageOperationReceipt;
-    const plan = planStorageRetention(snapshot({ operationReceipts: [receipt] }));
-
-    expect(decision(plan.decisions, 'operation-receipt', receipt.operationId)).toMatchObject({
-      disposition: 'keep',
-      reason: 'cleanup-pending',
-    });
-  });
-
-  it('preserva referências de receipt terminal como evidência de rollback', () => {
-    const previous = generation('generation-terminal-previous');
-    const staged = generation('generation-terminal-staged');
-    const receipt = operation('operation-terminal', {
-      status: 'settled',
-      previousGenerationId: previous.generationId,
-      stagedGenerationId: staged.generationId,
-      targetCoreRaw: '{"v":2,"private":"target"}',
-    });
-    const plan = planStorageRetention(snapshot({
-      generations: [...snapshot().generations, previous, staged],
-      manifests: [
-        ...snapshot().manifests,
-        manifest(previous.generationId),
-        manifest(staged.generationId),
-      ],
-      operationReceipts: [receipt],
-    }));
-
-    for (const generationId of [previous.generationId, staged.generationId]) {
-      expect(decision(plan.decisions, 'generation', generationId)).toMatchObject({
-        disposition: 'keep',
-        reason: 'terminal-operation-evidence',
-      });
-    }
-    expect(decision(plan.decisions, 'operation-receipt', receipt.operationId)).toMatchObject({
-      disposition: 'blocked',
-      reason: 'policy-required',
-    });
-  });
-
-  it('bloqueia geração órfã estruturalmente íntegra por falta de política', () => {
-    const orphan = generation('generation-orphan');
-    const plan = planStorageRetention(snapshot({
-      generations: [...snapshot().generations, orphan],
-      manifests: [...snapshot().manifests, manifest(orphan.generationId)],
-    }));
-
-    expect(decision(plan.decisions, 'generation', orphan.generationId)).toMatchObject({
-      disposition: 'blocked',
-      reason: 'policy-required',
-    });
-    expect(plan.delete).toEqual([]);
+  it('bloqueia migrationGeneration divergente entre metadata e top-level', () => {
+    expectBlocked(snapshot({
+      metadata: {
+        ...snapshot().metadata,
+        migrationGeneration: 'PRIVATE_SESSION',
+      },
+      migrationGenerationId: null,
+    }), 'snapshot-invalid');
   });
 
   it.each([
-    ['manifest ausente', { hasManifest: false }],
-    ['flag não verificada', { verified: false }],
-    ['contagem divergente', { recordCount: 2, manifestSessionCount: 1 }],
-    ['digest ausente', { orderedDigest: null }],
-  ])('bloqueia geração sem prova completa: %s', (_name, overrides) => {
-    const orphan = generation('generation-invalid', overrides);
-    const plan = planStorageRetention(snapshot({
-      generations: [...snapshot().generations, orphan],
-      manifests: [...snapshot().manifests, manifest(orphan.generationId)],
-    }));
+    'not-started',
+    'in-progress',
+    'failed',
+  ] as const)('bloqueia migrationStatus não concluído: %s', (migrationStatus) => {
+    expectBlocked(snapshot({
+      metadata: {
+        ...snapshot().metadata,
+        migrationStatus,
+      },
+    }), 'snapshot-invalid');
+  });
 
-    expect(decision(plan.decisions, 'generation', orphan.generationId)).toMatchObject({
-      disposition: 'blocked',
-      reason: 'integrity-proof-required',
+  it('bloqueia duas gerações ativas', () => {
+    const second = generation('generation-second', { isActive: true });
+    expectBlocked(snapshot({
+      generations: [...snapshot().generations, second],
+      manifests: [...snapshot().manifests, manifest(second.generationId)],
+    }), 'physical-proof-required');
+  });
+
+  it('bloqueia flag isActive divergente', () => {
+    expectBlocked(snapshot({
+      generations: [generation(ACTIVE_GENERATION_ID, { isActive: false })],
+    }), 'snapshot-invalid');
+  });
+
+  it('bloqueia geração duplicada', () => {
+    const duplicate = generation(ACTIVE_GENERATION_ID, { isActive: false });
+    expectBlocked(snapshot({
+      generations: [...snapshot().generations, duplicate],
+    }), 'snapshot-invalid');
+  });
+
+  it('bloqueia manifest duplicado', () => {
+    expectBlocked(snapshot({
+      manifests: [...snapshot().manifests, manifest(ACTIVE_GENERATION_ID)],
+    }), 'snapshot-invalid');
+  });
+
+  it('bloqueia manifest sem geração conhecida', () => {
+    expectBlocked(snapshot({
+      manifests: [...snapshot().manifests, manifest('generation-unknown')],
+    }), 'snapshot-invalid');
+  });
+
+  it('bloqueia geração ativa sem manifest', () => {
+    expectBlocked(snapshot({
+      manifests: [],
+      activeGenerationManifest: null,
+    }), 'snapshot-invalid');
+  });
+
+  it.each([
+    'import',
+    'restore',
+    'rollback',
+    'reset',
+  ] as const)('bloqueia qualquer operation receipt: %s', (kind) => {
+    expectBlocked(snapshot({
+      operationReceipts: [operation(kind)],
+      unsettledOperations: [operation(kind)],
+    }), 'operation-receipt-present');
+  });
+
+  it('bloqueia operation receipt terminal sem interpretar referências', () => {
+    expectBlocked(snapshot({
+      operationReceipts: [operation('import', {
+        status: 'settled',
+        previousGenerationId: 'PRIVATE_SESSION',
+        stagedGenerationId: 'PRIVATE_BACKUP',
+        targetCoreRaw: 'PRIVATE_CORE',
+      })],
+    }), 'operation-receipt-present');
+  });
+
+  it('bloqueia kind desconhecido', () => {
+    expectBlocked(snapshot({
+      operationReceipts: [{
+        kind: 'PRIVATE_STORAGE_MESSAGE',
+        previousCoreRaw: 'PRIVATE_RAW',
+      } as never],
+    }), 'operation-receipt-present');
+  });
+
+  it('bloqueia status desconhecido', () => {
+    expectBlocked(snapshot({
+      operationReceipts: [{
+        ...operation('import'),
+        status: 'PRIVATE_INDEXEDDB_MESSAGE',
+      } as never],
+    }), 'operation-receipt-present');
+  });
+
+  it('bloqueia unsettled operation mesmo quando a lista histórica está vazia', () => {
+    expectBlocked(snapshot({
+      unsettledOperations: [{
+        status: 'PRIVATE_STORAGE_MESSAGE',
+      } as never],
+    }), 'operation-receipt-present');
+  });
+
+  it('bloqueia completion receipt válido', () => {
+    expectBlocked(snapshot({
+      pendingCompletionReceipts: [completion()],
+    }), 'completion-receipt-present');
+  });
+
+  it('bloqueia completion receipt malformado sem criar validador paralelo', () => {
+    expectBlocked(snapshot({
+      pendingCompletionReceipts: [{
+        receiptId: 'PRIVATE_SESSION',
+        cause: 'PRIVATE_INDEXEDDB_MESSAGE',
+      } as never],
+    }), 'completion-receipt-present');
+  });
+
+  it('bloqueia geração histórica aparentemente verified por falta de prova física', () => {
+    const historical = generation('generation-historical', { verified: true });
+    expectBlocked(snapshot({
+      generations: [...snapshot().generations, historical],
+      manifests: [...snapshot().manifests, manifest(historical.generationId)],
+    }), 'physical-proof-required');
+  });
+
+  it('bloqueia qualquer geração inativa adicional', () => {
+    const inactive = generation('generation-inactive', { verified: false });
+    expectBlocked(snapshot({
+      generations: [...snapshot().generations, inactive],
+      manifests: [
+        ...snapshot().manifests,
+        manifest(inactive.generationId, { verified: false }),
+      ],
+    }), 'physical-proof-required');
+  });
+
+  it('bloqueia geração de migração mesmo quando os ponteiros coincidem', () => {
+    expectBlocked(snapshot({
+      metadata: {
+        ...snapshot().metadata,
+        migrationGeneration: 'generation-migration',
+      },
+      migrationGenerationId: 'generation-migration',
+    }), 'physical-proof-required');
+  });
+
+  it('bloqueia cleanupPending sem devolver seu conteúdo', () => {
+    expectBlocked({
+      ...snapshot(),
+      cleanupPending: true,
+      cause: 'PRIVATE_STORAGE_MESSAGE',
+    }, 'cleanup-pending');
+  });
+
+  it('bloqueia activeGenerationManifest divergente', () => {
+    expectBlocked(snapshot({
+      activeGenerationManifest: manifest(ACTIVE_GENERATION_ID, {
+        orderedDigest: 'PRIVATE_BACKUP',
+      }),
+    }), 'snapshot-invalid');
+  });
+
+  it('bloqueia referência desconhecida nos registros da geração ativa', () => {
+    const active = generation(ACTIVE_GENERATION_ID, {
+      isActive: true,
+      hasRecords: true,
+      recordCount: 1,
+      manifestSessionCount: 1,
+      orderedDigest: 'digest-one',
     });
+    const activeManifest = manifest(ACTIVE_GENERATION_ID, {
+      sessionCount: 1,
+      orderedDigest: 'digest-one',
+    });
+    expectBlocked(snapshot({
+      generations: [active],
+      manifests: [activeManifest],
+      activeGenerationManifest: { ...activeManifest },
+      activeGenerationRecords: [{
+        generationId: 'generation-unknown',
+        sessionId: 'PRIVATE_SESSION',
+        order: 0,
+        session: { id: 'PRIVATE_SESSION', name: 'PRIVATE_NAME' } as never,
+        digest: 'digest-session',
+      }],
+    }), 'snapshot-invalid');
   });
 
-  it('é determinístico e independente da ordem das listas', () => {
-    const left = generation('generation-z');
-    const right = generation('generation-a');
-    const first = operation('operation-z', { status: 'settled' });
-    const second = operation('operation-a', { status: 'reverted' });
-    const a = planStorageRetention(snapshot({
-      generations: [...snapshot().generations, left, right],
-      manifests: [...snapshot().manifests, manifest(left.generationId), manifest(right.generationId)],
-      operationReceipts: [first, second],
-    }));
-    const b = planStorageRetention(snapshot({
-      generations: [...snapshot().generations, right, left],
-      manifests: [...snapshot().manifests, manifest(right.generationId), manifest(left.generationId)],
-      operationReceipts: [second, first],
+  it('aceita registros ativos coerentes sem tratá-los como prova física', () => {
+    const active = generation(ACTIVE_GENERATION_ID, {
+      isActive: true,
+      hasRecords: true,
+      recordCount: 1,
+      manifestSessionCount: 1,
+      orderedDigest: 'digest-one',
+    });
+    const activeManifest = manifest(ACTIVE_GENERATION_ID, {
+      sessionCount: 1,
+      orderedDigest: 'digest-one',
+    });
+    const plan = planStorageRetention(snapshot({
+      generations: [active],
+      manifests: [activeManifest],
+      activeGenerationManifest: { ...activeManifest },
+      activeGenerationRecords: [{
+        generationId: ACTIVE_GENERATION_ID,
+        sessionId: 'PRIVATE_SESSION',
+        order: 0,
+        session: {
+          id: 'PRIVATE_SESSION',
+          name: 'PRIVATE_NAME',
+          notes: 'PRIVATE_EMAIL PRIVATE_WORKOUT',
+        } as never,
+        digest: 'PRIVATE_CORE',
+      }],
     }));
 
-    expect(a).toEqual(b);
+    expect(plan.status).toBe('policy-required');
+    expectPrivateDataAbsent(plan);
   });
 
-  it('é idempotente e não altera o snapshot recebido', () => {
+  it('bloqueia ids de sessão e ordens duplicados', () => {
+    const active = generation(ACTIVE_GENERATION_ID, {
+      isActive: true,
+      hasRecords: true,
+      recordCount: 2,
+      manifestSessionCount: 2,
+      orderedDigest: 'digest-two',
+    });
+    const activeManifest = manifest(ACTIVE_GENERATION_ID, {
+      sessionCount: 2,
+      orderedDigest: 'digest-two',
+    });
+    const duplicatedRecord = {
+      generationId: ACTIVE_GENERATION_ID,
+      sessionId: 'PRIVATE_SESSION',
+      order: 0,
+      session: { id: 'PRIVATE_SESSION' } as never,
+      digest: 'digest-session',
+    };
+    expectBlocked(snapshot({
+      generations: [active],
+      manifests: [activeManifest],
+      activeGenerationManifest: { ...activeManifest },
+      activeGenerationRecords: [duplicatedRecord, { ...duplicatedRecord }],
+    }), 'snapshot-invalid');
+  });
+
+  it('é idempotente, determinístico e não altera a entrada', () => {
     const input = snapshot();
     const before = JSON.stringify(input);
     const first = planStorageRetention(input);
@@ -372,115 +559,71 @@ describe('planner conservador de retenção administrativa', () => {
 
     expect(second).toEqual(first);
     expect(JSON.stringify(input)).toBe(before);
+    expectPrivateDataAbsent(first);
+  });
+
+  it('aceita snapshot profundamente congelado', () => {
+    const input = deepFreeze(snapshot());
+    const plan = planStorageRetention(input);
+
+    expect(plan.status).toBe('policy-required');
+    expect(Object.isFrozen(input)).toBe(true);
+    expectPrivateDataAbsent(plan);
   });
 
   it.each([
     null,
+    undefined,
     {},
-    { fingerprint: '' },
-    snapshot({ generations: [] }),
-    snapshot({ activeGenerationId: 'generation-missing' }),
-  ])('falha fechado para snapshot inválido %#', (input) => {
-    const plan = planStorageRetention(input);
-
-    expect(plan).toMatchObject({
-      status: 'blocked',
-      reason: 'snapshot-invalid',
-      snapshotFingerprint: null,
-      delete: [],
-    });
-    expect(plan.decisions.at(-1)).toEqual({
-      artifactKind: 'administration-snapshot',
-      artifactId: 'administration-snapshot',
-      disposition: 'blocked',
-      reason: 'snapshot-invalid',
-    });
+    { metadata: {} },
+    { metadata: {}, generations: [] },
+  ])('falha fechado para snapshot sem formato reconhecido: %#', (input) => {
+    expectBlocked(input, 'snapshot-invalid');
   });
 
-  it('bloqueia referência não terminal ausente', () => {
-    const receipt = operation('operation-missing', {
-      previousGenerationId: 'generation-missing',
-    });
-    const plan = planStorageRetention(snapshot({
-      operationReceipts: [receipt],
-      unsettledOperations: [receipt],
-    }));
-
-    expect(plan.status).toBe('blocked');
-    expect(plan.delete).toEqual([]);
-  });
-
-  it('bloqueia referência de completion receipt ausente', () => {
-    const plan = planStorageRetention(snapshot({
-      pendingCompletionReceipts: [completion('completion-missing', 'generation-missing')],
-    }));
-
-    expect(plan.status).toBe('blocked');
-    expect(plan.delete).toEqual([]);
-  });
-
-  it('bloqueia listas com identidades duplicadas', () => {
-    const duplicate = generation('generation-active', { isActive: false });
-    const plan = planStorageRetention(snapshot({
-      generations: [...snapshot().generations, duplicate],
-      manifests: [...snapshot().manifests, manifest(duplicate.generationId)],
-    }));
-
-    expect(plan.status).toBe('blocked');
-  });
-
-  it('captura exceção inesperada sem rejeitar nem expor causa', () => {
+  it('captura exceção inesperada sem propagar stack, cause ou mensagem nativa', () => {
     const input = {
       get metadata() {
-        throw new Error('PRIVATE_INDEXEDDB_NATIVE_MESSAGE');
+        const error = new Error('PRIVATE_INDEXEDDB_MESSAGE');
+        error.cause = 'PRIVATE_STORAGE_MESSAGE';
+        throw error;
       },
     };
-    const plan = planStorageRetention(input);
-
-    expect(plan.status).toBe('blocked');
-    expect(JSON.stringify(plan)).not.toContain('PRIVATE_INDEXEDDB_NATIVE_MESSAGE');
+    expectBlocked(input, 'snapshot-invalid');
   });
+});
 
-  it('não expõe raw, receipt inteiro, perfil, sessão ou treino', () => {
-    const privateReceipt = operation('operation-private', {
-      previousCoreRaw:
-        'previousCoreRaw PRIVATE_NAME PRIVATE_EMAIL@example.com PRIVATE_SESSION PRIVATE_TRAINING',
-      targetCoreRaw:
-        'targetCoreRaw PRIVATE_NAME PRIVATE_EMAIL@example.com PRIVATE_SESSION PRIVATE_TRAINING',
-      status: 'settled',
-    });
-    const pending = completion('completion-private', 'generation-active');
-    const plan = planStorageRetention(snapshot({
-      operationReceipts: [privateReceipt],
-      pendingCompletionReceipts: [pending],
-    }));
-    const serialized = JSON.stringify(plan);
+describe('inspetor recursivo de privacidade', () => {
+  it('detecta sentinelas deliberadas em objetos, arrays, Map, Set, Error, stack e cause', () => {
+    const error = new Error('PRIVATE_STORAGE_MESSAGE');
+    error.stack = `stack ${'PRIVATE_INDEXEDDB_MESSAGE'}`;
+    error.cause = new Set(['PRIVATE_CORE', { nested: 'PRIVATE_BACKUP' }]);
+    const probe = new Map<unknown, unknown>([
+      ['PRIVATE_RAW', ['PRIVATE_FINGERPRINT']],
+      ['error', error],
+      ['profile', { name: 'PRIVATE_NAME', email: 'PRIVATE_EMAIL' }],
+      ['workout', { session: 'PRIVATE_SESSION', workout: 'PRIVATE_WORKOUT' }],
+    ]);
 
-    for (const forbidden of [
-      'previousCoreRaw',
-      'targetCoreRaw',
-      'PRIVATE_NAME',
-      'PRIVATE_EMAIL',
-      'PRIVATE_SESSION',
-      'PRIVATE_TRAINING',
-      'finalSession',
-      'coreEnvelopeAfter',
-      'stack',
-      'cause',
-    ]) {
-      expect(serialized).not.toContain(forbidden);
-    }
+    expect(findPrivateSentinels(probe)).toEqual([...PRIVATE_SENTINELS].sort());
   });
 });
 
 const SOURCE_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
+const RETENTION_SOURCE = join(SOURCE_ROOT, 'lib', 'storage-retention.ts');
 
 function listFiles(root: string, extensions: readonly string[]): string[] {
   const found: string[] = [];
   const walk = (directory: string): void => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+      if (
+        entry.name === 'node_modules'
+        || entry.name === '.next'
+        || entry.name.startsWith('.')
+      ) {
+        continue;
+      }
       const full = join(directory, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (extensions.some((extension) => entry.name.endsWith(extension))) found.push(full);
@@ -501,13 +644,35 @@ function relativeSource(file: string): string {
 }
 
 describe('guards do planner de retenção', () => {
-  it('tem somente o próprio teste como importador', () => {
-    const importers = listFiles(SOURCE_ROOT, ['.ts', '.tsx'])
-      .filter((file) => codeOf(file).includes("from './storage-retention'"))
+  it('mantém o símbolo público somente na implementação e no próprio teste', () => {
+    const files = listFiles(REPO_ROOT, ['.ts', '.tsx', '.md'])
+      .filter((file) => readFileSync(file, 'utf8').includes('planStorageRetention'))
       .map(relativeSource)
       .sort();
 
-    expect(importers).toEqual(['src/lib/storage-retention.test.ts']);
+    expect(files).toEqual([
+      'src/lib/storage-retention.test.ts',
+      'src/lib/storage-retention.ts',
+    ]);
+  });
+
+  it('não possui Provider, UI, boot, runtime admin, Android, executor ou APIs mutáveis', () => {
+    const source = codeOf(RETENTION_SOURCE);
+    const forbidden = [
+      /\bProvider\b/i,
+      /\bUI\b/,
+      /\bboot\b/i,
+      /storage-admin-runtime/i,
+      /\bAndroid\b/i,
+      /\bexecutor\b/i,
+      /\badapter\b/i,
+      /\btransaction\b/i,
+      /removeItem/,
+      /objectStore\s*\.\s*delete/,
+      /clearInactiveGeneration/,
+    ];
+
+    for (const pattern of forbidden) expect(source).not.toMatch(pattern);
   });
 
   it('não possui call site de produção', () => {
@@ -518,21 +683,5 @@ describe('guards do planner de retenção', () => {
       .sort();
 
     expect(callers).toEqual(['src/lib/storage-retention.ts']);
-  });
-
-  it('Provider, UI e Android não conhecem o planner', () => {
-    const production = listFiles(SOURCE_ROOT, ['.ts', '.tsx'])
-      .filter((file) => !/storage-retention(\.test)?\.ts$/.test(file))
-      .filter((file) => codeOf(file).includes('storage-retention'))
-      .map(relativeSource)
-      .sort();
-    const androidSourceRoot = join(REPO_ROOT, 'android', 'app', 'src');
-    const android = listFiles(androidSourceRoot, ['.java', '.kt', '.ts', '.js'])
-      .filter((file) => readFileSync(file, 'utf8').includes('storage-retention'))
-      .map(relativeSource)
-      .sort();
-
-    expect(production).toEqual([]);
-    expect(android).toEqual([]);
   });
 });

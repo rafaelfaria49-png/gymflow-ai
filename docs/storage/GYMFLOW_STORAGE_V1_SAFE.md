@@ -1526,7 +1526,10 @@ bloqueados, e `getItem` indisponível só produz mensagem sanitizada.
 
 O D1 usado como base está integrado pelo merge commit `42356f07`. A auditoria
 D2-0 foi **Classe B** global: retenção admite uma extensão pura e controlada;
-restore, rollback e reset são **Classe C** e permanecem bloqueados.
+restore, rollback e reset são **Classe C** e permanecem bloqueados. A auditoria
+independente do primeiro commit do planner foi **Classe C**: o retorno expunha o
+fingerprint privado, snapshots contraditórios passavam e evidência estrutural
+era tratada como prova física. O corretivo preserva esse commit no histórico.
 
 ### Matriz semântica
 
@@ -1535,45 +1538,59 @@ restore, rollback e reset são **Classe C** e permanecem bloqueados.
 | restore | bloqueada | Restore v1 legado existe; não há fonte híbrida única e verificável. Restore não é import e não aceita raw ou identificador arbitrário do chamador. |
 | rollback | bloqueada | A operação física existente só troca o ponteiro ativo. Falta o core verificável correspondente à geração alvo. |
 | reset | bloqueada | O mundo v2 vazio, seus defaults, preservação de identidade, completion receipts e recovery ainda não têm contrato aprovado. |
-| retenção | planner implementado | Classifica um snapshot administrativo de forma pura; não escreve nem apaga. |
+| retenção | planner corretivo | Reconhece somente o estado estrutural mínimo para exigir política; qualquer evidência adicional bloqueia. Não escreve nem apaga. |
 
 Nenhuma nova operação mutável foi iniciada. Assim, não existe nova ordem de
 escritas ou recovery D2: para a parte implementada a ordem completa é
-**validar snapshot → validar referências → classificar → devolver**. Os
-protocolos anteriores de importação e boot recovery não foram alterados.
+**validar snapshot → devolver estado fechado**. Os protocolos anteriores de
+importação e boot recovery não foram alterados.
 
 ### Contrato do planner de retenção
 
-`planStorageRetention` aceita `unknown`, falha fechado e devolve somente estados,
-motivos e identificadores administrativos sanitizados. A função:
+O planner aceita `unknown`, falha fechado e devolve exatamente três campos:
+`status`, `reason` fechado e `delete`. Os únicos estados são `policy-required` e
+`blocked`; `delete` é sempre `[]`.
 
-- exige snapshot com fingerprint, ids únicos, manifests válidos e conjunto de
-  operações não terminais coerente;
-- exige que geração ativa, migração, operações não terminais e completion
-  receipts apontem para gerações existentes;
-- preserva core atual, cópia rolante, snapshot legado, geração ativa, geração de
-  migração, referências de completion receipts, gerações anteriores/preparadas
-  de operações em curso e evidência de operações terminais;
-- preserva receipts não terminais, pendentes e marcados com `cleanupPending`;
-- classifica órfãos estruturalmente íntegros como `policy-required` e candidatos
-  sem prova como `integrity-proof-required`;
-- devolve `blocked` para entrada inválida ou referência quebrada;
-- devolve sempre `delete: []`.
+`policy-required` ocorre somente quando todas as condições abaixo são verdadeiras:
 
-Não existe política aprovada de idade ou quantidade, portanto não foram
-inventados limites como “manter N” ou “apagar após N dias”. O fingerprint é
-exposto para que um executor futuro possa reler e recusar plano obsoleto; esse
-executor não faz parte do D2 seguro e deverá operar como unidade serializada.
+- o snapshot e todos os arrays obrigatórios têm formato reconhecido;
+- `migrationStatus` é `completed` e os dois ponteiros de migração são `null`;
+- o ponteiro ativo top-level é não vazio e igual a `metadata.activeGeneration`;
+- existe exatamente uma geração, marcada `isActive: true` e `isStaged: false`;
+- ids de geração são únicos;
+- existe exatamente um manifest, correspondente à geração ativa, sem duplicata
+  nem referência a geração ausente;
+- o manifest ativo, o resumo e os registros ativos não se contradizem;
+- todos os registros pertencem à geração ativa e seus ids/ordens são únicos;
+- não existe operation receipt, completion receipt, `cleanupPending`, geração
+  histórica/inativa ou referência desconhecida;
+- não existe política de retenção aprovada e `delete` permanece vazio.
+
+Qualquer outra situação devolve `blocked`. Qualquer operation receipt bloqueia
+com motivo fechado, independentemente de ser import, restore, rollback, reset,
+kind desconhecido, terminal ou não terminal. Qualquer completion receipt também
+bloqueia, válido ou malformado. Qualquer geração além da ativa bloqueia por
+exigir prova física; nenhuma é tratada como lixo.
+
+O fingerprint legado de entrada é ignorado: ele não é prova, não é recalculado,
+truncado, codificado, transformado ou devolvido. Nenhum id administrativo, raw,
+core, backup, receipt, dado de perfil, sessão, treino, mensagem nativa, stack ou
+`cause` atravessa o resultado.
+
+`HistoryGenerationSummary.verified` continua somente diagnóstico. A igualdade
+de flags e campos entre resumo e manifest serve para detectar contradição, não
+para comprovar digest ou integridade física e nunca para autorizar deleção.
+Não existe política aprovada de idade/quantidade, executor ou deleção.
 
 ### Idempotência, concorrência, privacidade e escopo
 
-O plano é determinístico mesmo quando as coleções de entrada chegam em outra
-ordem, não muta o snapshot e pode ser repetido sem efeito colateral. Por não
-haver I/O, duas abas apenas calculam planos; nenhuma compete por deleção.
-Owner-token permanece reservado ao E para qualquer executor futuro.
+O plano é determinístico, não muta nem mesmo um snapshot profundamente congelado
+e pode ser repetido sem efeito colateral. Por não haver I/O, duas abas apenas
+calculam estados; nenhuma compete por deleção. Owner-token permanece reservado
+ao E para qualquer executor futuro.
 
-Entrada adulterada ou exceção inesperada não propaga mensagem nativa, `cause`,
-stack, raw, nome, e-mail, sessão ou treino. Não existe call site de produção,
-Provider, AdminPanel, botão, modal, toast, download, upload ou mudança Android.
-Android/WebView continua no F. O D2 foi implementado somente no subconjunto
-seguro; o GOAL-17B-002D inteiro permanece aberto.
+Entrada adulterada ou exceção inesperada não propaga conteúdo privado. Não
+existe call site de produção, Provider, AdminPanel, botão, modal, toast,
+download, upload ou mudança Android. Restore, rollback e reset continuam
+bloqueados. O D2 foi implementado somente no subconjunto seguro e continua
+parcial; E e F não foram iniciados e o GOAL-17B-002D inteiro permanece aberto.

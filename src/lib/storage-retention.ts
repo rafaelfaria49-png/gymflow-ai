@@ -1,366 +1,276 @@
-import type {
-  HistoryGenerationSummary,
-  StorageAdministrationSnapshotRead,
-} from './storage-adapter';
-import { isHistoryGenerationManifest } from './storage-history-integrity';
-import {
-  isStorageOperationReceipt,
-  isTerminalStorageOperationStatus,
-  type StorageOperationReceipt,
-} from './storage-operation-receipt';
-import { isRecord } from './storage-validation';
-
 // GOAL-17B-002D-D2B — planejamento conservador de retenção.
 //
-// Não existe política aprovada de quantidade ou idade. Por isso este módulo é
-// deliberadamente apenas um planner puro: ele nunca recebe adapter/storage,
-// nunca apaga e nunca transforma "parece órfão" em autorização de deleção.
+// Este módulo é deliberadamente puro e não possui autoridade de retenção. Ele
+// reconhece somente o estado administrativo mínimo em que uma política ainda
+// precisa ser aprovada. Todo o restante falha fechado, sem devolver conteúdo ou
+// identidades do snapshot.
 
 export type StorageRetentionPlanStatus = 'policy-required' | 'blocked';
 
-export type StorageRetentionDisposition = 'keep' | 'delete' | 'blocked';
-
-export type StorageRetentionArtifactKind =
-  | 'administration-snapshot'
-  | 'current-core'
-  | 'rolling-core-backup'
-  | 'legacy-snapshot'
-  | 'generation'
-  | 'operation-receipt'
-  | 'completion-receipt';
-
 export type StorageRetentionReason =
+  | 'policy-required'
   | 'snapshot-invalid'
-  | 'current-core'
-  | 'rolling-core-backup'
-  | 'legacy-snapshot'
-  | 'active-generation'
-  | 'migration-generation'
-  | 'pending-completion-generation'
-  | 'unsettled-previous-generation'
-  | 'unsettled-staged-generation'
-  | 'terminal-operation-evidence'
-  | 'unsettled-operation-receipt'
+  | 'operation-receipt-present'
+  | 'completion-receipt-present'
   | 'cleanup-pending'
-  | 'pending-completion-receipt'
-  | 'integrity-proof-required'
-  | 'policy-required';
-
-export interface StorageRetentionDecision {
-  artifactKind: StorageRetentionArtifactKind;
-  artifactId: string;
-  disposition: StorageRetentionDisposition;
-  reason: StorageRetentionReason;
-}
+  | 'physical-proof-required';
 
 export interface StorageRetentionPlan {
   status: StorageRetentionPlanStatus;
-  reason: 'snapshot-invalid' | 'policy-required';
-  snapshotFingerprint: string | null;
-  decisions: readonly StorageRetentionDecision[];
-  keep: readonly StorageRetentionDecision[];
-  delete: readonly StorageRetentionDecision[];
-  blocked: readonly StorageRetentionDecision[];
+  reason: StorageRetentionReason;
+  delete: readonly [];
 }
 
-const FIXED_PROTECTIONS: readonly StorageRetentionDecision[] = [
-  {
-    artifactKind: 'current-core',
-    artifactId: 'current-core',
-    disposition: 'keep',
-    reason: 'current-core',
-  },
-  {
-    artifactKind: 'rolling-core-backup',
-    artifactId: 'rolling-core-backup',
-    disposition: 'keep',
-    reason: 'rolling-core-backup',
-  },
-  {
-    artifactKind: 'legacy-snapshot',
-    artifactId: 'legacy-snapshot',
-    disposition: 'keep',
-    reason: 'legacy-snapshot',
-  },
-];
+type StorageRetentionCheck =
+  | { status: 'policy-required'; reason: 'policy-required' }
+  | { status: 'blocked'; reason: Exclude<StorageRetentionReason, 'policy-required'> };
 
-function finalizePlan(
-  status: StorageRetentionPlanStatus,
-  reason: StorageRetentionPlan['reason'],
-  snapshotFingerprint: string | null,
-  decisions: readonly StorageRetentionDecision[],
-): StorageRetentionPlan {
-  const copied = decisions.map((decision) => ({ ...decision }));
-  return {
-    status,
-    reason,
-    snapshotFingerprint,
-    decisions: copied,
-    keep: copied.filter((decision) => decision.disposition === 'keep'),
-    delete: copied.filter((decision) => decision.disposition === 'delete'),
-    blocked: copied.filter((decision) => decision.disposition === 'blocked'),
-  };
+const MIGRATION_STATUSES = new Set([
+  'not-started',
+  'in-progress',
+  'completed',
+  'failed',
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function invalidPlan(): StorageRetentionPlan {
-  return finalizePlan('blocked', 'snapshot-invalid', null, [
-    ...FIXED_PROTECTIONS,
-    {
-      artifactKind: 'administration-snapshot',
-      artifactId: 'administration-snapshot',
-      disposition: 'blocked',
-      reason: 'snapshot-invalid',
-    },
-  ]);
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
 }
 
-function isGenerationSummary(value: unknown): value is HistoryGenerationSummary {
+function isNullableNonEmptyString(value: unknown): value is string | null {
+  return value === null || isNonEmptyString(value);
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+function isNullableNonNegativeInteger(value: unknown): value is number | null {
+  return value === null || isNonNegativeInteger(value);
+}
+
+function isNullableBoolean(value: unknown): value is boolean | null {
+  return value === null || typeof value === 'boolean';
+}
+
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function hasUniqueStrings(values: readonly string[]): boolean {
+  return values.length === new Set(values).size;
+}
+
+function isMetadataShape(value: unknown): value is Record<string, unknown> {
   if (!isRecord(value)) return false;
-  return typeof value.generationId === 'string'
-    && value.generationId.length > 0
+  return isNonEmptyString(value.activeGeneration)
+    && isNullableNonEmptyString(value.migrationGeneration)
+    && isNonNegativeInteger(value.schemaVersion)
+    && value.schemaVersion > 0
+    && typeof value.migrationStatus === 'string'
+    && MIGRATION_STATUSES.has(value.migrationStatus)
+    && isNullableNonEmptyString(value.migratedAt)
+    && isNullableNonNegativeInteger(value.sourceStorageVersion);
+}
+
+function isGenerationShape(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  return isNonEmptyString(value.generationId)
     && typeof value.isActive === 'boolean'
     && typeof value.isStaged === 'boolean'
     && typeof value.hasManifest === 'boolean'
     && typeof value.hasRecords === 'boolean'
-    && typeof value.recordCount === 'number'
-    && Number.isInteger(value.recordCount)
-    && value.recordCount >= 0
-    && (value.manifestSessionCount === null
-      || (typeof value.manifestSessionCount === 'number'
-        && Number.isInteger(value.manifestSessionCount)
-        && value.manifestSessionCount >= 0))
-    && (value.orderedDigest === null || typeof value.orderedDigest === 'string')
-    && (value.verified === null || typeof value.verified === 'boolean');
+    && isNonNegativeInteger(value.recordCount)
+    && isNullableNonNegativeInteger(value.manifestSessionCount)
+    && isNullableNonEmptyString(value.orderedDigest)
+    && isNullableBoolean(value.verified)
+    && isNullableNonEmptyString(value.createdAt)
+    && isNullableNonEmptyString(value.updatedAt);
 }
 
-function completionReference(value: unknown): {
-  receiptId: string;
-  generationIds: readonly string[];
-} | null {
-  if (!isRecord(value)) return null;
-  if (
-    typeof value.receiptId !== 'string'
-    || value.receiptId.length === 0
-    || typeof value.generationId !== 'string'
-    || value.generationId.length === 0
-  ) {
-    return null;
+function isManifestShape(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  return isNonEmptyString(value.generationId)
+    && isNonNegativeInteger(value.sessionCount)
+    && isNonEmptyString(value.orderedDigest)
+    && isNonEmptyString(value.createdAt)
+    && isNonEmptyString(value.updatedAt)
+    && typeof value.verified === 'boolean';
+}
+
+function manifestsMatch(
+  left: Record<string, unknown>,
+  right: Record<string, unknown>,
+): boolean {
+  return left.generationId === right.generationId
+    && left.sessionCount === right.sessionCount
+    && left.orderedDigest === right.orderedDigest
+    && left.createdAt === right.createdAt
+    && left.updatedAt === right.updatedAt
+    && left.verified === right.verified;
+}
+
+function isActiveRecordShape(
+  value: unknown,
+  activeGenerationId: string,
+): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  return value.generationId === activeGenerationId
+    && isNonEmptyString(value.sessionId)
+    && isNonNegativeInteger(value.order)
+    && isRecord(value.session)
+    && isNullableNonEmptyString(value.digest);
+}
+
+function blocked(
+  reason: Exclude<StorageRetentionReason, 'policy-required'>,
+): StorageRetentionCheck {
+  return { status: 'blocked', reason };
+}
+
+function checkSnapshot(value: unknown): StorageRetentionCheck {
+  if (!isRecord(value) || !isRecord(value.metadata)) {
+    return blocked('snapshot-invalid');
   }
-  const core = value.coreEnvelopeAfter;
-  if (!isRecord(core) || !isRecord(core.historyStorage)) return null;
-  const coreGenerationId = core.historyStorage.generationId;
-  if (typeof coreGenerationId !== 'string' || coreGenerationId.length === 0) return null;
-  return {
-    receiptId: value.receiptId,
-    generationIds: Array.from(new Set([value.generationId, coreGenerationId])),
-  };
-}
 
-function uniqueNonEmptyStrings(values: readonly string[]): boolean {
-  return values.length === new Set(values).size && values.every((value) => value.length > 0);
-}
-
-function snapshotShape(value: unknown): {
-  snapshot: StorageAdministrationSnapshotRead;
-  operations: readonly StorageOperationReceipt[];
-  completions: readonly { receiptId: string; generationIds: readonly string[] }[];
-} | null {
-  if (!isRecord(value) || !isRecord(value.metadata)) return null;
   if (
-    typeof value.fingerprint !== 'string'
-    || value.fingerprint.length === 0
-    || (value.activeGenerationId !== null && typeof value.activeGenerationId !== 'string')
-    || (value.migrationGenerationId !== null && typeof value.migrationGenerationId !== 'string')
-    || !Array.isArray(value.generations)
+    !Array.isArray(value.generations)
     || !Array.isArray(value.manifests)
+    || !Array.isArray(value.activeGenerationRecords)
     || !Array.isArray(value.operationReceipts)
     || !Array.isArray(value.unsettledOperations)
     || !Array.isArray(value.pendingCompletionReceipts)
   ) {
-    return null;
+    return blocked('snapshot-invalid');
   }
-  if (!value.generations.every(isGenerationSummary)) return null;
-  if (!value.manifests.every(isHistoryGenerationManifest)) return null;
-  if (!value.operationReceipts.every(isStorageOperationReceipt)) return null;
-  if (!value.unsettledOperations.every(isStorageOperationReceipt)) return null;
 
-  const completions = value.pendingCompletionReceipts.map(completionReference);
-  if (completions.some((entry) => entry === null)) return null;
+  if (hasOwn(value, 'cleanupPending')) {
+    return blocked('cleanup-pending');
+  }
+  if (value.operationReceipts.length > 0 || value.unsettledOperations.length > 0) {
+    return blocked('operation-receipt-present');
+  }
+  if (value.pendingCompletionReceipts.length > 0) {
+    return blocked('completion-receipt-present');
+  }
 
-  const generationIds = value.generations.map((entry) => entry.generationId);
-  const operationIds = value.operationReceipts.map((entry) => entry.operationId);
-  const completionIds = completions.map((entry) => entry?.receiptId ?? '');
+  const metadata = value.metadata;
   if (
-    !uniqueNonEmptyStrings(generationIds)
-    || !uniqueNonEmptyStrings(operationIds)
-    || !uniqueNonEmptyStrings(completionIds)
+    !isMetadataShape(metadata)
+    || !isNonEmptyString(value.activeGenerationId)
+    || !isNullableNonEmptyString(value.migrationGenerationId)
+    || typeof value.activeGenerationPresent !== 'boolean'
   ) {
-    return null;
+    return blocked('snapshot-invalid');
   }
 
-  const expectedUnsettledIds = value.operationReceipts
-    .filter((receipt) => !isTerminalStorageOperationStatus(receipt.status))
-    .map((receipt) => receipt.operationId)
-    .sort();
-  const observedUnsettledIds = value.unsettledOperations
-    .map((receipt) => receipt.operationId)
-    .sort();
   if (
-    expectedUnsettledIds.length !== observedUnsettledIds.length
-    || expectedUnsettledIds.some((id, index) => id !== observedUnsettledIds[index])
+    metadata.activeGeneration !== value.activeGenerationId
+    || metadata.migrationGeneration !== value.migrationGenerationId
   ) {
-    return null;
+    return blocked('snapshot-invalid');
+  }
+  if (metadata.migrationStatus !== 'completed') {
+    return blocked('snapshot-invalid');
+  }
+  if (metadata.migrationGeneration !== null || value.migrationGenerationId !== null) {
+    return blocked('physical-proof-required');
   }
 
-  return {
-    snapshot: value as unknown as StorageAdministrationSnapshotRead,
-    operations: value.operationReceipts,
-    completions: completions as {
-      receiptId: string;
-      generationIds: readonly string[];
-    }[],
-  };
-}
-
-function protectedGenerationReason(
-  generationId: string,
-  snapshot: StorageAdministrationSnapshotRead,
-  operations: readonly StorageOperationReceipt[],
-  completions: readonly { generationIds: readonly string[] }[],
-): StorageRetentionReason | null {
-  if (generationId === snapshot.activeGenerationId) return 'active-generation';
-  if (generationId === snapshot.migrationGenerationId) return 'migration-generation';
-  if (completions.some((receipt) => receipt.generationIds.includes(generationId))) {
-    return 'pending-completion-generation';
+  if (!value.generations.every(isGenerationShape)) {
+    return blocked('snapshot-invalid');
   }
-  for (const receipt of operations) {
-    if (!isTerminalStorageOperationStatus(receipt.status)) {
-      if (receipt.previousGenerationId === generationId) return 'unsettled-previous-generation';
-      if (receipt.stagedGenerationId === generationId) return 'unsettled-staged-generation';
-    }
+  const generationIds = value.generations.map((entry) => entry.generationId as string);
+  if (!hasUniqueStrings(generationIds)) {
+    return blocked('snapshot-invalid');
   }
-  if (operations.some((receipt) => (
-    isTerminalStorageOperationStatus(receipt.status)
-    && (
-      receipt.previousGenerationId === generationId
-      || receipt.stagedGenerationId === generationId
-    )
-  ))) {
-    return 'terminal-operation-evidence';
+  if (value.generations.length !== 1) {
+    return value.generations.length > 1
+      ? blocked('physical-proof-required')
+      : blocked('snapshot-invalid');
   }
-  return null;
-}
 
-function generationHasStructuralProof(
-  generation: HistoryGenerationSummary,
-  snapshot: StorageAdministrationSnapshotRead,
-): boolean {
-  const manifest = snapshot.manifests.find((entry) => entry.generationId === generation.generationId);
-  return generation.hasManifest
-    && generation.verified === true
-    && generation.manifestSessionCount !== null
-    && generation.recordCount === generation.manifestSessionCount
-    && generation.orderedDigest !== null
-    && manifest !== undefined
-    && manifest.verified
-    && manifest.sessionCount === generation.recordCount
-    && manifest.orderedDigest === generation.orderedDigest;
-}
-
-function referencesAreCoherent(
-  snapshot: StorageAdministrationSnapshotRead,
-  operations: readonly StorageOperationReceipt[],
-  completions: readonly { generationIds: readonly string[] }[],
-): boolean {
-  const known = new Set(snapshot.generations.map((entry) => entry.generationId));
-  if (snapshot.activeGenerationId === null || !known.has(snapshot.activeGenerationId)) return false;
-  if (snapshot.migrationGenerationId !== null && !known.has(snapshot.migrationGenerationId)) return false;
-
-  for (const receipt of operations) {
-    if (isTerminalStorageOperationStatus(receipt.status)) continue;
-    if (!known.has(receipt.previousGenerationId)) return false;
-    if (receipt.stagedGenerationId !== null && !known.has(receipt.stagedGenerationId)) return false;
+  const activeGeneration = value.generations[0];
+  if (
+    activeGeneration.generationId !== value.activeGenerationId
+    || activeGeneration.isActive !== true
+    || activeGeneration.isStaged !== false
+    || value.activeGenerationPresent !== true
+  ) {
+    return blocked('snapshot-invalid');
   }
-  return completions.every((receipt) => (
-    receipt.generationIds.every((generationId) => known.has(generationId))
-  ));
+
+  if (!value.manifests.every(isManifestShape)) {
+    return blocked('snapshot-invalid');
+  }
+  const manifestIds = value.manifests.map((entry) => entry.generationId as string);
+  if (!hasUniqueStrings(manifestIds) || value.manifests.length !== 1) {
+    return blocked('snapshot-invalid');
+  }
+
+  const activeManifest = value.manifests[0];
+  if (
+    activeManifest.generationId !== value.activeGenerationId
+    || !isManifestShape(value.activeGenerationManifest)
+    || !manifestsMatch(activeManifest, value.activeGenerationManifest)
+  ) {
+    return blocked('snapshot-invalid');
+  }
+
+  if (
+    activeGeneration.hasManifest !== true
+    || activeGeneration.manifestSessionCount !== activeManifest.sessionCount
+    || activeGeneration.orderedDigest !== activeManifest.orderedDigest
+    || activeGeneration.verified !== activeManifest.verified
+  ) {
+    return blocked('snapshot-invalid');
+  }
+
+  if (
+    !value.activeGenerationRecords.every((entry) => (
+      isActiveRecordShape(entry, value.activeGenerationId as string)
+    ))
+  ) {
+    return blocked('snapshot-invalid');
+  }
+
+  const recordIds = value.activeGenerationRecords
+    .map((entry) => (entry as Record<string, unknown>).sessionId as string);
+  const recordOrders = value.activeGenerationRecords
+    .map((entry) => (entry as Record<string, unknown>).order as number);
+  if (
+    !hasUniqueStrings(recordIds)
+    || recordOrders.length !== new Set(recordOrders).size
+    || activeGeneration.recordCount !== value.activeGenerationRecords.length
+    || activeGeneration.hasRecords !== (value.activeGenerationRecords.length > 0)
+    || activeManifest.sessionCount !== value.activeGenerationRecords.length
+  ) {
+    return blocked('snapshot-invalid');
+  }
+
+  return { status: 'policy-required', reason: 'policy-required' };
 }
 
 /**
- * Planeja retenção sem autorizar exclusão.
- *
- * A assinatura aceita `unknown` para que uma leitura adulterada também produza
- * um resultado fechado e sanitizado, em vez de lançar ou interpolar conteúdo
- * físico numa mensagem pública.
+ * Planeja retenção sem executar I/O, provar integridade física ou autorizar
+ * exclusão. O fingerprint legado do snapshot não é lido nem devolvido.
  */
 export function planStorageRetention(value: unknown): StorageRetentionPlan {
   try {
-    const parsed = snapshotShape(value);
-    if (!parsed) return invalidPlan();
-    const { snapshot, operations, completions } = parsed;
-    if (!referencesAreCoherent(snapshot, operations, completions)) return invalidPlan();
-
-    const generationDecisions: StorageRetentionDecision[] = [...snapshot.generations]
-      .sort((left, right) => left.generationId.localeCompare(right.generationId))
-      .map((generation) => {
-        const protectedReason = protectedGenerationReason(
-          generation.generationId,
-          snapshot,
-          operations,
-          completions,
-        );
-        if (protectedReason !== null) {
-          return {
-            artifactKind: 'generation',
-            artifactId: generation.generationId,
-            disposition: 'keep',
-            reason: protectedReason,
-          };
-        }
-        return {
-          artifactKind: 'generation',
-          artifactId: generation.generationId,
-          disposition: 'blocked',
-          reason: generationHasStructuralProof(generation, snapshot)
-            ? 'policy-required'
-            : 'integrity-proof-required',
-        };
-      });
-
-    const operationDecisions: StorageRetentionDecision[] = [...operations]
-      .sort((left, right) => left.operationId.localeCompare(right.operationId))
-      .map((receipt) => {
-        const cleanupPending = (receipt as unknown as Record<string, unknown>).cleanupPending === true;
-        return {
-          artifactKind: 'operation-receipt',
-          artifactId: receipt.operationId,
-          disposition: cleanupPending || !isTerminalStorageOperationStatus(receipt.status)
-            ? 'keep'
-            : 'blocked',
-          reason: cleanupPending
-            ? 'cleanup-pending'
-            : !isTerminalStorageOperationStatus(receipt.status)
-              ? 'unsettled-operation-receipt'
-              : 'policy-required',
-        };
-      });
-
-    const completionDecisions: StorageRetentionDecision[] = [...completions]
-      .sort((left, right) => left.receiptId.localeCompare(right.receiptId))
-      .map((receipt) => ({
-        artifactKind: 'completion-receipt',
-        artifactId: receipt.receiptId,
-        disposition: 'keep',
-        reason: 'pending-completion-receipt',
-      }));
-
-    return finalizePlan('policy-required', 'policy-required', snapshot.fingerprint, [
-      ...FIXED_PROTECTIONS,
-      ...generationDecisions,
-      ...operationDecisions,
-      ...completionDecisions,
-    ]);
+    const result = checkSnapshot(value);
+    return {
+      status: result.status,
+      reason: result.reason,
+      delete: [],
+    };
   } catch {
-    return invalidPlan();
+    return {
+      status: 'blocked',
+      reason: 'snapshot-invalid',
+      delete: [],
+    };
   }
 }
