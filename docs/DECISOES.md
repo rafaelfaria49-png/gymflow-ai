@@ -1486,3 +1486,60 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
   mantém restore v1 quando disponível, recomeço explícito e download do raw. O
   comando 062 preservou esse contrato sem alterar
   `GymFlowContext.storage.test.tsx`, mantendo v2 comprovado totalmente fechado.
+
+## GOAL-17B-002D-D2 — operações administrativas e retenção (2026-07-28)
+
+- **Base auditada:** o D1 está integrado à `master` pelo merge commit
+  `42356f07`. A auditoria D2-0 partiu desse commit sem reabrir contratos dos
+  slices anteriores.
+- **Classificação global: Classe B.** Há um subconjunto seguro que exige uma
+  extensão controlada, mas três frentes têm ambiguidade material. A classificação
+  individual é: restore **Classe C**, rollback **Classe C**, reset **Classe C** e
+  retenção **Classe B**.
+- **Restore híbrido permanece bloqueado.** Existem o snapshot legado congelado,
+  a cópia rolante do core e gerações históricas, mas nenhum contrato escolhe uma
+  fonte híbrida única, verificável e acompanhada do par core/geração. Restore
+  continua distinto de import; raw, generation id ou receipt fornecido pelo
+  chamador não é aceito como autoridade.
+- **Rollback administrativo permanece bloqueado.** O rollback físico existente
+  troca somente o ponteiro ativo do IndexedDB. Ele não prova qual core acompanha
+  uma geração arbitrária, e receipts históricos nem sempre fornecem uma fonte
+  única para esse par. Portanto ele não foi exposto como rollback completo.
+- **Reset permanece bloqueado.** A interpretação proposta seria criar uma
+  instalação v2 vazia preservando receipt, core e geração anteriores até a
+  liquidação. Ainda não há contrato aprovado para defaults, identidade,
+  completion receipts e recovery desse mundo novo; nenhum desses pontos foi
+  improvisado.
+- **A auditoria independente do primeiro commit foi Classe C.** O planner
+  devolvia o fingerprint privado, aceitava metadata e manifests contraditórios,
+  interpretava receipts de forma permissiva e tratava evidência estrutural como
+  prova física. O corretivo preserva esse commit no histórico e fecha esses
+  bloqueadores num segundo commit.
+- **Somente o planner puro de retenção foi corrigido.** Ele recebe `unknown`,
+  não recebe adapter, runtime, storage, relógio ou callback, não possui call
+  site de produção e nunca escreve.
+- **A saída pública foi reduzida.** Ela contém somente `status`, `reason` fechado
+  e `delete: []`. O fingerprint foi removido; nenhum id administrativo, raw,
+  core, backup, receipt, dado de perfil, sessão, treino, stack ou `cause`
+  atravessa o resultado.
+- **`policy-required` possui semântica restrita.** Só ocorre com migration
+  concluída e sem geração de migração; ponteiros top-level e metadata iguais;
+  exatamente uma geração, ativa e não staged; um único manifest correspondente;
+  registros ativos referindo essa geração; zero operation receipt, completion
+  receipt, `cleanupPending`, geração histórica/inativa e referência desconhecida.
+  Qualquer outra situação devolve `blocked`.
+- **`verified` continua apenas diagnóstico.** A coerência declarativa entre
+  resumo e manifest é comparada, mas isso não prova digest nem integridade física
+  e nunca autoriza deleção. Qualquer geração além da ativa bloqueia por exigir
+  prova física.
+- **Receipts bloqueiam sem interpretação.** Qualquer operation receipt, de
+  import, restore, rollback, reset, kind desconhecido ou status terminal/não
+  terminal, devolve `operation-receipt-present`. Qualquer completion receipt,
+  válido ou inválido, devolve `completion-receipt-present`.
+- **Recovery e ordem de escrita não mudaram.** O planner apenas valida e devolve
+  um estado fechado. Não existe política aprovada de idade/quantidade, executor
+  ou deleção; restore, rollback e reset continuam bloqueados.
+- **Escopo:** zero UI, zero Provider, zero Android e zero call site de usuário.
+  D2 continua parcial; owner-token e serialização entre abas continuam
+  reservados ao E, e Android/WebView ao F. E e F não foram iniciados e o
+  GOAL-17B-002D não está concluído.
