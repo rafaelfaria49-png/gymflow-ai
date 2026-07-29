@@ -89,6 +89,23 @@ export interface StorageAdminOwnerTokenCoordinator {
   }): StorageAdminOwnerTokenAcquisition;
 }
 
+export type StorageAdminOwnerTokenInspectionStatus =
+  | 'available'
+  | 'busy'
+  | 'expired'
+  | 'malformed'
+  | 'unavailable';
+
+export interface StorageAdminOwnerTokenInspection {
+  readonly status: StorageAdminOwnerTokenInspectionStatus;
+}
+
+export interface InspectStorageAdminOwnerTokenOptions {
+  readonly key: string;
+  readonly storage: Pick<StorageLike, 'getItem'>;
+  readonly now?: () => number;
+}
+
 type TokenRead =
   | { status: 'absent' }
   | { status: 'read'; raw: string; token: StoredStorageAdminOwnerToken }
@@ -168,7 +185,7 @@ function isStoredToken(value: unknown): value is StoredStorageAdminOwnerToken {
     && isNonEmptyString(token.nonce);
 }
 
-function readToken(storage: StorageLike, tokenKey: string): TokenRead {
+function readToken(storage: Pick<StorageLike, 'getItem'>, tokenKey: string): TokenRead {
   let raw: string | null;
   try {
     raw = storage.getItem(tokenKey);
@@ -208,6 +225,44 @@ export function isStorageAdminOwnerTokenConflict(
     && typeof value === 'object'
     && (value as { status?: unknown }).status === 'owner-token-blocked'
     && isBlockedReason((value as { reason?: unknown }).reason);
+}
+
+/**
+ * Observa somente a disponibilidade pública do lease administrativo.
+ *
+ * Nenhuma identidade, nonce ou instante atravessa esta fronteira. A inspeção
+ * nunca cria, renova, libera ou remove um token; entradas e relógios que não
+ * possam ser classificados com segurança falham como indisponíveis.
+ */
+export function inspectStorageAdminOwnerToken(
+  options: InspectStorageAdminOwnerTokenOptions,
+): StorageAdminOwnerTokenInspection {
+  try {
+    if (!isNonEmptyString(options.key)) {
+      return Object.freeze({ status: 'unavailable' });
+    }
+
+    const now = (options.now ?? Date.now)();
+    if (!isFiniteInteger(now)) {
+      return Object.freeze({ status: 'unavailable' });
+    }
+
+    const read = readToken(options.storage, `${options.key}${OWNER_TOKEN_KEY_SUFFIX}`);
+    if (read.status === 'absent') {
+      return Object.freeze({ status: 'available' });
+    }
+    if (read.status === 'blocked') {
+      return Object.freeze({
+        status: read.reason === 'malformed-token' ? 'malformed' : 'unavailable',
+      });
+    }
+
+    return Object.freeze({
+      status: now >= read.token.expiresAt ? 'expired' : 'busy',
+    });
+  } catch {
+    return Object.freeze({ status: 'unavailable' });
+  }
 }
 
 class StorageAdminOwnerTokenLeaseImpl implements StorageAdminOwnerTokenLease {

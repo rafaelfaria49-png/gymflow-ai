@@ -55,7 +55,15 @@ import { IndexedDbWorkoutHistoryStorage } from '../lib/storage-indexeddb';
 import {
   STORAGE_BOOT_RECOVERY_MESSAGES,
   runStorageBootRecoveryOnce,
+  type StorageBootRecoveryOutcome,
 } from '../lib/storage-boot-recovery';
+import { createStorageAdminRuntime } from '../lib/storage-admin-runtime';
+import {
+  createStorageAdminStatusReader,
+  createUnavailableStorageAdminStatus,
+  type StorageAdminStatus,
+  type StorageAdminStatusReader,
+} from '../lib/storage-admin-status';
 import { commitStorageImport, createRawRecoveryExport, downloadTextFile } from '../lib/storage-export';
 import { mergePersistedState, migrateLegacyState } from '../lib/storage-migrations';
 import type {
@@ -316,6 +324,7 @@ interface GymFlowContextType {
   storageMode: HybridStorageMode;
   legacyStorageOperationsAllowed: boolean;
   storageRecoveryCapabilities: StorageRecoveryCapabilities;
+  inspectStorageAdminStatus: () => Promise<StorageAdminStatus>;
   applyStorageImport: (backup: GymFlowBackupFile<PersistedState>) => StorageWriteResult<PersistedState>;
   restoreStorageBackup: () => StorageWriteResult<PersistedState>;
   startFreshStorage: () => StorageWriteResult<PersistedState>;
@@ -722,6 +731,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const [storagePhysicalVersion, setStoragePhysicalVersion] = useState<number | null>(null);
   const historyAdapterRef = useRef<IndexedDbWorkoutHistoryStorage | null>(null);
   const hybridRuntimeRef = useRef<HybridStorageRuntime | null>(null);
+  const storageBootOutcomeRef = useRef<StorageBootRecoveryOutcome | null>(null);
+  const storageAdminStatusReaderRef = useRef<StorageAdminStatusReader | null>(null);
   const storageBlockedRef = useRef(false);
   const pendingSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastWriteErrorRef = useRef<string | null>(null);
@@ -958,6 +969,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           key: STORAGE_KEY,
         });
         if (cancelled || !mountedRef.current) return;
+        storageBootOutcomeRef.current = recovery;
 
         blockedClassificationOnly =
           recovery.status === 'ready-for-blocked-storage-classification';
@@ -2661,6 +2673,28 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     toast.info(`Conteúdo original exportado (${recovery.bytes.toLocaleString('pt-BR')} bytes).`);
   };
 
+  const inspectStorageAdminStatus = useCallback((): Promise<StorageAdminStatus> => {
+    const adapter = historyAdapterRef.current;
+    if (!adapter || typeof window === 'undefined') {
+      return Promise.resolve(createUnavailableStorageAdminStatus());
+    }
+    storageAdminStatusReaderRef.current ??= createStorageAdminStatusReader({
+      runtime: createStorageAdminRuntime({
+        key: STORAGE_KEY,
+        storage: window.localStorage,
+        adapter,
+      }),
+      evidenceReader: adapter,
+      storage: window.localStorage,
+      key: STORAGE_KEY,
+      getBootOutcome: () => storageBootOutcomeRef.current,
+      // Esta UI não cria uma política de reserva. A decisão existente protege
+      // uma histórica quando ela existe e nunca autoriza execução ou exclusão.
+      rollbackReserveRequired: false,
+    });
+    return storageAdminStatusReaderRef.current.inspect();
+  }, []);
+
   return (
     <GymFlowContext.Provider
       value={{
@@ -2772,6 +2806,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         storageMode,
         legacyStorageOperationsAllowed,
         storageRecoveryCapabilities,
+        inspectStorageAdminStatus,
         applyStorageImport,
         restoreStorageBackup,
         startFreshStorage,

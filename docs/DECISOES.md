@@ -1624,3 +1624,27 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
   razões fechadas; não carregam owner/operação/nonce/chave/timestamps/raws,
   digests, receipts, stack ou `cause`. Nenhuma UI, executor, política de
   retenção, seleção de geração, deleção ou Slice F foi iniciada.
+
+## GOAL-17B-002E-E2 — saúde administrativa read-only (2026-07-29)
+
+- **Auditoria Classe B.** Os contratos físicos e decisórios já existiam; a UI
+  exigiu somente um facade sanitizado e uma integração controlada no Provider e
+  no `AdminPanel` existentes. Nenhum Provider, fluxo de boot ou executor novo
+  foi criado.
+- **Uma inspeção lógica por atualização.** O facade compartilha a Promise
+  concorrente, observa o runtime administrativo, a evidência física, o planner,
+  a decisão, o outcome já concluído do boot e o owner-token. O componente
+  cancela publicação após unmount e funciona sob Strict Mode.
+- **Fronteira pública mínima.** A saída deep-frozen contém apenas enums
+  fechados, booleanos invariavelmente falsos e contagens agregadas. IDs,
+  timestamps, digests, fingerprints, manifests, receipts, raws, dados de
+  usuário/treino e erros nativos nunca atravessam o facade.
+- **Owner-token somente leitura.** A inspeção aditiva usa apenas `getItem` e
+  devolve `available`, `busy`, `expired`, `malformed` ou `unavailable`; ela não
+  cria, renova, libera, remove nem revela o lease.
+- **Candidatura não é autoridade.** `futureDeleteCandidate` é apenas uma
+  cardinalidade visível. `executionAuthorized` e `deleteAuthorized` permanecem
+  falsos, a tela não faz limpeza automática e não há call site de deleção.
+- **Escopo preservado.** Importação, restore, reset, recovery, retenção
+  executável, mutações administrativas e Slice F não foram iniciados por esta
+  interface.
