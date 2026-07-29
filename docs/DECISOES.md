@@ -1579,3 +1579,48 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - **Escopo preservado.** Zero I/O, relógio, aleatoriedade, React, UI, Provider,
   boot call site, recovery, ativação, rollback ou delete. E e F não foram
   iniciados.
+
+## GOAL-17B-002E-E1 — owner-token administrativo entre abas (2026-07-29)
+
+- **Auditoria Classe B.** As operações administrativas reais já estavam
+  concentradas em C1/C2 e protegidas por journal, CAS, prova física e readback.
+  Foi necessária uma extensão aditiva: um lease local versionado e a reserva
+  interna do `operationId` antes de W1. Nenhuma transação, UI ou executor foi
+  redesenhado.
+- **Chave e shape fechados.** O token usa
+  `<chave-principal>:admin-owner-token:v1` e contém somente `schemaVersion`,
+  `ownerId` opaco, `operationId`, `operationKind`, `acquiredAt`, `expiresAt` e
+  `nonce`. Chaves extras, JSON inválido, versão ou tipos desconhecidos bloqueiam.
+- **Aquisição é write + readback exato.** Ausência ou `now >= expiresAt`
+  permitem tentativa de aquisição; token válido de outro owner/operação
+  bloqueia. Relógio, owner, nonce, fábrica de operação e storage são injetáveis.
+  Não há retry temporal, sleep nem remoção oportunista.
+- **Renovação e liberação revalidam identidade.** Só o mesmo
+  owner/operação/kind/nonce pode renovar. O release não chama `removeItem`: após
+  confirmação exata ele escreve um tombstone expirado com nonce novo e confirma
+  o readback. Um handle antigo ou ABA não remove nem sobrescreve um token já
+  substituído.
+- **Cada janela C1/C2 confirma antes e depois.** O lease renova quando entra na
+  margem final, confirma propriedade imediatamente antes da mutação e relê
+  depois. Foram cercados begin, staging, transições do receipt, ativação/reversão
+  de geração, backup rolante, core byte-exato, settlement, compensações e
+  cleanup do recovery.
+- **Perda de propriedade para fechado.** Conflito antes impede a escrita;
+  conflito depois não tenta adivinhar se o efeito venceu. C1/C2 devolvem
+  `owner-token-conflict` sanitizado, interrompem e preservam journal, gerações e
+  core para o recovery existente convergir após expiração comprovada.
+- **O lease não substitui autoridade física.** CAS do IndexedDB, receipts,
+  fingerprints, digests, verificação de geração, readback byte a byte e recovery
+  permanecem obrigatórios. O token apenas reduz e detecta disputa cooperativa.
+- **Strict Mode compartilha execução e lease local.** O lock de boot existente
+  continua entregando a mesma Promise por storage/chave; o registro local do
+  owner-token devolve o mesmo handle para a mesma operação na mesma aba. O boot
+  classifica perda do lease como conflito e não hidrata.
+- **Limite honesto.** `localStorage` não oferece CAS nem transação entre abas;
+  portanto isto não é exclusão mútua perfeita. Duas escritas realmente
+  simultâneas ainda podem intercalar. O contrato é um lease cooperativo com
+  escrita/readback e detecção de perda em torno de cada janela.
+- **Privacidade e escopo.** Resultados do owner-token publicam apenas status e
+  razões fechadas; não carregam owner/operação/nonce/chave/timestamps/raws,
+  digests, receipts, stack ou `cause`. Nenhuma UI, executor, política de
+  retenção, seleção de geração, deleção ou Slice F foi iniciada.

@@ -912,3 +912,33 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   adapter, não publica IDs e devolve `deleteAuthorized: false` e
   `executionAuthorized: false` em todos os estados. Slice E e Slice F continuam
   não iniciados.
+
+## GOAL-17B-002E-E1 — pendências após o owner-token
+
+- **17B-002D-A2-P9, 17B-002D-B-P10, 17B-002D-C1-P4/P8 e 17B-002D-D2-P6 —
+  resolvidos para C1/C2 existentes.** *Resolvido em E1.* Begin, staging,
+  ativação/reversão, core byte-exato, transições, settlement, compensação e
+  recovery agora confirmam o mesmo lease antes e depois de cada janela. O W8 não
+  inicia mais sem propriedade confirmada e perda pós-transação bloqueia o
+  settlement seguinte.
+- **17B-002E-E1-P1 — `localStorage` não oferece CAS.** *Aberto · P2 · limitação
+  de plataforma.* Escrita seguida de readback detecta muitas disputas, mas não
+  transforma `localStorage` em mutex linearizável. CAS do IndexedDB e journal
+  continuam obrigatórios; nenhuma documentação ou UI deve prometer exclusão
+  perfeita.
+- **17B-002E-E1-P2 — suspensão longa pode expirar o lease durante uma
+  transação.** *Aberto · P2.* A confirmação posterior detecta a perda e impede
+  a próxima janela, mas um segundo documento pode iniciar depois da expiração
+  enquanto a primeira mutação ainda termina. O recovery converge o efeito; um
+  lock transacional real exigiria outra plataforma/arquitetura.
+- **17B-002D-D2-P5/P8/P10 — executor de retenção continua inexistente.**
+  *Aberto · P2.* O E1 fornece o coordenador, mas não autoriza execução, não
+  resolve IDs de candidatas, não define política, reserva anterior, revalidação
+  A/B ou CAS de deleção. `ownerTokenRequired: true` não vira autorização.
+- **17B-002E-E1-P3 — validar comportamento em WebView físico.** *Aberto · P3.*
+  Semântica de eventos, suspensão de aba e disponibilidade de storage em
+  Capacitor continuam reservadas ao Slice F. O contrato local é determinístico,
+  mas não substitui a evidência em dispositivo.
+- **Escopo permanece fechado.** Restore, rollback completo e reset continuam
+  Classe C; nenhuma UI, executor, política de idade/quantidade, seleção,
+  deleção, push, PR ou merge foi iniciada.

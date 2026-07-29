@@ -1686,3 +1686,51 @@ O executor futuro ainda precisará definir política, correlacionar boot e
 evidência no mesmo ciclo, resolver identidades, proteger a geração anterior
 correta, adquirir owner-token, revalidar snapshot/prova e aplicar CAS antes de
 qualquer exclusão. Nada disso, nem UI, Provider, E ou F, começou nesta etapa.
+
+## GOAL-17B-002E-E1 — lease administrativo cooperativo
+
+As operações administrativas reais de importação e recovery agora usam a chave
+derivada `<key>:admin-owner-token:v1`. O valor interno possui exatamente:
+
+```text
+schemaVersion, ownerId, operationId, operationKind,
+acquiredAt, expiresAt, nonce
+```
+
+O token é válido somente enquanto o shape e a versão forem reconhecidos,
+`now < expiresAt` e a leitura atual corresponder exatamente ao raw, owner,
+operação, kind e nonce conhecidos pelo handle. `now >= expiresAt` permite
+takeover; relógio inválido/regressivo e token malformed bloqueiam.
+
+Aquisição e renovação gravam e exigem readback byte-exato. Renovação só ocorre
+para o mesmo owner e operação. Release não remove a chave: depois de reconfirmar
+propriedade, grava um tombstone expirado com nonce novo e confirma o readback.
+Se outra aba já substituiu o valor, o handle antigo não escreve.
+
+Cada janela mutável usa a mesma disciplina:
+
+1. confirmar propriedade e validade, renovando na margem final;
+2. executar uma única janela administrativa;
+3. reler e confirmar a propriedade exata;
+4. em perda, parar com motivo fechado e preservar o journal.
+
+Isso cerca receipt inicial/transições/settlement, staging, ativação/reversão,
+backup rolante, escrita byte-exata do core, compensações, cleanup e recovery.
+CAS do IndexedDB, receipts, fingerprints, digests, verificação física, readbacks
+do core e recovery permanecem inalterados e obrigatórios.
+
+No boot, duas montagens Strict Mode compartilham a mesma Promise por
+storage/chave. Na mesma aba, coordenadores da mesma operação reutilizam o mesmo
+handle local. Outra aba com token válido bloqueia a recuperação e, portanto, a
+hidratação. Operação abandonada só é retomada quando a expiração é comprovada.
+
+Este contrato é deliberadamente um **lease cooperativo com detecção de
+conflito**, não exclusão mútua perfeita: `localStorage` não tem CAS nem transação
+entre documentos. Uma expiração durante uma janela longa pode permitir
+interleaving; a confirmação posterior bloqueia os passos seguintes e o journal
+existente orienta a convergência.
+
+O resultado do lease contém somente status e razões fechadas. Owner, operação,
+nonce, chave física, timestamps, raws, digests, receipts, stack e `cause` não
+são publicados. Nenhum executor, política, seleção, deleção, UI ou Slice F foi
+adicionado.

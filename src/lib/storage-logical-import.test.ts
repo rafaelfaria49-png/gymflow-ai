@@ -47,6 +47,10 @@ import {
   createStorageOperationReceipt,
 } from './storage-operation-receipt';
 import {
+  createStorageAdminOwnerTokenCoordinator,
+  type StorageAdminOwnerTokenCoordinator,
+} from './storage-admin-owner-token';
+import {
   MONOLITHIC_STORAGE_VERSION,
   type PersistedCoreState,
   type PersistedState,
@@ -56,6 +60,25 @@ import {
 const KEY = 'gymflow:state:v1';
 const BACKUP_KEY = `${KEY}${HYBRID_CORE_BACKUP_SUFFIX}`;
 let databaseSequence = 0;
+let ownerOperationSequence = 0;
+
+// Os testes históricos deste arquivo injetam falhas em qualquer setItem para
+// isolar cada janela do protocolo C1/C2. Um lease determinístico mantém esse
+// foco; os testes específicos de integração entre abas usam o coordenador real.
+function createTestOwnerToken(): StorageAdminOwnerTokenCoordinator {
+  return {
+    createOperationId: () => `operation-owner-test-${ownerOperationSequence += 1}`,
+    acquire: () => ({
+      status: 'acquired',
+      reason: 'acquired',
+      lease: {
+        confirm: () => ({ status: 'owned', reason: 'confirmed' }),
+        execute: async <T>(operation: () => T | Promise<T>) => operation(),
+        release: () => ({ status: 'released', reason: 'released' }),
+      },
+    }),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -245,6 +268,7 @@ function commit(
     storage: harness.storage,
     key: KEY,
     now: () => new Date('2026-07-26T11:00:00.000Z'),
+    ownerToken: createTestOwnerToken(),
     ...overrides,
   });
 }
@@ -3044,6 +3068,7 @@ async function crashedImport(setup: CrashSetup = {}): Promise<CrashedImport> {
     storage: harness.storage,
     key: KEY,
     now: () => new Date('2026-07-26T11:00:00.000Z'),
+    ownerToken: createTestOwnerToken(),
   });
 
   // Fim do processo: a conexão IndexedDB e todos os proxies morrem aqui.
@@ -3077,6 +3102,7 @@ function recover(env: Harness, operationId?: string): Promise<LogicalStorageImpo
     adapter: env.adapter,
     storage: env.storage,
     key: KEY,
+    ownerToken: createTestOwnerToken(),
     ...(operationId === undefined ? {} : { operationId }),
   });
 }
@@ -3786,6 +3812,7 @@ describe('recuperação da importação v2 — reinício real, limite e concorr�
       adapter: instavel,
       storage: env.storage,
       key: KEY,
+      ownerToken: createTestOwnerToken(),
     });
 
     expect(resultado).toMatchObject({
@@ -4639,6 +4666,350 @@ describe('recuperação da importação v2 — privacidade', () => {
 });
 
 // ---------------------------------------------------------------------------
+describe('owner-token real — integração C1/C2 entre abas', () => {
+  const C1_WRITE_WINDOWS = [
+    'W1 begin receipt',
+    'W2 stage generation',
+    'W4 receipt activating',
+    'W5 activate generation',
+    'W6 rolling backup',
+    'W6 exact core',
+    'W8 receipt activated',
+    'W9 settlement',
+  ] as const;
+
+  function ownerWithTakeoverAt(input: {
+    storage: MemoryStorage;
+    timing: 'before' | 'after';
+    window: number;
+    now: () => number;
+  }): {
+    coordinator: StorageAdminOwnerTokenCoordinator;
+    executedWindows: () => number;
+  } {
+    let window = 0;
+    let nonce = 0;
+    const base = createStorageAdminOwnerTokenCoordinator({
+      key: KEY,
+      storage: input.storage,
+      ownerId: 'owner-import-tab',
+      now: input.now,
+      nonceFactory: () => `nonce-import-${nonce += 1}`,
+      operationIdFactory: () => 'operation-import-window',
+      leaseDurationMs: 100,
+      renewWithinMs: 25,
+    });
+    const takeover = (): void => {
+      input.storage.values.set(`${KEY}:admin-owner-token:v1`, JSON.stringify({
+        schemaVersion: 1,
+        ownerId: 'owner-other-tab',
+        operationId: 'operation-other-tab',
+        operationKind: 'import',
+        acquiredAt: 0,
+        expiresAt: 100,
+        nonce: `nonce-other-${input.timing}-${input.window}`,
+      }));
+    };
+    return {
+      coordinator: {
+        createOperationId: () => base.createOperationId(),
+        acquire: (acquireInput) => {
+          const acquisition = base.acquire(acquireInput);
+          if (acquisition.status === 'blocked') return acquisition;
+          const lease = acquisition.lease;
+          return {
+            status: 'acquired',
+            reason: acquisition.reason,
+            lease: {
+              confirm: () => lease.confirm(),
+              execute: async <T>(operation: () => T | Promise<T>): Promise<T> => {
+                window += 1;
+                if (window === input.window && input.timing === 'before') takeover();
+                return lease.execute(async () => {
+                  const result = await operation();
+                  if (window === input.window && input.timing === 'after') takeover();
+                  return result;
+                });
+              },
+              release: () => lease.release(),
+            },
+          };
+        },
+      },
+      executedWindows: () => window,
+    };
+  }
+
+  it('bloqueia a importação antes de W1 quando outra aba mantém token válido', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const raw = await makeBackupContent(defaults([makeSession(70)]));
+    const coreBefore = harness.storage.getItem(KEY);
+    const blocker = createStorageAdminOwnerTokenCoordinator({
+      key: KEY,
+      storage: harness.storage,
+      ownerId: 'owner-other-tab',
+      now: () => 10,
+      nonceFactory: () => 'nonce-other-tab',
+      operationIdFactory: () => 'operation-other-tab',
+      leaseDurationMs: 100,
+      renewWithinMs: 25,
+    });
+    expect(blocker.acquire({
+      operationId: 'operation-other-tab',
+      operationKind: 'import',
+    }).status).toBe('acquired');
+    const contender = createStorageAdminOwnerTokenCoordinator({
+      key: KEY,
+      storage: harness.storage,
+      ownerId: 'owner-current-tab',
+      now: () => 10,
+      nonceFactory: () => 'nonce-current-tab',
+      operationIdFactory: () => 'operation-current-tab',
+      leaseDurationMs: 100,
+      renewWithinMs: 25,
+    });
+
+    const result = await commit(harness, raw, { ownerToken: contender });
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'owner-token-conflict',
+      operationId: null,
+      generationId: null,
+      compensation: 'not-needed',
+    });
+    expect(await readOperationReceipts(harness)).toEqual([]);
+    expect(await harness.adapter.readActiveHistory()).toEqual([makeSession(1)]);
+    expect(harness.storage.getItem(KEY)).toBe(coreBefore);
+  });
+
+  it('perda depois de W2 para fechado; recovery converge após takeover expirado', async () => {
+    const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+    const raw = await makeBackupContent(defaults([makeSession(70), makeSession(71)]));
+    let now = 0;
+    const owner = createStorageAdminOwnerTokenCoordinator({
+      key: KEY,
+      storage: harness.storage,
+      ownerId: 'owner-import-tab',
+      now: () => now,
+      nonceFactory: (() => {
+        let sequence = 0;
+        return () => `nonce-import-${sequence += 1}`;
+      })(),
+      operationIdFactory: () => 'operation-import-tab',
+      leaseDurationMs: 100,
+      renewWithinMs: 25,
+    });
+    const adapterWithTakeover = afterCall(
+      harness.adapter,
+      'stageHistoryGenerationForOperation',
+      1,
+      () => {
+        harness.storage.values.set(`${KEY}:admin-owner-token:v1`, JSON.stringify({
+          schemaVersion: 1,
+          ownerId: 'owner-other-tab',
+          operationId: 'operation-other-tab',
+          operationKind: 'import',
+          acquiredAt: 0,
+          expiresAt: 100,
+          nonce: 'nonce-other-tab',
+        }));
+      },
+    ) as LogicalImportAdapter;
+
+    const interrupted = await commit(harness, raw, {
+      adapter: adapterWithTakeover,
+      ownerToken: owner,
+    });
+
+    expect(interrupted).toMatchObject({
+      ok: false,
+      reason: 'owner-token-conflict',
+    });
+    const [receipt] = await readOperationReceipts(harness);
+    expect(receipt).toMatchObject({
+      operationId: 'operation-import-tab',
+      status: 'staged',
+      kind: 'import',
+    });
+    const beforeBlockedRecovery = await footprintOf(harness);
+    const recoveryOwner = createStorageAdminOwnerTokenCoordinator({
+      key: KEY,
+      storage: harness.storage,
+      ownerId: 'owner-recovery-tab',
+      now: () => now,
+      nonceFactory: (() => {
+        let sequence = 0;
+        return () => `nonce-recovery-${sequence += 1}`;
+      })(),
+      operationIdFactory: () => 'operation-recovery-tab',
+      leaseDurationMs: 100,
+      renewWithinMs: 25,
+    });
+
+    now = 99;
+    const blocked = await recoverLogicalStorageImportV2({
+      runtime: harness.runtime,
+      adapter: harness.adapter,
+      storage: harness.storage,
+      key: KEY,
+      ownerToken: recoveryOwner,
+    });
+    expect(blocked).toMatchObject({
+      ok: false,
+      reason: 'owner-token-conflict',
+      recoveryRequired: true,
+    });
+    expect(await footprintOf(harness)).toBe(beforeBlockedRecovery);
+
+    now = 100;
+    const recovered = await recoverLogicalStorageImportV2({
+      runtime: harness.runtime,
+      adapter: harness.adapter,
+      storage: harness.storage,
+      key: KEY,
+      ownerToken: recoveryOwner,
+    });
+    expect(recovered).toMatchObject({
+      ok: true,
+      status: 'reverted',
+      recoveryRequired: false,
+    });
+    expect((await harness.runtime.inspectStorageAdministration()).unsettledOperations).toEqual([]);
+    expect(await harness.adapter.readActiveHistory()).toEqual([makeSession(1)]);
+  });
+
+  for (const timing of ['before', 'after'] as const) {
+    for (const [index, windowName] of C1_WRITE_WINDOWS.entries()) {
+      it(`conflito ${timing} de ${windowName} interrompe fechado e deixa recovery convergir`, async () => {
+        const harness = await createReadyHarness({ sessions: [makeSession(1)] });
+        const raw = await makeBackupContent(defaults([makeSession(70), makeSession(71)]));
+        let now = 0;
+        const interleaving = ownerWithTakeoverAt({
+          storage: harness.storage,
+          timing,
+          window: index + 1,
+          now: () => now,
+        });
+
+        const interrupted = await commit(harness, raw, {
+          ownerToken: interleaving.coordinator,
+        });
+
+        expect(interrupted).toMatchObject({
+          ok: false,
+          reason: 'owner-token-conflict',
+          operationId: null,
+          generationId: null,
+        });
+        expect(interleaving.executedWindows()).toBe(index + 1);
+        expect(JSON.stringify(interrupted)).not.toMatch(
+          /owner-import-tab|owner-other-tab|operation-import-window|nonce-other/,
+        );
+
+        now = 100;
+        const recoveryOwner = createStorageAdminOwnerTokenCoordinator({
+          key: KEY,
+          storage: harness.storage,
+          ownerId: 'owner-recovery-tab',
+          now: () => now,
+          nonceFactory: () => `nonce-recovery-${timing}-${index}`,
+          operationIdFactory: () => `operation-recovery-${timing}-${index}`,
+          leaseDurationMs: 100,
+          renewWithinMs: 25,
+        });
+        const recovered = await recoverLogicalStorageImportV2({
+          runtime: harness.runtime,
+          adapter: harness.adapter,
+          storage: harness.storage,
+          key: KEY,
+          ownerToken: recoveryOwner,
+        });
+
+        expect(recovered.ok).toBe(true);
+        expect((await harness.runtime.inspectStorageAdministration()).unsettledOperations).toEqual([]);
+      }, 30_000);
+    }
+  }
+
+  const C2_SCENARIOS = [
+    {
+      name: 'staged/revert',
+      create: stagedCrash,
+      windows: ['revert receipt', 'cleanup staging'],
+    },
+    {
+      name: 'activating/forward',
+      create: activatingCrash,
+      windows: [
+        'activate generation',
+        'rolling backup',
+        'exact core',
+        'mark activated',
+        'settlement',
+      ],
+    },
+  ] as const;
+
+  for (const scenario of C2_SCENARIOS) {
+    for (const timing of ['before', 'after'] as const) {
+      for (const [index, windowName] of scenario.windows.entries()) {
+        it(`recovery ${scenario.name}: conflito ${timing} de ${windowName} para fechado`, async () => {
+          const crash = await scenario.create();
+          const env = reloaded(crash.harness);
+          let now = 0;
+          const interleaving = ownerWithTakeoverAt({
+            storage: env.storage,
+            timing,
+            window: index + 1,
+            now: () => now,
+          });
+
+          const interrupted = await recoverLogicalStorageImportV2({
+            runtime: env.runtime,
+            adapter: env.adapter,
+            storage: env.storage,
+            key: KEY,
+            ownerToken: interleaving.coordinator,
+          });
+
+          expect(interrupted).toMatchObject({
+            ok: false,
+            reason: 'owner-token-conflict',
+            recoveryRequired: true,
+          });
+          expect(interleaving.executedWindows()).toBe(index + 1);
+          expect(JSON.stringify(interrupted)).not.toMatch(
+            /owner-import-tab|owner-other-tab|operation-import-window|nonce-other/,
+          );
+
+          now = 100;
+          const recoveryOwner = createStorageAdminOwnerTokenCoordinator({
+            key: KEY,
+            storage: env.storage,
+            ownerId: 'owner-recovery-tab',
+            now: () => now,
+            nonceFactory: () => `nonce-recovery-${scenario.name}-${timing}-${index}`,
+            operationIdFactory: () => `operation-recovery-${scenario.name}-${timing}-${index}`,
+            leaseDurationMs: 100,
+            renewWithinMs: 25,
+          });
+          const recovered = await recoverLogicalStorageImportV2({
+            runtime: env.runtime,
+            adapter: env.adapter,
+            storage: env.storage,
+            key: KEY,
+            ownerToken: recoveryOwner,
+          });
+
+          expect(recovered.ok).toBe(true);
+          expect((await env.runtime.inspectStorageAdministration()).unsettledOperations).toEqual([]);
+        }, 30_000);
+      }
+    }
+  }
+});
+
 // 195–200 — GUARDS DE AUSÊNCIA DE CALL SITE
 // ---------------------------------------------------------------------------
 
@@ -4777,7 +5148,6 @@ describe('recuperação da importação v2 — ausência de call site', () => {
       'replaceHistory',
       'writeMetadata',
       'removeItem',
-      'ownerToken',
       'supabase',
     ]) {
       expect([proibido, fonte.includes(proibido)]).toEqual([proibido, false]);

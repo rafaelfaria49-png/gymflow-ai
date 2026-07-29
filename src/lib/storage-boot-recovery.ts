@@ -6,6 +6,7 @@ import {
   type RecoverLogicalStorageImportV2Input,
   recoverLogicalStorageImportV2,
 } from './storage-logical-import';
+import type { StorageAdminOwnerTokenCoordinator } from './storage-admin-owner-token';
 import { parsePhysicalEnvelope } from './storage-hybrid';
 import type { StorageLike } from './storage-types';
 import { isRecord } from './storage-validation';
@@ -70,8 +71,8 @@ export const STORAGE_BOOT_RECOVERY_MESSAGES: Readonly<
   Record<StorageBootRecoveryBlockedStatus, string>
 > = {
   'blocked-operation-conflict':
-    'Existe mais de uma operação de armazenamento em aberto. Seus dados foram preservados '
-    + 'e o carregamento está suspenso até a recuperação ser concluída.',
+    'Outra aba está executando uma operação de armazenamento ou existe mais de uma operação '
+    + 'em aberto. Seus dados foram preservados e o carregamento está suspenso.',
   'blocked-recovery-required':
     'A recuperação do armazenamento local não pôde ser concluída. Seus dados foram preservados '
     + 'e nada foi apagado; reabra o aplicativo para tentar novamente.',
@@ -93,6 +94,9 @@ export interface StorageBootRecoveryInput {
   // Injeção opcional: quando ausente, o runtime administrativo é criado aqui a
   // partir do MESMO adapter que a hidratação vai usar — sem segunda conexão.
   runtime?: LogicalImportRecoveryRuntime;
+  // O chamador pode compartilhar uma coordenação determinística nos testes.
+  // Em produção, a recuperação cria o owner-token versionado a partir da chave.
+  ownerToken?: StorageAdminOwnerTokenCoordinator;
   // Costura de teste para exercitar a classificação sem fabricar mundos físicos.
   // O caminho real usa `recoverLogicalStorageImportV2`.
   recover?: (
@@ -198,6 +202,7 @@ export function classifyStorageBootRecovery(result: unknown): StorageBootRecover
     case 'administration-unavailable':
       return blocked('blocked-recovery-required', cleanupPending);
     case 'operation-conflict':
+    case 'owner-token-conflict':
       return blocked('blocked-operation-conflict', cleanupPending);
     case 'administration-conflicted':
       return blocked('blocked-administration-conflicted', cleanupPending);
@@ -231,6 +236,7 @@ export async function runStorageBootRecovery(
       adapter: input.adapter,
       storage: input.storage,
       key: input.key,
+      ownerToken: input.ownerToken,
     });
     if (
       isRecord(result)
