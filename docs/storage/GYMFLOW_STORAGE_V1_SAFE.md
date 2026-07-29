@@ -1636,3 +1636,53 @@ Não existe call site no boot, Provider, UI ou planner. A inspeção não escrev
 `localStorage` ou IndexedDB, não consome receipts, não altera metadata, não
 executa recovery e não chama retenção. Política de idade/quantidade, executor,
 deleção e os slices E/F continuam não iniciados.
+
+## GOAL-17B-002D-D2-072 — decisão agregada de retenção
+
+`storage-retention-decision.ts` compõe os dois contratos D2 sem reabrir o
+snapshot nem acessar storage. A entrada contém o plano estrutural, a evidência
+física agregada, o outcome fechado do boot e a indicação booleana de que uma
+reserva anterior é exigida pelo ciclo de vida observado.
+
+A saída é uma união fechada com os estados:
+
+- `decision-ready`;
+- `blocked-snapshot-unstable`;
+- `blocked-physical-unverified`;
+- `blocked-structural-conflict`;
+- `blocked-active-or-migration-reference`;
+- `blocked-operation-receipt`;
+- `blocked-completion-receipt`;
+- `blocked-boot-proof-missing`;
+- `blocked-insufficient-previous-generation`;
+- `blocked-unknown-state`.
+
+Ela publica somente razão fechada, booleanos e as contagens `evaluated`, `keep`,
+`protected` e `futureDeleteCandidate`. A soma das três classificações é a
+quantidade avaliada. Em qualquer bloqueio, toda geração não ativa permanece
+protegida e a candidatura é zero.
+
+`decision-ready` exige:
+
+- evidência `inspected/evidence-collected`, estável e sem anomalia estrutural;
+- exatamente uma ativa, nenhum ponteiro de migration e nenhum receipt;
+- todas as gerações observadas, completas e fisicamente verificadas;
+- históricas exclusivamente órfãs, sem função administrativa desconhecida;
+- planner `policy-required` para a ativa isolada, ou
+  `physical-proof-required` como handoff para ativa mais históricas;
+- boot em status ready, hidratação autorizada e zero cleanup pendente;
+- presença de histórica quando `rollbackReserveRequired` for verdadeiro.
+
+A ativa fica em `keep`. Havendo históricas, uma unidade fica em `protected`;
+somente as demais aumentam `futureDeleteCandidate`. Isso não seleciona ID e não
+afirma que o rollback híbrido exista: é apenas uma reserva cardinal conservadora.
+
+O resultado é deep-frozen e nunca contém generation/session id, digest,
+fingerprint, manifest, receipt, raw, mensagem de storage, stack ou `cause`.
+`ownerTokenRequired` permanece verdadeiro e tanto `executionAuthorized` quanto
+`deleteAuthorized` permanecem falsos, inclusive em `decision-ready`.
+
+O executor futuro ainda precisará definir política, correlacionar boot e
+evidência no mesmo ciclo, resolver identidades, proteger a geração anterior
+correta, adquirir owner-token, revalidar snapshot/prova e aplicar CAS antes de
+qualquer exclusão. Nada disso, nem UI, Provider, E ou F, começou nesta etapa.
