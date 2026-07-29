@@ -12,6 +12,12 @@ import {
   StorageOperationTransitionConflictError,
 } from './storage-admin-runtime';
 import {
+  createStorageAdminOwnerTokenCoordinator,
+  isStorageAdminOwnerTokenConflict,
+  type StorageAdminOwnerTokenCoordinator,
+  type StorageAdminOwnerTokenLease,
+} from './storage-admin-owner-token';
+import {
   HYBRID_CORE_BACKUP_SUFFIX,
   parsePhysicalEnvelope,
   toPersistedCoreState,
@@ -102,6 +108,7 @@ export type LogicalImportFailureReason =
   | 'administration-interrupted'
   | 'migration-incomplete'
   | 'operation-conflict'
+  | 'owner-token-conflict'
   | 'snapshot-changed-during-import'
   | 'staging-failed'
   | 'verification-failed'
@@ -187,6 +194,9 @@ export interface CommitLogicalStorageImportV2Input {
   // Injeção permitida apenas para teste; em produção `sha256Checksum` já usa o
   // Web Crypto global.
   subtleCrypto?: SubtleCrypto | null;
+  // Injeção para testes e integrações que compartilham uma identidade de aba.
+  // Ausente, o coordenador cria um ownerId opaco por documento.
+  ownerToken?: StorageAdminOwnerTokenCoordinator;
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +213,7 @@ const MESSAGES = {
   administrationInterrupted: 'Existe uma operação administrativa em aberto.',
   migrationIncomplete: 'A migração física para o formato v2 não está concluída.',
   operationConflict: 'Outra operação administrativa ou conclusão de treino bloqueia a importação.',
+  ownerTokenConflict: 'Outra aba possui ou alterou o lease desta operação administrativa.',
   snapshotChanged: 'O armazenamento mudou durante a importação.',
   coreNotV2: 'O core físico observado não é um envelope v2 coerente com a geração ativa.',
   beginReadbackFailed: 'O receipt inicial da importação não passou no readback.',
@@ -515,6 +526,7 @@ function reasonForInspection(
 
 interface CompensationTargets {
   adapter: LogicalImportAdapter;
+  ownerLease: StorageAdminOwnerTokenLease;
   operationId: string;
   expectedStatus: 'staged' | 'activating' | 'activated';
   expectedActiveGenerationId: string;
@@ -527,14 +539,17 @@ interface CompensationTargets {
 // FALHAR em vez de encerrar uma operação sobre um estado divergente.
 async function revertReceipt(targets: CompensationTargets): Promise<LogicalImportCompensation> {
   try {
-    await targets.adapter.revertStorageOperationAfterTransitionConflict({
-      operationId: targets.operationId,
-      expectedStatus: targets.expectedStatus,
-      expectedActiveGenerationId: targets.expectedActiveGenerationId,
-      reason: targets.reason,
-    });
+    await targets.ownerLease.execute(() => (
+      targets.adapter.revertStorageOperationAfterTransitionConflict({
+        operationId: targets.operationId,
+        expectedStatus: targets.expectedStatus,
+        expectedActiveGenerationId: targets.expectedActiveGenerationId,
+        reason: targets.reason,
+      })
+    ));
     return 'reverted';
-  } catch {
+  } catch (error) {
+    if (isStorageAdminOwnerTokenConflict(error)) throw error;
     return 'failed';
   }
 }
@@ -547,6 +562,7 @@ async function revertReceipt(targets: CompensationTargets): Promise<LogicalImpor
 // A geração ANTERIOR nunca é apagada por nenhum caminho deste módulo.
 async function cleanupStagedGeneration(
   adapter: LogicalImportAdapter,
+  ownerLease: StorageAdminOwnerTokenLease,
   generationId: string | null,
   previousGenerationId: string,
 ): Promise<void> {
@@ -555,8 +571,9 @@ async function cleanupStagedGeneration(
   try {
     const metadata = await adapter.readMetadata();
     if (metadata.activeGeneration === generationId) return;
-    await adapter.clearInactiveGeneration(generationId);
-  } catch {
+    await ownerLease.execute(() => adapter.clearInactiveGeneration(generationId));
+  } catch (error) {
+    if (isStorageAdminOwnerTokenConflict(error)) throw error;
     // Órfã preservada: ela não bloqueia diagnóstico nem hidratação, e insistir
     // sobre um armazenamento que já falhou não melhora nada.
   }
@@ -567,6 +584,7 @@ async function cleanupStagedGeneration(
 // reconferida dentro da transação e CAS da geração ativa.
 async function restorePreviousGeneration(
   adapter: LogicalImportAdapter,
+  ownerLease: StorageAdminOwnerTokenLease,
   previousGenerationId: string,
   stagedGenerationId: string,
 ): Promise<boolean> {
@@ -574,12 +592,13 @@ async function restorePreviousGeneration(
     const metadata = await adapter.readMetadata();
     if (metadata.activeGeneration === previousGenerationId) return true;
     if (metadata.activeGeneration !== stagedGenerationId) return false;
-    await adapter.rollbackToHistoryGeneration({
+    await ownerLease.execute(() => adapter.rollbackToHistoryGeneration({
       targetGenerationId: previousGenerationId,
       expectedActiveGenerationId: stagedGenerationId,
-    });
+    }));
     return true;
-  } catch {
+  } catch (error) {
+    if (isStorageAdminOwnerTokenConflict(error)) throw error;
     return false;
   }
 }
@@ -718,19 +737,47 @@ export async function commitLogicalStorageImportV2(
     });
   }
 
+  const ownerToken = input.ownerToken ?? createStorageAdminOwnerTokenCoordinator({
+    key,
+    storage,
+  });
+  const reservedOperationId = ownerToken.createOperationId();
+  const acquisition = ownerToken.acquire({
+    operationId: reservedOperationId,
+    operationKind: IMPORT_OPERATION_KIND,
+  });
+  if (acquisition.status === 'blocked') {
+    return failure({
+      reason: 'owner-token-conflict',
+      error: MESSAGES.ownerTokenConflict,
+      compensation: 'not-needed',
+    });
+  }
+  const ownerLease = acquisition.lease;
+
+  try {
+
   // -------------------------------------------------------------------------
   // W1 — receipt inicial. Primeiro write da operação.
   // -------------------------------------------------------------------------
 
   let receipt: StorageOperationReceipt;
   try {
-    receipt = await runtime.beginStorageOperation({
+    receipt = await ownerLease.execute(() => runtime.beginStorageOperation({
       kind: IMPORT_OPERATION_KIND,
       sourceDigest: payloadDigest,
+      reservedOperationId,
       stagedGenerationId: null,
       targetCoreRaw: null,
-    });
+    }));
   } catch (cause) {
+    if (isStorageAdminOwnerTokenConflict(cause)) {
+      return failure({
+        reason: 'owner-token-conflict',
+        error: MESSAGES.ownerTokenConflict,
+        compensation: 'not-attempted',
+      });
+    }
     if (
       cause instanceof StorageOperationAlreadyInProgressError
       || cause instanceof StorageCompletionPendingError
@@ -775,6 +822,13 @@ export async function commitLogicalStorageImportV2(
   }
 
   const operationId = receipt.operationId;
+  if (operationId !== reservedOperationId) {
+    return failure({
+      reason: 'owner-token-conflict',
+      error: MESSAGES.ownerTokenConflict,
+      compensation: 'not-attempted',
+    });
+  }
 
   const begun = await adapter.readStorageOperationReceipt(operationId).catch(() => null);
   if (
@@ -789,6 +843,7 @@ export async function commitLogicalStorageImportV2(
   ) {
     const compensation = await revertReceipt({
       adapter,
+      ownerLease,
       operationId,
       expectedStatus: 'staged',
       expectedActiveGenerationId: previousGenerationId,
@@ -808,17 +863,19 @@ export async function commitLogicalStorageImportV2(
 
   let generationId: string;
   try {
-    const staged = await adapter.stageHistoryGenerationForOperation({
+    const staged = await ownerLease.execute(() => adapter.stageHistoryGenerationForOperation({
       operationId,
       expectedStatus: 'staged',
       expectedKind: IMPORT_OPERATION_KIND,
       expectedActiveGenerationId: previousGenerationId,
       history: payload.workoutHistory,
-    });
+    }));
     generationId = staged.generationId;
   } catch (cause) {
+    if (isStorageAdminOwnerTokenConflict(cause)) throw cause;
     const compensation = await revertReceipt({
       adapter,
+      ownerLease,
       operationId,
       expectedStatus: 'staged',
       expectedActiveGenerationId: previousGenerationId,
@@ -844,13 +901,19 @@ export async function commitLogicalStorageImportV2(
   ): Promise<LogicalImportFailure> => {
     const compensation = await revertReceipt({
       adapter,
+      ownerLease,
       operationId,
       expectedStatus,
       expectedActiveGenerationId: previousGenerationId,
       reason: revertReason,
     });
     if (compensation === 'reverted') {
-      await cleanupStagedGeneration(adapter, generationId, previousGenerationId);
+      await cleanupStagedGeneration(
+        adapter,
+        ownerLease,
+        generationId,
+        previousGenerationId,
+      );
     }
     return failure({ reason, error, operationId, generationId, compensation, cause });
   };
@@ -978,19 +1041,25 @@ export async function commitLogicalStorageImportV2(
   }
 
   try {
-    await runtime.transitionStorageOperation({
+    await ownerLease.execute(() => runtime.transitionStorageOperation({
       operationId,
       expectedStatus: 'staged',
       nextStatus: 'activating',
       patch: { targetCoreRaw },
-    });
+    }));
   } catch (cause) {
+    if (isStorageAdminOwnerTokenConflict(cause)) throw cause;
     if (cause instanceof StorageOperationTransitionConflictError) {
       // A fachada já compensa sozinha quando o conflito é dela; uma segunda
       // tentativa de reverter só produziria uma falha de CAS inventada.
       if (cause.compensation !== 'not-attempted') {
         if (cause.compensation === 'reverted') {
-          await cleanupStagedGeneration(adapter, generationId, previousGenerationId);
+          await cleanupStagedGeneration(
+            adapter,
+            ownerLease,
+            generationId,
+            previousGenerationId,
+          );
         }
         return failure({
           reason: 'snapshot-changed-during-import',
@@ -1051,7 +1120,12 @@ export async function commitLogicalStorageImportV2(
     error: string,
     cause?: unknown,
   ): Promise<LogicalImportFailure> => {
-    const restored = await restorePreviousGeneration(adapter, previousGenerationId, generationId);
+    const restored = await restorePreviousGeneration(
+      adapter,
+      ownerLease,
+      previousGenerationId,
+      generationId,
+    );
     if (!restored) {
       // O mundo físico não voltou ao lugar: encerrar o receipt aqui esconderia
       // uma divergência real. O journal fica aberto de propósito.
@@ -1066,22 +1140,28 @@ export async function commitLogicalStorageImportV2(
     }
     const compensation = await revertReceipt({
       adapter,
+      ownerLease,
       operationId,
       expectedStatus: 'activating',
       expectedActiveGenerationId: previousGenerationId,
       reason: REVERT_REASONS.afterActivation,
     });
     if (compensation === 'reverted') {
-      await cleanupStagedGeneration(adapter, generationId, previousGenerationId);
+      await cleanupStagedGeneration(
+        adapter,
+        ownerLease,
+        generationId,
+        previousGenerationId,
+      );
     }
     return failure({ reason, error, operationId, generationId, compensation, cause });
   };
 
   try {
-    const activation = await adapter.rollbackToHistoryGeneration({
+    const activation = await ownerLease.execute(() => adapter.rollbackToHistoryGeneration({
       targetGenerationId: generationId,
       expectedActiveGenerationId: previousGenerationId,
-    });
+    }));
     if (
       activation.activeGeneration !== generationId
       || activation.migrationGeneration !== null
@@ -1090,6 +1170,7 @@ export async function commitLogicalStorageImportV2(
       return failAfterActivation('activation-failed', MESSAGES.activationFailed);
     }
   } catch (cause) {
+    if (isStorageAdminOwnerTokenConflict(cause)) throw cause;
     // Idempotência: a ativação pode ter commitado e falhado só no readback.
     const observed = await adapter.readMetadata().catch(() => null);
     if (observed === null) {
@@ -1175,8 +1256,9 @@ export async function commitLogicalStorageImportV2(
   // híbrido já usa. O conteúdo é exatamente `previousCoreRaw`, que o journal
   // também guarda.
   try {
-    storage.setItem(backupKey, previousCoreRaw);
+    await ownerLease.execute(() => storage.setItem(backupKey, previousCoreRaw));
   } catch (cause) {
+    if (isStorageAdminOwnerTokenConflict(cause)) throw cause;
     return failAfterBackupProblem(
       isQuotaFailure(cause) ? 'quota' : 'storage-unavailable',
       MESSAGES.coreBackupFailed,
@@ -1201,8 +1283,9 @@ export async function commitLogicalStorageImportV2(
     // O MESMO raw que o journal já prometeu. Nada de reconstruir o envelope,
     // nada de cunhar um `savedAt` novo: `saveHybridCoreResult` faria as duas
     // coisas e o core gravado nunca bateria byte a byte com `targetCoreRaw`.
-    storage.setItem(key, targetCoreRaw);
+    await ownerLease.execute(() => storage.setItem(key, targetCoreRaw));
   } catch (cause) {
+    if (isStorageAdminOwnerTokenConflict(cause)) throw cause;
     writeError = cause;
   }
 
@@ -1295,14 +1378,17 @@ export async function commitLogicalStorageImportV2(
     const coreBeforeMark = readRaw(storage, key);
     if (!coreBeforeMark.ok || coreBeforeMark.raw !== targetCoreRaw) return unprovable();
     try {
-      const advanced = await adapter.transitionStorageOperationIfUnambiguous({
+      const advanced = await ownerLease.execute(() => (
+        adapter.transitionStorageOperationIfUnambiguous({
         operationId,
         expectedStatus: 'activating',
         nextStatus: 'activated',
         expectedActiveGenerationId: generationId,
-      });
+        })
+      ));
       if (advanced.status !== 'activated') return unprovable();
     } catch (cause) {
+      if (isStorageAdminOwnerTokenConflict(cause)) throw cause;
       const current = await adapter.readStorageOperationReceipt(operationId).catch(() => null);
       // Idempotência: a transação pode ter commitado e falhado depois.
       if (current === null || current.status !== 'activated') {
@@ -1351,12 +1437,13 @@ export async function commitLogicalStorageImportV2(
   if (beforeSettle === null) return unprovable();
   if (beforeSettle.status === 'activated') {
     try {
-      await runtime.transitionStorageOperation({
+      await ownerLease.execute(() => runtime.transitionStorageOperation({
         operationId,
         expectedStatus: 'activated',
         nextStatus: 'settled',
-      });
+      }));
     } catch (cause) {
+      if (isStorageAdminOwnerTokenConflict(cause)) throw cause;
       const current = await adapter.readStorageOperationReceipt(operationId).catch(() => null);
       if (current === null || current.status !== 'settled') {
         return failure({
@@ -1418,6 +1505,18 @@ export async function commitLogicalStorageImportV2(
     savedAt,
     preview: inspection.preview,
   };
+  } catch (cause) {
+    if (isStorageAdminOwnerTokenConflict(cause)) {
+      return failure({
+        reason: 'owner-token-conflict',
+        error: MESSAGES.ownerTokenConflict,
+        compensation: 'not-attempted',
+      });
+    }
+    throw cause;
+  } finally {
+    ownerLease.release();
+  }
 }
 
 // ===========================================================================
@@ -1483,6 +1582,7 @@ export interface RecoverLogicalStorageImportV2Input {
   adapter: LogicalImportRecoveryAdapter;
   storage: StorageLike;
   key: string;
+  ownerToken?: StorageAdminOwnerTokenCoordinator;
   // Amarração opcional a UMA operação. Quando informado, ele precisa
   // corresponder ao receipt elegível; divergência bloqueia sem nenhuma escrita.
   operationId?: string;
@@ -1783,6 +1883,7 @@ export type LogicalImportRecoveryStatus =
 
 export type LogicalImportRecoveryFailureReason =
   | 'operation-conflict'
+  | 'owner-token-conflict'
   | 'administration-unavailable'
   | 'administration-conflicted'
   | 'migration-incomplete'
@@ -1838,6 +1939,7 @@ export type LogicalStorageImportRecoveryResult =
 // texto do ambiente.
 const RECOVERY_MESSAGES: Record<LogicalImportRecoveryFailureReason, string> = {
   'operation-conflict': 'O estado administrativo não identifica uma única importação recuperável.',
+  'owner-token-conflict': 'Outra aba possui ou alterou o lease da recuperação administrativa.',
   'administration-unavailable': 'O armazenamento administrativo não está disponível para recuperar.',
   'administration-conflicted': 'O estado administrativo está ambíguo demais para recuperar.',
   'migration-incomplete': 'A migração física para o formato v2 não está concluída.',
@@ -1923,13 +2025,17 @@ function selectRecoverableOperation(
 async function revertInterruptedReceipt(
   runtime: LogicalImportRecoveryRuntime,
   adapter: LogicalImportRecoveryAdapter,
+  ownerLease: StorageAdminOwnerTokenLease,
   operationId: string,
 ): Promise<'reverted' | 'already-reverted' | 'failed' | 'readback-failed'> {
   let advanced = false;
   try {
-    await runtime.revertStorageOperationSafely({ operationId, expectedStatus: 'staged' });
+    await ownerLease.execute(() => (
+      runtime.revertStorageOperationSafely({ operationId, expectedStatus: 'staged' })
+    ));
     advanced = true;
-  } catch {
+  } catch (error) {
+    if (isStorageAdminOwnerTokenConflict(error)) throw error;
     // Silêncio deliberado: a causa nativa não sobe e a releitura decide.
   }
   const current = await adapter.readStorageOperationReceipt(operationId).catch(() => null);
@@ -1948,6 +2054,7 @@ async function revertInterruptedReceipt(
 // A geração ANTERIOR nunca é apagada por nenhum caminho deste módulo.
 async function cleanupRevertedStagingSafely(
   adapter: LogicalImportRecoveryAdapter,
+  ownerLease: StorageAdminOwnerTokenLease,
   operationId: string,
   generationId: string,
   previousGenerationId: string,
@@ -1970,9 +2077,10 @@ async function cleanupRevertedStagingSafely(
     // Destruir a alternativa exige provar o mundo que fica — manifest, sessões e
     // digest ordenado da geração anterior, tudo recalculado.
     await adapter.readVerifiedHistoryGeneration(previousGenerationId);
-    await adapter.clearInactiveGeneration(generationId);
+    await ownerLease.execute(() => adapter.clearInactiveGeneration(generationId));
     return true;
-  } catch {
+  } catch (error) {
+    if (isStorageAdminOwnerTokenConflict(error)) throw error;
     // Órfã preservada: perder dados seria muito pior do que deixar lixo inativo.
     return false;
   }
@@ -1997,12 +2105,20 @@ type RecoveredCoreOutcome =
 // escrevê-la.
 async function commitRecoveredTargetCore(input: {
   adapter: LogicalImportRecoveryAdapter;
+  ownerLease: StorageAdminOwnerTokenLease;
   storage: StorageLike;
   key: string;
   operationId: string;
   generationId: string;
 }): Promise<RecoveredCoreOutcome> {
-  const { adapter, storage, key, operationId, generationId } = input;
+  const {
+    adapter,
+    ownerLease,
+    storage,
+    key,
+    operationId,
+    generationId,
+  } = input;
 
   const receipt = await adapter.readStorageOperationReceipt(operationId).catch(() => null);
   if (
@@ -2044,8 +2160,9 @@ async function commitRecoveredTargetCore(input: {
   if (!backupProbe.ok) return 'storage-unavailable';
 
   try {
-    storage.setItem(backupKey, previous);
+    await ownerLease.execute(() => storage.setItem(backupKey, previous));
   } catch (cause) {
+    if (isStorageAdminOwnerTokenConflict(cause)) throw cause;
     return isQuotaFailure(cause) ? 'quota' : 'storage-unavailable';
   }
   const backupReadback = readRaw(storage, backupKey);
@@ -2060,8 +2177,9 @@ async function commitRecoveredTargetCore(input: {
 
   let writeError: unknown = null;
   try {
-    storage.setItem(key, target);
+    await ownerLease.execute(() => storage.setItem(key, target));
   } catch (cause) {
+    if (isStorageAdminOwnerTokenConflict(cause)) throw cause;
     writeError = cause;
   }
 
@@ -2098,6 +2216,10 @@ export async function recoverLogicalStorageImportV2(
 ): Promise<LogicalStorageImportRecoveryResult> {
   const { runtime, adapter, storage, key } = input;
   const requested = input.operationId;
+  const ownerToken = input.ownerToken ?? createStorageAdminOwnerTokenCoordinator({
+    key,
+    storage,
+  });
 
   let steps = 0;
   let operationId: string | null = null;
@@ -2107,6 +2229,7 @@ export async function recoverLogicalStorageImportV2(
   // observável.
   let outcome: 'settled' | 'reverted' | null = null;
   let cleanupPending = false;
+  let ownerLease: StorageAdminOwnerTokenLease | null = null;
   // Verificação criptográfica válida SÓ para o par (fingerprint, geração): a
   // menor escrita no IndexedDB muda o fingerprint e a prova é descartada.
   let proof: { fingerprint: string; generationId: string; status: 'verified' | 'invalid' } | null = null;
@@ -2151,6 +2274,7 @@ export async function recoverLogicalStorageImportV2(
     );
   }
 
+  try {
   while (steps < MAX_RECOVERY_STEPS) {
     steps += 1;
 
@@ -2172,6 +2296,20 @@ export async function recoverLogicalStorageImportV2(
     if (receipt !== null) {
       operationId = receipt.operationId;
       generationId = receipt.stagedGenerationId ?? generationId;
+      if (
+        receipt.kind === IMPORT_OPERATION_KIND
+        && !isTerminalStorageOperationStatus(receipt.status)
+        && ownerLease === null
+      ) {
+        const acquisition = ownerToken.acquire({
+          operationId: receipt.operationId,
+          operationKind: receipt.kind,
+        });
+        if (acquisition.status === 'blocked') {
+          return fail('owner-token-conflict', 'observe');
+        }
+        ownerLease = acquisition.lease;
+      }
     }
 
     const fingerprint = snapshot.fingerprint;
@@ -2229,9 +2367,21 @@ export async function recoverLogicalStorageImportV2(
 
       case 'already-reverted': {
         if (decision.cleanupGenerationId !== null) {
+          if (ownerLease === null && receipt?.kind === IMPORT_OPERATION_KIND) {
+            const acquisition = ownerToken.acquire({
+              operationId: receipt.operationId,
+              operationKind: receipt.kind,
+            });
+            if (acquisition.status === 'blocked') {
+              return fail('owner-token-conflict', decision.action);
+            }
+            ownerLease = acquisition.lease;
+          }
+          if (ownerLease === null) return fail('owner-token-conflict', decision.action);
           const receiptPrevious = receipt?.previousGenerationId ?? null;
           const cleaned = receiptPrevious !== null && await cleanupRevertedStagingSafely(
             adapter,
+            ownerLease,
             decision.operationId,
             decision.cleanupGenerationId,
             receiptPrevious,
@@ -2257,7 +2407,13 @@ export async function recoverLogicalStorageImportV2(
 
       case 'revert-receipt':
       case 'revert-and-cleanup-staging': {
-        const reverted = await revertInterruptedReceipt(runtime, adapter, decision.operationId);
+        if (ownerLease === null) return fail('owner-token-conflict', decision.action);
+        const reverted = await revertInterruptedReceipt(
+          runtime,
+          adapter,
+          ownerLease,
+          decision.operationId,
+        );
         if (reverted === 'readback-failed') return fail('readback-failed', decision.action);
         if (reverted === 'failed') return fail('recovery-required', decision.action);
         if (reverted === 'reverted') outcome = 'reverted';
@@ -2269,6 +2425,7 @@ export async function recoverLogicalStorageImportV2(
       }
 
       case 'activate-generation': {
+        if (ownerLease === null) return fail('owner-token-conflict', decision.action);
         // Verificação integral de G ANTES da ativação, além da que a própria
         // primitiva refaz dentro da transação.
         const verified = await adapter
@@ -2284,17 +2441,18 @@ export async function recoverLogicalStorageImportV2(
           return fail('verification-failed', decision.action);
         }
         try {
-          const activation = await adapter.rollbackToHistoryGeneration({
+          const activation = await ownerLease.execute(() => adapter.rollbackToHistoryGeneration({
             targetGenerationId: decision.generationId,
             expectedActiveGenerationId: decision.previousGenerationId,
-          });
+          }));
           if (
             activation.activeGeneration !== decision.generationId
             || activation.migrationGeneration !== null
           ) {
             return fail('activation-failed', decision.action);
           }
-        } catch {
+        } catch (error) {
+          if (isStorageAdminOwnerTokenConflict(error)) throw error;
           // Idempotência: a ativação pode ter commitado e falhado só depois.
           const observed = await adapter.readMetadata().catch(() => null);
           if (observed === null || observed.activeGeneration !== decision.generationId) {
@@ -2322,8 +2480,10 @@ export async function recoverLogicalStorageImportV2(
       }
 
       case 'commit-target-core': {
+        if (ownerLease === null) return fail('owner-token-conflict', decision.action);
         const committed = await commitRecoveredTargetCore({
           adapter,
+          ownerLease,
           storage,
           key,
           operationId: decision.operationId,
@@ -2334,6 +2494,7 @@ export async function recoverLogicalStorageImportV2(
       }
 
       case 'mark-activated': {
+        if (ownerLease === null) return fail('owner-token-conflict', decision.action);
         const before = await adapter
           .readStorageOperationReceipt(decision.operationId)
           .catch(() => null);
@@ -2350,14 +2511,17 @@ export async function recoverLogicalStorageImportV2(
         if (!coreBefore.ok) return fail('storage-unavailable', decision.action);
         if (coreBefore.raw !== before.targetCoreRaw) return fail('recovery-required', decision.action);
         try {
-          const advanced = await adapter.transitionStorageOperationIfUnambiguous({
+          const advanced = await ownerLease.execute(() => (
+            adapter.transitionStorageOperationIfUnambiguous({
             operationId: decision.operationId,
             expectedStatus: 'activating',
             nextStatus: 'activated',
             expectedActiveGenerationId: decision.generationId,
-          });
+            })
+          ));
           if (advanced.status !== 'activated') return fail('readback-failed', decision.action);
-        } catch {
+        } catch (error) {
+          if (isStorageAdminOwnerTokenConflict(error)) throw error;
           // Idempotência: a transação pode ter commitado e falhado depois.
           const current = await adapter
             .readStorageOperationReceipt(decision.operationId)
@@ -2392,15 +2556,17 @@ export async function recoverLogicalStorageImportV2(
       }
 
       case 'settle': {
+        if (ownerLease === null) return fail('owner-token-conflict', decision.action);
         let advanced = false;
         try {
-          await runtime.transitionStorageOperation({
+          await ownerLease.execute(() => runtime.transitionStorageOperation({
             operationId: decision.operationId,
             expectedStatus: 'activated',
             nextStatus: 'settled',
-          });
+          }));
           advanced = true;
-        } catch {
+        } catch (error) {
+          if (isStorageAdminOwnerTokenConflict(error)) throw error;
           // Idempotência: a releitura decide, não a exceção.
         }
         const settled = await adapter
@@ -2424,4 +2590,12 @@ export async function recoverLogicalStorageImportV2(
   // Limite atingido: nada de recursão, nada de espera, nada de retry por atraso.
   // O journal fica inteiro.
   return fail('recovery-step-limit', 'observe');
+  } catch (error) {
+    if (isStorageAdminOwnerTokenConflict(error)) {
+      return fail('owner-token-conflict', 'observe');
+    }
+    throw error;
+  } finally {
+    ownerLease?.release();
+  }
 }

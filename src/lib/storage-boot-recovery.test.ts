@@ -408,6 +408,27 @@ describe('orquestrador de boot — execução única', () => {
     expect(a).toBe(b);
   });
 
+  it('19a. Strict Mode compartilha uma única aquisição para a mesma operação', async () => {
+    const world = reloaded(await createV2World([makeSession(9)]));
+    const operationId = await stageInterruptedImport(world);
+    const input = bootInput(world);
+
+    const primeira = runStorageBootRecoveryOnce(input);
+    const segunda = runStorageBootRecoveryOnce(input);
+
+    expect(segunda).toBe(primeira);
+    const [a, b] = await Promise.all([primeira, segunda]);
+    expect(a).toBe(b);
+    expect(a.status).toBe('ready-after-reverted');
+    expect(await world.adapter.readStorageOperationReceipt(operationId))
+      .toMatchObject({ status: 'reverted' });
+    const tokenKey = `${KEY}:admin-owner-token:v1`;
+    // Uma escrita adquire; uma segunda escreve o tombstone expirado no release.
+    // Duas montagens independentes fariam quatro.
+    expect(world.storage.writes.filter((key) => key === tokenKey)).toHaveLength(2);
+    expect(world.storage.writes).not.toContain(`remove:${tokenKey}`);
+  });
+
   it('20. depois de assentar, uma nova chamada executa de novo e é idempotente', async () => {
     const world = reloaded(await createV2World([makeSession(10)]));
     const leiturasFisicas = vi.spyOn(world.adapter, 'readStorageAdministrationSnapshot');
@@ -504,6 +525,7 @@ describe('orquestrador de boot — resultados que bloqueiam a hidratação', () 
     ['recovery-required', 'blocked-recovery-required'],
     ['impossible-state', 'blocked-recovery-required'],
     ['operation-conflict', 'blocked-operation-conflict'],
+    ['owner-token-conflict', 'blocked-operation-conflict'],
     ['administration-conflicted', 'blocked-administration-conflicted'],
     ['storage-unavailable', 'blocked-storage-unavailable'],
     ['migration-incomplete', 'blocked-recovery-required'],

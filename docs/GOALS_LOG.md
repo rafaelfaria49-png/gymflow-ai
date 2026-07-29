@@ -3658,3 +3658,44 @@ inalterados.
 - **Limites:** zero executor, deleção, política por idade/quantidade,
   owner-token, coordenação entre abas, UI, Provider ou boot call site. E e F não
   começaram.
+
+## GOAL-17B-002E-E1 — owner-token administrativo entre abas (2026-07-29)
+
+Auditoria da base canônica `e74419f1d5ce8f88a0f669b2ceffa45abb088eaf`
+classificada como **Classe B**. A implementação adiciona a fundação mínima de
+coordenação entre documentos sem iniciar executor ou qualquer nova operação.
+
+- Novo `storage-admin-owner-token.ts`: lease versionado, relógio/owner/nonce/
+  storage injetáveis, aquisição por escrita + readback exato, takeover somente
+  em expiração comprovada, renovação restrita à mesma operação e release por
+  tombstone com proteção ABA.
+- `storage-admin-runtime.ts`: `reservedOperationId` interno e aditivo permite que
+  o receipt W1 use a identidade já protegida. O campo público `operationId`
+  continua protegido contra forja por consumidores.
+- `storage-logical-import.ts`: todas as oito janelas de escrita C1 e as janelas
+  de revert/cleanup e avanço do C2 passam por confirmação antes/depois do lease.
+  Perda retorna motivo fechado, não compensa sem propriedade e deixa o journal
+  orientar a retomada.
+- `storage-boot-recovery.ts`: o coordenador é injetável, o caminho real o cria
+  pela chave principal e conflito de owner-token mantém a hidratação bloqueada.
+- Strict Mode continua compartilhando a mesma Promise física; a mesma aba não
+  adquire dois handles para a mesma operação.
+- O token não contém usuário, treino, sessão, raw, digest ou receipt. O resultado
+  público do lease não contém ownerId, operationId, nonce, chave, timestamp,
+  stack ou `cause`.
+- Limite explícito: é lease cooperativo sobre `localStorage`, não mutex perfeito;
+  CAS, journal, prova física, readbacks e recovery continuam sendo as
+  autoridades de consistência.
+- Escopo negativo confirmado: sem UI, Provider novo, executor, política,
+  seleção de geração, deleção, retenção mutável ou Slice F. Sem push, PR ou
+  merge nesta etapa.
+- Testes focados: **471/471**; owner-token unitário **25/25**; matriz C1/C2,
+  incluindo conflito antes/depois de cada janela, import/recovery/boot e runtime
+  administrativo, integralmente verde.
+- Regressão administrativa embaralhada com seeds novas `74074`, `75074` e
+  `76074`: **18 arquivos e 1204/1204 testes** em cada execução.
+- Validação completa: **50 arquivos e 1917/1917 testes**; TypeScript, build web,
+  build mobile e `git diff --check` aprovados. ESLint dos sete arquivos
+  TypeScript alterados sem diagnóstico; lint global preservou exatamente a
+  baseline de **12 erros e 6 warnings** em arquivos preexistentes.
+- `package.json` e `package-lock.json` permaneceram inalterados.

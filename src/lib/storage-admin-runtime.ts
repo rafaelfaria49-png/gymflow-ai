@@ -156,6 +156,9 @@ export interface StorageAdministrationSnapshot {
 export interface BeginStorageOperationInput {
   kind: StorageOperationKind;
   sourceDigest: string | null;
+  // O coordenador de owner-token pode reservar a identidade antes do primeiro
+  // write. Ausente, preserva o contrato histórico e usa `idFactory`.
+  reservedOperationId?: string;
   // No A2 os dois precisam ser `null`: nenhum fluxo desta etapa cria staging
   // físico ou core alvo, então aceitar valor aqui gravaria no receipt uma
   // promessa que nada cumpriu. Reservados para 002D-C/D.
@@ -759,7 +762,9 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
       );
     }
     const createdAt = this.requireTimestamp();
-    const operationId = this.requireOperationId();
+    const operationId = input.reservedOperationId === undefined
+      ? this.requireOperationId()
+      : this.requireProvidedOperationId(input.reservedOperationId);
 
     const snapshot = await this.inspectStorageAdministration();
     this.requireReadyForMutation(snapshot);
@@ -1405,6 +1410,16 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
       throw new StorageAdministrationInputError(
         'operationId',
         'A fábrica de operationId devolveu um identificador vazio; nenhum receipt foi criado.',
+      );
+    }
+    return operationId;
+  }
+
+  private requireProvidedOperationId(operationId: string): string {
+    if (typeof operationId !== 'string' || operationId.length === 0) {
+      throw new StorageAdministrationInputError(
+        'operationId',
+        'O operationId reservado pelo owner-token é inválido; nenhum receipt foi criado.',
       );
     }
     return operationId;
