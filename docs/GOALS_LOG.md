@@ -3699,3 +3699,30 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
   TypeScript alterados sem diagnóstico; lint global preservou exatamente a
   baseline de **12 erros e 6 warnings** em arquivos preexistentes.
 - `package.json` e `package-lock.json` permaneceram inalterados.
+
+## GOAL-17B-002E-E2 — saúde administrativa read-only (2026-07-29)
+
+- **Base:** `6d774d7560ad4a2155704e25bbf9bff3304ee021`, com E1 integrado.
+- **Auditoria:** **Classe B**. Antes, snapshot, evidência, boot, receipts,
+  decisão de retenção e owner-token não possuíam superfície administrativa
+  visível. Depois, o `AdminPanel` existente exibe um diagnóstico agregado sem
+  ganhar autoridade de mutação.
+- **Facade:** `storage-admin-status.ts` compõe somente contratos oficiais de
+  leitura, compartilha a Promise em andamento e devolve um objeto deep-frozen
+  com estados fechados, contagens e autorizações sempre falsas.
+- **UI:** título, badge, cards, mensagens de atenção/bloqueio, loading, vazio,
+  erro, atualização manual, touch target de 44 px e grids responsivos. A tela
+  declara que não executa limpeza automática e que candidatas futuras não
+  autorizam exclusão.
+- **Privacidade e segurança:** nenhuma identidade física, token, timestamp,
+  digest, fingerprint, manifest, receipt, raw, dado pessoal ou erro nativo é
+  retornado/renderizado. A leitura do owner-token usa exclusivamente `getItem`;
+  nenhum método de escrita ou deleção é injetado no facade.
+- **Testes:** facade e componente **30/30**; regressões administrativas
+  selecionadas **600/600**; suíte completa **52 arquivos e 1947/1947 testes**.
+- **Validação:** TypeScript explícito, builds web/mobile e `git diff --check`
+  aprovados. ESLint dos arquivos read-only sem diagnóstico; lint global
+  preservou exatamente a baseline de **12 erros e 6 warnings**. `package.json`
+  e `package-lock.json` permaneceram inalterados.
+- **Limites:** sem Provider novo, mudança semântica no boot, recovery, import,
+  restore, reset, executor, transação, política mutável, deleção ou Slice F.

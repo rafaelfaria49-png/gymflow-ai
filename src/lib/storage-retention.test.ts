@@ -644,13 +644,14 @@ function relativeSource(file: string): string {
 }
 
 describe('guards do planner de retenção', () => {
-  it('mantém o símbolo público somente na implementação e no próprio teste', () => {
+  it('mantém o símbolo público somente na implementação, no facade read-only e no teste', () => {
     const files = listFiles(REPO_ROOT, ['.ts', '.tsx', '.md'])
       .filter((file) => readFileSync(file, 'utf8').includes('planStorageRetention'))
       .map(relativeSource)
       .sort();
 
     expect(files).toEqual([
+      'src/lib/storage-admin-status.ts',
       'src/lib/storage-retention.test.ts',
       'src/lib/storage-retention.ts',
     ]);
@@ -675,7 +676,7 @@ describe('guards do planner de retenção', () => {
     for (const pattern of forbidden) expect(source).not.toMatch(pattern);
   });
 
-  it('não possui call site de produção', () => {
+  it('não possui call site de produção direto', () => {
     const callers = listFiles(SOURCE_ROOT, ['.ts', '.tsx'])
       .filter((file) => !/\.test\.tsx?$/.test(file))
       .filter((file) => /\bplanStorageRetention\s*\(/.test(codeOf(file)))

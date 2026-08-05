@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { StorageAdminHealthPanel } from '../components/ui/StorageAdminHealthPanel';
 
 export const AdminPanel = () => {
   const {
@@ -33,6 +34,7 @@ export const AdminPanel = () => {
     deleteExercise,
     storageHealth,
     legacyStorageOperationsAllowed,
+    inspectStorageAdminStatus,
     applyStorageImport,
     restoreStorageBackup,
     startFreshStorage,
@@ -362,6 +364,8 @@ export const AdminPanel = () => {
           </div>
         </div>
       </div>
+
+      <StorageAdminHealthPanel inspect={inspectStorageAdminStatus} />
 
       {/* DADOS LOCAIS */}
       <div className="glass p-5 rounded-3xl border border-white/5 space-y-4">
