@@ -19,13 +19,13 @@ import {
   Award,
   BarChart2,
   HardDrive,
-  Download,
   Upload,
   RotateCcw,
 } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { StorageAdminHealthPanel } from '../components/ui/StorageAdminHealthPanel';
+import { StorageExportControls } from '../components/ui/StorageExportControls';
 
 export const AdminPanel = () => {
   const {
@@ -33,8 +33,10 @@ export const AdminPanel = () => {
     addNewExercise,
     deleteExercise,
     storageHealth,
+    storageMode,
     legacyStorageOperationsAllowed,
     inspectStorageAdminStatus,
+    exportLogicalBackupV2,
     applyStorageImport,
     restoreStorageBackup,
     startFreshStorage,
@@ -390,14 +392,12 @@ export const AdminPanel = () => {
           )}
         </div>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <button
-            type="button"
-            onClick={handleExportLocalData}
-            disabled={!legacyStorageOperationsAllowed}
-            className="min-h-[44px] rounded-2xl border border-white/10 bg-white/5 px-3 text-xs font-extrabold text-white enabled:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Download className="mr-1.5 inline h-4 w-4" /> Exportar JSON
-          </button>
+          <StorageExportControls
+            storageMode={storageMode}
+            legacyExport={handleExportLocalData}
+            legacyDisabled={!legacyStorageOperationsAllowed}
+            exportLogicalBackupV2={exportLogicalBackupV2}
+          />
           <button
             type="button"
             onClick={() => importInputRef.current?.click()}
@@ -426,9 +426,8 @@ export const AdminPanel = () => {
         </div>
         {!legacyStorageOperationsAllowed && (
           <p className="rounded-xl border border-gym-accent/20 bg-gym-accent/5 p-3 text-[10px] leading-relaxed text-gym-accent">
-            Exportação, importação, restauração e “zerar dados” estão temporariamente
-            bloqueados no modo híbrido. O GOAL-17B-002D reativará essas operações com
-            um arquivo lógico que combine core e histórico.
+            Importação, restauração e "zerar dados" permanecem bloqueados no modo
+            híbrido. A exportação do backup lógico v2 já está disponível acima.
           </p>
         )}
         <p className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3 text-[10px] leading-relaxed text-yellow-200/80">

@@ -1648,3 +1648,32 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - **Escopo preservado.** Importação, restore, reset, recovery, retenção
   executável, mutações administrativas e Slice F não foram iniciados por esta
   interface.
+
+## GOAL-17B-002E-E3 — exportação lógica v2 no painel (2026-08-05)
+
+- **Componente isolado.** `StorageExportControls` encapsula todos os estados
+  (idle, confirmação de privacidade, generating, arquivo grande, sucesso, erro
+  sanitizado) sem ampliar o `AdminPanel`. O painel apenas delega o botão de
+  exportação ao componente novo.
+- **Fronteira pública mínima.** O `GymFlowContext` expõe `exportLogicalBackupV2`
+  que devolve apenas `ok`, `content`, `filename`, `bytes`, `warning` e `reason`
+  fechado. Nenhum `backup` interno, `StorageAdminRuntime`, adapter, `generationId`,
+  receipt, owner-token, manifest, fingerprint ou core físico atravessa a fronteira.
+- **Zero escrita administrativa.** A exportação v2 é read-only de ponta a ponta:
+  nenhum owner-token é adquirido, nenhum lease é criado, nenhum `beginStorageOperation`
+  é chamado, nenhum receipt é gerado. A proteção contra concorrência permanece
+  na dupla inspeção fail-closed de `createLogicalStorageExportV2`.
+- **Confirmação dupla de privacidade.** O primeiro clique abre um diálogo que
+  explica quais dados pessoais podem estar no arquivo. O arquivo só é gerado
+  após essa confirmação. Arquivos acima de `LOGICAL_BACKUP_LARGE_WARNING_BYTES`
+  exigem uma segunda confirmação antes do download.
+- **V1 preservado integralmente.** No modo `legacy-v1`, o botão chama
+  `createStorageExport` + `downloadTextFile` com as mesmas mensagens e
+  comportamento compatíveis. Nenhum fluxo legado foi alterado.
+- **Mensagens de erro sanitizadas.** Cada `LogicalBackupExportFailureReason`
+  mapeia para uma mensagem pública constante. Nenhuma causa, stack, digest,
+  payload, ID ou dado pessoal é exibido.
+- **Importação fora do escopo.** Importação híbrida, restore, reset, retenção,
+  exclusão e etapa F não foram iniciados. O guarda estrutural prova que o
+  componente e o AdminPanel não importam nenhuma função de escrita
+  administrativa.

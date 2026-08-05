@@ -65,6 +65,7 @@ import {
   type StorageAdminStatusReader,
 } from '../lib/storage-admin-status';
 import { commitStorageImport, createRawRecoveryExport, downloadTextFile } from '../lib/storage-export';
+import { createLogicalStorageExportV2 } from '../lib/storage-logical-backup';
 import { mergePersistedState, migrateLegacyState } from '../lib/storage-migrations';
 import type {
   GymFlowBackupFile,
@@ -175,6 +176,31 @@ export interface ChatActionCard {
   actionType: 'start-workout' | 'generate-week' | 'swap-exercise' | 'watch-video' | 'replan-missed' | 'crowded-gym';
   payload?: string;
 }
+
+export type LogicalBackupExportFailureReason =
+  | 'administration-unavailable'
+  | 'administration-conflicted'
+  | 'administration-interrupted'
+  | 'snapshot-changed-during-export'
+  | 'invalid-core'
+  | 'invalid-logical-state'
+  | 'invalid-timestamp'
+  | 'crypto-unavailable'
+  | 'serialization'
+  | 'too-large';
+
+export type PublicLogicalExportResult =
+  | {
+      ok: true;
+      content: string;
+      filename: string;
+      bytes: number;
+      warning: string | null;
+    }
+  | {
+      ok: false;
+      reason: LogicalBackupExportFailureReason;
+    };
 
 interface ChatMessage {
   id: string;
@@ -329,6 +355,7 @@ interface GymFlowContextType {
   restoreStorageBackup: () => StorageWriteResult<PersistedState>;
   startFreshStorage: () => StorageWriteResult<PersistedState>;
   downloadStorageRecovery: () => void;
+  exportLogicalBackupV2: () => Promise<PublicLogicalExportResult>;
 }
 
 const GymFlowContext = createContext<GymFlowContextType | undefined>(undefined);
@@ -2673,6 +2700,29 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     toast.info(`Conteúdo original exportado (${recovery.bytes.toLocaleString('pt-BR')} bytes).`);
   };
 
+  const exportLogicalBackupV2 = useCallback(async (): Promise<PublicLogicalExportResult> => {
+    const adapter = historyAdapterRef.current;
+    if (!adapter || typeof window === 'undefined') {
+      return { ok: false, reason: 'administration-unavailable' };
+    }
+    const runtime = createStorageAdminRuntime({
+      key: STORAGE_KEY,
+      storage: window.localStorage,
+      adapter,
+    });
+    const result = await createLogicalStorageExportV2({ runtime });
+    if (result.ok) {
+      return {
+        ok: true,
+        content: result.content,
+        filename: result.filename,
+        bytes: result.bytes,
+        warning: result.warning,
+      };
+    }
+    return { ok: false, reason: result.reason };
+  }, []);
+
   const inspectStorageAdminStatus = useCallback((): Promise<StorageAdminStatus> => {
     const adapter = historyAdapterRef.current;
     if (!adapter || typeof window === 'undefined') {
@@ -2811,6 +2861,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         restoreStorageBackup,
         startFreshStorage,
         downloadStorageRecovery,
+        exportLogicalBackupV2,
       }}
     >
       {children}

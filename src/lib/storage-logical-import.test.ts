@@ -5059,7 +5059,9 @@ function androidFilesMentioning(needle: string): string[] {
 describe('recuperação da importação v2 — ausência de call site', () => {
   it('195. a recuperação só aparece no módulo, no teste e no boot autorizado', () => {
     // A lista permanece fechada: D1 acrescenta apenas o orquestrador de boot.
+    // O 002E-E3 acrescenta o guard estrutural que referencia o nome como string.
     expect(sourceFilesMentioning('recoverLogicalStorageImportV2')).toEqual([
+      'src/components/ui/StorageExportControls.guard.test.ts',
       'src/lib/storage-boot-recovery.ts',
       'src/lib/storage-logical-import.test.ts',
       'src/lib/storage-logical-import.ts',
@@ -5076,11 +5078,13 @@ describe('recuperação da importação v2 — ausência de call site', () => {
   it('197. existe exatamente um call site real no boot e nenhum consumidor direto adicional', () => {
     // Independente dos guards 60/195: igualdade exata prova o único consumidor
     // de produção autorizado pelo D1 e falha com qualquer caminho adicional.
+    // O 002E-E3 acrescenta o guard estrutural como menção string-only.
     expect(sourceFilesImporting('storage-logical-import')).toEqual([
       'src/lib/storage-boot-recovery.ts',
       'src/lib/storage-logical-import.test.ts',
     ]);
     expect(sourceFilesMentioning('recoverLogicalStorageImportV2')).toEqual([
+      'src/components/ui/StorageExportControls.guard.test.ts',
       'src/lib/storage-boot-recovery.ts',
       'src/lib/storage-logical-import.test.ts',
       'src/lib/storage-logical-import.ts',
