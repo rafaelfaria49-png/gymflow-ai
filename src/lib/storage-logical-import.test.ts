@@ -5060,9 +5060,11 @@ describe('recuperação da importação v2 — ausência de call site', () => {
   it('195. a recuperação só aparece no módulo, no teste e no boot autorizado', () => {
     // A lista permanece fechada: D1 acrescenta apenas o orquestrador de boot.
     // O 002E-E3 acrescenta o guard estrutural que referencia o nome como string.
+    // O 002E-E4B acrescenta o teste de boot recovery que referencia a recuperação.
     expect(sourceFilesMentioning('recoverLogicalStorageImportV2')).toEqual([
       'src/components/ui/StorageBackupVerifier.guard.test.ts',
       'src/components/ui/StorageExportControls.guard.test.ts',
+      'src/lib/storage-boot-recovery.test.ts',
       'src/lib/storage-boot-recovery.ts',
       'src/lib/storage-logical-import.test.ts',
       'src/lib/storage-logical-import.ts',
@@ -5080,19 +5082,30 @@ describe('recuperação da importação v2 — ausência de call site', () => {
     // Independente dos guards 60/195: igualdade exata prova o único consumidor
     // de produção autorizado pelo D1 e falha com qualquer caminho adicional.
     // O 002E-E3 acrescenta o guard estrutural como menção string-only.
-    expect(sourceFilesImporting('storage-logical-import')).toEqual([
+    // GOAL-17B-E4B: GymFlowContext agora importa storage-logical-import
+    // (diretório providers → ../lib/, por isso sourceFilesMentioning).
+    // Novos guard tests e context test também mencionam o módulo.
+    expect(sourceFilesMentioning('storage-logical-import')).toEqual([
+      'src/components/ui/StorageBackupVerifier.guard.test.ts',
+      'src/components/ui/StorageBackupVerifier.import-guard.test.ts',
+      'src/lib/storage-boot-recovery.test.ts',
       'src/lib/storage-boot-recovery.ts',
+      'src/lib/storage-logical-backup.test.ts',
       'src/lib/storage-logical-import.test.ts',
+      'src/providers/GymFlowContext.logical-import.test.tsx',
+      'src/providers/GymFlowContext.tsx',
     ]);
     expect(sourceFilesMentioning('recoverLogicalStorageImportV2')).toEqual([
       'src/components/ui/StorageBackupVerifier.guard.test.ts',
       'src/components/ui/StorageExportControls.guard.test.ts',
+      'src/lib/storage-boot-recovery.test.ts',
       'src/lib/storage-boot-recovery.ts',
       'src/lib/storage-logical-import.test.ts',
       'src/lib/storage-logical-import.ts',
     ]);
+    // GOAL-17B-E4B: GymFlowContext agora importa commitLogicalStorageImportV2.
+    // Os demais módulos de infraestrutura continuam sem importar.
     for (const arquivo of [
-      'src/providers/GymFlowContext.tsx',
       'src/lib/storage-hybrid.ts',
       'src/lib/storage.ts',
       'src/lib/storage-adapter.ts',
@@ -5103,8 +5116,15 @@ describe('recuperação da importação v2 — ausência de call site', () => {
       expect([arquivo, fonte.includes('storage-logical-import')]).toEqual([arquivo, false]);
       expect([arquivo, fonte.includes('recoverLogicalStorageImportV2')]).toEqual([arquivo, false]);
     }
-    // O AdminPanel EXISTE no projeto — e continua sem saber que a importação
-    // ou a recuperação existem.
+    // O Provider importa commitLogicalStorageImportV2 (E4B autorizado).
+    const provider = fs.readFileSync(
+      path.join(process.cwd(), 'src/providers/GymFlowContext.tsx'),
+      'utf8',
+    );
+    expect(provider.includes('commitLogicalStorageImportV2')).toBe(true);
+    expect(provider.includes('recoverLogicalStorageImportV2')).toBe(false);
+
+    // O AdminPanel continua sem importar storage-logical-import diretamente.
     const adminPanel = fs.readFileSync(
       path.join(process.cwd(), 'src/modules/AdminPanel.tsx'),
       'utf8',
@@ -5113,11 +5133,15 @@ describe('recuperação da importação v2 — ausência de call site', () => {
     expect(adminPanel.includes('recoverLogicalStorageImportV2')).toBe(false);
     expect(adminPanel.includes('commitLogicalStorageImportV2')).toBe(false);
 
-    // A importação lógica continua sem call site: só existe sua declaração.
+    // GOAL-17B-E4B: commitLogicalStorageImportV2 tem exatamente um call site
+    // autorizado no GymFlowContext (além da declaração).
     expect(
       sourceFilesMentioning('commitLogicalStorageImportV2(')
         .filter((arquivo) => !arquivo.endsWith('.test.ts') && !arquivo.endsWith('.test.tsx')),
-    ).toEqual(['src/lib/storage-logical-import.ts']);
+    ).toEqual([
+      'src/lib/storage-logical-import.ts',
+      'src/providers/GymFlowContext.tsx',
+    ]);
   });
 
   it('198. nenhum arquivo Android cita o módulo ou a recuperação', () => {

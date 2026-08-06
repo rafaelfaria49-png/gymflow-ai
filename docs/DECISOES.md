@@ -2,6 +2,39 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-17B-002E-E4B — importação lógica v2 segura (2026-08-06)
+
+- **Wrapper público sanitizado no GymFlowContext:** `importLogicalBackupV2`
+  encapsula `commitLogicalStorageImportV2` e expõe apenas `ok`, `reason`
+  fechado, `requiresReload` e `message` constante. Nenhum ID físico, raw,
+  digest, generationId, operationId ou cause atravessa a fronteira pública.
+- **Owner-token estável por ciclo de vida do Provider:** o coordenador é
+  criado uma única vez via `ownerTokenCoordinatorRef` e reutilizado em todas
+  as importações. O lease é adquirido/liberado dentro do commit.
+- **Autosave suspenso antes do primeiro write:** `storageBlockedRef = true` +
+  `clearTimeout(pendingSaveRef)` antes de chamar o commit. Em falha sem write,
+  o bloqueio é revertido. Em falha ambígua ou compensation-failed, o bloqueio
+  é mantido e reload é acionado.
+- **Reload controlado uma única vez:** `window.setTimeout(() => reload(), 600)`
+  em sucesso settled. `importInProgressRef` previne execução duplicada em
+  Strict Mode ou clique duplo.
+- **StorageBackupVerifier estendido com callback opcional:**
+  `onVerifiedBackup` habilita o fluxo de importação. Quando presente, o preview
+  exibe "Importar este backup" e confirmação destrutiva com "Substituir dados e
+  importar". Raw, digest e size ficam em refs privados do componente, limpos em
+  toda saída terminal.
+- **Confirmação destrutiva inequívoca:** declara substituição de dados,
+  recarregamento do app e orientação para não fechar a aba. Botão final:
+  "Substituir dados e importar". Cancelar mantém tudo intacto.
+- **Falhas mapeadas para mensagens públicas constantes:**
+  `IMPORT_FAILURE_MESSAGES` traduz cada `PublicLogicalImportFailureReason` em
+  texto seguro. Nenhuma sentinela privada vaza para a UI.
+- **Pré-flight fechado:** modo de storage, saúde, treino ativo, adapter,
+  owner-token — todos verificados antes de iniciar a operação.
+- **Fronteira do AdminPanel:** não importa adapter, runtime, owner-token ou
+  storage-logical-import diretamente. Somente `importLogicalBackupV2` do
+  Context.
+
 ## GOAL-17B-002E-E4A — verificação read-only de backup v2 (2026-08-05)
 
 - **Componente independente `StorageBackupVerifier`:** a verificação de backup

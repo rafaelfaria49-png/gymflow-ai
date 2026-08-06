@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useGymFlow, STORAGE_KEY } from '../providers/GymFlowContext';
 import {
   createStorageExport,
@@ -27,6 +27,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { StorageAdminHealthPanel } from '../components/ui/StorageAdminHealthPanel';
 import { StorageExportControls } from '../components/ui/StorageExportControls';
 import { StorageBackupVerifier } from '../components/ui/StorageBackupVerifier';
+import type { VerifiedBackupPayload } from '../components/ui/StorageBackupVerifier';
 
 export const AdminPanel = () => {
   const {
@@ -38,6 +39,7 @@ export const AdminPanel = () => {
     legacyStorageOperationsAllowed,
     inspectStorageAdminStatus,
     exportLogicalBackupV2,
+    importLogicalBackupV2,
     applyStorageImport,
     restoreStorageBackup,
     startFreshStorage,
@@ -52,6 +54,24 @@ export const AdminPanel = () => {
     filename: string;
   } | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  // GOAL-17B-E4B: ponte sanitizada entre StorageBackupVerifier e Context.
+  // O componente não recebe adapter, runtime, owner-token, generationId,
+  // operationId, receipt, core raw, manifest ou cause.
+  const handleVerifiedBackup = useCallback(
+    async (payload: VerifiedBackupPayload): Promise<{ ok: boolean; message: string }> => {
+      const result = await importLogicalBackupV2({
+        raw: payload.raw,
+        declaredBytes: payload.declaredBytes,
+        expectedPayloadDigest: payload.payloadDigest,
+      });
+      if (result.ok) {
+        return { ok: true, message: 'Backup importado com sucesso.' };
+      }
+      return { ok: false, message: result.message };
+    },
+    [importLogicalBackupV2],
+  );
 
   const handleResetLocalData = () => {
     setShowResetConfirm(false);
@@ -399,7 +419,10 @@ export const AdminPanel = () => {
             legacyDisabled={!legacyStorageOperationsAllowed}
             exportLogicalBackupV2={exportLogicalBackupV2}
           />
-          <StorageBackupVerifier storageMode={storageMode} />
+          <StorageBackupVerifier
+            storageMode={storageMode}
+            onVerifiedBackup={handleVerifiedBackup}
+          />
           <button
             type="button"
             onClick={() => importInputRef.current?.click()}
