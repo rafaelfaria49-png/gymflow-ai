@@ -5061,6 +5061,7 @@ describe('recuperação da importação v2 — ausência de call site', () => {
     // A lista permanece fechada: D1 acrescenta apenas o orquestrador de boot.
     // O 002E-E3 acrescenta o guard estrutural que referencia o nome como string.
     expect(sourceFilesMentioning('recoverLogicalStorageImportV2')).toEqual([
+      'src/components/ui/StorageBackupVerifier.guard.test.ts',
       'src/components/ui/StorageExportControls.guard.test.ts',
       'src/lib/storage-boot-recovery.ts',
       'src/lib/storage-logical-import.test.ts',
@@ -5084,6 +5085,7 @@ describe('recuperação da importação v2 — ausência de call site', () => {
       'src/lib/storage-logical-import.test.ts',
     ]);
     expect(sourceFilesMentioning('recoverLogicalStorageImportV2')).toEqual([
+      'src/components/ui/StorageBackupVerifier.guard.test.ts',
       'src/components/ui/StorageExportControls.guard.test.ts',
       'src/lib/storage-boot-recovery.ts',
       'src/lib/storage-logical-import.test.ts',

@@ -26,6 +26,7 @@ import { useToast } from '../components/ui/Toast';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { StorageAdminHealthPanel } from '../components/ui/StorageAdminHealthPanel';
 import { StorageExportControls } from '../components/ui/StorageExportControls';
+import { StorageBackupVerifier } from '../components/ui/StorageBackupVerifier';
 
 export const AdminPanel = () => {
   const {
@@ -398,6 +399,7 @@ export const AdminPanel = () => {
             legacyDisabled={!legacyStorageOperationsAllowed}
             exportLogicalBackupV2={exportLogicalBackupV2}
           />
+          <StorageBackupVerifier storageMode={storageMode} />
           <button
             type="button"
             onClick={() => importInputRef.current?.click()}
@@ -427,7 +429,8 @@ export const AdminPanel = () => {
         {!legacyStorageOperationsAllowed && (
           <p className="rounded-xl border border-gym-accent/20 bg-gym-accent/5 p-3 text-[10px] leading-relaxed text-gym-accent">
             Importação, restauração e "zerar dados" permanecem bloqueados no modo
-            híbrido. A exportação do backup lógico v2 já está disponível acima.
+            híbrido. A exportação e a verificação do backup lógico v2 já estão
+            disponíveis acima.
           </p>
         )}
         <p className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3 text-[10px] leading-relaxed text-yellow-200/80">

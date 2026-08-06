@@ -1688,6 +1688,9 @@ describe('backup lógico v2 — regressão do fluxo v1', () => {
     // `createLogicalStorageExportV2` é chamado por `exportLogicalBackupV2`.
     // A igualdade exata segue valendo, e é ela que prova esse limite.
     expect(found).toEqual([
+      'src/components/ui/StorageBackupVerifier.guard.test.ts',
+      'src/components/ui/StorageBackupVerifier.test.tsx',
+      'src/components/ui/StorageBackupVerifier.tsx',
       'src/lib/storage-logical-backup.test.ts',
       'src/lib/storage-logical-import.test.ts',
       'src/lib/storage-logical-import.ts',

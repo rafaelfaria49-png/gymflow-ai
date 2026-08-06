@@ -4,6 +4,53 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E4A — verificação read-only de backup v2 (2026-08-05)
+
+O `AdminPanel` no modo `hybrid-v2` agora oferece uma ação "Verificar backup"
+que permite selecionar um arquivo JSON v2, validar sua integridade via
+`inspectLogicalStorageBackupV2` e exibir um preview sanitizado, sem importar,
+restaurar ou alterar qualquer dado.
+
+**Arquivos alterados:**
+- `src/components/ui/StorageBackupVerifier.tsx` — componente novo com estados
+  idle, reading, valid-preview e invalid
+- `src/components/ui/StorageBackupVerifier.test.tsx` — 20 testes cobrindo
+  todos os cenários obrigatórios
+- `src/components/ui/StorageBackupVerifier.guard.test.ts` — 36 guards
+  estruturais de zero escrita, zero owner-token, descarte do raw e privacidade
+- `src/modules/AdminPanel.tsx` — integração do componente e atualização da
+  mensagem informativa do modo híbrido
+- `src/lib/storage-logical-backup.test.ts` — extensão do guard de igualdade
+  exata para incluir novos consumidores
+- `src/lib/storage-logical-import.test.ts` — extensão do guard de igualdade
+  exata para incluir novos consumidores
+- `docs/DECISOES.md`, `docs/GOALS_LOG.md`, `docs/PENDENCIAS.md`
+
+**Fluxo v1 preservado:** nenhum dos handlers de importação, restauração ou
+reset legados foi alterado. O `StorageBackupVerifier` renderiza somente no
+modo `hybrid-v2` e não interfere no fluxo v1.
+
+**Fluxo de verificação v2:** clique em "Verificar backup" → seletor de
+arquivo → validação de tamanho antes de `file.text()` → inspeção → preview
+sanitizado com mensagem "Nenhum dado foi alterado". Texto informativo: "A
+importação segura será habilitada em uma próxima etapa."
+
+**Dados exibidos no preview:** nome do arquivo, tamanho, data de exportação,
+data do snapshot, contagens (sessões, programas personalizados, registros de
+peso, registros de medidas), existência de treino ativo, warning de tamanho.
+
+**Zero escrita provada:** guardas estruturais verificam que nenhum dos
+arquivos alterados importa `commitLogicalStorageImportV2`,
+`recoverLogicalStorageImportV2`, `beginStorageOperation`,
+`storage-admin-owner-token`, `restoreStorageBackup`, `startFreshStorage` ou
+funções de reset/deleção.
+
+**Descarte do raw provado:** o componente não referencia `localStorage`,
+`IndexedDB`, `useGymFlow`, `useContext`, `payloadDigest` ou `.cause`. O raw
+existe somente no escopo léxico do handler de arquivo.
+
+---
+
 ## GOAL-17B-002E-E3 — exportação lógica v2 no painel (2026-08-05)
 
 O `AdminPanel` agora oferece exportação real do backup lógico v2 no modo
