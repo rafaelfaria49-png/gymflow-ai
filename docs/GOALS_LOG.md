@@ -4,6 +4,40 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E3 — exportação lógica v2 no painel (2026-08-05)
+
+O `AdminPanel` agora oferece exportação real do backup lógico v2 no modo
+`hybrid-v2`. O `GymFlowContext` expõe `exportLogicalBackupV2`, que delega
+a `createLogicalStorageExportV2` sem expor runtime, adapter, generationId,
+receipts ou owner-token. O novo componente `StorageExportControls` gerencia
+todos os estados (idle, privacidade, generating, arquivo grande, sucesso,
+erro sanitizado) com confirmação dupla e proteção contra clique duplicado.
+
+**Arquivos alterados:**
+- `src/providers/GymFlowContext.tsx` — adicionada `exportLogicalBackupV2`
+  e tipo público `PublicLogicalExportResult`
+- `src/components/ui/StorageExportControls.tsx` — componente novo com
+  máquina de estados de exportação
+- `src/modules/AdminPanel.tsx` — integração do componente e atualização
+  da mensagem de bloqueio híbrido
+- `src/components/ui/StorageExportControls.test.tsx` — testes do componente
+- `src/components/ui/StorageExportControls.guard.test.ts` — guardas
+  estruturais de zero escrita administrativa
+- `docs/DECISOES.md`, `docs/GOALS_LOG.md`, `docs/PENDENCIAS.md`
+
+**Fluxo v1 preservado:** no modo `legacy-v1`, o botão chama `createStorageExport`
++ `downloadTextFile` sem alteração.
+
+**Fluxo v2 implementado:** confirmação de privacidade → geração com loading →
+warning de arquivo grande (quando aplicável) → download → sucesso sanitizado.
+
+**Zero escrita administrativa provada:** guardas estruturais verificam que
+nenhum dos arquivos alterados importa `commitLogicalStorageImportV2`,
+`beginStorageOperation`, `storage-admin-owner-token`, ou funções de
+reset/deleção.
+
+---
+
 ## GOAL-17B-002C — integração híbrida do Context (2026-07-23)
 
 O `GymFlowContext` agora hidrata de forma assíncrona por um runtime com modos

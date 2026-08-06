@@ -1,5 +1,17 @@
 # Pendências
 
+## GOAL-17B-002E-E3 — exportação lógica v2 no painel
+
+- **Importação híbrida v2 não implementada.** A UI de seleção de arquivo v2,
+  preview de importação e `commitLogicalStorageImportV2` permanecem fora do
+  escopo. A importação continua disponível apenas no modo legado v1.
+- **Restore, reset e retenção executável.** Estas operações administrativas
+  continuam bloqueadas no modo híbrido. Serão reativadas por GOALs futuros
+  da sequência 002E/002F.
+- **Testes de componente sem DOM real.** O projeto usa `react-test-renderer`
+  sem `@testing-library/react`; a cobertura de interação (foco, teclado,
+  screen reader) depende de QA manual no navegador.
+
 ## GOAL-24 — Substituição estruturada
 
 - **Diff posicional avançado plano×execução fica para depois:** o GOAL-24 guarda, por
