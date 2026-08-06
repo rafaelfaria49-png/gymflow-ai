@@ -2,6 +2,39 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-17B-002E-E4A — verificação read-only de backup v2 (2026-08-05)
+
+- **Componente independente `StorageBackupVerifier`:** a verificação de backup
+  v2 é um componente autocontido que importa `inspectLogicalStorageBackupV2`
+  diretamente de `storage-logical-backup.ts`, sem passar pelo Context nem por
+  runtime administrativo. A inspeção é puramente lógica (função + file.size).
+- **Zero escrita provada por construção:** o componente não importa nem
+  referencia `commitLogicalStorageImportV2`, `recoverLogicalStorageImportV2`,
+  `beginStorageOperation`, `acquireOwnerToken`, `restoreStorageBackup`,
+  `startFreshStorage` ou qualquer função de reset/deleção.
+- **Raw descartado por escopo léxico:** o `raw` do `file.text()` existe
+  somente no corpo do callback `handleFileChange`; após a inspeção, apenas o
+  `preview` sanitizado (contagens + datas + tamanhos) entra no state do React.
+  Nenhum `localStorage`, `IndexedDB`, `Context` ou cache global recebe o raw.
+- **Failures mapeados para mensagens públicas constantes:**
+  `INSPECTION_FAILURE_MESSAGES` traduz cada `LogicalBackupInspectionFailureReason`
+  em texto seguro; `cause`, `error` nativo do `JSON.parse` e detalhes internos
+  nunca chegam ao view model.
+- **Preview contém apenas metadados agregados:** nome do arquivo, tamanho,
+  datas de exportação e snapshot, contagens (sessões, programas, pesos,
+  medidas), treino ativo (booleano) e warning de tamanho. Nenhum dado
+  individual é exibido.
+- **Fluxo v1 intocado:** o `AdminPanel` preserva integralmente a importação,
+  restauração e reset legados. O `StorageBackupVerifier` renderiza somente no
+  modo `hybrid-v2`.
+- **Guardas estruturais existentes atualizados:** os testes de igualdade
+  exata em `storage-logical-backup.test.ts` e `storage-logical-import.test.ts`
+  foram estendidos para incluir os novos arquivos na lista fechada de
+  consumidores autorizados.
+- **Concorrência protegida por `readingRef`:** durante o estado `reading`,
+  cliques adicionais no botão ou seleções de arquivo são ignorados. O
+  `mountedRef` impede publicação de estado após desmontagem.
+
 ## GOAL-24 — Registro estruturado da substituição (2026-07-22)
 
 - **Snapshot do original = `plannedExerciseId` (reusado) + `plannedExerciseName` +

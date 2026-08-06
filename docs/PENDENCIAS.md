@@ -1,5 +1,18 @@
 # Pendências
 
+## GOAL-17B-002E-E4A — verificação read-only de backup v2
+
+- **Importação híbrida v2 não implementada.** A verificação read-only está
+  disponível, mas o commit da importação (`commitLogicalStorageImportV2`),
+  owner-token e recovery permanecem fora do escopo. Serão habilitados pelo
+  próximo GOAL da sequência (E4B ou equivalente).
+- **Restore, reset e retenção executável.** Estas operações administrativas
+  continuam bloqueadas no modo híbrido. Serão reativadas por GOALs futuros
+  da sequência 002E/002F.
+- **Testes de componente sem DOM real.** O projeto usa `react-test-renderer`
+  sem `@testing-library/react`; a cobertura de interação (foco, teclado,
+  screen reader) depende de QA manual no navegador.
+
 ## GOAL-17B-002E-E3 — exportação lógica v2 no painel
 
 - **Importação híbrida v2 não implementada.** A UI de seleção de arquivo v2,
