@@ -5094,6 +5094,7 @@ describe('recuperação da importação v2 — ausência de call site', () => {
       'src/lib/storage-logical-import.test.ts',
       'src/providers/GymFlowContext.logical-import.test.tsx',
       'src/providers/GymFlowContext.tsx',
+      'src/providers/probe-real-roundtrip.test.ts',
     ]);
     expect(sourceFilesMentioning('recoverLogicalStorageImportV2')).toEqual([
       'src/components/ui/StorageBackupVerifier.guard.test.ts',

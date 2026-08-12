@@ -1269,7 +1269,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       lastLifecycleFlushRef.current = now;
       if (completionRecoveryRequiredRef.current) {
         flushPendingCompletionCoreNow();
-      } else {
+      } else if (!storageBlockedRef.current) {
+        // GOAL-17B-E4B: flush de vida suspenso durante operação administrativa,
+        // assim como o debounce — um save tardio do estado React pré-importação
+        // sobrescreveria o core importado antes do reload.
         savePersistedStateNow();
       }
     };
@@ -2868,9 +2871,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         declaredBytes: input.declaredBytes,
         expectedPayloadDigest: input.expectedPayloadDigest,
         runtime: {
-          inspectStorageAdministration: runtime.inspectStorageAdministration,
-          beginStorageOperation: runtime.beginStorageOperation,
-          transitionStorageOperation: runtime.transitionStorageOperation,
+          inspectStorageAdministration: runtime.inspectStorageAdministration.bind(runtime),
+          beginStorageOperation: runtime.beginStorageOperation.bind(runtime),
+          transitionStorageOperation: runtime.transitionStorageOperation.bind(runtime),
         },
         adapter: {
           readMetadata: adapter.readMetadata.bind(adapter),
