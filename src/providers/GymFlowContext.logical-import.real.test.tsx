@@ -63,8 +63,11 @@ type MainKeySabotage =
 
 let sabotage: MainKeySabotage = { mode: 'pass' };
 
-let probeDispatchLog: string[] = [];
-let probeDispatchCount = 0;
+// Reservado para futura instrumentação de debug.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _probeDispatchLog: string[] = [];
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _probeDispatchCount = 0;
 
 const underlying = new MemoryLocalStorage();
 
@@ -97,7 +100,7 @@ const localStorageFacade = {
   },
 };
 
-let storage = localStorageFacade;
+const storage = localStorageFacade;
 let reloadSpy: ReturnType<typeof vi.fn>;
 let windowStub: EventTarget & {
   localStorage: typeof storage;

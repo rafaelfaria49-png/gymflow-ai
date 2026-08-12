@@ -72,7 +72,7 @@ describe('probe real round trip', () => {
       defaults: {} as never,
     });
     const hydration = await hybrid.hydrate();
-    console.log('MODE:', hydration.mode, 'GEN:', hydration.generationId, 'REASON:', hydration.reason);
+    console.log('MODE:', hydration.mode, 'GEN:', 'generationId' in hydration ? hydration.generationId : undefined, 'REASON:', 'reason' in hydration ? hydration.reason : undefined);
 
     const runtime = createStorageAdminRuntime({
       key: STORAGE_KEY,
