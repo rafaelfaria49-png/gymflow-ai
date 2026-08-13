@@ -62,16 +62,24 @@ describe('StorageBackupVerifier — prova de descarte do raw', () => {
 });
 
 describe('StorageBackupVerifier — prova de privacidade', () => {
-  it('não propaga backup completo ao view model', () => {
-    expect(verifierSource).not.toContain('inspection.backup');
+  // GOAL-17B-E4B: inspection.backup.payloadDigest é extraído para ref privado
+  // e passado ao callback. O objeto backup completo não entra no state React.
+  it('não propaga backup completo ao state React', () => {
+    expect(verifierSource).not.toContain('inspection.backup,');
+    expect(verifierSource).not.toContain('inspection.backup }');
+    expect(verifierSource).not.toContain('backup: inspection.backup');
   });
 
   it('não usa console.log', () => {
     expect(verifierSource).not.toContain('console.log');
   });
 
-  it('não propaga digest ao preview', () => {
-    expect(verifierSource).not.toContain('payloadDigest');
+  // GOAL-17B-E4B: o componente agora extrai payloadDigest para passar
+  // ao callback onVerifiedBackup. O digest não entra no state do React,
+  // no preview renderizado nem em props públicas — apenas em ref privado.
+  it('não propaga digest ao preview renderizado', () => {
+    expect(verifierSource).not.toContain('PreviewRow label="Digest"');
+    expect(verifierSource).not.toContain('PreviewRow label="payloadDigest"');
   });
 
   it('não propaga cause ao view model', () => {

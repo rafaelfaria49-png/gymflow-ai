@@ -66,6 +66,11 @@ import {
 } from '../lib/storage-admin-status';
 import { commitStorageImport, createRawRecoveryExport, downloadTextFile } from '../lib/storage-export';
 import { createLogicalStorageExportV2 } from '../lib/storage-logical-backup';
+import { commitLogicalStorageImportV2 } from '../lib/storage-logical-import';
+import {
+  createStorageAdminOwnerTokenCoordinator,
+  inspectStorageAdminOwnerToken,
+} from '../lib/storage-admin-owner-token';
 import { mergePersistedState, migrateLegacyState } from '../lib/storage-migrations';
 import type {
   GymFlowBackupFile,
@@ -200,6 +205,26 @@ export type PublicLogicalExportResult =
   | {
       ok: false;
       reason: LogicalBackupExportFailureReason;
+    };
+
+export type PublicLogicalImportFailureReason =
+  | 'active-workout'
+  | 'storage-not-healthy'
+  | 'admin-not-ready'
+  | 'completion-pending'
+  | 'operation-open'
+  | 'owner-token-busy'
+  | 'import-failed'
+  | 'recovery-required'
+  | 'compensation-failed';
+
+export type PublicLogicalImportResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: PublicLogicalImportFailureReason;
+      requiresReload: boolean;
+      message: string;
     };
 
 interface ChatMessage {
@@ -356,6 +381,11 @@ interface GymFlowContextType {
   startFreshStorage: () => StorageWriteResult<PersistedState>;
   downloadStorageRecovery: () => void;
   exportLogicalBackupV2: () => Promise<PublicLogicalExportResult>;
+  importLogicalBackupV2: (input: {
+    raw: string;
+    declaredBytes: number;
+    expectedPayloadDigest: string;
+  }) => Promise<PublicLogicalImportResult>;
 }
 
 const GymFlowContext = createContext<GymFlowContextType | undefined>(undefined);
@@ -771,6 +801,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const pendingFinalizationPromiseRef = useRef<Promise<void> | null>(null);
   const completionRecoveryRequiredRef = useRef(false);
   const completionRecoveryMessageShownRef = useRef(false);
+  // GOAL-17B-E4B: coordenador de owner-token estável por ciclo de vida do Provider.
+  const ownerTokenCoordinatorRef = useRef<ReturnType<typeof createStorageAdminOwnerTokenCoordinator> | null>(null);
+  const importInProgressRef = useRef(false);
 
   const persistedState: PersistedState = {
     user,
@@ -1236,7 +1269,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       lastLifecycleFlushRef.current = now;
       if (completionRecoveryRequiredRef.current) {
         flushPendingCompletionCoreNow();
-      } else {
+      } else if (!storageBlockedRef.current) {
+        // GOAL-17B-E4B: flush de vida suspenso durante operação administrativa,
+        // assim como o debounce — um save tardio do estado React pré-importação
+        // sobrescreveria o core importado antes do reload.
         savePersistedStateNow();
       }
     };
@@ -2723,6 +2759,194 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     return { ok: false, reason: result.reason };
   }, []);
 
+  // GOAL-17B-E4B: wrapper público sanitizado para commitLogicalStorageImportV2.
+  // O componente nunca recebe adapter, runtime, owner-token coordinator, IDs
+  // físicos, raw ou manifest — somente esta função e o retorno fechado.
+  const IMPORT_FAILURE_MESSAGES: Record<PublicLogicalImportFailureReason, string> = {
+    'active-workout': 'Existe um treino em andamento. Conclua ou cancele o treino antes de importar.',
+    'storage-not-healthy': 'O armazenamento não está em estado saudável para importação.',
+    'admin-not-ready': 'O diagnóstico administrativo não está pronto para importação.',
+    'completion-pending': 'Existe uma finalização de treino pendente. Recarregue o aplicativo.',
+    'operation-open': 'Existe uma operação administrativa em andamento.',
+    'owner-token-busy': 'Outra aba está executando uma operação administrativa.',
+    'import-failed': 'Não foi possível importar o backup selecionado.',
+    'recovery-required': 'A importação requer recuperação. O aplicativo será recarregado.',
+    'compensation-failed': 'A importação falhou e não pôde ser revertida. O aplicativo será recarregado.',
+  };
+
+  const importLogicalBackupV2 = useCallback(async (input: {
+    raw: string;
+    declaredBytes: number;
+    expectedPayloadDigest: string;
+  }): Promise<PublicLogicalImportResult> => {
+    // Bloqueio contra clique duplicado e Strict Mode.
+    if (importInProgressRef.current) {
+      return {
+        ok: false,
+        reason: 'operation-open',
+        requiresReload: false,
+        message: IMPORT_FAILURE_MESSAGES['operation-open'],
+      };
+    }
+
+    // Pré-flight: modo de storage.
+    if (storageModeRef.current !== 'hybrid-v2') {
+      return {
+        ok: false,
+        reason: 'storage-not-healthy',
+        requiresReload: false,
+        message: IMPORT_FAILURE_MESSAGES['storage-not-healthy'],
+      };
+    }
+
+    // Pré-flight: saúde do storage.
+    if (storageBlockedRef.current || completionRecoveryRequiredRef.current) {
+      return {
+        ok: false,
+        reason: 'storage-not-healthy',
+        requiresReload: false,
+        message: IMPORT_FAILURE_MESSAGES['storage-not-healthy'],
+      };
+    }
+
+    // Pré-flight: treino ativo.
+    if (activeWorkoutRef.current) {
+      return {
+        ok: false,
+        reason: 'active-workout',
+        requiresReload: false,
+        message: IMPORT_FAILURE_MESSAGES['active-workout'],
+      };
+    }
+
+    // Pré-flight: adapter e ambiente.
+    const adapter = historyAdapterRef.current;
+    if (!adapter || typeof window === 'undefined') {
+      return {
+        ok: false,
+        reason: 'admin-not-ready',
+        requiresReload: false,
+        message: IMPORT_FAILURE_MESSAGES['admin-not-ready'],
+      };
+    }
+
+    // Pré-flight: owner-token disponível.
+    const ownerTokenInspection = inspectStorageAdminOwnerToken({
+      key: STORAGE_KEY,
+      storage: window.localStorage,
+    });
+    if (ownerTokenInspection.status === 'busy') {
+      return {
+        ok: false,
+        reason: 'owner-token-busy',
+        requiresReload: false,
+        message: IMPORT_FAILURE_MESSAGES['owner-token-busy'],
+      };
+    }
+
+    // Instância estável do coordenador por ciclo de vida do Provider.
+    ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
+      key: STORAGE_KEY,
+      storage: window.localStorage,
+    });
+
+    const runtime = createStorageAdminRuntime({
+      key: STORAGE_KEY,
+      storage: window.localStorage,
+      adapter,
+    });
+
+    // Suspensão do autosave antes do primeiro write administrativo.
+    importInProgressRef.current = true;
+    const wasBlocked = storageBlockedRef.current;
+    storageBlockedRef.current = true;
+    if (pendingSaveRef.current) {
+      clearTimeout(pendingSaveRef.current);
+      pendingSaveRef.current = null;
+    }
+
+    try {
+      const result = await commitLogicalStorageImportV2({
+        raw: input.raw,
+        declaredBytes: input.declaredBytes,
+        expectedPayloadDigest: input.expectedPayloadDigest,
+        runtime: {
+          inspectStorageAdministration: runtime.inspectStorageAdministration.bind(runtime),
+          beginStorageOperation: runtime.beginStorageOperation.bind(runtime),
+          transitionStorageOperation: runtime.transitionStorageOperation.bind(runtime),
+        },
+        adapter: {
+          readMetadata: adapter.readMetadata.bind(adapter),
+          stageHistoryGenerationForOperation: adapter.stageHistoryGenerationForOperation.bind(adapter),
+          readVerifiedHistoryGeneration: adapter.readVerifiedHistoryGeneration.bind(adapter),
+          rollbackToHistoryGeneration: adapter.rollbackToHistoryGeneration.bind(adapter),
+          transitionStorageOperationIfUnambiguous: adapter.transitionStorageOperationIfUnambiguous.bind(adapter),
+          revertStorageOperationAfterTransitionConflict: adapter.revertStorageOperationAfterTransitionConflict.bind(adapter),
+          readStorageOperationReceipt: adapter.readStorageOperationReceipt.bind(adapter),
+          clearInactiveGeneration: adapter.clearInactiveGeneration.bind(adapter),
+        },
+        storage: window.localStorage,
+        key: STORAGE_KEY,
+        ownerToken: ownerTokenCoordinatorRef.current,
+      });
+
+      if (result.ok) {
+        // Sucesso settled: reload controlado uma única vez.
+        toast.success('Backup importado com sucesso. Recarregando...');
+        window.setTimeout(() => window.location.reload(), 600);
+        return { ok: true };
+      }
+
+      // Falha: classificar e decidir se precisa reload.
+      if (result.reason === 'recovery-required') {
+        // Manter autosave bloqueado; orientar reload.
+        toast.error(IMPORT_FAILURE_MESSAGES['recovery-required']);
+        window.setTimeout(() => window.location.reload(), 600);
+        return {
+          ok: false,
+          reason: 'recovery-required',
+          requiresReload: true,
+          message: IMPORT_FAILURE_MESSAGES['recovery-required'],
+        };
+      }
+
+      if (result.compensation === 'failed') {
+        // Compensation failed: estado ambíguo, reload.
+        toast.error(IMPORT_FAILURE_MESSAGES['compensation-failed']);
+        window.setTimeout(() => window.location.reload(), 600);
+        return {
+          ok: false,
+          reason: 'compensation-failed',
+          requiresReload: true,
+          message: IMPORT_FAILURE_MESSAGES['compensation-failed'],
+        };
+      }
+
+      // Falha comprovadamente sem write ou revertida: liberar autosave.
+      storageBlockedRef.current = wasBlocked;
+      importInProgressRef.current = false;
+      const publicMessage = IMPORT_FAILURE_MESSAGES['import-failed'];
+      toast.error(publicMessage);
+      return {
+        ok: false,
+        reason: 'import-failed',
+        requiresReload: false,
+        message: publicMessage,
+      };
+    } catch {
+      // Exceção inesperada: estado ambíguo, reload.
+      toast.error(IMPORT_FAILURE_MESSAGES['recovery-required']);
+      window.setTimeout(() => window.location.reload(), 600);
+      return {
+        ok: false,
+        reason: 'recovery-required',
+        requiresReload: true,
+        message: IMPORT_FAILURE_MESSAGES['recovery-required'],
+      };
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast]);
+
   const inspectStorageAdminStatus = useCallback((): Promise<StorageAdminStatus> => {
     const adapter = historyAdapterRef.current;
     if (!adapter || typeof window === 'undefined') {
@@ -2862,6 +3086,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         startFreshStorage,
         downloadStorageRecovery,
         exportLogicalBackupV2,
+        importLogicalBackupV2,
       }}
     >
       {children}

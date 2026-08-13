@@ -1694,7 +1694,9 @@ describe('backup lógico v2 — regressão do fluxo v1', () => {
       'src/lib/storage-logical-backup.test.ts',
       'src/lib/storage-logical-import.test.ts',
       'src/lib/storage-logical-import.ts',
+      'src/providers/GymFlowContext.logical-import.real.test.tsx',
       'src/providers/GymFlowContext.tsx',
+      'src/providers/probe-real-roundtrip.test.ts',
     ]);
   });
 });

@@ -4,6 +4,51 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E4B — importação lógica v2 segura (2026-08-06)
+
+O `AdminPanel` no modo `hybrid-v2` agora permite confirmar e executar a
+importação lógica v2 segura. Após verificar o backup e visualizar o preview,
+o usuário pode clicar em "Importar este backup", confirmar com "Substituir
+dados e importar" e o sistema executa `commitLogicalStorageImportV2` com
+journal, owner-token, anti-TOCTOU e reload controlado.
+
+**Arquivos alterados:**
+- `src/providers/GymFlowContext.tsx` — função `importLogicalBackupV2` como
+  wrapper público sanitizado; owner-token estável por lifecycle; autosave
+  suspenso antes do primeiro write; reload controlado em sucesso settled
+- `src/components/ui/StorageBackupVerifier.tsx` — estendido com callback
+  opcional `onVerifiedBackup`; preview com botão "Importar este backup";
+  confirmação destrutiva inequívoca; raw/digest/size em refs privados
+- `src/modules/AdminPanel.tsx` — ponte sanitizada entre verifier e context
+- `src/components/ui/StorageBackupVerifier.guard.test.ts` — guards atualizados
+  para refletir novo call site autorizado
+- `src/lib/storage-boot-recovery.test.ts` — guard atualizado para refletir
+  call site de commitLogicalStorageImportV2
+- `src/lib/storage-logical-import.test.ts` — guard de call site atualizado
+- `docs/DECISOES.md`, `docs/GOALS_LOG.md`, `docs/PENDENCIAS.md`
+
+**Fluxo de importação v2:** verificar backup → preview → "Importar este
+backup" → confirmação destrutiva → "Substituir dados e importar" → autosave
+suspenso → commit (W0–W10) → sucesso settled → reload controlado.
+
+**Bloqueios implementados:** treino ativo, storage não saudável, diagnóstico
+não ready, completion pendente, operação aberta, owner-token ocupado, digest
+divergente, arquivo trocado, clique duplicado, componente desmontado.
+
+**Política de autosave:** suspenso antes do primeiro write. Em falha sem
+write: retomada segura. Em falha ambígua ou compensation-failed: bloqueio
+mantido + reload.
+
+**Política de reload:** uma única vez em sucesso settled. Falha recovery-required
+e compensation-failed também disparam reload. importInProgressRef previne
+duplicação em Strict Mode.
+
+**Fronteira pública:** `PublicLogicalImportResult` contém apenas ok, reason
+fechado, requiresReload e message constante. Nenhum ID físico, raw, digest,
+generationId, operationId ou cause atravessa a fronteira.
+
+---
+
 ## GOAL-17B-002E-E4A — verificação read-only de backup v2 (2026-08-05)
 
 O `AdminPanel` no modo `hybrid-v2` agora oferece uma ação "Verificar backup"

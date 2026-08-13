@@ -933,19 +933,16 @@ describe('guards — a recuperação tem exatamente um call site', () => {
     ]);
   });
 
-  it('commitLogicalStorageImportV2 continua sem nenhum call site', () => {
-    // A única "chamada" é a própria declaração da função.
-    const chamadores = sourceFilesCalling('commitLogicalStorageImportV2');
-    expect(chamadores).toEqual(['lib/storage-logical-import.ts']);
-
+  // GOAL-17B-E4B: commitLogicalStorageImportV2 agora tem exatamente um
+  // call site autorizado no GymFlowContext (via importLogicalBackupV2).
+  it('commitLogicalStorageImportV2 tem exatamente um call site autorizado', () => {
     const declaracao = codeOf(join(SOURCE_ROOT, 'lib/storage-logical-import.ts'));
     expect(declaracao).toContain('export async function commitLogicalStorageImportV2');
-    // E ninguém a importa.
     const importadores = listFiles(SOURCE_ROOT, ['.ts', '.tsx'])
       .filter((file) => !/\.test\.tsx?$/.test(file))
       .filter((file) => /import[\s\S]*?commitLogicalStorageImportV2[\s\S]*?from/.test(codeOf(file)))
       .map((file) => relative(SOURCE_ROOT, file).replace(/\\/g, '/'));
-    expect(importadores).toEqual([]);
+    expect(importadores).toEqual(['providers/GymFlowContext.tsx']);
   });
 
   it('nenhum componente visual chama a recuperação', () => {
@@ -991,23 +988,25 @@ describe('guards — a recuperação tem exatamente um call site', () => {
 });
 
 describe('guards — importação e restauração continuam indisponíveis ao usuário', () => {
-  it('nenhuma UI de importação lógica v2 foi criada', () => {
+  // GOAL-17B-E4B: o Provider agora importa commitLogicalStorageImportV2
+  // (via importLogicalBackupV2). O orquestrador de boot continua sendo o
+  // único .tsx que importa storage-boot-recovery.
+  it('somente o Provider importa logical-import (call site autorizado)', () => {
     const visuais = listFiles(SOURCE_ROOT, ['.tsx'])
       .filter((file) => !/\.test\.tsx$/.test(file))
       .filter((file) => {
         const conteudo = readFileSync(file, 'utf8');
-        return conteudo.includes('LogicalStorageImport')
-          || conteudo.includes('logical-import')
+        return conteudo.includes('logical-import')
           || conteudo.includes('storage-boot-recovery');
       })
       .map((file) => relative(SOURCE_ROOT, file).replace(/\\/g, '/'));
 
-    // O Provider importa o ORQUESTRADOR, não a importação — e é o único .tsx
-    // que sequer menciona o módulo.
     expect(visuais).toEqual(['providers/GymFlowContext.tsx']);
     const provider = readFileSync(join(SOURCE_ROOT, 'providers/GymFlowContext.tsx'), 'utf8');
-    expect(provider).not.toContain('LogicalStorageImport');
-    expect(provider).not.toContain('logical-import');
+    // O Provider importa commitLogicalStorageImportV2 (E4B), mas não
+    // importa recoverLogicalStorageImportV2 (recovery é exclusiva do boot).
+    expect(provider).toContain('commitLogicalStorageImportV2');
+    expect(provider).not.toContain('recoverLogicalStorageImportV2');
   });
 
   it('nenhum seletor de arquivo para importação lógica foi adicionado', () => {
