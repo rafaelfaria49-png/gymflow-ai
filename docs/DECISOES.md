@@ -2,6 +2,37 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-17B-002E-E5A — fundação recuperável de restore (2026-08-14)
+
+- **Tupla durável de proveniência:** o par `target core ↔ target generation`
+  vem de um receipt terminal (`previousCoreRaw` + `previousGenerationId`)
+  cruzado com o envelope (`historyStorage.generationId`), o manifest e o
+  conteúdo físico verificado da geração. Timestamp, ordem, nome lexical e
+  “última geração” nunca escolhem alvo.
+- **Backup rolante não é evidência durável:** `*:hybrid-core-backup:v2` é
+  cópia de trabalho rotativa (autosave e import a sobrescrevem). Exigi-lo
+  tornaria o restore impossível após qualquer save. Ele entra só no
+  double-read de estabilidade, não na tupla histórica.
+- **`stagedGenerationId` não muda de significado:** continua sendo geração
+  nova preparada. Restore usa `targetGenerationId` próprio e
+  `stagedGenerationId === null`.
+- **`targetCoreRaw` no restore é indispensável:** a geração física guarda só
+  o histórico; o core híbrido (programas, usuário, nutrição) vive no
+  envelope. Sem `targetCoreRaw` o recovery não saberia o que gravar.
+- **Receipts históricos de import não ganham campo novo:**
+  `targetGenerationId` é recusado por `hasOwn` em qualquer kind ≠ restore.
+- **Recovery do restore é para a frente:** journal criado sem efeito físico
+  avança até settle (como a importação staged continua). Reverter só seria
+  seguro com o mundo ainda anterior; após a ativação da geração, reverter
+  deixaria geração A + core B.
+- **Dispatcher por `kind`:** boot chama
+  `recoverLogicalStorageAdministrationV2`. Sem receipt ou `kind === import`
+  preserva o recovery histórico. `restore` tem recovery próprio. Kind
+  desconhecido ou malformado é fail-closed.
+- **Primitive desconectada:** `commitLogicalStorageRestoreV2` não tem call
+  site em Provider/UI. O alvo chega já comprovado por
+  `proveLogicalStorageRestoreTargetV2`.
+
 ## GOAL-17B-002E-E4B — importação lógica v2 segura (2026-08-06)
 
 - **Wrapper público sanitizado no GymFlowContext:** `importLogicalBackupV2`

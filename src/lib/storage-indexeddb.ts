@@ -710,6 +710,7 @@ function fingerprintAdministrationSnapshot(input: {
         receipt.updatedAt,
         receipt.previousGenerationId,
         receipt.stagedGenerationId ?? 'nenhuma',
+        receipt.kind === 'restore' ? receipt.targetGenerationId : 'nenhuma',
         receipt.sourceDigest ?? 'nenhum',
         markers?.previousCoreRaw ?? 'marcador-ausente',
         markers?.targetCoreRaw ?? 'marcador-ausente',
@@ -1823,11 +1824,11 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
 
       // Todos os demais campos do receipt são preservados; só
       // `stagedGenerationId` e `updatedAt` mudam.
-      const next: StorageOperationReceipt = {
+      const next = {
         ...current,
         stagedGenerationId: generationId,
         updatedAt: stampedAt,
-      };
+      } as StorageOperationReceipt;
       if (!isStorageOperationReceipt(next)) {
         throw new StorageOperationReceiptIntegrityError(
           `O staging deixaria o receipt ${operationId} com formato inválido.`,
@@ -1935,14 +1936,14 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
         );
       }
 
-      const next: StorageOperationReceipt = {
+      const next = {
         ...current,
         sourceDigest: patchedField(patch.sourceDigest, current.sourceDigest),
         stagedGenerationId: patchedField(patch.stagedGenerationId, current.stagedGenerationId),
         targetCoreRaw: patchedField(patch.targetCoreRaw, current.targetCoreRaw),
         status: nextStatus,
         updatedAt,
-      };
+      } as StorageOperationReceipt;
       if (!isStorageOperationReceipt(next)) {
         throw new StorageOperationReceiptIntegrityError(
           `A transição deixaria o receipt ${operationId} com formato inválido.`,
@@ -2171,14 +2172,14 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
         );
       }
 
-      const next: StorageOperationReceipt = {
+      const next = {
         ...record,
         sourceDigest: patchedField(patch.sourceDigest, record.sourceDigest),
         stagedGenerationId: patchedField(patch.stagedGenerationId, record.stagedGenerationId),
         targetCoreRaw: patchedField(patch.targetCoreRaw, record.targetCoreRaw),
         status: nextStatus,
         updatedAt,
-      };
+      } as StorageOperationReceipt;
       if (!isStorageOperationReceipt(next)) {
         throw new StorageOperationReceiptIntegrityError(
           `A transição deixaria o receipt ${operationId} com formato inválido.`,

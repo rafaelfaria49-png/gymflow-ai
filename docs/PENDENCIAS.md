@@ -1,5 +1,15 @@
 # Pendências
 
+## GOAL-17B-002E-E5A — fundação recuperável de restore
+
+- **Restore ainda não está na UI.** A primitive e o recovery existem, mas
+  nenhum Provider/AdminPanel/StorageBackupVerifier oferece restore. Isso é
+  o próximo gate (E5B).
+- **Reset híbrido e retenção executável** continuam bloqueados no modo
+  híbrido.
+- **Escolha manual de gerações** não existe: o alvo tem de ser nomeado e
+  comprovado. Não há seletor de geração.
+
 ## GOAL-17B-002E-E4B — importação lógica v2 segura
 
 - **Restore, reset e retenção executável.** Estas operações administrativas

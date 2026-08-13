@@ -353,14 +353,14 @@ async function createReadyHarness(options: {
   return { storage, factory, name, adapter, hybrid, runtime, generationId };
 }
 
-function beginInput(overrides: Partial<BeginStorageOperationInput> = {}): BeginStorageOperationInput {
+function beginInput(overrides: Record<string, unknown> = {}): BeginStorageOperationInput {
   return {
     kind: 'import',
     sourceDigest: null,
     stagedGenerationId: null,
     targetCoreRaw: null,
     ...overrides,
-  };
+  } as unknown as BeginStorageOperationInput;
 }
 
 // Receipt COERENTE com o estado físico observado: `previousCoreRaw` é o core v2
@@ -370,11 +370,11 @@ function beginInput(overrides: Partial<BeginStorageOperationInput> = {}): BeginS
 // diagnosticar uma interrupção legítima precisa partir daqui.
 function coherentReceipt(
   harness: { storage: MemoryStorage; generationId: string },
-  overrides: Partial<StorageOperationReceipt> = {},
+  overrides: Record<string, unknown> = {},
 ): StorageOperationReceipt {
   return {
     operationId: 'operation-interrompida',
-    kind: 'restore',
+    kind: 'rollback',
     sourceDigest: null,
     previousCoreRaw: harness.storage.getItem(KEY) as string,
     previousGenerationId: harness.generationId,
@@ -384,7 +384,7 @@ function coherentReceipt(
     createdAt: '2026-07-24T12:15:00.000Z',
     updatedAt: '2026-07-24T12:15:00.000Z',
     ...overrides,
-  };
+  } as unknown as StorageOperationReceipt;
 }
 
 // Roda `mutate` DEPOIS da execução real da n-ésima chamada de `method`. É assim
@@ -543,7 +543,7 @@ describe('estado administrativo (inspectStorageAdministration)', () => {
       expect(snapshot.state.status).toBe('interrupted');
       if (snapshot.state.status === 'interrupted') {
         expect(snapshot.state.operation.operationId).toBe('operation-interrompida');
-        expect(snapshot.state.operation.kind).toBe('restore');
+        expect(snapshot.state.operation.kind).toBe('rollback');
         expect(snapshot.state.operation.status).toBe(status);
       }
     },
@@ -667,19 +667,33 @@ describe('estado administrativo (inspectStorageAdministration)', () => {
 
 describe('beginStorageOperation', () => {
   it('cria exatamente um receipt staged com campos internos corretos', async () => {
-    const { runtime, storage, generationId } = await createReadyHarness({ sessions: [makeSession(1)] });
-    const rawBefore = storage.getItem(KEY);
+    const { runtime, storage, adapter, generationId: targetGenerationId } = await createReadyHarness();
+    const targetCoreRaw = storage.getItem(KEY) as string;
+    const generationId = await adapter.replaceHistory([makeSession(1)]);
+    const currentEnvelope = JSON.parse(targetCoreRaw) as {
+      data: { historyStorage: { generationId: string } };
+    };
+    currentEnvelope.data.historyStorage.generationId = generationId;
+    const rawBefore = JSON.stringify(currentEnvelope);
+    storage.setItem(KEY, rawBefore);
 
     const receipt = await runtime.beginStorageOperation(beginInput({
       kind: 'restore',
-      sourceDigest: 'sha256:origem',
+      sourceDigest: null,
+      expectedPreviousCoreRaw: rawBefore,
+      expectedPreviousGenerationId: generationId,
+      targetGenerationId,
+      targetCoreRaw,
     }));
 
     expect(receipt.status).toBe('staged');
     expect(receipt.kind).toBe('restore');
-    expect(receipt.sourceDigest).toBe('sha256:origem');
+    expect(receipt.sourceDigest).toBeNull();
     expect(receipt.stagedGenerationId).toBeNull();
-    expect(receipt.targetCoreRaw).toBeNull();
+    expect(receipt.targetCoreRaw).toBe(targetCoreRaw);
+    if (receipt.kind === 'restore') {
+      expect(receipt.targetGenerationId).toBe(targetGenerationId);
+    }
     // previousCoreRaw é byte a byte o core observado antes do begin.
     expect(receipt.previousCoreRaw).toBe(rawBefore);
     // previousGenerationId é a geração ativa real, não um valor informado.
@@ -711,6 +725,49 @@ describe('beginStorageOperation', () => {
     expect(receipt.previousCoreRaw).not.toBe('forjado');
     expect(receipt.createdAt).toBe('2026-07-24T13:00:00.000Z');
     expect(receipt.operationId).toBe('operation-test-1');
+  });
+
+  it('restore recusa mundo anterior divergente antes de criar receipt', async () => {
+    const { runtime, adapter, storage, generationId: targetGenerationId } = await createReadyHarness();
+    const targetCoreRaw = storage.getItem(KEY) as string;
+    const generationId = await adapter.replaceHistory([makeSession(2)]);
+    const current = JSON.parse(targetCoreRaw) as {
+      data: { historyStorage: { generationId: string } };
+    };
+    current.data.historyStorage.generationId = generationId;
+    storage.setItem(KEY, JSON.stringify(current));
+    await expect(runtime.beginStorageOperation({
+      kind: 'restore',
+      sourceDigest: null,
+      stagedGenerationId: null,
+      expectedPreviousCoreRaw: `${storage.getItem(KEY)}-divergente`,
+      expectedPreviousGenerationId: generationId,
+      targetGenerationId,
+      targetCoreRaw,
+    })).rejects.toMatchObject({ reason: 'core-changed-during-inspection' });
+    expect(await adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
+  });
+
+  it('restore recusa targetCoreRaw que nao nomeia o targetGenerationId', async () => {
+    const { runtime, adapter, storage, generationId: targetGenerationId } = await createReadyHarness();
+    const original = storage.getItem(KEY) as string;
+    const generationId = await adapter.replaceHistory([makeSession(3)]);
+    const current = JSON.parse(original) as {
+      data: { historyStorage: { generationId: string } };
+    };
+    current.data.historyStorage.generationId = generationId;
+    const rawBefore = JSON.stringify(current);
+    storage.setItem(KEY, rawBefore);
+    await expect(runtime.beginStorageOperation({
+      kind: 'restore',
+      sourceDigest: null,
+      stagedGenerationId: null,
+      expectedPreviousCoreRaw: rawBefore,
+      expectedPreviousGenerationId: generationId,
+      targetGenerationId,
+      targetCoreRaw: rawBefore,
+    })).rejects.toMatchObject({ reason: 'operation-incompatible' });
+    expect(await adapter.listUnsettledStorageOperationReceipts()).toEqual([]);
   });
 
   it('recusa quando já existe uma operação administrativa em andamento', async () => {

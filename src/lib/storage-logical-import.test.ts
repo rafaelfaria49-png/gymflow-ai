@@ -1468,8 +1468,9 @@ describe('importação lógica v2 — idempotência e invariantes', () => {
     // igualdade exata continua impedindo expansão acidental.
     expect(sourceFilesImporting('storage-logical-import'))
       .toEqual([
-        'src/lib/storage-boot-recovery.ts',
+        'src/lib/storage-administrative-recovery.ts',
         'src/lib/storage-logical-import.test.ts',
+        'src/lib/storage-logical-restore.test.ts',
       ]);
   });
 });
@@ -1482,7 +1483,7 @@ const PREVIOUS_CORE = '{"v":2,"savedAt":"2026-07-26T08:00:00.000Z","data":"anter
 const TARGET_CORE = '{"v":2,"savedAt":"2026-07-26T11:00:00.000Z","data":"alvo"}';
 
 function makeImportReceipt(
-  overrides: Partial<StorageOperationReceipt> = {},
+  overrides: Record<string, unknown> = {},
 ): StorageOperationReceipt {
   return {
     ...createStorageOperationReceipt({
@@ -1494,7 +1495,7 @@ function makeImportReceipt(
       sourceDigest: `sha256:${'b'.repeat(64)}`,
     }),
     ...overrides,
-  };
+  } as unknown as StorageOperationReceipt;
 }
 
 function makeObservation(
@@ -2672,7 +2673,7 @@ describe('resolveLogicalImportRecovery — ramos adicionais', () => {
   }
 
   function activating(
-    overrides: Partial<StorageOperationReceipt> = {},
+    overrides: Record<string, unknown> = {},
   ): StorageOperationReceipt {
     return makeImportReceipt({
       status: 'activating',
@@ -4138,7 +4139,15 @@ describe('recuperação da importação v2 — estados ambíguos', () => {
     const crash = await activatingCrash();
     const env = reloaded(crash.harness);
     const [interrompido] = await readOperationReceipts(env);
-    await putRawOperationReceipt(env, { ...interrompido, kind: 'restore' });
+    if (interrompido.stagedGenerationId === null || interrompido.targetCoreRaw === null) {
+      throw new Error('setup da importacao interrompida nao declarou o alvo');
+    }
+    await putRawOperationReceipt(env, {
+      ...interrompido,
+      kind: 'restore',
+      stagedGenerationId: null,
+      targetGenerationId: interrompido.stagedGenerationId,
+    });
 
     // Não assumir que um receipt de restore pertence à importação.
     await expectBlocked(env, 'operation-conflict');
@@ -5064,8 +5073,8 @@ describe('recuperação da importação v2 — ausência de call site', () => {
     expect(sourceFilesMentioning('recoverLogicalStorageImportV2')).toEqual([
       'src/components/ui/StorageBackupVerifier.guard.test.ts',
       'src/components/ui/StorageExportControls.guard.test.ts',
+      'src/lib/storage-administrative-recovery.ts',
       'src/lib/storage-boot-recovery.test.ts',
-      'src/lib/storage-boot-recovery.ts',
       'src/lib/storage-logical-import.test.ts',
       'src/lib/storage-logical-import.ts',
     ]);
@@ -5088,10 +5097,11 @@ describe('recuperação da importação v2 — ausência de call site', () => {
     expect(sourceFilesMentioning('storage-logical-import')).toEqual([
       'src/components/ui/StorageBackupVerifier.guard.test.ts',
       'src/components/ui/StorageBackupVerifier.import-guard.test.ts',
+      'src/lib/storage-administrative-recovery.ts',
       'src/lib/storage-boot-recovery.test.ts',
-      'src/lib/storage-boot-recovery.ts',
       'src/lib/storage-logical-backup.test.ts',
       'src/lib/storage-logical-import.test.ts',
+      'src/lib/storage-logical-restore.test.ts',
       'src/providers/GymFlowContext.logical-import.test.tsx',
       'src/providers/GymFlowContext.tsx',
       'src/providers/probe-real-roundtrip.test.ts',
@@ -5099,8 +5109,8 @@ describe('recuperação da importação v2 — ausência de call site', () => {
     expect(sourceFilesMentioning('recoverLogicalStorageImportV2')).toEqual([
       'src/components/ui/StorageBackupVerifier.guard.test.ts',
       'src/components/ui/StorageExportControls.guard.test.ts',
+      'src/lib/storage-administrative-recovery.ts',
       'src/lib/storage-boot-recovery.test.ts',
-      'src/lib/storage-boot-recovery.ts',
       'src/lib/storage-logical-import.test.ts',
       'src/lib/storage-logical-import.ts',
     ]);
@@ -5155,7 +5165,10 @@ describe('recuperação da importação v2 — ausência de call site', () => {
     const chamadores = sourceFilesMentioning('recoverLogicalStorageImportV2(')
       .filter((arquivo) => !arquivo.endsWith('.test.ts') && !arquivo.endsWith('.test.tsx'));
     // O próprio módulo declara a função; ninguém mais a invoca.
-    expect(chamadores).toEqual(['src/lib/storage-logical-import.ts']);
+    expect(chamadores).toEqual([
+      'src/lib/storage-administrative-recovery.ts',
+      'src/lib/storage-logical-import.ts',
+    ]);
     const modulo = importModuleSource();
     // Nenhuma auto-invocação, nenhum efeito de importação.
     expect(modulo).not.toMatch(/^\s*recoverLogicalStorageImportV2\(/m);
@@ -5239,7 +5252,7 @@ const RESTART_PREVIOUS_CORE = restartCore(RESTART_PREV, '2026-07-26T08:00:00.000
 const RESTART_TARGET_CORE = restartCore(RESTART_STAGED, '2026-07-26T11:00:00.000Z');
 
 function makeRestartReceipt(
-  overrides: Partial<StorageOperationReceipt> = {},
+  overrides: Record<string, unknown> = {},
 ): StorageOperationReceipt {
   return {
     ...createStorageOperationReceipt({
@@ -5251,7 +5264,7 @@ function makeRestartReceipt(
       sourceDigest: `sha256:${'b'.repeat(64)}`,
     }),
     ...overrides,
-  };
+  } as unknown as StorageOperationReceipt;
 }
 
 function makeRestartObservation(

@@ -1419,7 +1419,7 @@ function putRawOperationReceipt(
 }
 
 function makeOperationReceipt(
-  overrides: Partial<StorageOperationReceipt> = {},
+  overrides: Record<string, unknown> = {},
 ): StorageOperationReceipt {
   return {
     ...createStorageOperationReceipt({
@@ -1430,7 +1430,7 @@ function makeOperationReceipt(
       createdAt: '2026-07-24T12:00:00.000Z',
     }),
     ...overrides,
-  };
+  } as unknown as StorageOperationReceipt;
 }
 
 // Falha de integridade sempre carrega a classe e a razão: nenhuma delas é

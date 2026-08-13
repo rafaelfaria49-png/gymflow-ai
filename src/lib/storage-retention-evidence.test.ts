@@ -114,7 +114,7 @@ function emptyAdministrationSnapshot(): StorageAdministrationSnapshotRead {
 }
 
 function operation(
-  overrides: Partial<StorageOperationReceipt> = {},
+  overrides: Record<string, unknown> = {},
 ): StorageOperationReceipt {
   return {
     ...createStorageOperationReceipt({
@@ -125,7 +125,7 @@ function operation(
       createdAt: CREATED_AT,
     }),
     ...overrides,
-  };
+  } as unknown as StorageOperationReceipt;
 }
 
 function completion(): WorkoutCompletionReceipt {
