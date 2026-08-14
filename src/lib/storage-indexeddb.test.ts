@@ -3508,7 +3508,7 @@ describe('stageHistoryGenerationForOperation (002D-C1)', () => {
     overrides: {
       operationId?: string;
       expectedStatus?: StorageOperationStatus;
-      expectedKind?: 'import' | 'reset';
+      expectedKind?: 'import' | 'reset' | 'rollback';
     } = {},
   ) {
     return adapter.stageHistoryGenerationForOperation({
@@ -3578,23 +3578,45 @@ describe('stageHistoryGenerationForOperation (002D-C1)', () => {
     expect((await adapter.readStorageOperationReceipt('operation-import-1'))?.stagedGenerationId).toBeNull();
   });
 
-  it('4. recusa quando o kind da operação não é import', async () => {
+  it('4. recusa kind que nao cria geracao nova e aceita reset com expectedKind proprio', async () => {
     const { adapter } = createStagingHarness();
     await adapter.open();
-    const ativa = await adapter.replaceHistory([makeSession(1)]);
+    const rollbackAtiva = await adapter.replaceHistory([makeSession(1)]);
     await adapter.createStorageOperationReceiptIfIdle({
       receipt: makeOperationReceipt({
-        operationId: 'operation-import-1',
-        kind: 'reset',
-        previousGenerationId: ativa,
+        operationId: 'operation-rollback-1',
+        kind: 'rollback',
+        previousGenerationId: rollbackAtiva,
       }),
-      expectedActiveGenerationId: ativa,
+      expectedActiveGenerationId: rollbackAtiva,
     });
+    await expect(stage(adapter, rollbackAtiva, [makeSession(40)], {
+      operationId: 'operation-rollback-1',
+      expectedKind: 'rollback',
+    })).rejects.toBeInstanceOf(StorageOperationTransitionError);
 
-    await expect(stage(adapter, ativa, [makeSession(40)]))
-      .rejects.toBeInstanceOf(StorageOperationTransitionError);
-    await expect(stage(adapter, ativa, [makeSession(40)], { expectedKind: 'reset' }))
-      .rejects.toBeInstanceOf(StorageOperationTransitionError);
+    const resetHarness = createStagingHarness();
+    await resetHarness.adapter.open();
+    const resetAtiva = await resetHarness.adapter.replaceHistory([makeSession(2)]);
+    await resetHarness.adapter.createStorageOperationReceiptIfIdle({
+      receipt: makeOperationReceipt({
+        operationId: 'operation-reset-1',
+        kind: 'reset',
+        previousGenerationId: resetAtiva,
+      }),
+      expectedActiveGenerationId: resetAtiva,
+    });
+    await expect(stage(resetHarness.adapter, resetAtiva, [], {
+      operationId: 'operation-reset-1',
+    })).rejects.toBeInstanceOf(StorageOperationTransitionError);
+    const staged = await stage(resetHarness.adapter, resetAtiva, [], {
+      operationId: 'operation-reset-1',
+      expectedKind: 'reset',
+    });
+    expect(staged.generationId).not.toBe(resetAtiva);
+    expect(staged.manifest.sessionCount).toBe(0);
+    expect(staged.receipt.kind).toBe('reset');
+    expect(staged.receipt.stagedGenerationId).toBe(staged.generationId);
   });
 
   it('5. aborta quando o receipt já nomeia uma geração preparada', async () => {

@@ -2,6 +2,27 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-17B-002E-E6A — fundação recuperável de reset (2026-08-14)
+
+- **Reset cria geração nova:** `kind: reset` usa `stagedGenerationId` como
+  import. Não usa `targetGenerationId`. `sourceDigest` é sempre `null`.
+- **Estado vazio canônico:** `createEmptyPersistedState()` em
+  `storage-types.ts` é a única fábrica. O protocolo não copia dezenas de
+  defaults. O core alvo é `toPersistedCoreState(empty, generationId)`.
+- **Reset não é delete:** o fluxo não chama `localStorage.clear`,
+  `deleteDatabase`, `objectStore.clear`, `clearInactiveGeneration` nem
+  retenção. A geração anterior permanece física e elegível para restore.
+- **Journal antes do primeiro efeito:** begin grava previousCoreRaw/
+  previousGenerationId; a geração vazia e o `targetCoreRaw` entram depois.
+- **Recovery para a frente:** journal criado sem efeito avança até settle.
+  Core terceiro, geração inesperada, geração corrompida e receipt
+  malformado são fail-closed. Recovery repetido é idempotente.
+- **Predecessor após reset:** `finalGenerationOf` trata reset como import
+  (`stagedGenerationId`). O par previousCoreRaw + previousGenerationId
+  continua sendo a evidência durável do mundo A.
+- **Primitive desconectada:** `commitLogicalStorageResetV2` não tem call
+  site em Provider/UI. Retenção executável e etapa F ficam de fora.
+
 ## GOAL-17B-002E-E5B — restore híbrido no Context e no painel (2026-08-14)
 
 - **Predecessor determinístico:** a UI nunca nomeia geração ou receipt. Uma camada

@@ -4159,7 +4159,11 @@ describe('recuperação da importação v2 — estados ambíguos', () => {
       const crash = await activatingCrash();
       const env = reloaded(crash.harness);
       const [interrompido] = await readOperationReceipts(env);
-      await putRawOperationReceipt(env, { ...interrompido, kind });
+      await putRawOperationReceipt(env, {
+        ...interrompido,
+        kind,
+        sourceDigest: kind === 'reset' ? null : interrompido.sourceDigest,
+      });
 
       await expectBlocked(env, 'operation-conflict');
     }

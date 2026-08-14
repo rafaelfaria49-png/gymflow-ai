@@ -9,12 +9,17 @@ import {
   type LogicalStorageRestoreRecoveryResult,
   recoverLogicalStorageRestoreV2,
 } from './storage-logical-restore';
+import {
+  type LogicalStorageResetRecoveryResult,
+  recoverLogicalStorageResetV2,
+} from './storage-logical-reset';
 import { isTerminalStorageOperationStatus } from './storage-operation-receipt';
 import type { StorageLike } from './storage-types';
 
 export type LogicalStorageAdministrativeRecoveryResult =
   | LogicalStorageImportRecoveryResult
-  | LogicalStorageRestoreRecoveryResult;
+  | LogicalStorageRestoreRecoveryResult
+  | LogicalStorageResetRecoveryResult;
 
 export interface RecoverLogicalStorageAdministrationV2Input {
   runtime: StorageAdminRuntime;
@@ -88,8 +93,10 @@ export async function recoverLogicalStorageAdministrationV2(
   if (receipt.kind === 'restore') {
     return recoverLogicalStorageRestoreV2(input);
   }
-  // reset/rollback nao ganharam recovery neste GOAL. Um kind futuro tambem cai
-  // aqui depois que o parser correspondente o reconhecer: nunca ha default que
-  // autorize hidratacao.
+  if (receipt.kind === 'reset') {
+    return recoverLogicalStorageResetV2(input);
+  }
+  // rollback e kind desconhecido/malformado: fail-closed. Nunca ha default
+  // que autorize hidratacao.
   return blockedResult('operation-conflict');
 }

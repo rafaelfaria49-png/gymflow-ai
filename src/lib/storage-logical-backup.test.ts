@@ -1694,6 +1694,7 @@ describe('backup lógico v2 — regressão do fluxo v1', () => {
       'src/lib/storage-logical-backup.test.ts',
       'src/lib/storage-logical-import.test.ts',
       'src/lib/storage-logical-import.ts',
+      'src/lib/storage-logical-reset.ts',
       'src/lib/storage-logical-restore-resolve.test.ts',
       'src/lib/storage-logical-restore.test.ts',
       'src/providers/GymFlowContext.logical-import.real.test.tsx',

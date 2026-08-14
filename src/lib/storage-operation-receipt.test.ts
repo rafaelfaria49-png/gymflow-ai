@@ -176,6 +176,34 @@ describe('contrato do receipt de operação administrativa', () => {
     expect(isStorageOperationReceipt({ ...valido, targetGenerationId: 'generation-b' })).toBe(false);
   });
 
+  it('modela reset como geracao nova sem origem externa nem targetGenerationId', () => {
+    const valido = makeOperationReceipt({
+      kind: 'reset',
+      sourceDigest: null,
+      stagedGenerationId: 'generation-z',
+      targetCoreRaw: '{"v":2}',
+    });
+    expect(isStorageOperationReceipt(valido)).toBe(true);
+    expect(isStorageOperationReceipt(makeOperationReceipt({
+      kind: 'reset',
+      sourceDigest: 'sha256:abc',
+    }))).toBe(false);
+    expect(isStorageOperationReceipt(makeOperationReceipt({
+      kind: 'reset',
+      targetGenerationId: 'generation-x',
+    }))).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(
+      createStorageOperationReceipt({
+        operationId: 'reset-1',
+        kind: 'reset',
+        previousCoreRaw: '{"v":2}',
+        previousGenerationId: 'generation-a',
+        createdAt: '2026-08-14T12:00:00.000Z',
+      }),
+      'targetGenerationId',
+    )).toBe(false);
+  });
+
   it('recusa targetGenerationId em import, reset e rollback', () => {
     for (const kind of ['import', 'reset', 'rollback'] as const) {
       expect(isStorageOperationReceipt(makeOperationReceipt({
