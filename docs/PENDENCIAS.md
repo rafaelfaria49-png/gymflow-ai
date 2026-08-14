@@ -6,9 +6,9 @@
   híbrido.
 - **Escolha manual de gerações** não existe: só o predecessor comprovado do
   mundo atual. Sem seletor, histórico de restores ou delete de geração.
-- **Após autosave do mundo atual** o predecessor deixa de ser comprovável,
-  porque o core final do receipt deixa de coincidir exatamente com o core
-  ativo. É fail-closed, não heurística.
+- **Edições do usuário na mesma geração** não criam predecessor novo. Restaurar
+  volta ao mundo administrativo anterior e descarta essas edições. Não há
+  seletor de snapshots intermediários nem histórico de restores.
 
 ## GOAL-17B-002E-E5A — fundação recuperável de restore
 

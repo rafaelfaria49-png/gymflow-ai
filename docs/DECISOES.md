@@ -5,11 +5,14 @@ Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decis�
 ## GOAL-17B-002E-E5B — restore híbrido no Context e no painel (2026-08-14)
 
 - **Predecessor determinístico:** a UI nunca nomeia geração ou receipt. Uma camada
-  read-only enumera todos os receipts `settled` e só aceita o candidato cujo
-  estado/geração finais coincidem exatamente com o mundo atual, com
-  `previousCoreRaw` + `previousGenerationId` verificáveis e
-  `proveLogicalStorageRestoreTargetV2` integral. Zero candidatos →
-  unavailable; mais de um → ambiguous sem escolha.
+  read-only enumera todos os receipts `settled` e só aceita o candidato cuja
+  geração final (`stagedGenerationId` no import, `targetGenerationId` no
+  restore) é a geração ativa, com `previousCoreRaw` + `previousGenerationId`
+  verificáveis e `proveLogicalStorageRestoreTargetV2` integral. A identidade
+  do mundo é a geração, não o envelope byte a byte: o autosave reescreve
+  `savedAt` sem criar mundo novo. Zero candidatos → unavailable; mais de um
+  → ambiguous sem escolha. Preview e commit comparam a identidade do alvo
+  (fonte + par anterior + geração atual), não o `currentCoreRaw` efêmero.
 - **Nenhuma heurística temporal:** timestamp, `updatedAt`, ordem, “último
   receipt”, maior ID, ID lexical e geração mais recente não escolhem alvo.
 - **Prova efêmera no Context:** o `LogicalStorageRestoreTargetV2` vive só em

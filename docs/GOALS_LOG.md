@@ -25,6 +25,12 @@ reload único.
 - testes de resolução, Context, UI, integração real e guards
 - `docs/DECISOES.md`, `docs/GOALS_LOG.md`, `docs/PENDENCIAS.md`
 
+**Correção de auditoria (vida útil):** o predecessor sobrevive a hidratação,
+reload e autosave neutro. A geração final do receipt settled é a identidade
+do mundo; `savedAt` novo não elimina a prova. Edições posteriores na mesma
+geração também não criam mundo novo — restaurar volta ao predecessor
+administrativo.
+
 **Fora de escopo:** reset híbrido, retenção executável, seletor de gerações,
 histórico de restores, Android, Share Sheet, etapa F.
 

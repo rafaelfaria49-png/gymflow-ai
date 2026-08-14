@@ -436,6 +436,38 @@ describe('commitLogicalRestoreV2 — pré-flights', () => {
     expect(result).toMatchObject({ ok: false, reason: 'proof-diverged' });
     expect(mockCommitLogicalStorageRestoreV2).not.toHaveBeenCalled();
   });
+
+  it('autosave do core atual entre preview e commit nao e proof-diverged', async () => {
+    seedV1Envelope({ activeWorkout: null, activeWorkoutStartedAt: null });
+    mockCommitLogicalStorageRestoreV2.mockResolvedValue({ ok: true });
+    const handle = await mountHydrated();
+    await callInspect(handle);
+    mockResolveLogicalRestorePredecessorV2.mockResolvedValue({
+      status: 'available',
+      target: { ...TARGET_A, currentCoreRaw: '{"v":2,"data":"B-autosaved"}' },
+      preview: PREVIEW,
+    });
+    const result = await callRestore(handle);
+    expect(result).toMatchObject({ ok: true });
+    expect(mockCommitLogicalStorageRestoreV2).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    });
+  });
+
+  it('geracao ativa diferente entre preview e commit e proof-diverged', async () => {
+    seedV1Envelope({ activeWorkout: null, activeWorkoutStartedAt: null });
+    const handle = await mountHydrated();
+    await callInspect(handle);
+    mockResolveLogicalRestorePredecessorV2.mockResolvedValue({
+      status: 'available',
+      target: { ...TARGET_A, currentGenerationId: 'generation-other' },
+      preview: PREVIEW,
+    });
+    const result = await callRestore(handle);
+    expect(result).toMatchObject({ ok: false, reason: 'proof-diverged' });
+    expect(mockCommitLogicalStorageRestoreV2).not.toHaveBeenCalled();
+  });
 });
 
 describe('commitLogicalRestoreV2 — sucesso e reload único', () => {

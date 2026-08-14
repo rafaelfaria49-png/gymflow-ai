@@ -4,8 +4,11 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
 import {
+  COMPLETION_RECEIPTS_STORE,
+  GENERATION_MANIFESTS_STORE,
   GYMFLOW_INDEXEDDB_VERSION,
   STORAGE_OPERATION_RECEIPTS_STORE,
+  WORKOUT_HISTORY_STORE,
 } from '../lib/storage-indexeddb';
 import { inspectLogicalStorageBackupV2 } from '../lib/storage-logical-backup';
 import { parsePhysicalEnvelope } from '../lib/storage-hybrid';
@@ -442,6 +445,49 @@ afterEach(async () => {
   restoreBrowserGlobals();
 });
 
+async function waitMs(ms: number): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  });
+}
+
+async function prepareWorldBAfterReload(): Promise<Mounted> {
+  seedWorldA();
+  const first = await mountHydrated();
+  expect(first.context().storageMode).toBe('hybrid-v2');
+  const backupB = await buildBackupB();
+  const imported = await callImport(first, backupB);
+  expect(imported).toEqual({ ok: true });
+  await waitMs(700);
+  expect(reloadSpy).toHaveBeenCalledTimes(1);
+  await first.unmount();
+  reloadSpy.mockClear();
+  const second = await mountHydrated();
+  expect(second.context().storageMode).toBe('hybrid-v2');
+  expect(second.context().workoutHistory).toHaveLength(1);
+  return second;
+}
+
+async function withStore<T>(
+  storeName: string,
+  mode: IDBTransactionMode,
+  operate: (store: IDBObjectStore) => Promise<T>,
+): Promise<T> {
+  const db = await openRawDatabase();
+  try {
+    const transaction = db.transaction(storeName, mode);
+    const result = await operate(transaction.objectStore(storeName));
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+    return result;
+  } finally {
+    db.close();
+  }
+}
+
 describe('restore hybrid-v2 — integração real A→B→A', () => {
   it('identifica A como único predecessor, restaura, settle e recarrega uma vez', async () => {
     seedWorldA();
@@ -507,5 +553,264 @@ describe('restore hybrid-v2 — integração real A→B→A', () => {
       await new Promise((resolve) => setTimeout(resolve, 700));
     });
     expect(reloadSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('restore hybrid-v2 — vida útil do predecessor após A→import B', () => {
+  it('hidratação normal após reload mantém available', async () => {
+    const handle = await prepareWorldBAfterReload();
+    const inspection = await callInspect(handle);
+    expect(inspection.status).toBe('available');
+  });
+
+  it('debounce de autosave sem alteração do usuário mantém available', async () => {
+    const handle = await prepareWorldBAfterReload();
+    const coreAfterHydration = mainKeyContent();
+    await waitMs(700);
+    expect(mainKeyContent()).not.toBe(coreAfterHydration);
+    const inspection = await callInspect(handle);
+    expect(inspection.status).toBe('available');
+    if (inspection.status !== 'available') throw new Error('esperado available');
+    expect(inspection.preview).toEqual({
+      sessionCount: 2,
+      customProgramCount: 1,
+      weightRecordCount: 3,
+      measurementRecordCount: 2,
+    });
+  });
+
+  it('pagehide/visibilitychange após reload mantém available', async () => {
+    const handle = await prepareWorldBAfterReload();
+    windowStub.dispatchEvent(new Event('pagehide'));
+    documentStub.visibilityState = 'hidden';
+    documentStub.dispatchEvent(new Event('visibilitychange'));
+    await settle(5);
+    const inspection = await callInspect(handle);
+    expect(inspection.status).toBe('available');
+  });
+
+  it('abrir e fechar o app sem modificar dados mantém available', async () => {
+    const first = await prepareWorldBAfterReload();
+    await waitMs(700);
+    await first.unmount();
+    const second = await mountHydrated();
+    await waitMs(700);
+    const inspection = await callInspect(second);
+    expect(inspection.status).toBe('available');
+  });
+
+  it('alteração comum do perfil mantém available (mesma geração)', async () => {
+    const handle = await prepareWorldBAfterReload();
+    await waitMs(700);
+    await act(async () => {
+      handle.context().updateUserProfile({ name: 'Perfil editado' });
+    });
+    await waitMs(700);
+    const inspection = await callInspect(handle);
+    expect(inspection.status).toBe('available');
+  });
+
+  it('novo treino ativo mantém available e o commit recusa active-workout', async () => {
+    const handle = await prepareWorldBAfterReload();
+    await waitMs(700);
+    await act(async () => {
+      handle.context().startWorkout(undefined, 'Treino extra');
+    });
+    expect(handle.context().activeWorkout).not.toBeNull();
+    const inspection = await callInspect(handle);
+    expect(inspection.status).toBe('available');
+    const restored = await callRestore(handle);
+    expect(restored).toMatchObject({ ok: false, reason: 'active-workout', requiresReload: false });
+    expect(reloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('alteração de peso e medida mantém available', async () => {
+    const handle = await prepareWorldBAfterReload();
+    await waitMs(700);
+    await act(async () => {
+      handle.context().addWeightLog(79.4);
+      handle.context().addMeasurementLog(104, 86, 98, 37);
+    });
+    await waitMs(700);
+    const inspection = await callInspect(handle);
+    expect(inspection.status).toBe('available');
+  });
+});
+
+describe('restore hybrid-v2 — preview → commit com proveniência sabotada', () => {
+  it('core atual apagado recusa antes do primeiro write', async () => {
+    const handle = await prepareWorldBAfterReload();
+    const before = mainKeyContent();
+    await callInspect(handle);
+    storage.removeItem(STORAGE_KEY);
+    const restored = await callRestore(handle);
+    expect(restored.ok).toBe(false);
+    expect(mainKeyContent()).toBeNull();
+    expect(before).not.toBeNull();
+    expect(reloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('geração ativa no core divergente recusa sem write de restore', async () => {
+    const handle = await prepareWorldBAfterReload();
+    await callInspect(handle);
+    const parsed = JSON.parse(mainKeyContent() as string) as {
+      data: { historyStorage: { generationId: string } };
+    };
+    parsed.data.historyStorage.generationId = 'generation-sabotada';
+    const sabotaged = JSON.stringify(parsed);
+    storage.setItem(STORAGE_KEY, sabotaged);
+    const restored = await callRestore(handle);
+    expect(restored.ok).toBe(false);
+    expect(mainKeyContent()).toBe(sabotaged);
+    expect(reloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('receipt fonte adulterado recusa sem write de restore', async () => {
+    const handle = await prepareWorldBAfterReload();
+    const before = mainKeyContent();
+    await callInspect(handle);
+    await withStore(STORAGE_OPERATION_RECEIPTS_STORE, 'readwrite', async (store) => {
+      const rows = await rawRequest(store.getAll()) as Array<Record<string, unknown>>;
+      const source = rows.find((row) => row.kind === 'import');
+      if (!source) throw new Error('receipt de import ausente');
+      await rawRequest(store.put({
+        ...source,
+        previousCoreRaw: '{"v":2,"sabotaged":true}',
+      }));
+    });
+    const restored = await callRestore(handle);
+    expect(restored.ok).toBe(false);
+    expect(mainKeyContent()).toBe(before);
+    expect(reloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('geração alvo removida recusa sem write de restore', async () => {
+    const handle = await prepareWorldBAfterReload();
+    const before = mainKeyContent();
+    const inspection = await callInspect(handle);
+    expect(inspection.status).toBe('available');
+    const currentGeneration = (
+      JSON.parse(before as string) as { data: { historyStorage: { generationId: string } } }
+    ).data.historyStorage.generationId;
+    await withStore(WORKOUT_HISTORY_STORE, 'readwrite', async (store) => {
+      const rows = await rawRequest(store.getAll()) as Array<{ generationId: string; order: number }>;
+      for (const row of rows) {
+        if (row.generationId !== currentGeneration) {
+          await rawRequest(store.delete([row.generationId, row.order]));
+        }
+      }
+    });
+    await withStore(GENERATION_MANIFESTS_STORE, 'readwrite', async (store) => {
+      const rows = await rawRequest(store.getAll()) as Array<{ generationId: string }>;
+      for (const row of rows) {
+        if (row.generationId !== currentGeneration) {
+          await rawRequest(store.delete(row.generationId));
+        }
+      }
+    });
+    const restored = await callRestore(handle);
+    expect(restored.ok).toBe(false);
+    expect(mainKeyContent()).toBe(before);
+    expect(reloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('manifest da geração alvo corrompido recusa sem write de restore', async () => {
+    const handle = await prepareWorldBAfterReload();
+    const before = mainKeyContent();
+    await callInspect(handle);
+    const currentGeneration = (
+      JSON.parse(before as string) as { data: { historyStorage: { generationId: string } } }
+    ).data.historyStorage.generationId;
+    await withStore(GENERATION_MANIFESTS_STORE, 'readwrite', async (store) => {
+      const rows = await rawRequest(store.getAll()) as Array<{
+        generationId: string;
+        verified: boolean;
+      }>;
+      const target = rows.find((row) => row.generationId !== currentGeneration);
+      if (!target) throw new Error('manifest alvo ausente');
+      await rawRequest(store.put({ ...target, verified: false }));
+    });
+    const restored = await callRestore(handle);
+    expect(restored.ok).toBe(false);
+    expect(mainKeyContent()).toBe(before);
+    expect(reloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('completion receipt pendente recusa sem write de restore', async () => {
+    const handle = await prepareWorldBAfterReload();
+    const before = mainKeyContent();
+    await callInspect(handle);
+    await withStore(COMPLETION_RECEIPTS_STORE, 'readwrite', async (store) => {
+      await rawRequest(store.put({ receiptId: 'completion-sabotada' } as never));
+    });
+    const restored = await callRestore(handle);
+    expect(restored.ok).toBe(false);
+    expect(mainKeyContent()).toBe(before);
+    expect(reloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('owner-token ocupado recusa sem write de restore', async () => {
+    const handle = await prepareWorldBAfterReload();
+    const before = mainKeyContent();
+    await callInspect(handle);
+    storage.setItem(`${STORAGE_KEY}:admin-owner-token:v1`, JSON.stringify({
+      schemaVersion: 1,
+      ownerId: 'outra-aba',
+      operationId: 'op-estrangeira',
+      operationKind: 'restore',
+      acquiredAt: Date.now(),
+      expiresAt: Date.now() + 30_000,
+      nonce: 'nonce-estrangeiro',
+    }));
+    const restored = await callRestore(handle);
+    expect(restored).toMatchObject({ ok: false, reason: 'owner-token-busy' });
+    expect(mainKeyContent()).toBe(before);
+    expect(reloadSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('restore hybrid-v2 — ambiguous real e pagehide durante commit', () => {
+  it('dois receipts settled integralmente validos => ambiguous sem acao', async () => {
+    const handle = await prepareWorldBAfterReload();
+    await withStore(STORAGE_OPERATION_RECEIPTS_STORE, 'readwrite', async (store) => {
+      const rows = await rawRequest(store.getAll()) as Array<Record<string, unknown>>;
+      const source = rows.find((row) => row.kind === 'import');
+      if (!source) throw new Error('receipt de import ausente');
+      await rawRequest(store.put({
+        ...source,
+        operationId: 'import-zzz-later-id',
+        createdAt: '2026-08-14T23:59:59.000Z',
+        updatedAt: '2026-08-14T23:59:59.000Z',
+      }));
+    });
+    const inspection = await callInspect(handle);
+    expect(inspection).toEqual({ status: 'ambiguous' });
+    const restored = await callRestore(handle);
+    expect(restored).toMatchObject({ ok: false, reason: 'restore-unavailable' });
+    expect(reloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('pagehide durante o commit real nao sobrescreve o restore', async () => {
+    const handle = await prepareWorldBAfterReload();
+    await waitMs(700);
+    const inspection = await callInspect(handle);
+    expect(inspection.status).toBe('available');
+    const coreBefore = mainKeyContent();
+
+    let restored!: RestoreResult;
+    const pending = handle.context().commitLogicalRestoreV2();
+    windowStub.dispatchEvent(new Event('pagehide'));
+    documentStub.visibilityState = 'hidden';
+    documentStub.dispatchEvent(new Event('visibilitychange'));
+    await act(async () => {
+      restored = await pending;
+    });
+
+    expect(restored).toMatchObject({ ok: true, requiresReload: true });
+    const coreAfter = mainKeyContent();
+    expect(coreAfter).not.toBe(coreBefore);
+    expect(parsePhysicalEnvelope(coreAfter as string).status).toBe('v2');
+    const receipts = await readOperationReceipts();
+    expect(receipts.some((row) => row.kind === 'restore' && row.status === 'settled')).toBe(true);
   });
 });

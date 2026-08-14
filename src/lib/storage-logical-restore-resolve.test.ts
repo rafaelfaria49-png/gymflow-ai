@@ -6,7 +6,8 @@ import type { WorkoutSession } from '../types';
 import { createStorageAdminRuntime } from './storage-admin-runtime';
 import {
   createHybridStorageRuntime,
-  HYBRID_CORE_BACKUP_SUFFIX,
+  parsePhysicalEnvelope,
+  saveHybridCoreResult,
 } from './storage-hybrid';
 import { IndexedDbWorkoutHistoryStorage } from './storage-indexeddb';
 import { commitLogicalStorageImportV2 } from './storage-logical-import';
@@ -26,7 +27,6 @@ import type { PersistedState, StorageLike } from './storage-types';
 import type { StorageOperationReceipt } from './storage-operation-receipt';
 
 const KEY = 'gymflow:state:v1';
-const BACKUP_KEY = `${KEY}${HYBRID_CORE_BACKUP_SUFFIX}`;
 let sequence = 0;
 
 class MemoryStorage implements StorageLike {
@@ -252,14 +252,36 @@ describe('resolveLogicalRestorePredecessorV2', () => {
     expect(JSON.stringify(resolved.preview)).not.toContain(world.importOperationId);
   });
 
-  it('multiplos candidatos comprovaveis => ambiguous sem escolha', async () => {
+  it('dois candidatos integralmente validos => ambiguous sem escolha', async () => {
     const world = await createImportedWorld();
     const source = await world.adapter.readStorageOperationReceipt(world.importOperationId);
     if (source === null) throw new Error('receipt fonte ausente');
+    const firstProof = await proveLogicalStorageRestoreTargetV2({
+      sourceOperationId: source.operationId,
+      targetCoreRaw: source.previousCoreRaw,
+      targetGenerationId: source.previousGenerationId,
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+    });
+    expect(firstProof.ok).toBe(true);
+
     await world.adapter.putStorageOperationReceipt({
       ...source,
-      operationId: 'import-duplicate-same-world',
+      operationId: 'import-zzz-later-id',
+      createdAt: '2026-08-14T23:59:59.000Z',
+      updatedAt: '2026-08-14T23:59:59.000Z',
     } as StorageOperationReceipt);
+
+    const secondProof = await proveLogicalStorageRestoreTargetV2({
+      sourceOperationId: 'import-zzz-later-id',
+      targetCoreRaw: source.previousCoreRaw,
+      targetGenerationId: source.previousGenerationId,
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+    });
+    expect(secondProof.ok).toBe(true);
 
     const resolved = await resolveLogicalRestorePredecessorV2({
       adapter: world.adapter,
@@ -267,14 +289,24 @@ describe('resolveLogicalRestorePredecessorV2', () => {
       key: KEY,
     });
     expect(resolved).toEqual({ status: 'ambiguous' });
+    expect(JSON.stringify(resolved)).not.toContain('import-');
+    expect(JSON.stringify(resolved)).not.toContain('generation-');
+    expect(JSON.stringify(resolved)).not.toMatch(/chosen|selected|latest|last/i);
   });
 
-  it('receipt settled que nao corresponde ao mundo atual nao e candidato', async () => {
+  it('autosave neutro do mundo atual nao elimina o predecessor comprovado', async () => {
     const world = await createImportedWorld();
-    const mutated = JSON.parse(world.storage.getItem(KEY) as string) as { savedAt: string };
-    mutated.savedAt = '2026-08-13T18:00:00.000Z';
-    world.storage.setItem(KEY, JSON.stringify(mutated));
-    world.storage.setItem(BACKUP_KEY, world.storage.getItem(BACKUP_KEY) as string);
+    const before = world.storage.getItem(KEY) as string;
+    const parsed = parsePhysicalEnvelope(before);
+    if (parsed.status !== 'v2') throw new Error('core ativo nao e v2');
+    const saved = saveHybridCoreResult(
+      KEY,
+      parsed.envelope.data,
+      world.storage,
+      () => new Date('2026-08-13T18:00:00.000Z'),
+    );
+    expect(saved.ok).toBe(true);
+    expect(world.storage.getItem(KEY)).not.toBe(before);
 
     const stillProves = await proveLogicalStorageRestoreTargetV2({
       sourceOperationId: world.importOperationId,
@@ -291,7 +323,41 @@ describe('resolveLogicalRestorePredecessorV2', () => {
       storage: world.storage,
       key: KEY,
     });
-    expect(resolved).toEqual({ status: 'unavailable' });
+    expect(resolved.status).toBe('available');
+    if (resolved.status !== 'available') throw new Error('esperado available apos autosave');
+    expect(resolved.target.targetGenerationId).toBe(world.generationA);
+    expect(resolved.target.targetCoreRaw).toBe(world.coreA);
+    expect(resolved.target.currentCoreRaw).toBe(world.storage.getItem(KEY));
+
+    const restored = await commitLogicalStorageRestoreV2({
+      target: resolved.target,
+      runtime: world.runtime,
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      ownerToken: ownerToken('restore-after-autosave'),
+    });
+    expect(restored.ok).toBe(true);
+  });
+
+  it('receipt settled cuja geracao final nao e a ativa nao e candidato', async () => {
+    const world = await createImportedWorld();
+    const source = await world.adapter.readStorageOperationReceipt(world.importOperationId);
+    if (source === null || source.kind !== 'import') throw new Error('receipt fonte ausente');
+    await world.adapter.putStorageOperationReceipt({
+      ...source,
+      operationId: 'import-other-generation',
+      stagedGenerationId: 'generation-other',
+    } as StorageOperationReceipt);
+
+    const resolved = await resolveLogicalRestorePredecessorV2({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+    });
+    expect(resolved.status).toBe('available');
+    if (resolved.status !== 'available') throw new Error('esperado o unico candidato da geracao ativa');
+    expect(resolved.target.sourceOperationId).toBe(world.importOperationId);
   });
 
   it('previous generation ausente => unavailable', async () => {

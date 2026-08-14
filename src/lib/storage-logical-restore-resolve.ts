@@ -69,16 +69,24 @@ function finalGenerationOf(receipt: StorageOperationReceipt): string | null {
   return null;
 }
 
+function coreNamesGeneration(raw: string, generationId: string): boolean {
+  const parsed = parsePhysicalEnvelope(raw);
+  return parsed.status === 'v2'
+    && parsed.envelope.data.historyStorage.generationId === generationId;
+}
+
 function receiptMatchesCurrentWorld(
   receipt: StorageOperationReceipt,
-  currentCoreRaw: string,
   currentGenerationId: string,
 ): boolean {
+  const finalGeneration = finalGenerationOf(receipt);
   return receipt.status === 'settled'
     && receipt.previousCoreRaw.length > 0
     && receipt.previousGenerationId.length > 0
-    && receipt.targetCoreRaw === currentCoreRaw
-    && finalGenerationOf(receipt) === currentGenerationId;
+    && receipt.targetCoreRaw !== null
+    && receipt.targetCoreRaw.length > 0
+    && finalGeneration === currentGenerationId
+    && coreNamesGeneration(receipt.targetCoreRaw, currentGenerationId);
 }
 
 function previewFromTargetCore(
@@ -102,17 +110,18 @@ export function logicalRestoreTargetsMatch(
   return left.sourceOperationId === right.sourceOperationId
     && left.targetCoreRaw === right.targetCoreRaw
     && left.targetGenerationId === right.targetGenerationId
-    && left.currentCoreRaw === right.currentCoreRaw
     && left.currentGenerationId === right.currentGenerationId;
 }
 
 /**
  * Identifica o predecessor comprovado do mundo atual.
  *
- * A funcao enumera todos os receipts settled e so aceita um candidato quando
- * o estado/geracao finais do receipt coincidem exatamente com o core e a
- * geracao ativos, previousCoreRaw + previousGenerationId continuam
- * verificaveis e proveLogicalStorageRestoreTargetV2 aprova o alvo.
+ * A identidade do mundo produzido por um receipt settled e a geracao final
+ * (stagedGenerationId no import, targetGenerationId no restore), nao o
+ * envelope fisico byte a byte. O autosave reescreve savedAt sem criar mundo
+ * novo; exigir igualdade de core tornaria o predecessor efemero apos
+ * hidratacao. O par previousCoreRaw + previousGenerationId continua
+ * comprovado por proveLogicalStorageRestoreTargetV2.
  *
  * Instantes, ordem de enumeracao, "ultimo receipt", maior ID, ID lexical e
  * geracao mais recente nunca escolhem o predecessor. Zero candidatos
@@ -144,13 +153,13 @@ export async function resolveLogicalRestorePredecessorV2(
   }
 
   const currentGenerationId = snapshot.metadata.activeGeneration;
-  if (currentGenerationId === null) {
+  if (currentGenerationId === null || !coreNamesGeneration(current.raw, currentGenerationId)) {
     return { status: 'error', reason: 'current-pair-divergent' };
   }
 
   const proven: LogicalStorageRestoreTargetV2[] = [];
   for (const receipt of snapshot.operationReceipts) {
-    if (!receiptMatchesCurrentWorld(receipt, current.raw, currentGenerationId)) {
+    if (!receiptMatchesCurrentWorld(receipt, currentGenerationId)) {
       continue;
     }
 
