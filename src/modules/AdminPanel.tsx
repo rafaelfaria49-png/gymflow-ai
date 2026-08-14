@@ -28,6 +28,7 @@ import { StorageAdminHealthPanel } from '../components/ui/StorageAdminHealthPane
 import { StorageExportControls } from '../components/ui/StorageExportControls';
 import { StorageBackupVerifier } from '../components/ui/StorageBackupVerifier';
 import type { VerifiedBackupPayload } from '../components/ui/StorageBackupVerifier';
+import { StorageRestoreControls } from '../components/ui/StorageRestoreControls';
 
 export const AdminPanel = () => {
   const {
@@ -40,6 +41,8 @@ export const AdminPanel = () => {
     inspectStorageAdminStatus,
     exportLogicalBackupV2,
     importLogicalBackupV2,
+    inspectLogicalRestoreV2,
+    commitLogicalRestoreV2,
     applyStorageImport,
     restoreStorageBackup,
     startFreshStorage,
@@ -423,6 +426,15 @@ export const AdminPanel = () => {
             storageMode={storageMode}
             onVerifiedBackup={handleVerifiedBackup}
           />
+          {storageMode === 'hybrid-v2' && (
+            <div className="sm:col-span-3">
+              <StorageRestoreControls
+                storageMode={storageMode}
+                inspectLogicalRestoreV2={inspectLogicalRestoreV2}
+                commitLogicalRestoreV2={commitLogicalRestoreV2}
+              />
+            </div>
+          )}
           <button
             type="button"
             onClick={() => importInputRef.current?.click()}
@@ -451,8 +463,8 @@ export const AdminPanel = () => {
         </div>
         {!legacyStorageOperationsAllowed && (
           <p className="rounded-xl border border-gym-accent/20 bg-gym-accent/5 p-3 text-[10px] leading-relaxed text-gym-accent">
-            Importação, restauração e "zerar dados" permanecem bloqueados no modo
-            híbrido. A exportação e a verificação do backup lógico v2 já estão
+            Zerar dados permanece bloqueado no modo híbrido. A exportação, a
+            verificação, a importação e o restore do backup lógico v2 já estão
             disponíveis acima.
           </p>
         )}

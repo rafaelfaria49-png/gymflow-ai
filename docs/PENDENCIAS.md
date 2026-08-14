@@ -1,10 +1,18 @@
 # Pendências
 
+## GOAL-17B-002E-E5B — restore híbrido no Context e no painel
+
+- **Reset híbrido e retenção executável** continuam bloqueados no modo
+  híbrido.
+- **Escolha manual de gerações** não existe: só o predecessor comprovado do
+  mundo atual. Sem seletor, histórico de restores ou delete de geração.
+- **Após autosave do mundo atual** o predecessor deixa de ser comprovável,
+  porque o core final do receipt deixa de coincidir exatamente com o core
+  ativo. É fail-closed, não heurística.
+
 ## GOAL-17B-002E-E5A — fundação recuperável de restore
 
-- **Restore ainda não está na UI.** A primitive e o recovery existem, mas
-  nenhum Provider/AdminPanel/StorageBackupVerifier oferece restore. Isso é
-  o próximo gate (E5B).
+- ~~**Restore ainda não está na UI.**~~ Implementado no E5B.
 - **Reset híbrido e retenção executável** continuam bloqueados no modo
   híbrido.
 - **Escolha manual de gerações** não existe: o alvo tem de ser nomeado e

@@ -67,6 +67,12 @@ import {
 import { commitStorageImport, createRawRecoveryExport, downloadTextFile } from '../lib/storage-export';
 import { createLogicalStorageExportV2 } from '../lib/storage-logical-backup';
 import { commitLogicalStorageImportV2 } from '../lib/storage-logical-import';
+import { commitLogicalStorageRestoreV2 } from '../lib/storage-logical-restore';
+import {
+  logicalRestoreTargetsMatch,
+  resolveLogicalRestorePredecessorV2,
+} from '../lib/storage-logical-restore-resolve';
+import type { LogicalStorageRestoreTargetV2 } from '../lib/storage-logical-restore';
 import {
   createStorageAdminOwnerTokenCoordinator,
   inspectStorageAdminOwnerToken,
@@ -223,6 +229,54 @@ export type PublicLogicalImportResult =
   | {
       ok: false;
       reason: PublicLogicalImportFailureReason;
+      requiresReload: boolean;
+      message: string;
+    };
+
+export type PublicLogicalRestoreFailureReason =
+  | 'active-workout'
+  | 'storage-not-healthy'
+  | 'admin-not-ready'
+  | 'completion-pending'
+  | 'operation-open'
+  | 'owner-token-busy'
+  | 'restore-unavailable'
+  | 'restore-ambiguous'
+  | 'proof-diverged'
+  | 'restore-failed'
+  | 'recovery-required';
+
+export interface PublicLogicalRestorePreview {
+  sessionCount: number;
+  customProgramCount: number;
+  weightRecordCount: number;
+  measurementRecordCount: number;
+}
+
+export type PublicLogicalRestoreAvailability =
+  | { status: 'unavailable' }
+  | { status: 'available'; preview: PublicLogicalRestorePreview }
+  | { status: 'ambiguous' }
+  | {
+      status: 'busy';
+      reason: PublicLogicalRestoreFailureReason;
+      message: string;
+    }
+  | {
+      status: 'error';
+      reason: PublicLogicalRestoreFailureReason;
+      message: string;
+    };
+
+export type PublicLogicalRestoreResult =
+  | {
+      ok: true;
+      requiresReload: true;
+      message: string;
+    }
+  | {
+      ok: false;
+      reason: PublicLogicalRestoreFailureReason;
       requiresReload: boolean;
       message: string;
     };
@@ -386,6 +440,58 @@ interface GymFlowContextType {
     declaredBytes: number;
     expectedPayloadDigest: string;
   }) => Promise<PublicLogicalImportResult>;
+  inspectLogicalRestoreV2: () => Promise<PublicLogicalRestoreAvailability>;
+  commitLogicalRestoreV2: () => Promise<PublicLogicalRestoreResult>;
+}
+
+const RESTORE_SUCCESS_MESSAGE = 'Backup anterior restaurado. Recarregando...';
+const RESTORE_FAILURE_MESSAGES: Record<PublicLogicalRestoreFailureReason, string> = {
+  'active-workout': 'Existe um treino em andamento. Conclua ou cancele o treino antes de restaurar.',
+  'storage-not-healthy': 'O armazenamento não está em estado saudável para restaurar.',
+  'admin-not-ready': 'O diagnóstico administrativo não está pronto para restaurar.',
+  'completion-pending': 'Existe uma finalização de treino pendente. Recarregue o aplicativo.',
+  'operation-open': 'Existe uma operação administrativa em andamento.',
+  'owner-token-busy': 'Outra aba está executando uma operação administrativa.',
+  'restore-unavailable': 'Nenhum backup anterior verificável disponível.',
+  'restore-ambiguous': 'Não foi possível determinar com segurança um único backup anterior.',
+  'proof-diverged': 'O backup anterior mudou desde a verificação. Tente novamente.',
+  'restore-failed': 'Não foi possível restaurar o backup anterior.',
+  'recovery-required': 'A restauração requer recuperação. O aplicativo será recarregado.',
+};
+
+function failRestore(
+  reason: PublicLogicalRestoreFailureReason,
+  requiresReload = false,
+): PublicLogicalRestoreResult {
+  return {
+    ok: false,
+    reason,
+    requiresReload,
+    message: RESTORE_FAILURE_MESSAGES[reason],
+  };
+}
+
+function mapRestoreResolution(
+  status: 'unavailable' | 'ambiguous' | 'busy' | 'error',
+  reason?: string,
+): Pick<Extract<PublicLogicalRestoreAvailability, { status: 'busy' | 'error' }>, 'reason' | 'message'>
+  | { status: 'unavailable' }
+  | { status: 'ambiguous' } {
+  if (status === 'unavailable') return { status: 'unavailable' };
+  if (status === 'ambiguous') return { status: 'ambiguous' };
+  const mapped: PublicLogicalRestoreFailureReason = reason === 'completion-pending'
+    ? 'completion-pending'
+    : reason === 'operation-open' || reason === 'administration-busy'
+      ? 'operation-open'
+      : reason === 'storage-unavailable' || reason === 'current-pair-divergent'
+        ? 'storage-not-healthy'
+        : reason === 'administration-unavailable' || reason === 'invalid-input'
+          ? 'admin-not-ready'
+          : 'restore-failed';
+  return {
+    reason: mapped,
+    message: RESTORE_FAILURE_MESSAGES[mapped],
+  };
 }
 
 const GymFlowContext = createContext<GymFlowContextType | undefined>(undefined);
@@ -804,6 +910,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // GOAL-17B-E4B: coordenador de owner-token estável por ciclo de vida do Provider.
   const ownerTokenCoordinatorRef = useRef<ReturnType<typeof createStorageAdminOwnerTokenCoordinator> | null>(null);
   const importInProgressRef = useRef(false);
+  const restoreInProgressRef = useRef(false);
+  // GOAL-17B-E5B: prova do predecessor somente em ref privada e efêmera.
+  const provenRestoreTargetRef = useRef<LogicalStorageRestoreTargetV2 | null>(null);
 
   const persistedState: PersistedState = {
     user,
@@ -2780,7 +2889,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     expectedPayloadDigest: string;
   }): Promise<PublicLogicalImportResult> => {
     // Bloqueio contra clique duplicado e Strict Mode.
-    if (importInProgressRef.current) {
+    if (importInProgressRef.current || restoreInProgressRef.current) {
       return {
         ok: false,
         reason: 'operation-open',
@@ -2947,6 +3056,214 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]);
 
+  const inspectLogicalRestoreV2 = useCallback(async (): Promise<PublicLogicalRestoreAvailability> => {
+    provenRestoreTargetRef.current = null;
+
+    if (restoreInProgressRef.current || importInProgressRef.current) {
+      return {
+        status: 'busy',
+        reason: 'operation-open',
+        message: RESTORE_FAILURE_MESSAGES['operation-open'],
+      };
+    }
+    if (storageModeRef.current !== 'hybrid-v2') {
+      return {
+        status: 'error',
+        reason: 'storage-not-healthy',
+        message: RESTORE_FAILURE_MESSAGES['storage-not-healthy'],
+      };
+    }
+    if (storageBlockedRef.current || completionRecoveryRequiredRef.current) {
+      return {
+        status: 'error',
+        reason: 'storage-not-healthy',
+        message: RESTORE_FAILURE_MESSAGES['storage-not-healthy'],
+      };
+    }
+
+    const adapter = historyAdapterRef.current;
+    if (!adapter || typeof window === 'undefined') {
+      return {
+        status: 'error',
+        reason: 'admin-not-ready',
+        message: RESTORE_FAILURE_MESSAGES['admin-not-ready'],
+      };
+    }
+
+    try {
+      const resolved = await resolveLogicalRestorePredecessorV2({
+        adapter,
+        storage: window.localStorage,
+        key: STORAGE_KEY,
+      });
+      if (resolved.status === 'available') {
+        provenRestoreTargetRef.current = resolved.target;
+        return { status: 'available', preview: resolved.preview };
+      }
+      if (resolved.status === 'unavailable' || resolved.status === 'ambiguous') {
+        return { status: resolved.status };
+      }
+      const mapped = mapRestoreResolution(resolved.status, resolved.reason);
+      if ('status' in mapped) return mapped;
+      return { status: resolved.status, ...mapped };
+    } catch {
+      return {
+        status: 'error',
+        reason: 'restore-failed',
+        message: RESTORE_FAILURE_MESSAGES['restore-failed'],
+      };
+    }
+  }, []);
+
+  const commitLogicalRestoreV2 = useCallback(async (): Promise<PublicLogicalRestoreResult> => {
+    if (restoreInProgressRef.current || importInProgressRef.current) {
+      return failRestore('operation-open');
+    }
+    if (storageModeRef.current !== 'hybrid-v2') {
+      return failRestore('storage-not-healthy');
+    }
+    if (storageBlockedRef.current || completionRecoveryRequiredRef.current) {
+      return failRestore('storage-not-healthy');
+    }
+    if (activeWorkoutRef.current) {
+      return failRestore('active-workout');
+    }
+
+    const adapter = historyAdapterRef.current;
+    if (!adapter || typeof window === 'undefined') {
+      return failRestore('admin-not-ready');
+    }
+
+    const ownerTokenInspection = inspectStorageAdminOwnerToken({
+      key: STORAGE_KEY,
+      storage: window.localStorage,
+    });
+    if (ownerTokenInspection.status === 'busy') {
+      return failRestore('owner-token-busy');
+    }
+
+    const stored = provenRestoreTargetRef.current;
+    if (stored === null) {
+      return failRestore('restore-unavailable');
+    }
+
+    ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
+      key: STORAGE_KEY,
+      storage: window.localStorage,
+    });
+
+    const runtime = createStorageAdminRuntime({
+      key: STORAGE_KEY,
+      storage: window.localStorage,
+      adapter,
+    });
+
+    restoreInProgressRef.current = true;
+    const wasBlocked = storageBlockedRef.current;
+    storageBlockedRef.current = true;
+    if (pendingSaveRef.current) {
+      clearTimeout(pendingSaveRef.current);
+      pendingSaveRef.current = null;
+    }
+
+    try {
+      const resolved = await resolveLogicalRestorePredecessorV2({
+        adapter,
+        storage: window.localStorage,
+        key: STORAGE_KEY,
+      });
+
+      if (resolved.status === 'unavailable') {
+        storageBlockedRef.current = wasBlocked;
+        restoreInProgressRef.current = false;
+        provenRestoreTargetRef.current = null;
+        toast.error(RESTORE_FAILURE_MESSAGES['restore-unavailable']);
+        return failRestore('restore-unavailable');
+      }
+      if (resolved.status === 'ambiguous') {
+        storageBlockedRef.current = wasBlocked;
+        restoreInProgressRef.current = false;
+        provenRestoreTargetRef.current = null;
+        toast.error(RESTORE_FAILURE_MESSAGES['restore-ambiguous']);
+        return failRestore('restore-ambiguous');
+      }
+      if (resolved.status !== 'available') {
+        const mapped = mapRestoreResolution(resolved.status, resolved.reason);
+        const reason = 'reason' in mapped ? mapped.reason : 'restore-failed';
+        const keepBlocked = reason === 'completion-pending' || reason === 'operation-open';
+        if (!keepBlocked) {
+          storageBlockedRef.current = wasBlocked;
+          restoreInProgressRef.current = false;
+        }
+        provenRestoreTargetRef.current = null;
+        toast.error(RESTORE_FAILURE_MESSAGES[reason]);
+        return failRestore(reason);
+      }
+      if (!logicalRestoreTargetsMatch(stored, resolved.target)) {
+        storageBlockedRef.current = wasBlocked;
+        restoreInProgressRef.current = false;
+        provenRestoreTargetRef.current = null;
+        toast.error(RESTORE_FAILURE_MESSAGES['proof-diverged']);
+        return failRestore('proof-diverged');
+      }
+
+      const result = await commitLogicalStorageRestoreV2({
+        target: resolved.target,
+        runtime: {
+          inspectStorageAdministration: runtime.inspectStorageAdministration.bind(runtime),
+          beginStorageOperation: runtime.beginStorageOperation.bind(runtime),
+          transitionStorageOperation: runtime.transitionStorageOperation.bind(runtime),
+          revertStorageOperationSafely: runtime.revertStorageOperationSafely.bind(runtime),
+        },
+        adapter: {
+          readStorageAdministrationSnapshot: adapter.readStorageAdministrationSnapshot.bind(adapter),
+          readStorageOperationReceipt: adapter.readStorageOperationReceipt.bind(adapter),
+          readVerifiedHistoryGeneration: adapter.readVerifiedHistoryGeneration.bind(adapter),
+          readMetadata: adapter.readMetadata.bind(adapter),
+          rollbackToHistoryGeneration: adapter.rollbackToHistoryGeneration.bind(adapter),
+          transitionStorageOperationIfUnambiguous: adapter.transitionStorageOperationIfUnambiguous.bind(adapter),
+        },
+        storage: window.localStorage,
+        key: STORAGE_KEY,
+        ownerToken: ownerTokenCoordinatorRef.current,
+      });
+
+      provenRestoreTargetRef.current = null;
+
+      if (result.ok) {
+        toast.success(RESTORE_SUCCESS_MESSAGE);
+        window.setTimeout(() => window.location.reload(), 600);
+        return {
+          ok: true,
+          requiresReload: true,
+          message: RESTORE_SUCCESS_MESSAGE,
+        };
+      }
+
+      if (result.recoveryRequired || result.reason === 'recovery-required') {
+        toast.error(RESTORE_FAILURE_MESSAGES['recovery-required']);
+        window.setTimeout(() => window.location.reload(), 600);
+        return failRestore('recovery-required', true);
+      }
+
+      storageBlockedRef.current = wasBlocked;
+      restoreInProgressRef.current = false;
+      const publicReason: PublicLogicalRestoreFailureReason = result.reason === 'owner-token-conflict'
+        ? 'owner-token-busy'
+        : result.reason === 'provenance-diverged' || result.reason === 'invalid-target-proof'
+          ? 'proof-diverged'
+          : result.reason === 'operation-conflict'
+            ? 'operation-open'
+            : 'restore-failed';
+      toast.error(RESTORE_FAILURE_MESSAGES[publicReason]);
+      return failRestore(publicReason);
+    } catch {
+      toast.error(RESTORE_FAILURE_MESSAGES['recovery-required']);
+      window.setTimeout(() => window.location.reload(), 600);
+      return failRestore('recovery-required', true);
+    }
+  }, [toast]);
+
   const inspectStorageAdminStatus = useCallback((): Promise<StorageAdminStatus> => {
     const adapter = historyAdapterRef.current;
     if (!adapter || typeof window === 'undefined') {
@@ -3087,6 +3404,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         downloadStorageRecovery,
         exportLogicalBackupV2,
         importLogicalBackupV2,
+        inspectLogicalRestoreV2,
+        commitLogicalRestoreV2,
       }}
     >
       {children}

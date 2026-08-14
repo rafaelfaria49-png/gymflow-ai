@@ -4,6 +4,32 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E5B — restore híbrido no Context e no painel (2026-08-14)
+
+O restore hybrid-v2 deixa de ser primitive desconectada: o Context identifica
+o predecessor comprovado do mundo atual e o Painel Administrativo oferece
+preview agregado + confirmação destrutiva, sem IDs, raw ou receipts na UI.
+
+**Antes:** `commitLogicalStorageRestoreV2` só existia na fundação E5A; o
+painel híbrido bloqueava restore.
+
+**Depois:** resolução determinística do predecessor; fronteira pública
+sanitizada; autosave protegido; restore real A→B→A com journal settled e
+reload único.
+
+**Arquivos alterados:**
+- `src/lib/storage-logical-restore-resolve.ts` — resolução read-only
+- `src/providers/GymFlowContext.tsx` — inspect/commit públicos
+- `src/components/ui/StorageRestoreControls.tsx` — UI dedicada
+- `src/modules/AdminPanel.tsx` — integração só no hybrid-v2
+- testes de resolução, Context, UI, integração real e guards
+- `docs/DECISOES.md`, `docs/GOALS_LOG.md`, `docs/PENDENCIAS.md`
+
+**Fora de escopo:** reset híbrido, retenção executável, seletor de gerações,
+histórico de restores, Android, Share Sheet, etapa F.
+
+---
+
 ## GOAL-17B-002E-E5A — fundação recuperável de restore (2026-08-14)
 
 Fundação interna e desconectada para representar, executar e recuperar um
