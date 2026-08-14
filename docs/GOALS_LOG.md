@@ -4,6 +4,40 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E5A — fundação recuperável de restore (2026-08-14)
+
+Fundação interna e desconectada para representar, executar e recuperar um
+restore hybrid-v2. O journal passa a discriminar `kind`: import continua
+usando `stagedGenerationId` como geração nova; restore nomeia
+`targetGenerationId` antes de qualquer ponteiro físico mudar.
+
+**Antes:** o receipt só descrevia geração nova (`stagedGenerationId`);
+`activated` exigia essa geração ativa; recovery e boot só conheciam
+importação. Restore reutiliza geração existente e não podia ser
+journalizado sem corromper a semântica.
+
+**Depois:** `proveLogicalStorageRestoreTargetV2` comprova o par histórico;
+`commitLogicalStorageRestoreV2` executa o protocolo com owner-token e CAS;
+`recoverLogicalStorageRestoreV2` cobre cada janela de crash;
+`recoverLogicalStorageAdministrationV2` despacha por `kind`; o boot usa o
+dispatcher.
+
+**Arquivos alterados:**
+- `src/lib/storage-operation-receipt.ts` — contrato discriminado por kind
+- `src/lib/storage-logical-restore.ts` — prova, primitive e recovery
+- `src/lib/storage-logical-restore.test.ts` — proveniência, crash, dispatcher
+- `src/lib/storage-administrative-recovery.ts` — dispatcher por kind
+- `src/lib/storage-boot-recovery.ts` — boot deixa de inferir import
+- `src/lib/storage-admin-runtime.ts` — begin de restore com target explícito
+- `src/lib/storage-indexeddb.ts` — fingerprint inclui targetGenerationId
+- testes de receipt, runtime, import, retenção e backup (guards/fixtures)
+- `docs/DECISOES.md`, `docs/GOALS_LOG.md`, `docs/PENDENCIAS.md`
+
+**Fora de escopo:** AdminPanel, StorageBackupVerifier, GymFlowContext,
+reset híbrido, retenção, deleção, Android, Share Sheet, etapa F.
+
+---
+
 ## GOAL-17B-002E-E4B — importação lógica v2 segura (2026-08-06)
 
 O `AdminPanel` no modo `hybrid-v2` agora permite confirmar e executar a

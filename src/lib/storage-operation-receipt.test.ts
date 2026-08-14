@@ -15,7 +15,7 @@ import {
 } from './storage-operation-receipt';
 
 function makeOperationReceipt(
-  overrides: Partial<StorageOperationReceipt> = {},
+  overrides: Record<string, unknown> = {},
 ): StorageOperationReceipt {
   return {
     operationId: 'operation-1',
@@ -29,7 +29,7 @@ function makeOperationReceipt(
     createdAt: '2026-07-24T12:00:00.000Z',
     updatedAt: '2026-07-24T12:00:00.000Z',
     ...overrides,
-  };
+  } as unknown as StorageOperationReceipt;
 }
 
 describe('contrato do receipt de operação administrativa', () => {
@@ -102,7 +102,15 @@ describe('contrato do receipt de operação administrativa', () => {
   it('aprova receipt válido em qualquer tipo e status', () => {
     for (const kind of STORAGE_OPERATION_KINDS) {
       for (const status of STORAGE_OPERATION_STATUSES) {
-        expect(isStorageOperationReceipt(makeOperationReceipt({ kind, status }))).toBe(true);
+        const fields = kind === 'restore'
+          ? {
+              kind,
+              status,
+              targetGenerationId: 'generation-2',
+              targetCoreRaw: '{"schemaVersion":2}',
+            }
+          : { kind, status };
+        expect(isStorageOperationReceipt(makeOperationReceipt(fields))).toBe(true);
       }
     }
     expect(isStorageOperationReceipt(makeOperationReceipt({
@@ -132,6 +140,53 @@ describe('contrato do receipt de operação administrativa', () => {
     })).toBe(false);
     expect(isStorageOperationReceipt(makeOperationReceipt({ createdAt: '' }))).toBe(false);
     expect(isStorageOperationReceipt(makeOperationReceipt({ updatedAt: '' }))).toBe(false);
+  });
+
+  it('mantém receipt histórico de import legível sem targetGenerationId', () => {
+    const historico = {
+      operationId: 'import-antigo',
+      kind: 'import',
+      sourceDigest: 'sha256:abc',
+      previousCoreRaw: '{"v":2}',
+      previousGenerationId: 'generation-a',
+      stagedGenerationId: 'generation-b',
+      targetCoreRaw: '{"v":2,"target":true}',
+      status: 'settled',
+      createdAt: '2026-07-24T12:00:00.000Z',
+      updatedAt: '2026-07-24T12:01:00.000Z',
+    };
+    expect(Object.prototype.hasOwnProperty.call(historico, 'targetGenerationId')).toBe(false);
+    expect(isStorageOperationReceipt(historico)).toBe(true);
+  });
+
+  it('exige target próprio no restore e nunca aceita staged como substituto', () => {
+    const valido = makeOperationReceipt({
+      kind: 'restore',
+      stagedGenerationId: null,
+      targetGenerationId: 'generation-a',
+      targetCoreRaw: '{"v":2}',
+      previousGenerationId: 'generation-b',
+    });
+    expect(isStorageOperationReceipt(valido)).toBe(true);
+    expect(isStorageOperationReceipt({ ...valido, targetGenerationId: undefined })).toBe(false);
+    expect(isStorageOperationReceipt({ ...valido, targetGenerationId: null })).toBe(false);
+    expect(isStorageOperationReceipt({ ...valido, targetGenerationId: '' })).toBe(false);
+    expect(isStorageOperationReceipt({ ...valido, stagedGenerationId: 'generation-a' })).toBe(false);
+    expect(isStorageOperationReceipt({ ...valido, targetCoreRaw: null })).toBe(false);
+    expect(isStorageOperationReceipt({ ...valido, targetGenerationId: 'generation-b' })).toBe(false);
+  });
+
+  it('recusa targetGenerationId em import, reset e rollback', () => {
+    for (const kind of ['import', 'reset', 'rollback'] as const) {
+      expect(isStorageOperationReceipt(makeOperationReceipt({
+        kind,
+        targetGenerationId: 'generation-x',
+      }))).toBe(false);
+      expect(isStorageOperationReceipt(makeOperationReceipt({
+        kind,
+        targetGenerationId: undefined,
+      }))).toBe(false);
+    }
   });
 
   // O core anterior é o que permite desfazer a operação. Aceitar string vazia ou
@@ -287,6 +342,47 @@ describe('evaluateStorageOperationCompatibility', () => {
       { activeGeneration: 'generation-2', migrationGeneration: 'generation-2' },
       OUTRO_CORE,
     )).toEqual({ status: 'compatible' });
+  });
+
+  it('restore activated usa targetGenerationId e recusa staged como substituto', () => {
+    const restoreActivated = {
+      kind: 'restore' as const,
+      status: 'activated' as const,
+      stagedGenerationId: null,
+      targetGenerationId: 'generation-2',
+      targetCoreRaw: OUTRO_CORE,
+    };
+    expect(evaluate(
+      restoreActivated,
+      { activeGeneration: 'generation-2', migrationGeneration: null },
+      OUTRO_CORE,
+    )).toEqual({ status: 'compatible' });
+    expect(evaluate(
+      restoreActivated,
+      { activeGeneration: 'generation-1', migrationGeneration: null },
+      OUTRO_CORE,
+    )).toMatchObject({ status: 'incompatible', reason: 'activated-generation-not-active' });
+    expect(isStorageOperationReceipt(makeOperationReceipt({
+      ...restoreActivated,
+      stagedGenerationId: 'generation-2',
+    }))).toBe(false);
+  });
+
+  it('restore activating com geracao alvo ja ativa permanece insufficient-evidence', () => {
+    expect(evaluate(
+      {
+        kind: 'restore',
+        status: 'activating',
+        stagedGenerationId: null,
+        targetGenerationId: 'generation-2',
+        targetCoreRaw: OUTRO_CORE,
+      },
+      { activeGeneration: 'generation-2', migrationGeneration: null },
+      CORE,
+    )).toMatchObject({
+      status: 'insufficient-evidence',
+      reason: 'activating-effects-unprovable',
+    });
   });
 
   it.each(['settled', 'reverted'] as const)('status terminal %s nunca é operação em aberto', (status) => {

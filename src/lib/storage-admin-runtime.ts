@@ -153,8 +153,7 @@ export interface StorageAdministrationSnapshot {
   coreRawObserved: string | null;
 }
 
-export interface BeginStorageOperationInput {
-  kind: StorageOperationKind;
+interface BeginStorageOperationBaseInput {
   sourceDigest: string | null;
   // O coordenador de owner-token pode reservar a identidade antes do primeiro
   // write. Ausente, preserva o contrato histórico e usa `idFactory`.
@@ -163,8 +162,21 @@ export interface BeginStorageOperationInput {
   // físico ou core alvo, então aceitar valor aqui gravaria no receipt uma
   // promessa que nada cumpriu. Reservados para 002D-C/D.
   stagedGenerationId: string | null;
-  targetCoreRaw: string | null;
 }
+
+export type BeginStorageOperationInput =
+  | (BeginStorageOperationBaseInput & {
+      kind: 'restore';
+      expectedPreviousCoreRaw: string;
+      expectedPreviousGenerationId: string;
+      targetGenerationId: string;
+      targetCoreRaw: string;
+    })
+  | (BeginStorageOperationBaseInput & {
+      kind: Exclude<StorageOperationKind, 'restore'>;
+      targetGenerationId?: never;
+      targetCoreRaw: null;
+    });
 
 export interface TransitionStorageOperationInput {
   operationId: string;
@@ -231,7 +243,10 @@ export type StorageAdministrationInputField =
   | 'operationId'
   | 'generationId'
   | 'stagedGenerationId'
+  | 'targetGenerationId'
   | 'targetCoreRaw'
+  | 'expectedPreviousCoreRaw'
+  | 'expectedPreviousGenerationId'
   | 'now'
   | 'kind';
 
@@ -748,6 +763,7 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
   }
 
   async beginStorageOperation(input: BeginStorageOperationInput): Promise<StorageOperationReceipt> {
+    const rawInput = input as unknown as Record<string, unknown>;
     // Entrada validada antes de qualquer leitura ou escrita.
     if (input.stagedGenerationId !== null && input.stagedGenerationId !== undefined) {
       throw new StorageAdministrationInputError(
@@ -755,7 +771,38 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
         'O 002D-A2 não cria staging físico: stagedGenerationId precisa ser null até o 002D-C/D.',
       );
     }
-    if (input.targetCoreRaw !== null && input.targetCoreRaw !== undefined) {
+    if (input.kind === 'restore') {
+      if (
+        typeof input.expectedPreviousCoreRaw !== 'string'
+        || input.expectedPreviousCoreRaw.length === 0
+      ) {
+        throw new StorageAdministrationInputError(
+          'expectedPreviousCoreRaw',
+          'O restore exige o core anterior exato que participou da prova.',
+        );
+      }
+      if (
+        typeof input.expectedPreviousGenerationId !== 'string'
+        || input.expectedPreviousGenerationId.length === 0
+      ) {
+        throw new StorageAdministrationInputError(
+          'expectedPreviousGenerationId',
+          'O restore exige a geracao anterior exata que participou da prova.',
+        );
+      }
+      if (typeof input.targetGenerationId !== 'string' || input.targetGenerationId.length === 0) {
+        throw new StorageAdministrationInputError(
+          'targetGenerationId',
+          'O restore exige targetGenerationId explicito antes do primeiro efeito.',
+        );
+      }
+      if (typeof input.targetCoreRaw !== 'string' || input.targetCoreRaw.length === 0) {
+        throw new StorageAdministrationInputError(
+          'targetCoreRaw',
+          'O restore exige targetCoreRaw explicito antes do primeiro efeito.',
+        );
+      }
+    } else if (rawInput.targetCoreRaw !== null && rawInput.targetCoreRaw !== undefined) {
       throw new StorageAdministrationInputError(
         'targetCoreRaw',
         'O 002D-A2 não materializa core alvo: targetCoreRaw precisa ser null até o 002D-C/D.',
@@ -792,6 +839,12 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
         'O core físico não é um envelope v2 válido no início da operação.',
       );
     }
+    if (input.kind === 'restore' && raw !== input.expectedPreviousCoreRaw) {
+      throw new StorageAdministrationConflictError(
+        'core-changed-during-inspection',
+        'O core atual divergiu do mundo que comprovou o alvo do restore.',
+      );
+    }
 
     const metadata = await this.adapter.readMetadata();
     const activeGenerationId = metadata.activeGeneration;
@@ -799,6 +852,15 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
       throw new StorageAdministrationUnavailableError(
         'core-invalid',
         'Não existe geração ativa de histórico ao iniciar a operação.',
+      );
+    }
+    if (
+      input.kind === 'restore'
+      && activeGenerationId !== input.expectedPreviousGenerationId
+    ) {
+      throw new StorageAdministrationConflictError(
+        'operation-incompatible',
+        'A geracao ativa divergiu do mundo que comprovou o alvo do restore.',
       );
     }
     // Verificação integral independente do snapshot, imediatamente antes da
@@ -814,16 +876,69 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
       );
     }
 
-    const receipt = createStorageOperationReceipt({
-      operationId,
-      kind: input.kind,
-      previousCoreRaw: raw,
-      previousGenerationId: activeGenerationId,
-      createdAt,
-      sourceDigest: input.sourceDigest ?? null,
-      stagedGenerationId: null,
-      targetCoreRaw: null,
-    });
+    if (input.kind === 'restore') {
+      const parsedTarget = parsePhysicalEnvelope(input.targetCoreRaw);
+      if (
+        parsedTarget.status !== 'v2'
+        || parsedTarget.envelope.data.historyStorage.generationId !== input.targetGenerationId
+      ) {
+        throw new StorageAdministrationConflictError(
+          'operation-incompatible',
+          'O targetCoreRaw do restore nao nomeia o targetGenerationId declarado.',
+        );
+      }
+      if (input.targetGenerationId === activeGenerationId) {
+        throw new StorageAdministrationConflictError(
+          'operation-incompatible',
+          'O restore recusa reativar a geracao ja ativa.',
+        );
+      }
+      try {
+        const verifiedTarget = await this.adapter.readVerifiedHistoryGeneration(
+          input.targetGenerationId,
+        );
+        if (
+          verifiedTarget.generationId !== input.targetGenerationId
+          || verifiedTarget.manifest.generationId !== input.targetGenerationId
+          || !verifiedTarget.manifest.verified
+        ) {
+          throw new StorageAdministrationConflictError(
+            'operation-incompatible',
+            `A geracao alvo ${input.targetGenerationId} nao passou na verificacao integral.`,
+          );
+        }
+      } catch (error) {
+        if (error instanceof StorageAdministrationConflictError) throw error;
+        throw new StorageAdministrationConflictError(
+          'operation-incompatible',
+          `A geracao alvo ${input.targetGenerationId} nao passou na verificacao integral ao iniciar o restore.`,
+          { cause: error },
+        );
+      }
+    }
+
+    const receipt = input.kind === 'restore'
+      ? createStorageOperationReceipt({
+          operationId,
+          kind: input.kind,
+          previousCoreRaw: raw,
+          previousGenerationId: activeGenerationId,
+          createdAt,
+          sourceDigest: input.sourceDigest ?? null,
+          stagedGenerationId: null,
+          targetGenerationId: input.targetGenerationId,
+          targetCoreRaw: input.targetCoreRaw,
+        })
+      : createStorageOperationReceipt({
+          operationId,
+          kind: input.kind,
+          previousCoreRaw: raw,
+          previousGenerationId: activeGenerationId,
+          createdAt,
+          sourceDigest: input.sourceDigest ?? null,
+          stagedGenerationId: null,
+          targetCoreRaw: null,
+        });
 
     const created = await this.adapter.createStorageOperationReceiptIfIdle({
       receipt,
@@ -1207,7 +1322,7 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
         : patch.stagedGenerationId,
       targetCoreRaw: patch?.targetCoreRaw === undefined ? operation.targetCoreRaw : patch.targetCoreRaw,
       status: nextStatus,
-    };
+    } as StorageOperationReceipt;
   }
 
   // PROTOCOLO PÓS-COMMIT (corretivo 038).

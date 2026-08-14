@@ -42,9 +42,8 @@ export const TERMINAL_STORAGE_OPERATION_STATUSES: readonly StorageOperationStatu
   'reverted',
 ];
 
-export interface StorageOperationReceipt {
+interface StorageOperationReceiptBase {
   operationId: string;
-  kind: StorageOperationKind;
   // Digest do arquivo/origem que motivou a operação. `null` quando a operação
   // não tem origem externa (reset e rollback).
   sourceDigest: string | null;
@@ -59,6 +58,32 @@ export interface StorageOperationReceipt {
   createdAt: string;
   updatedAt: string;
 }
+
+// `kind` discrimina duas identidades fisicas diferentes. Import cria uma
+// geracao nova e a nomeia em `stagedGenerationId`; restore reutiliza uma
+// geracao existente e a nomeia em `targetGenerationId` antes de qualquer troca
+// de ponteiro. Receipts historicos de import permanecem sem o campo novo.
+export interface ImportStorageOperationReceipt extends StorageOperationReceiptBase {
+  kind: 'import';
+  targetGenerationId?: never;
+}
+
+export interface RestoreStorageOperationReceipt extends StorageOperationReceiptBase {
+  kind: 'restore';
+  stagedGenerationId: null;
+  targetGenerationId: string;
+  targetCoreRaw: string;
+}
+
+export interface LegacyStorageOperationReceipt extends StorageOperationReceiptBase {
+  kind: 'reset' | 'rollback';
+  targetGenerationId?: never;
+}
+
+export type StorageOperationReceipt =
+  | ImportStorageOperationReceipt
+  | RestoreStorageOperationReceipt
+  | LegacyStorageOperationReceipt;
 
 // Campos que podem mudar enquanto a operação avança. Identidade (`operationId`,
 // `kind`), origem (`previousCoreRaw`, `previousGenerationId`), `status`,
@@ -110,6 +135,22 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
 }
 
+function hasOwn(record: Record<string, unknown>, field: string): boolean {
+  return Object.prototype.hasOwnProperty.call(record, field);
+}
+
+function kindFieldsAreValid(record: Record<string, unknown>): boolean {
+  if (record.kind === 'restore') {
+    return record.stagedGenerationId === null
+      && isNonEmptyString(record.targetGenerationId)
+      && record.targetGenerationId !== record.previousGenerationId
+      && isNonEmptyString(record.targetCoreRaw);
+  }
+  // Em qualquer outro kind, ate `targetGenerationId: undefined` persistido e
+  // recusado: esse writer declarou uma versao que o protocolo nao compreende.
+  return !hasOwn(record, 'targetGenerationId');
+}
+
 // Validação pura usada antes de gravar e depois de ler. Um registro malformado
 // nunca vira operação administrativa silenciosa.
 export function isStorageOperationReceipt(value: unknown): value is StorageOperationReceipt {
@@ -127,6 +168,7 @@ export function isStorageOperationReceipt(value: unknown): value is StorageOpera
     && isNonEmptyString(record.previousGenerationId)
     && isNullableString(record.stagedGenerationId)
     && isNullableString(record.targetCoreRaw)
+    && kindFieldsAreValid(record)
     && isStorageOperationStatus(record.status)
     && isNonEmptyString(record.createdAt)
     && isNonEmptyString(record.updatedAt);
@@ -140,6 +182,7 @@ export type StorageOperationIncompatibilityReason =
   | 'previous-generation-not-active'
   | 'core-not-previous'
   | 'staged-generation-absent'
+  | 'target-generation-absent'
   | 'migration-generation-divergent'
   | 'activating-state-unrecognized'
   | 'activating-effects-unprovable'
@@ -255,7 +298,11 @@ export function evaluateStorageOperationCompatibility(
     const coreIsPrevious = coreRaw === receipt.previousCoreRaw;
     const coreIsTarget = receipt.targetCoreRaw !== null && coreRaw === receipt.targetCoreRaw;
     const activeIsPrevious = activeGeneration === receipt.previousGenerationId;
-    const activeIsStaged = stagedDeclared !== null && activeGeneration === stagedDeclared;
+    const declaredTargetGeneration = receipt.kind === 'restore'
+      ? receipt.targetGenerationId
+      : stagedDeclared;
+    const activeIsTarget = declaredTargetGeneration !== null
+      && activeGeneration === declaredTargetGeneration;
 
     if (!coreIsPrevious && !coreIsTarget) {
       return incompatible(
@@ -263,7 +310,7 @@ export function evaluateStorageOperationCompatibility(
         `O core atual não é nem o anterior nem o alvo declarado pelo receipt ${receipt.operationId}.`,
       );
     }
-    if (!activeIsPrevious && !activeIsStaged) {
+    if (!activeIsPrevious && !activeIsTarget) {
       return incompatible(
         'activating-state-unrecognized',
         `A geração ativa ${activeGeneration ?? 'nenhuma'} não é nem a anterior nem a preparada`
@@ -279,19 +326,28 @@ export function evaluateStorageOperationCompatibility(
       `O receipt ${receipt.operationId} está activating com efeitos já aplicados que o A2 não consegue comprovar.`,
     );
   }
+  if (receipt.kind === 'restore' && !known.has(receipt.targetGenerationId)) {
+    return incompatible(
+      'target-generation-absent',
+      `A geracao alvo ${receipt.targetGenerationId} do restore ${receipt.operationId} nao existe.`,
+    );
+  }
 
   // `activated`: exige prova completa dos efeitos declarados.
-  if (stagedDeclared === null || receipt.targetCoreRaw === null) {
+  const activatedTargetGeneration = receipt.kind === 'restore'
+    ? receipt.targetGenerationId
+    : stagedDeclared;
+  if (activatedTargetGeneration === null || receipt.targetCoreRaw === null) {
     return incompatible(
       'activated-target-missing',
       `O receipt ${receipt.operationId} está activated sem geração preparada ou core alvo declarados.`,
     );
   }
-  if (activeGeneration !== stagedDeclared) {
+  if (activeGeneration !== activatedTargetGeneration) {
     return incompatible(
       'activated-generation-not-active',
       `O receipt ${receipt.operationId} está activated, mas a geração ativa é`
-      + ` ${activeGeneration ?? 'nenhuma'}, e não ${stagedDeclared}.`,
+      + ` ${activeGeneration ?? 'nenhuma'}, e não ${activatedTargetGeneration}.`,
     );
   }
   if (coreRaw !== receipt.targetCoreRaw) {
@@ -303,9 +359,8 @@ export function evaluateStorageOperationCompatibility(
   return { status: 'compatible' };
 }
 
-export function createStorageOperationReceipt(input: {
+type CreateStorageOperationReceiptBaseInput = {
   operationId: string;
-  kind: StorageOperationKind;
   previousCoreRaw: string;
   previousGenerationId: string;
   createdAt: string;
@@ -313,7 +368,26 @@ export function createStorageOperationReceipt(input: {
   stagedGenerationId?: string | null;
   targetCoreRaw?: string | null;
   updatedAt?: string;
-}): StorageOperationReceipt {
+};
+
+export type CreateStorageOperationReceiptInput =
+  | (CreateStorageOperationReceiptBaseInput & {
+      kind: 'restore';
+      stagedGenerationId?: null;
+      targetGenerationId: string;
+      targetCoreRaw: string;
+    })
+  | (CreateStorageOperationReceiptBaseInput & {
+      kind: Exclude<StorageOperationKind, 'restore'>;
+      targetGenerationId?: never;
+    });
+
+export function createStorageOperationReceipt(
+  input: CreateStorageOperationReceiptInput,
+): StorageOperationReceipt {
+  const targetGeneration = input.kind === 'restore'
+    ? { targetGenerationId: input.targetGenerationId }
+    : {};
   return {
     operationId: input.operationId,
     kind: input.kind,
@@ -322,8 +396,9 @@ export function createStorageOperationReceipt(input: {
     previousGenerationId: input.previousGenerationId,
     stagedGenerationId: input.stagedGenerationId ?? null,
     targetCoreRaw: input.targetCoreRaw ?? null,
+    ...targetGeneration,
     status: 'staged',
     createdAt: input.createdAt,
     updatedAt: input.updatedAt ?? input.createdAt,
-  };
+  } as StorageOperationReceipt;
 }

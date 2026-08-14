@@ -75,18 +75,29 @@ function manifest(
 
 function operation(
   kind: StorageOperationKind,
-  overrides: Partial<StorageOperationReceipt> = {},
+  overrides: Record<string, unknown> = {},
 ): StorageOperationReceipt {
+  const created = kind === 'restore'
+    ? createStorageOperationReceipt({
+        operationId: `operation-${kind}`,
+        kind,
+        previousCoreRaw: 'PRIVATE_RAW PRIVATE_CORE PRIVATE_BACKUP',
+        previousGenerationId: ACTIVE_GENERATION_ID,
+        targetGenerationId: 'generation-restore-target',
+        targetCoreRaw: 'PRIVATE_RESTORE_TARGET',
+        createdAt: CREATED_AT,
+      })
+    : createStorageOperationReceipt({
+        operationId: `operation-${kind}`,
+        kind,
+        previousCoreRaw: 'PRIVATE_RAW PRIVATE_CORE PRIVATE_BACKUP',
+        previousGenerationId: ACTIVE_GENERATION_ID,
+        createdAt: CREATED_AT,
+      });
   return {
-    ...createStorageOperationReceipt({
-      operationId: `operation-${kind}`,
-      kind,
-      previousCoreRaw: 'PRIVATE_RAW PRIVATE_CORE PRIVATE_BACKUP',
-      previousGenerationId: ACTIVE_GENERATION_ID,
-      createdAt: CREATED_AT,
-    }),
+    ...created,
     ...overrides,
-  };
+  } as unknown as StorageOperationReceipt;
 }
 
 function completion(): WorkoutCompletionReceipt {

@@ -1,11 +1,13 @@
-import { createStorageAdminRuntime } from './storage-admin-runtime';
+import {
+  createStorageAdminRuntime,
+  type StorageAdminRuntime,
+} from './storage-admin-runtime';
 import type { AdministrableWorkoutHistoryStorageAdapter } from './storage-adapter';
 import {
-  type LogicalImportRecoveryRuntime,
-  type LogicalStorageImportRecoveryResult,
-  type RecoverLogicalStorageImportV2Input,
-  recoverLogicalStorageImportV2,
-} from './storage-logical-import';
+  type LogicalStorageAdministrativeRecoveryResult,
+  type RecoverLogicalStorageAdministrationV2Input,
+  recoverLogicalStorageAdministrationV2,
+} from './storage-administrative-recovery';
 import type { StorageAdminOwnerTokenCoordinator } from './storage-admin-owner-token';
 import { parsePhysicalEnvelope } from './storage-hybrid';
 import type { StorageLike } from './storage-types';
@@ -14,8 +16,8 @@ import { isRecord } from './storage-validation';
 // ---------------------------------------------------------------------------
 // GOAL-17B-002D-D1 — recuperação administrativa ANTES da hidratação
 //
-// Este módulo é o único orquestrador de boot: ele roda a recuperação da
-// importação lógica v2 e responde uma única pergunta ao chamador — a hidratação
+// Este módulo é o único orquestrador de boot: ele despacha a recuperação
+// administrativa pelo `kind` do receipt e responde se a hidratação
 // pode começar? Ele não renderiza, não conhece React, não importa o Provider,
 // não cria geração e não inicia importação. `commitLogicalStorageImportV2`
 // continua deliberadamente sem call site.
@@ -93,15 +95,15 @@ export interface StorageBootRecoveryInput {
   key: string;
   // Injeção opcional: quando ausente, o runtime administrativo é criado aqui a
   // partir do MESMO adapter que a hidratação vai usar — sem segunda conexão.
-  runtime?: LogicalImportRecoveryRuntime;
+  runtime?: StorageAdminRuntime;
   // O chamador pode compartilhar uma coordenação determinística nos testes.
   // Em produção, a recuperação cria o owner-token versionado a partir da chave.
   ownerToken?: StorageAdminOwnerTokenCoordinator;
   // Costura de teste para exercitar a classificação sem fabricar mundos físicos.
-  // O caminho real usa `recoverLogicalStorageImportV2`.
+  // O caminho real usa `recoverLogicalStorageAdministrationV2`.
   recover?: (
-    input: RecoverLogicalStorageImportV2Input,
-  ) => Promise<LogicalStorageImportRecoveryResult>;
+    input: RecoverLogicalStorageAdministrationV2Input,
+  ) => Promise<LogicalStorageAdministrativeRecoveryResult>;
 }
 
 function ready(
@@ -230,7 +232,7 @@ export async function runStorageBootRecovery(
       storage: input.storage,
       adapter: input.adapter,
     });
-    const recover = input.recover ?? recoverLogicalStorageImportV2;
+    const recover = input.recover ?? recoverLogicalStorageAdministrationV2;
     const result = await recover({
       runtime,
       adapter: input.adapter,
