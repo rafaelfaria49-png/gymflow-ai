@@ -126,6 +126,7 @@ describe('AdminPanel — guard atualizado com StorageBackupVerifier', () => {
   const FORBIDDEN = [
     'commitLogicalStorageImportV2',
     'recoverLogicalStorageImportV2',
+    'commitLogicalStorageRestoreV2',
     'beginStorageOperation',
     'storage-admin-owner-token',
     'createStorageAdminRuntime',

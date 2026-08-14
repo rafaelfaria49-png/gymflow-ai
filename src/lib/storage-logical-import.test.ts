@@ -1470,6 +1470,7 @@ describe('importação lógica v2 — idempotência e invariantes', () => {
       .toEqual([
         'src/lib/storage-administrative-recovery.ts',
         'src/lib/storage-logical-import.test.ts',
+        'src/lib/storage-logical-restore-resolve.test.ts',
         'src/lib/storage-logical-restore.test.ts',
       ]);
   });
@@ -5101,6 +5102,7 @@ describe('recuperação da importação v2 — ausência de call site', () => {
       'src/lib/storage-boot-recovery.test.ts',
       'src/lib/storage-logical-backup.test.ts',
       'src/lib/storage-logical-import.test.ts',
+      'src/lib/storage-logical-restore-resolve.test.ts',
       'src/lib/storage-logical-restore.test.ts',
       'src/providers/GymFlowContext.logical-import.test.tsx',
       'src/providers/GymFlowContext.tsx',

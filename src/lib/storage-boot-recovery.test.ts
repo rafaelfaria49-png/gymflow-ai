@@ -1007,6 +1007,8 @@ describe('guards — importação e restauração continuam indisponíveis ao us
     // importa recoverLogicalStorageImportV2 (recovery é exclusiva do boot).
     expect(provider).toContain('commitLogicalStorageImportV2');
     expect(provider).not.toContain('recoverLogicalStorageImportV2');
+    expect(provider).toContain('commitLogicalStorageRestoreV2');
+    expect(provider).not.toContain('recoverLogicalStorageRestoreV2');
   });
 
   it('nenhum seletor de arquivo para importação lógica foi adicionado', () => {

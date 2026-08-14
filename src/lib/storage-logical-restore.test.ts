@@ -723,7 +723,7 @@ describe('resolvedor e isolamento estrutural', () => {
     })).toEqual({ action: 'blocked', reason: 'status-world-incompatible' });
   });
 
-  it('nao possui call site no Provider, Context, AdminPanel ou UI', () => {
+  it('o writer permanece encapsulado no Context e na fundacao', () => {
     const found: string[] = [];
     const walk = (directory: string): void => {
       for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -738,8 +738,14 @@ describe('resolvedor e isolamento estrutural', () => {
     };
     walk(path.join(process.cwd(), 'src'));
     expect(found.sort()).toEqual([
+      'src/components/ui/StorageBackupVerifier.guard.test.ts',
+      'src/components/ui/StorageRestoreControls.guard.test.ts',
+      'src/lib/storage-boot-recovery.test.ts',
+      'src/lib/storage-logical-restore-resolve.test.ts',
       'src/lib/storage-logical-restore.test.ts',
       'src/lib/storage-logical-restore.ts',
+      'src/providers/GymFlowContext.logical-restore.test.tsx',
+      'src/providers/GymFlowContext.tsx',
     ]);
   });
 
