@@ -1,9 +1,17 @@
 # Pendências
 
+## GOAL-17B-002E-E6B — reset híbrido no Context e no painel
+
+- ~~**Reset ainda não está na UI.**~~ Implementado no E6B.
+- **Retenção executável** continua bloqueada no modo híbrido. Nenhuma
+  geração antiga é apagada por este GOAL.
+- **Escolha manual de gerações** não existe: o predecessor após reset é
+  o mundo anterior comprovado, sem seletor, histórico de resets ou
+  delete de geração.
+
 ## GOAL-17B-002E-E6A — fundação recuperável de reset
 
-- **Reset ainda não está na UI.** A primitive existe sem call site de
-  produção. E6B (se existir) conecta o painel.
+- ~~**Reset ainda não está na UI.**~~ Implementado no E6B.
 - **Retenção executável** continua bloqueada no modo híbrido. Nenhuma
   geração antiga é apagada por este GOAL.
 - **Escolha manual de gerações** não existe: o predecessor após reset é
@@ -11,8 +19,8 @@
 
 ## GOAL-17B-002E-E5B — restore híbrido no Context e no painel
 
-- ~~**Reset híbrido**~~ Fundação interna entregue no E6A; UI e retenção
-  executável continuam bloqueadas.
+- ~~**Reset híbrido**~~ Fundação interna no E6A; UI entregue no E6B.
+  Retenção executável continua bloqueada.
 - **Escolha manual de gerações** não existe: só o predecessor comprovado do
   mundo atual. Sem seletor, histórico de restores ou delete de geração.
 - **Edições do usuário na mesma geração** não criam predecessor novo. Restaurar

@@ -74,9 +74,10 @@ describe('GymFlowContext — único writer autorizado do restore v2', () => {
     expect(matches).toHaveLength(1);
   });
 
-  it('não chama o reset hybrid-v2', () => {
-    expect(contextSource).not.toContain('commitLogicalStorageResetV2');
-    expect(contextSource).not.toContain('storage-logical-reset');
+  it('commitLogicalStorageResetV2 tem exatamente uma invocação', () => {
+    const matches = contextSource.match(/commitLogicalStorageResetV2\(/g) ?? [];
+    expect(matches).toHaveLength(1);
+    expect(contextSource).toContain('storage-logical-reset');
   });
 
   it('tipos públicos não expõem IDs físicos', () => {

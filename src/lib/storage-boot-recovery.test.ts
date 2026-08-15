@@ -1009,7 +1009,7 @@ describe('guards — importação e restauração continuam indisponíveis ao us
     expect(provider).not.toContain('recoverLogicalStorageImportV2');
     expect(provider).toContain('commitLogicalStorageRestoreV2');
     expect(provider).not.toContain('recoverLogicalStorageRestoreV2');
-    expect(provider).not.toContain('commitLogicalStorageResetV2');
+    expect(provider).toContain('commitLogicalStorageResetV2');
     expect(provider).not.toContain('recoverLogicalStorageResetV2');
   });
 

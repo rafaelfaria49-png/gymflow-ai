@@ -931,7 +931,7 @@ describe('dispatcher, boot e isolamento estrutural', () => {
     expect(source).not.toContain('applyRetention');
   });
 
-  it('commitLogicalStorageResetV2 nao tem call site de producao nem UI', () => {
+  it('commitLogicalStorageResetV2 so tem call site autorizado no Context', () => {
     const found: string[] = [];
     const walk = (directory: string): void => {
       for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -947,15 +947,25 @@ describe('dispatcher, boot e isolamento estrutural', () => {
     walk(path.join(process.cwd(), 'src'));
     expect(found.sort()).toEqual([
       'src/components/ui/StorageBackupVerifier.guard.test.ts',
+      'src/components/ui/StorageResetControls.guard.test.ts',
       'src/components/ui/StorageRestoreControls.guard.test.ts',
       'src/lib/storage-boot-recovery.test.ts',
       'src/lib/storage-logical-reset.test.ts',
       'src/lib/storage-logical-reset.ts',
-    ]);
-    for (const file of [
+      'src/providers/GymFlowContext.logical-reset.test.tsx',
       'src/providers/GymFlowContext.tsx',
+    ]);
+    const context = fs.readFileSync(
+      path.join(process.cwd(), 'src/providers/GymFlowContext.tsx'),
+      'utf8',
+    );
+    expect(context).toContain('commitLogicalStorageResetV2');
+    expect(context).not.toContain('recoverLogicalStorageResetV2');
+    const uiFiles = [
       'src/modules/AdminPanel.tsx',
-    ]) {
+      'src/components/ui/StorageResetControls.tsx',
+    ];
+    for (const file of uiFiles) {
       const source = fs.readFileSync(path.join(process.cwd(), file), 'utf8');
       expect(source).not.toContain('commitLogicalStorageResetV2');
       expect(source).not.toContain('recoverLogicalStorageResetV2');

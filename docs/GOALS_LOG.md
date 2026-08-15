@@ -4,6 +4,44 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E6B — reset híbrido no Context e no painel (2026-08-14)
+
+O reset hybrid-v2 deixa de ser primitive desconectada: o Context oferece
+uma fronteira pública sanitizada e o Painel Administrativo apresenta
+preview agregado + confirmação destrutiva em dois passos, sem IDs, raw
+ou receipts na UI.
+
+**Antes:** `commitLogicalStorageResetV2` existia só na fundação E6A; o
+painel híbrido bloqueava “Zerar dados”. Restore já identificava o
+predecessor após um reset feito por teste.
+
+**Depois:** A → confirmação → Z settled → reload único → Z hidratado
+como vazio canônico; A permanece predecessor restaurável. Um segundo
+reset (Z1→Z2) respeita o predecessor imediato.
+
+**Arquivos alterados:**
+- `src/providers/GymFlowContext.tsx` — inspect/commit públicos
+- `src/components/ui/StorageResetControls.tsx` — UI dedicada
+- `src/modules/AdminPanel.tsx` — integração só no hybrid-v2
+- testes de Context, UI, integração real e guards
+- `docs/DECISOES.md`, `docs/GOALS_LOG.md`, `docs/PENDENCIAS.md`
+
+**Fora de escopo:** retenção executável, delete de geração, cleanup de
+órfãs, histórico de resets, seletor, restore arbitrário, rollback
+manual, Android, Share Sheet, etapa F.
+
+**Validação:**
+- `npx vitest run`: 71 arquivos, 2284 testes, 0 falha
+- testes E6B (UI, Context mock, A→Z→A, A→Z1→Z2): 0 falha
+- `npx tsc --noEmit`: aprovado
+- `npm run build` e `npm run build:mobile`: aprovados
+- ESLint nos arquivos novos do GOAL: 0
+- ESLint global: 12 errors, 7 warnings — idêntico a `origin/master`
+- `git diff --check`: limpo
+- secret scan: nenhum segredo
+
+---
+
 ## GOAL-17B-002E-E6A — fundação recuperável de reset (2026-08-14)
 
 Fundação interna e desconectada para criar um mundo hybrid-v2 vazio,

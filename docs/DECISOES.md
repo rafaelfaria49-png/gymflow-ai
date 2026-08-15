@@ -2,6 +2,33 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-17B-002E-E6B — reset híbrido no Context e no painel (2026-08-14)
+
+- **Fronteira pública sanitizada:** `inspectLogicalResetV2` e
+  `commitLogicalResetV2` expõem disponibilidade, preview agregado, reason
+  fechada, `requiresReload` e message constante. Nenhum `operationId`,
+  `generationId`, `stagedGenerationId`, raw, receipt, digest, fingerprint
+  ou stack atravessa o Context.
+- **Preview informativo, não autoridade:** as contagens vêm do core
+  verificado + `sessionCount` da geração ativa. O commit revalida o
+  pré-flight e chama a primitive E6A; o preview não escolhe alvo.
+- **Vazio canônico exclusivo:** o writer é só
+  `commitLogicalStorageResetV2`, que já usa `createEmptyPersistedState()`.
+  A UI não chama `initialPersistedStateRef`, não copia seed legacy-v1 e
+  não reidrata Z em React — o reload é a fronteira.
+- **Autosave e reload iguais ao E4B/E5B:** `storageBlockedRef` antes do
+  primeiro write; debounce cancelado; flush de ciclo de vida suspenso;
+  sucesso settled e recovery-required mantêm o bloqueio e disparam
+  exatamente um reload. Falha sem write libera.
+- **Confirmação em dois passos:** “Zerar todos os dados” e depois
+  “Confirmar e zerar”, declarando substituição pelo estado vazio. Sem
+  promessa de histórico ilimitado ou recuperação eterna.
+- **Predecessor imediato:** o segundo reset (A→Z1→Z2) deixa Z1 como
+  predecessor de Z2. Sem seletor, sem fallback por timestamp e sem
+  histórico de restores.
+- **Legacy-v1 intacto:** `startFreshStorage()` e o diálogo v1 permanecem.
+  No hybrid-v2 o seed legado não é reutilizado.
+
 ## GOAL-17B-002E-E6A — fundação recuperável de reset (2026-08-14)
 
 - **Reset cria geração nova:** `kind: reset` usa `stagedGenerationId` como
