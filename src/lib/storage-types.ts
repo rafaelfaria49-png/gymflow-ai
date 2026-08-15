@@ -35,6 +35,31 @@ export interface PersistedState {
   recentlyViewedVideoIds: string[];
 }
 
+// Única fábrica do mundo lógico vazio. O reset hybrid-v2 — e qualquer
+// hidratação que precise de um estado inicial inequívoco — aponta para cá em
+// vez de reescrever dezenas de defaults. Cada campo entra presente: `[]` e
+// `null` são dados legítimos e o merge por presença não os troca por demo.
+export function createEmptyPersistedState(): PersistedState {
+  return {
+    user: null,
+    weeklyPlan: [],
+    customPrograms: [],
+    activeWorkout: null,
+    activeWorkoutStartedAt: null,
+    restTimerEndAt: null,
+    restTimerTotalSeconds: null,
+    restTimerLabel: null,
+    workoutHistory: [],
+    weightHistory: [],
+    measurementsHistory: [],
+    nutrition: { calories: 0, protein: 0, carbs: 0, fat: 0, water: 0 },
+    achievements: [],
+    challenges: [],
+    favoriteExercises: [],
+    recentlyViewedVideoIds: [],
+  };
+}
+
 export interface HistoryStorageReference {
   backend: 'indexeddb';
   schemaVersion: 1;

@@ -16,6 +16,8 @@ describe('StorageBackupVerifier — guard de zero escrita', () => {
   const FORBIDDEN = [
     'commitLogicalStorageImportV2',
     'recoverLogicalStorageImportV2',
+    'commitLogicalStorageResetV2',
+    'recoverLogicalStorageResetV2',
     'beginStorageOperation',
     'transitionStorageOperation',
     'rollbackToHistoryGeneration',
@@ -127,6 +129,8 @@ describe('AdminPanel — guard atualizado com StorageBackupVerifier', () => {
     'commitLogicalStorageImportV2',
     'recoverLogicalStorageImportV2',
     'commitLogicalStorageRestoreV2',
+    'commitLogicalStorageResetV2',
+    'recoverLogicalStorageResetV2',
     'beginStorageOperation',
     'storage-admin-owner-token',
     'createStorageAdminRuntime',

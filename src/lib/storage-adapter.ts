@@ -151,7 +151,8 @@ export interface StageHistoryGenerationForOperationInput {
   // Precisa ser `'staged'`: só uma operação que ainda não aplicou efeito algum
   // pode ganhar staging físico.
   expectedStatus: StorageOperationStatus;
-  // Precisa ser `'import'`: restauração, reset e rollback têm outros fluxos.
+  // Precisa ser `'import'` ou `'reset'`: os dois criam geração nova.
+  // Restauração e rollback não passam por esta primitiva.
   expectedKind: StorageOperationKind;
   // CAS: a geração ativa precisa continuar sendo exatamente esta.
   expectedActiveGenerationId: string;

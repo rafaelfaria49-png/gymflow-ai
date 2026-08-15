@@ -24,6 +24,7 @@ describe('StorageRestoreControls — módulos e writers proibidos', () => {
     'storage-admin-owner-token',
     'storage-operation-receipt',
     'storage-logical-restore',
+    'storage-logical-reset',
     'GymFlowContext',
   ] as const;
 
@@ -35,6 +36,10 @@ describe('StorageRestoreControls — módulos e writers proibidos', () => {
 
   it('não chama commitLogicalStorageRestoreV2', () => {
     expect(restoreSource).not.toContain('commitLogicalStorageRestoreV2');
+  });
+
+  it('não chama commitLogicalStorageResetV2', () => {
+    expect(restoreSource).not.toContain('commitLogicalStorageResetV2');
   });
 });
 
@@ -49,6 +54,7 @@ describe('AdminPanel — fronteira de restore híbrido', () => {
     'storage-admin-owner-token',
     'storage-operation-receipt',
     'commitLogicalStorageRestoreV2',
+    'commitLogicalStorageResetV2',
   ] as const;
 
   for (const token of FORBIDDEN) {
@@ -66,6 +72,11 @@ describe('GymFlowContext — único writer autorizado do restore v2', () => {
   it('commitLogicalStorageRestoreV2 tem exatamente uma invocação', () => {
     const matches = contextSource.match(/commitLogicalStorageRestoreV2\(/g) ?? [];
     expect(matches).toHaveLength(1);
+  });
+
+  it('não chama o reset hybrid-v2', () => {
+    expect(contextSource).not.toContain('commitLogicalStorageResetV2');
+    expect(contextSource).not.toContain('storage-logical-reset');
   });
 
   it('tipos públicos não expõem IDs físicos', () => {

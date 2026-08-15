@@ -4,6 +4,50 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E6A — fundação recuperável de reset (2026-08-14)
+
+Fundação interna e desconectada para criar um mundo hybrid-v2 vazio,
+válido e recuperável, preservando fisicamente o mundo anterior. O journal
+discrimina `kind: reset` com geração nova (`stagedGenerationId`) e
+`sourceDigest: null`.
+
+**Antes:** import e restore já tinham journal, owner-token e recovery;
+reset e retenção executável permaneciam bloqueados. O receipt legado
+aceitava `kind: reset` sem protocolo próprio.
+
+**Depois:** `createEmptyPersistedState` é a fábrica canônica;
+`commitLogicalStorageResetV2` executa o protocolo com owner-token e CAS;
+`recoverLogicalStorageResetV2` cobre cada janela de crash;
+`recoverLogicalStorageAdministrationV2` despacha reset pelo `kind`.
+Roundtrip A→Z→A prova que A continua restaurável.
+
+**Arquivos alterados:**
+- `src/lib/storage-types.ts` — fábrica do estado vazio
+- `src/lib/storage-operation-receipt.ts` — `ResetStorageOperationReceipt`
+- `src/lib/storage-logical-reset.ts` — primitive e recovery
+- `src/lib/storage-logical-reset.test.ts` — saudável, crash, A→Z→A, guards
+- `src/lib/storage-administrative-recovery.ts` — dispatcher por kind
+- `src/lib/storage-indexeddb.ts` — staging aceita `expectedKind: reset`
+- `src/lib/storage-logical-restore.ts` / `-resolve.ts` — predecessor
+- testes de receipt, runtime, import/backup/boot (guards/fixtures)
+- `docs/DECISOES.md`, `docs/GOALS_LOG.md`, `docs/PENDENCIAS.md`
+
+**Fora de escopo:** UI, AdminPanel, GymFlowContext, retenção executável,
+deleção de gerações, reset legacy-v1, etapa F.
+
+**Validação:**
+- `npx vitest run`: 67 arquivos, 2239 testes, 0 falha
+- `npx tsc --noEmit`: aprovado
+- `npm run build` e `npm run build:mobile`: aprovados
+- ESLint nos arquivos do GOAL: 0
+- ESLint global: 12 errors, 7 warnings — o warning extra em
+  `storage-boot-recovery.test.ts` (`sourceFilesCalling` não usado) já
+  existia em `origin/master`; nenhum problema novo nos arquivos do GOAL
+- `git diff --check`: limpo
+- secret scan: nenhum segredo
+
+---
+
 ## GOAL-17B-002E-E5B — restore híbrido no Context e no painel (2026-08-14)
 
 O restore hybrid-v2 deixa de ser primitive desconectada: o Context identifica

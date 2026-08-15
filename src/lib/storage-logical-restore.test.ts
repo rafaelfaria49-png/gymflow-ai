@@ -741,6 +741,7 @@ describe('resolvedor e isolamento estrutural', () => {
       'src/components/ui/StorageBackupVerifier.guard.test.ts',
       'src/components/ui/StorageRestoreControls.guard.test.ts',
       'src/lib/storage-boot-recovery.test.ts',
+      'src/lib/storage-logical-reset.test.ts',
       'src/lib/storage-logical-restore-resolve.test.ts',
       'src/lib/storage-logical-restore.test.ts',
       'src/lib/storage-logical-restore.ts',
@@ -823,12 +824,12 @@ describe('dispatcher administrativo e boot por kind', () => {
     expect(world.storage.removed).toEqual([]);
   });
 
-  it('dispatcher recusa reset/rollback sem recovery e kind desconhecido malformado', async () => {
+  it('dispatcher recusa rollback sem recovery e kind desconhecido malformado', async () => {
     const known = await createImportedWorld();
     await known.adapter.createStorageOperationReceiptIfIdle({
       receipt: createStorageOperationReceipt({
-        operationId: 'reset-sem-recovery',
-        kind: 'reset',
+        operationId: 'rollback-sem-recovery',
+        kind: 'rollback',
         previousCoreRaw: known.coreB,
         previousGenerationId: known.generationB,
         createdAt: '2026-08-13T13:00:00.000Z',

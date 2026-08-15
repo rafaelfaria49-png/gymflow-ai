@@ -1655,9 +1655,9 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
         `O staging físico só acontece sobre um receipt staged, e não ${expectedStatus}.`,
       );
     }
-    if (expectedKind !== 'import') {
+    if (expectedKind !== 'import' && expectedKind !== 'reset') {
       throw new StorageOperationTransitionError(
-        `O staging físico desta primitiva é da importação lógica, e não de ${expectedKind}.`,
+        `O staging físico desta primitiva é da importação ou do reset lógico, e não de ${expectedKind}.`,
       );
     }
     if (!expectedActiveGenerationId) {

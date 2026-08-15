@@ -64,7 +64,7 @@ function countArray(value: unknown): number {
 }
 
 function finalGenerationOf(receipt: StorageOperationReceipt): string | null {
-  if (receipt.kind === 'import') return receipt.stagedGenerationId;
+  if (receipt.kind === 'import' || receipt.kind === 'reset') return receipt.stagedGenerationId;
   if (receipt.kind === 'restore') return receipt.targetGenerationId;
   return null;
 }
@@ -117,9 +117,9 @@ export function logicalRestoreTargetsMatch(
  * Identifica o predecessor comprovado do mundo atual.
  *
  * A identidade do mundo produzido por um receipt settled e a geracao final
- * (stagedGenerationId no import, targetGenerationId no restore), nao o
- * envelope fisico byte a byte. O autosave reescreve savedAt sem criar mundo
- * novo; exigir igualdade de core tornaria o predecessor efemero apos
+ * (stagedGenerationId no import e no reset, targetGenerationId no restore),
+ * nao o envelope fisico byte a byte. O autosave reescreve savedAt sem criar
+ * mundo novo; exigir igualdade de core tornaria o predecessor efemero apos
  * hidratacao. O par previousCoreRaw + previousGenerationId continua
  * comprovado por proveLogicalStorageRestoreTargetV2.
  *

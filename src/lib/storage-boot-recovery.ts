@@ -19,8 +19,8 @@ import { isRecord } from './storage-validation';
 // Este módulo é o único orquestrador de boot: ele despacha a recuperação
 // administrativa pelo `kind` do receipt e responde se a hidratação
 // pode começar? Ele não renderiza, não conhece React, não importa o Provider,
-// não cria geração e não inicia importação. `commitLogicalStorageImportV2`
-// continua deliberadamente sem call site.
+// não cria geração e não inicia importação, restore ou reset. Os commits
+// continuam deliberadamente sem call site neste arquivo.
 // ---------------------------------------------------------------------------
 
 export type StorageBootRecoveryReadyStatus =

@@ -59,10 +59,11 @@ interface StorageOperationReceiptBase {
   updatedAt: string;
 }
 
-// `kind` discrimina duas identidades fisicas diferentes. Import cria uma
-// geracao nova e a nomeia em `stagedGenerationId`; restore reutiliza uma
+// `kind` discrimina identidades fisicas diferentes. Import e reset criam uma
+// geracao nova e a nomeiam em `stagedGenerationId`; restore reutiliza uma
 // geracao existente e a nomeia em `targetGenerationId` antes de qualquer troca
 // de ponteiro. Receipts historicos de import permanecem sem o campo novo.
+// Reset nao usa `targetGenerationId`: o mundo vazio nasce numa geracao nova.
 export interface ImportStorageOperationReceipt extends StorageOperationReceiptBase {
   kind: 'import';
   targetGenerationId?: never;
@@ -75,14 +76,20 @@ export interface RestoreStorageOperationReceipt extends StorageOperationReceiptB
   targetCoreRaw: string;
 }
 
+export interface ResetStorageOperationReceipt extends StorageOperationReceiptBase {
+  kind: 'reset';
+  targetGenerationId?: never;
+}
+
 export interface LegacyStorageOperationReceipt extends StorageOperationReceiptBase {
-  kind: 'reset' | 'rollback';
+  kind: 'rollback';
   targetGenerationId?: never;
 }
 
 export type StorageOperationReceipt =
   | ImportStorageOperationReceipt
   | RestoreStorageOperationReceipt
+  | ResetStorageOperationReceipt
   | LegacyStorageOperationReceipt;
 
 // Campos que podem mudar enquanto a operação avança. Identidade (`operationId`,
@@ -145,6 +152,11 @@ function kindFieldsAreValid(record: Record<string, unknown>): boolean {
       && isNonEmptyString(record.targetGenerationId)
       && record.targetGenerationId !== record.previousGenerationId
       && isNonEmptyString(record.targetCoreRaw);
+  }
+  if (record.kind === 'reset') {
+    // Reset nao tem origem externa e nao reutiliza geracao: sourceDigest fica
+    // null e targetGenerationId e recusado ate como `undefined` persistido.
+    return record.sourceDigest === null && !hasOwn(record, 'targetGenerationId');
   }
   // Em qualquer outro kind, ate `targetGenerationId: undefined` persistido e
   // recusado: esse writer declarou uma versao que o protocolo nao compreende.
