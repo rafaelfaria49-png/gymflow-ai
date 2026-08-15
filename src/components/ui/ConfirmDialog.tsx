@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, HelpCircle } from 'lucide-react';
+import { createKeyboardIntentBarrier } from './keyboard-intent-barrier';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -12,10 +13,21 @@ interface ConfirmDialogProps {
   variant?: 'default' | 'destructive';
   onConfirm: () => void;
   onCancel: () => void;
+  /**
+   * When true, Enter/Space from a key still held (or not yet released since
+   * this dialog opened) cannot activate either action. Initial focus lands on
+   * Cancel. Mouse/touch confirm stays available immediately. Default false
+   * preserves the historical autofocus-on-confirm behavior.
+   */
+  requireIndependentKeyboardIntent?: boolean;
 }
 
-export const ConfirmDialog = ({
-  isOpen,
+export const ConfirmDialog = (props: ConfirmDialogProps) => {
+  if (!props.isOpen) return null;
+  return <OpenConfirmDialog {...props} />;
+};
+
+const OpenConfirmDialog = ({
   title,
   description,
   confirmLabel = 'Confirmar',
@@ -23,22 +35,48 @@ export const ConfirmDialog = ({
   variant = 'default',
   onConfirm,
   onCancel,
+  requireIndependentKeyboardIntent = false,
 }: ConfirmDialogProps) => {
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const barrierRef = useRef(createKeyboardIntentBarrier());
+  const [keyboardArmed, setKeyboardArmed] = useState(!requireIndependentKeyboardIntent);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!requireIndependentKeyboardIntent) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onCancel();
+      };
+      document.addEventListener('keydown', handleKeyDown);
+      confirmButtonRef.current?.focus();
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+
+    const barrier = barrierRef.current;
+    barrier.resetForOpen();
+    cancelButtonRef.current?.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Escape') {
+        onCancel();
+        return;
+      }
+      barrier.onKeyDown();
+      if (barrier.shouldBlockKeyboardActivation(e.key, e.repeat)) {
+        e.preventDefault();
+      }
     };
-    document.addEventListener('keydown', handleKeyDown);
-    confirmButtonRef.current?.focus();
-
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onCancel]);
-
-  if (!isOpen) return null;
+    const handleKeyUp = () => {
+      barrier.onKeyUp();
+      setKeyboardArmed(barrier.isKeyboardArmed());
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('keyup', handleKeyUp, true);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('keyup', handleKeyUp, true);
+    };
+  }, [onCancel, requireIndependentKeyboardIntent]);
 
   const isDestructive = variant === 'destructive';
 
@@ -53,6 +91,7 @@ export const ConfirmDialog = ({
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
         aria-describedby={description ? 'confirm-dialog-description' : undefined}
+        data-keyboard-armed={requireIndependentKeyboardIntent ? (keyboardArmed ? 'true' : 'false') : undefined}
         onClick={(e) => e.stopPropagation()}
         className="w-full sm:max-w-sm bg-gym-card border border-white/10 rounded-3xl p-6 shadow-2xl animate-toast-in"
       >
@@ -77,6 +116,7 @@ export const ConfirmDialog = ({
 
         <div className="flex gap-3 mt-2">
           <button
+            ref={cancelButtonRef}
             type="button"
             onClick={onCancel}
             className="flex-1 min-h-[44px] px-4 rounded-2xl text-xs font-extrabold bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all"
@@ -87,6 +127,12 @@ export const ConfirmDialog = ({
             ref={confirmButtonRef}
             type="button"
             onClick={onConfirm}
+            onKeyDown={(event) => {
+              if (!requireIndependentKeyboardIntent) return;
+              if (barrierRef.current.shouldBlockKeyboardActivation(event.key, event.repeat)) {
+                event.preventDefault();
+              }
+            }}
             className={`flex-1 min-h-[44px] px-4 rounded-2xl text-xs font-extrabold transition-all ${
               isDestructive
                 ? 'bg-gym-rose text-white hover:bg-gym-rose/90'

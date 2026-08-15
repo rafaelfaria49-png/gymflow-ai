@@ -29,6 +29,7 @@ import { StorageExportControls } from '../components/ui/StorageExportControls';
 import { StorageBackupVerifier } from '../components/ui/StorageBackupVerifier';
 import type { VerifiedBackupPayload } from '../components/ui/StorageBackupVerifier';
 import { StorageRestoreControls } from '../components/ui/StorageRestoreControls';
+import { StorageResetControls } from '../components/ui/StorageResetControls';
 
 export const AdminPanel = () => {
   const {
@@ -43,6 +44,8 @@ export const AdminPanel = () => {
     importLogicalBackupV2,
     inspectLogicalRestoreV2,
     commitLogicalRestoreV2,
+    inspectLogicalResetV2,
+    commitLogicalResetV2,
     applyStorageImport,
     restoreStorageBackup,
     startFreshStorage,
@@ -435,6 +438,15 @@ export const AdminPanel = () => {
               />
             </div>
           )}
+          {storageMode === 'hybrid-v2' && (
+            <div className="sm:col-span-3">
+              <StorageResetControls
+                storageMode={storageMode}
+                inspectLogicalResetV2={inspectLogicalResetV2}
+                commitLogicalResetV2={commitLogicalResetV2}
+              />
+            </div>
+          )}
           <button
             type="button"
             onClick={() => importInputRef.current?.click()}
@@ -463,9 +475,8 @@ export const AdminPanel = () => {
         </div>
         {!legacyStorageOperationsAllowed && (
           <p className="rounded-xl border border-gym-accent/20 bg-gym-accent/5 p-3 text-[10px] leading-relaxed text-gym-accent">
-            Zerar dados permanece bloqueado no modo híbrido. A exportação, a
-            verificação, a importação e o restore do backup lógico v2 já estão
-            disponíveis acima.
+            Exportação, importação e restauração v1 permanecem no fluxo legado.
+            No modo híbrido, use as ações lógicas v2 acima.
           </p>
         )}
         <p className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3 text-[10px] leading-relaxed text-yellow-200/80">

@@ -41,6 +41,7 @@ import {
   canUseLegacyAdminOperations,
   combineCoreWithHistory,
   createHybridStorageRuntime,
+  parsePhysicalEnvelope,
   resolveStorageRecoveryCapabilities,
   type HybridStorageMode,
   type HybridStorageRuntime,
@@ -72,6 +73,7 @@ import {
   logicalRestoreTargetsMatch,
   resolveLogicalRestorePredecessorV2,
 } from '../lib/storage-logical-restore-resolve';
+import { commitLogicalStorageResetV2 } from '../lib/storage-logical-reset';
 import type { LogicalStorageRestoreTargetV2 } from '../lib/storage-logical-restore';
 import {
   createStorageAdminOwnerTokenCoordinator,
@@ -281,6 +283,49 @@ export type PublicLogicalRestoreResult =
       message: string;
     };
 
+export type PublicLogicalResetFailureReason =
+  | 'active-workout'
+  | 'storage-not-healthy'
+  | 'admin-not-ready'
+  | 'completion-pending'
+  | 'operation-open'
+  | 'owner-token-busy'
+  | 'reset-failed'
+  | 'recovery-required';
+
+export interface PublicLogicalResetPreview {
+  sessionCount: number;
+  customProgramCount: number;
+  weightRecordCount: number;
+  measurementRecordCount: number;
+}
+
+export type PublicLogicalResetAvailability =
+  | { status: 'available'; preview: PublicLogicalResetPreview }
+  | {
+      status: 'busy';
+      reason: PublicLogicalResetFailureReason;
+      message: string;
+    }
+  | {
+      status: 'error';
+      reason: PublicLogicalResetFailureReason;
+      message: string;
+    };
+
+export type PublicLogicalResetResult =
+  | {
+      ok: true;
+      requiresReload: true;
+      message: string;
+    }
+  | {
+      ok: false;
+      reason: PublicLogicalResetFailureReason;
+      requiresReload: boolean;
+      message: string;
+    };
+
 interface ChatMessage {
   id: string;
   sender: 'user' | 'ai';
@@ -442,6 +487,8 @@ interface GymFlowContextType {
   }) => Promise<PublicLogicalImportResult>;
   inspectLogicalRestoreV2: () => Promise<PublicLogicalRestoreAvailability>;
   commitLogicalRestoreV2: () => Promise<PublicLogicalRestoreResult>;
+  inspectLogicalResetV2: () => Promise<PublicLogicalResetAvailability>;
+  commitLogicalResetV2: () => Promise<PublicLogicalResetResult>;
 }
 
 const RESTORE_SUCCESS_MESSAGE = 'Backup anterior restaurado. Recarregando...';
@@ -468,6 +515,52 @@ function failRestore(
     reason,
     requiresReload,
     message: RESTORE_FAILURE_MESSAGES[reason],
+  };
+}
+
+const RESET_SUCCESS_MESSAGE = 'Dados zerados. Recarregando...';
+const RESET_FAILURE_MESSAGES: Record<PublicLogicalResetFailureReason, string> = {
+  'active-workout': 'Existe um treino em andamento. Conclua ou cancele o treino antes de zerar os dados.',
+  'storage-not-healthy': 'O armazenamento não está em estado saudável para zerar os dados.',
+  'admin-not-ready': 'O diagnóstico administrativo não está pronto para zerar os dados.',
+  'completion-pending': 'Existe uma finalização de treino pendente. Recarregue o aplicativo.',
+  'operation-open': 'Existe uma operação administrativa em andamento.',
+  'owner-token-busy': 'Outra aba está executando uma operação administrativa.',
+  'reset-failed': 'Não foi possível zerar os dados do GymFlow.',
+  'recovery-required': 'O reset requer recuperação. O aplicativo será recarregado.',
+};
+
+function failReset(
+  reason: PublicLogicalResetFailureReason,
+  requiresReload = false,
+): PublicLogicalResetResult {
+  return {
+    ok: false,
+    reason,
+    requiresReload,
+    message: RESET_FAILURE_MESSAGES[reason],
+  };
+}
+
+function previewFromCurrentCore(
+  coreRaw: string,
+  sessionCount: number,
+): PublicLogicalResetPreview | null {
+  const parsed = parsePhysicalEnvelope(coreRaw);
+  if (parsed.status !== 'v2') return null;
+  const { customPrograms, weightHistory, measurementsHistory } = parsed.envelope.data;
+  if (
+    !Array.isArray(customPrograms)
+    || !Array.isArray(weightHistory)
+    || !Array.isArray(measurementsHistory)
+  ) {
+    return null;
+  }
+  return {
+    sessionCount,
+    customProgramCount: customPrograms.length,
+    weightRecordCount: weightHistory.length,
+    measurementRecordCount: measurementsHistory.length,
   };
 }
 
@@ -911,6 +1004,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const ownerTokenCoordinatorRef = useRef<ReturnType<typeof createStorageAdminOwnerTokenCoordinator> | null>(null);
   const importInProgressRef = useRef(false);
   const restoreInProgressRef = useRef(false);
+  const resetInProgressRef = useRef(false);
   // GOAL-17B-E5B: prova do predecessor somente em ref privada e efêmera.
   const provenRestoreTargetRef = useRef<LogicalStorageRestoreTargetV2 | null>(null);
 
@@ -2889,7 +2983,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     expectedPayloadDigest: string;
   }): Promise<PublicLogicalImportResult> => {
     // Bloqueio contra clique duplicado e Strict Mode.
-    if (importInProgressRef.current || restoreInProgressRef.current) {
+    if (importInProgressRef.current || restoreInProgressRef.current || resetInProgressRef.current) {
       return {
         ok: false,
         reason: 'operation-open',
@@ -3059,7 +3153,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const inspectLogicalRestoreV2 = useCallback(async (): Promise<PublicLogicalRestoreAvailability> => {
     provenRestoreTargetRef.current = null;
 
-    if (restoreInProgressRef.current || importInProgressRef.current) {
+    if (restoreInProgressRef.current || importInProgressRef.current || resetInProgressRef.current) {
       return {
         status: 'busy',
         reason: 'operation-open',
@@ -3116,7 +3210,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const commitLogicalRestoreV2 = useCallback(async (): Promise<PublicLogicalRestoreResult> => {
-    if (restoreInProgressRef.current || importInProgressRef.current) {
+    if (restoreInProgressRef.current || importInProgressRef.current || resetInProgressRef.current) {
       return failRestore('operation-open');
     }
     if (storageModeRef.current !== 'hybrid-v2') {
@@ -3264,6 +3358,230 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [toast]);
 
+  // GOAL-17B-E6B: wrapper público sanitizado para commitLogicalStorageResetV2.
+  // A UI nunca recebe adapter, runtime, owner-token, generationId, operationId,
+  // receipt, raw, digest ou fingerprint — só disponibilidade, preview agregado,
+  // reason fechada, requiresReload e message constante.
+  const inspectLogicalResetV2 = useCallback(async (): Promise<PublicLogicalResetAvailability> => {
+    if (resetInProgressRef.current || importInProgressRef.current || restoreInProgressRef.current) {
+      return {
+        status: 'busy',
+        reason: 'operation-open',
+        message: RESET_FAILURE_MESSAGES['operation-open'],
+      };
+    }
+    if (storageModeRef.current !== 'hybrid-v2') {
+      return {
+        status: 'error',
+        reason: 'storage-not-healthy',
+        message: RESET_FAILURE_MESSAGES['storage-not-healthy'],
+      };
+    }
+    if (storageBlockedRef.current || completionRecoveryRequiredRef.current) {
+      return {
+        status: 'error',
+        reason: 'storage-not-healthy',
+        message: RESET_FAILURE_MESSAGES['storage-not-healthy'],
+      };
+    }
+
+    const adapter = historyAdapterRef.current;
+    if (!adapter || typeof window === 'undefined') {
+      return {
+        status: 'error',
+        reason: 'admin-not-ready',
+        message: RESET_FAILURE_MESSAGES['admin-not-ready'],
+      };
+    }
+
+    try {
+      const runtime = createStorageAdminRuntime({
+        key: STORAGE_KEY,
+        storage: window.localStorage,
+        adapter,
+      });
+      const snapshot = await runtime.inspectStorageAdministration();
+      if (snapshot.state.status === 'unavailable') {
+        return {
+          status: 'error',
+          reason: 'admin-not-ready',
+          message: RESET_FAILURE_MESSAGES['admin-not-ready'],
+        };
+      }
+      if (snapshot.pendingCompletionReceiptCount > 0) {
+        return {
+          status: 'error',
+          reason: 'completion-pending',
+          message: RESET_FAILURE_MESSAGES['completion-pending'],
+        };
+      }
+      if (snapshot.state.status !== 'ready' || snapshot.unsettledOperations.length !== 0) {
+        return {
+          status: 'busy',
+          reason: 'operation-open',
+          message: RESET_FAILURE_MESSAGES['operation-open'],
+        };
+      }
+      if (
+        snapshot.activeGenerationId === null
+        || snapshot.coreRawObserved === null
+        || snapshot.activeGenerationIntegrity?.status !== 'verified'
+      ) {
+        return {
+          status: 'error',
+          reason: 'admin-not-ready',
+          message: RESET_FAILURE_MESSAGES['admin-not-ready'],
+        };
+      }
+      const preview = previewFromCurrentCore(
+        snapshot.coreRawObserved,
+        snapshot.activeGenerationIntegrity.manifest.sessionCount,
+      );
+      if (preview === null) {
+        return {
+          status: 'error',
+          reason: 'reset-failed',
+          message: RESET_FAILURE_MESSAGES['reset-failed'],
+        };
+      }
+      return { status: 'available', preview };
+    } catch {
+      return {
+        status: 'error',
+        reason: 'reset-failed',
+        message: RESET_FAILURE_MESSAGES['reset-failed'],
+      };
+    }
+  }, []);
+
+  const commitLogicalResetV2 = useCallback(async (): Promise<PublicLogicalResetResult> => {
+    if (resetInProgressRef.current || importInProgressRef.current || restoreInProgressRef.current) {
+      return failReset('operation-open');
+    }
+    if (storageModeRef.current !== 'hybrid-v2') {
+      return failReset('storage-not-healthy');
+    }
+    if (storageBlockedRef.current || completionRecoveryRequiredRef.current) {
+      return failReset('storage-not-healthy');
+    }
+    if (activeWorkoutRef.current) {
+      return failReset('active-workout');
+    }
+
+    const adapter = historyAdapterRef.current;
+    if (!adapter || typeof window === 'undefined') {
+      return failReset('admin-not-ready');
+    }
+
+    const ownerTokenInspection = inspectStorageAdminOwnerToken({
+      key: STORAGE_KEY,
+      storage: window.localStorage,
+    });
+    if (ownerTokenInspection.status === 'busy') {
+      return failReset('owner-token-busy');
+    }
+
+    ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
+      key: STORAGE_KEY,
+      storage: window.localStorage,
+    });
+
+    const runtime = createStorageAdminRuntime({
+      key: STORAGE_KEY,
+      storage: window.localStorage,
+      adapter,
+    });
+
+    try {
+      const snapshot = await runtime.inspectStorageAdministration();
+      if (snapshot.state.status === 'unavailable') {
+        return failReset('admin-not-ready');
+      }
+      if (snapshot.pendingCompletionReceiptCount > 0) {
+        return failReset('completion-pending');
+      }
+      if (snapshot.state.status !== 'ready' || snapshot.unsettledOperations.length !== 0) {
+        return failReset('operation-open');
+      }
+      if (
+        snapshot.activeGenerationId === null
+        || snapshot.coreRawObserved === null
+        || snapshot.activeGenerationIntegrity?.status !== 'verified'
+      ) {
+        return failReset('admin-not-ready');
+      }
+    } catch {
+      return failReset('admin-not-ready');
+    }
+
+    resetInProgressRef.current = true;
+    const wasBlocked = storageBlockedRef.current;
+    storageBlockedRef.current = true;
+    if (pendingSaveRef.current) {
+      clearTimeout(pendingSaveRef.current);
+      pendingSaveRef.current = null;
+    }
+
+    try {
+      const result = await commitLogicalStorageResetV2({
+        runtime: {
+          inspectStorageAdministration: runtime.inspectStorageAdministration.bind(runtime),
+          beginStorageOperation: runtime.beginStorageOperation.bind(runtime),
+          transitionStorageOperation: runtime.transitionStorageOperation.bind(runtime),
+        },
+        adapter: {
+          readStorageAdministrationSnapshot: adapter.readStorageAdministrationSnapshot.bind(adapter),
+          readStorageOperationReceipt: adapter.readStorageOperationReceipt.bind(adapter),
+          readVerifiedHistoryGeneration: adapter.readVerifiedHistoryGeneration.bind(adapter),
+          readMetadata: adapter.readMetadata.bind(adapter),
+          stageHistoryGenerationForOperation: adapter.stageHistoryGenerationForOperation.bind(adapter),
+          rollbackToHistoryGeneration: adapter.rollbackToHistoryGeneration.bind(adapter),
+          transitionStorageOperationIfUnambiguous: adapter.transitionStorageOperationIfUnambiguous.bind(adapter),
+        },
+        storage: window.localStorage,
+        key: STORAGE_KEY,
+        ownerToken: ownerTokenCoordinatorRef.current,
+      });
+
+      if (result.ok) {
+        toast.success(RESET_SUCCESS_MESSAGE);
+        const reload = window.location.reload.bind(window.location);
+        window.setTimeout(() => { reload(); }, 600);
+        return {
+          ok: true,
+          requiresReload: true,
+          message: RESET_SUCCESS_MESSAGE,
+        };
+      }
+
+      if (result.recoveryRequired || result.reason === 'recovery-required') {
+        toast.error(RESET_FAILURE_MESSAGES['recovery-required']);
+        const reload = window.location.reload.bind(window.location);
+        window.setTimeout(() => { reload(); }, 600);
+        return failReset('recovery-required', true);
+      }
+
+      storageBlockedRef.current = wasBlocked;
+      resetInProgressRef.current = false;
+      const publicReason: PublicLogicalResetFailureReason = result.reason === 'owner-token-conflict'
+        ? 'owner-token-busy'
+        : result.reason === 'administration-unavailable'
+          ? 'admin-not-ready'
+          : result.reason === 'operation-conflict'
+            ? 'operation-open'
+            : result.reason === 'storage-unavailable'
+              ? 'storage-not-healthy'
+              : 'reset-failed';
+      toast.error(RESET_FAILURE_MESSAGES[publicReason]);
+      return failReset(publicReason);
+    } catch {
+      toast.error(RESET_FAILURE_MESSAGES['recovery-required']);
+      const reload = window.location.reload.bind(window.location);
+      window.setTimeout(() => { reload(); }, 600);
+      return failReset('recovery-required', true);
+    }
+  }, [toast]);
+
   const inspectStorageAdminStatus = useCallback((): Promise<StorageAdminStatus> => {
     const adapter = historyAdapterRef.current;
     if (!adapter || typeof window === 'undefined') {
@@ -3406,6 +3724,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         importLogicalBackupV2,
         inspectLogicalRestoreV2,
         commitLogicalRestoreV2,
+        inspectLogicalResetV2,
+        commitLogicalResetV2,
       }}
     >
       {children}

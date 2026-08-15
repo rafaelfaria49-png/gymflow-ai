@@ -739,6 +739,7 @@ describe('resolvedor e isolamento estrutural', () => {
     walk(path.join(process.cwd(), 'src'));
     expect(found.sort()).toEqual([
       'src/components/ui/StorageBackupVerifier.guard.test.ts',
+      'src/components/ui/StorageResetControls.guard.test.ts',
       'src/components/ui/StorageRestoreControls.guard.test.ts',
       'src/lib/storage-boot-recovery.test.ts',
       'src/lib/storage-logical-reset.test.ts',

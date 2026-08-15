@@ -4,6 +4,76 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E6B-KEYBOARD — barreira de key-repeat no reset (2026-08-15)
+
+O segundo passo de “Confirmar e zerar” deixava o botão confirm focado.
+Manter Enter/Space no primeiro diálogo atravessava os dois passos e
+executava o reset.
+
+**Antes:** `ConfirmDialog` autofocava o confirm em todo caller. O hold
+reproduzido no browser real escrevia Z vazio.
+
+**Depois:** o diálogo final do reset exige uma intenção de teclado
+independente (`requireIndependentKeyboardIntent`): foco inicial em
+Cancelar, Enter/Space bloqueados até o `keyup`, mouse imediato. Escape
+continua cancelando sem write. E6A não muda.
+
+**Arquivos alterados:**
+- `src/components/ui/ConfirmDialog.tsx` — prop opt-in
+- `src/components/ui/keyboard-intent-barrier.ts` — contrato puro
+- `src/components/ui/StorageResetControls.tsx` — só o 2º diálogo
+- testes focados + `docs/DECISOES.md`, `docs/GOALS_LOG.md`, `docs/PENDENCIAS.md`
+
+**Validação:**
+- testes focados do contrato + E6B + E4B/E5B: 0 falha
+- `npx vitest run`: 73 arquivos, 2299 testes, 0 falha
+- `npx tsc --noEmit`, `npm run build`, `npm run build:mobile`: aprovados
+- ESLint dos arquivos alterados: 0
+- smoke browser isolado (`:3019`, dados descartáveis): Enter hold e Space hold com envelope idêntico; keyup arma; clique duplo = 1 reset; Z vazio e 1 reload
+- `git diff --check` e secret scan: limpos
+
+**Fora de escopo:** retenção, delete, cleanup, etapa F, merge do PR #19.
+
+---
+
+## GOAL-17B-002E-E6B — reset híbrido no Context e no painel (2026-08-14)
+
+O reset hybrid-v2 deixa de ser primitive desconectada: o Context oferece
+uma fronteira pública sanitizada e o Painel Administrativo apresenta
+preview agregado + confirmação destrutiva em dois passos, sem IDs, raw
+ou receipts na UI.
+
+**Antes:** `commitLogicalStorageResetV2` existia só na fundação E6A; o
+painel híbrido bloqueava “Zerar dados”. Restore já identificava o
+predecessor após um reset feito por teste.
+
+**Depois:** A → confirmação → Z settled → reload único → Z hidratado
+como vazio canônico; A permanece predecessor restaurável. Um segundo
+reset (Z1→Z2) respeita o predecessor imediato.
+
+**Arquivos alterados:**
+- `src/providers/GymFlowContext.tsx` — inspect/commit públicos
+- `src/components/ui/StorageResetControls.tsx` — UI dedicada
+- `src/modules/AdminPanel.tsx` — integração só no hybrid-v2
+- testes de Context, UI, integração real e guards
+- `docs/DECISOES.md`, `docs/GOALS_LOG.md`, `docs/PENDENCIAS.md`
+
+**Fora de escopo:** retenção executável, delete de geração, cleanup de
+órfãs, histórico de resets, seletor, restore arbitrário, rollback
+manual, Android, Share Sheet, etapa F.
+
+**Validação:**
+- `npx vitest run`: 71 arquivos, 2284 testes, 0 falha
+- testes E6B (UI, Context mock, A→Z→A, A→Z1→Z2): 0 falha
+- `npx tsc --noEmit`: aprovado
+- `npm run build` e `npm run build:mobile`: aprovados
+- ESLint nos arquivos novos do GOAL: 0
+- ESLint global: 12 errors, 7 warnings — idêntico a `origin/master`
+- `git diff --check`: limpo
+- secret scan: nenhum segredo
+
+---
+
 ## GOAL-17B-002E-E6A — fundação recuperável de reset (2026-08-14)
 
 Fundação interna e desconectada para criar um mundo hybrid-v2 vazio,
