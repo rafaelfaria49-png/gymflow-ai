@@ -4,6 +4,38 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E6B-KEYBOARD — barreira de key-repeat no reset (2026-08-15)
+
+O segundo passo de “Confirmar e zerar” deixava o botão confirm focado.
+Manter Enter/Space no primeiro diálogo atravessava os dois passos e
+executava o reset.
+
+**Antes:** `ConfirmDialog` autofocava o confirm em todo caller. O hold
+reproduzido no browser real escrevia Z vazio.
+
+**Depois:** o diálogo final do reset exige uma intenção de teclado
+independente (`requireIndependentKeyboardIntent`): foco inicial em
+Cancelar, Enter/Space bloqueados até o `keyup`, mouse imediato. Escape
+continua cancelando sem write. E6A não muda.
+
+**Arquivos alterados:**
+- `src/components/ui/ConfirmDialog.tsx` — prop opt-in
+- `src/components/ui/keyboard-intent-barrier.ts` — contrato puro
+- `src/components/ui/StorageResetControls.tsx` — só o 2º diálogo
+- testes focados + `docs/DECISOES.md`, `docs/GOALS_LOG.md`, `docs/PENDENCIAS.md`
+
+**Validação:**
+- testes focados do contrato + E6B + E4B/E5B: 0 falha
+- `npx vitest run`: 73 arquivos, 2299 testes, 0 falha
+- `npx tsc --noEmit`, `npm run build`, `npm run build:mobile`: aprovados
+- ESLint dos arquivos alterados: 0
+- smoke browser isolado (`:3019`, dados descartáveis): Enter hold e Space hold com envelope idêntico; keyup arma; clique duplo = 1 reset; Z vazio e 1 reload
+- `git diff --check` e secret scan: limpos
+
+**Fora de escopo:** retenção, delete, cleanup, etapa F, merge do PR #19.
+
+---
+
 ## GOAL-17B-002E-E6B — reset híbrido no Context e no painel (2026-08-14)
 
 O reset hybrid-v2 deixa de ser primitive desconectada: o Context oferece

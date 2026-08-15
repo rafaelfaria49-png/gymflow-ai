@@ -1,8 +1,15 @@
 # Pendências
 
+## GOAL-17B-002E-E6B-KEYBOARD — barreira de key-repeat no reset
+
+- ~~**Enter/Space mantidos atravessavam os dois diálogos.**~~ O segundo
+  passo exige keyup antes de armar o teclado; mouse segue imediato.
+
 ## GOAL-17B-002E-E6B — reset híbrido no Context e no painel
 
 - ~~**Reset ainda não está na UI.**~~ Implementado no E6B.
+- ~~**Key-repeat no segundo diálogo.**~~ Corrigido no GOAL de barreira
+  de teclado; o writer E6A não mudou.
 - **Retenção executável** continua bloqueada no modo híbrido. Nenhuma
   geração antiga é apagada por este GOAL.
 - **Escolha manual de gerações** não existe: o predecessor após reset é

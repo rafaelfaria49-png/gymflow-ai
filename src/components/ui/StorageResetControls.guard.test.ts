@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+const OTHER_CONFIRM_CALLERS = [
+  '../../modules/AdminPanel.tsx',
+  '../../modules/ActiveWorkoutPage.tsx',
+  '../../modules/WorkoutBuilder.tsx',
+  './StorageRestoreControls.tsx',
+  './StorageRecoveryNotice.tsx',
+  './StorageBackupVerifier.tsx',
+] as const;
+
 const resetSource = readFileSync(
   resolve(__dirname, 'StorageResetControls.tsx'),
   'utf-8',
@@ -76,6 +85,26 @@ describe('AdminPanel — fronteira de reset híbrido', () => {
       }
     });
   }
+
+  it('outros ConfirmDialog permanecem no comportamento default', () => {
+    for (const relative of OTHER_CONFIRM_CALLERS) {
+      const source = readFileSync(resolve(__dirname, relative), 'utf-8');
+      expect(source).not.toContain('requireIndependentKeyboardIntent');
+    }
+  });
+
+  it('o segundo diálogo exige intenção de teclado independente', () => {
+    const firstDialog = resetSource.match(
+      /isOpen=\{phase\.phase === 'confirming-first'\}[\s\S]*?\/>/,
+    )?.[0];
+    const finalDialog = resetSource.match(
+      /isOpen=\{phase\.phase === 'confirming-final'\}[\s\S]*?\/>/,
+    )?.[0];
+    expect(firstDialog).toBeDefined();
+    expect(finalDialog).toBeDefined();
+    expect(firstDialog).not.toContain('requireIndependentKeyboardIntent');
+    expect(finalDialog).toContain('requireIndependentKeyboardIntent');
+  });
 
   it('preserva startFreshStorage e o fluxo legado', () => {
     expect(adminSource).toContain('startFreshStorage');

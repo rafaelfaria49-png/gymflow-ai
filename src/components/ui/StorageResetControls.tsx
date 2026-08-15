@@ -230,6 +230,7 @@ export function StorageResetControls({
         description="Os dados atuais serão substituídos por um estado vazio do GymFlow. O aplicativo será recarregado."
         confirmLabel="Confirmar e zerar"
         cancelLabel="Cancelar"
+        requireIndependentKeyboardIntent
         onConfirm={() => { void handleConfirmReset(); }}
         onCancel={handleCancelConfirm}
       />

@@ -2,6 +2,20 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-17B-002E-E6B-KEYBOARD — barreira de key-repeat no reset (2026-08-15)
+
+- **Barreira no segundo diálogo, não no writer:** o P0 de teclado é só UI.
+  `commitLogicalStorageResetV2`, journal, receipt, recovery e predecessor
+  ficam intactos.
+- **Sem timeout:** o segundo `ConfirmDialog` abre desarmado para Enter/Space
+  e só arma no `keyup`. Repeat continua bloqueado. Mouse/touch confirmam
+  imediatamente.
+- **Foco inicial no Cancelar:** só quando
+  `requireIndependentKeyboardIntent` está ligado. Callers default (restore,
+  import, legacy-v1, WorkoutBuilder) continuam autofocando o confirm.
+- **Helper puro:** `createKeyboardIntentBarrier` concentra o contrato para
+  teste sem DOM. Não é barreira de segurança por relógio.
+
 ## GOAL-17B-002E-E6B — reset híbrido no Context e no painel (2026-08-14)
 
 - **Fronteira pública sanitizada:** `inspectLogicalResetV2` e

@@ -154,6 +154,65 @@ describe('StorageResetControls', () => {
     expect(text).not.toContain('previousCoreRaw');
   });
 
+  it('o primeiro confirm nunca chama commit; a segunda intenção é independente', async () => {
+    const commit = vi.fn(async () => ({
+      ok: true,
+      requiresReload: true,
+      message: 'Dados zerados. Recarregando...',
+    }));
+    const { renderer } = await renderControls({
+      inspect: async () => ({ status: 'available', preview: PREVIEW }),
+      commit,
+    });
+
+    await act(async () => {
+      clickButton(findButtonByLabel(renderer.toJSON(), 'Zerar dados do GymFlow')!);
+    });
+    expect(commit).not.toHaveBeenCalled();
+    expect(normalize(collectText(renderer.toJSON()))).toContain('Zerar todos os dados');
+    expect(normalize(collectText(renderer.toJSON()))).not.toContain('Confirmar e zerar');
+
+    await act(async () => {
+      clickButton(findButtons(renderer.toJSON()).find((button) => buttonText(button) === 'Zerar todos os dados')!);
+    });
+    expect(commit).not.toHaveBeenCalled();
+    expect(normalize(collectText(renderer.toJSON()))).toContain('Confirmar e zerar');
+
+    const finalDialog = collectByType(renderer.toJSON(), 'div')
+      .find((node) => node.props?.role === 'alertdialog');
+    expect(finalDialog?.props?.['data-keyboard-armed']).toBe('false');
+  });
+
+  it('Escape cancela sem write nos dois passos', async () => {
+    const commit = vi.fn();
+    const { renderer } = await renderControls({
+      inspect: async () => ({ status: 'available', preview: PREVIEW }),
+      commit,
+    });
+
+    await act(async () => {
+      clickButton(findButtonByLabel(renderer.toJSON(), 'Zerar dados do GymFlow')!);
+    });
+    await act(async () => {
+      clickButton(findButtons(renderer.toJSON()).find((button) => buttonText(button) === 'Cancelar')!);
+    });
+    expect(commit).not.toHaveBeenCalled();
+    expect(normalize(collectText(renderer.toJSON()))).not.toContain('Zerar todos os dados');
+    expect(findButtonByLabel(renderer.toJSON(), 'Zerar dados do GymFlow')).toBeDefined();
+
+    await act(async () => {
+      clickButton(findButtonByLabel(renderer.toJSON(), 'Zerar dados do GymFlow')!);
+    });
+    await act(async () => {
+      clickButton(findButtons(renderer.toJSON()).find((button) => buttonText(button) === 'Zerar todos os dados')!);
+    });
+    await act(async () => {
+      clickButton(findButtons(renderer.toJSON()).find((button) => buttonText(button) === 'Cancelar')!);
+    });
+    expect(commit).not.toHaveBeenCalled();
+    expect(normalize(collectText(renderer.toJSON()))).not.toContain('Confirmar e zerar');
+  });
+
   it('confirmação destrutiva em dois passos e bloqueio de clique duplo', async () => {
     let resolveCommit!: (value: { ok: true; requiresReload: true; message: string }) => void;
     const commit = vi.fn(() => new Promise((resolve) => {
