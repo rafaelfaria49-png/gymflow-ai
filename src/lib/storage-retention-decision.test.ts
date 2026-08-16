@@ -730,6 +730,38 @@ describe('decisão pura de retenção', () => {
   });
 });
 
+describe('fundação E7A2 preserva bloqueios e zero autoridade', () => {
+  it('receipt aberto continua bloqueando e sem delete', async () => {
+    const receipt = operation();
+    const result = await decisionFor(snapshot({
+      operationReceipts: [receipt],
+      unsettledOperations: [receipt],
+    }));
+    expect(result.status).toBe('blocked-operation-receipt');
+    expectNoAuthority(result);
+  });
+
+  it('completion pending continua bloqueando', async () => {
+    const result = await decisionFor(snapshot({
+      pendingCompletionReceipts: [completion()],
+    }));
+    expect(result.status).toBe('blocked-completion-receipt');
+    expectNoAuthority(result);
+  });
+
+  it('snapshot corrompido continua fail-closed', () => {
+    const result = decideStorageRetention({
+      plan: { status: 'blocked', reason: 'snapshot-invalid', delete: [] },
+      evidence: { not: 'evidence' },
+      boot: READY_BOOT,
+      rollbackReserveRequired: false,
+    } as never);
+    expect(result.status).toBe('blocked-unknown-state');
+    expect(result.generations.futureDeleteCandidate).toBe(0);
+    expectNoAuthority(result);
+  });
+});
+
 const SOURCE_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const DECISION_SOURCE = join(SOURCE_ROOT, 'lib', 'storage-retention-decision.ts');

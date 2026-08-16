@@ -712,6 +712,9 @@ function fingerprintAdministrationSnapshot(input: {
         receipt.stagedGenerationId ?? 'nenhuma',
         receipt.kind === 'restore' ? receipt.targetGenerationId : 'nenhuma',
         receipt.sourceDigest ?? 'nenhum',
+        receipt.supersedesOperationIds && receipt.supersedesOperationIds.length > 0
+          ? [...receipt.supersedesOperationIds].sort().join(',')
+          : 'nenhuma',
         markers?.previousCoreRaw ?? 'marcador-ausente',
         markers?.targetCoreRaw ?? 'marcador-ausente',
       ].join('|');

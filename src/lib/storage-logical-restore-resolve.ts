@@ -4,7 +4,11 @@ import type {
 } from './storage-logical-restore';
 import { proveLogicalStorageRestoreTargetV2 } from './storage-logical-restore';
 import { parsePhysicalEnvelope } from './storage-hybrid';
-import type { StorageOperationReceipt } from './storage-operation-receipt';
+import {
+  isStorageOperationPredecessorRelationSuperseded,
+  storageOperationFinalGenerationId,
+  type StorageOperationReceipt,
+} from './storage-operation-receipt';
 import type { StorageLike } from './storage-types';
 
 export interface LogicalRestorePredecessorPreview {
@@ -64,9 +68,7 @@ function countArray(value: unknown): number {
 }
 
 function finalGenerationOf(receipt: StorageOperationReceipt): string | null {
-  if (receipt.kind === 'import' || receipt.kind === 'reset') return receipt.stagedGenerationId;
-  if (receipt.kind === 'restore') return receipt.targetGenerationId;
-  return null;
+  return storageOperationFinalGenerationId(receipt);
 }
 
 function coreNamesGeneration(raw: string, generationId: string): boolean {
@@ -124,8 +126,10 @@ export function logicalRestoreTargetsMatch(
  * comprovado por proveLogicalStorageRestoreTargetV2.
  *
  * Instantes, ordem de enumeracao, "ultimo receipt", maior ID, ID lexical e
- * geracao mais recente nunca escolhem o predecessor. Zero candidatos
- * comprovaveis => unavailable; mais de um => ambiguous sem escolha.
+ * geracao mais recente nunca escolhem o predecessor. Relacoes explicitamente
+ * supersedidas por outro receipt settled da mesma geracao final sao ignoradas.
+ * Zero candidatos comprovaveis => unavailable; mais de um sem supersessao =>
+ * ambiguous sem escolha.
  */
 export async function resolveLogicalRestorePredecessorV2(
   input: ResolveLogicalRestorePredecessorV2Input,
@@ -160,6 +164,9 @@ export async function resolveLogicalRestorePredecessorV2(
   const proven: LogicalStorageRestoreTargetV2[] = [];
   for (const receipt of snapshot.operationReceipts) {
     if (!receiptMatchesCurrentWorld(receipt, currentGenerationId)) {
+      continue;
+    }
+    if (isStorageOperationPredecessorRelationSuperseded(receipt, snapshot.operationReceipts)) {
       continue;
     }
 

@@ -9,9 +9,12 @@ import {
   createStorageOperationReceipt,
   evaluateStorageOperationCompatibility,
   isStorageOperationKind,
+  isStorageOperationPredecessorRelationSuperseded,
   isStorageOperationReceipt,
   isStorageOperationStatus,
   isTerminalStorageOperationStatus,
+  listActivePredecessorSourceOperationIds,
+  storageOperationFinalGenerationId,
 } from './storage-operation-receipt';
 
 function makeOperationReceipt(
@@ -234,6 +237,59 @@ describe('contrato do receipt de operação administrativa', () => {
 
   // Isolamento estrutural: o contrato administrativo não absorve o receipt de
   // conclusão de treino nem por engano de gravação.
+  it('aceita receipts legado sem supersedesOperationIds e recusa o campo malformado', () => {
+    const legado = makeOperationReceipt({
+      kind: 'import',
+      status: 'settled',
+      stagedGenerationId: 'generation-2',
+      targetCoreRaw: '{"v":2}',
+    });
+    expect(Object.prototype.hasOwnProperty.call(legado, 'supersedesOperationIds')).toBe(false);
+    expect(isStorageOperationReceipt(legado)).toBe(true);
+    expect(isStorageOperationReceipt(makeOperationReceipt({
+      supersedesOperationIds: ['operation-older'],
+    }))).toBe(true);
+    expect(isStorageOperationReceipt(makeOperationReceipt({
+      supersedesOperationIds: [],
+    }))).toBe(false);
+    expect(isStorageOperationReceipt(makeOperationReceipt({
+      supersedesOperationIds: ['operation-1'],
+    }))).toBe(false);
+    expect(isStorageOperationReceipt(makeOperationReceipt({
+      supersedesOperationIds: ['operation-a', 'operation-a'],
+    }))).toBe(false);
+    expect(isStorageOperationReceipt(makeOperationReceipt({
+      supersedesOperationIds: [''],
+    }))).toBe(false);
+    expect(isStorageOperationReceipt(makeOperationReceipt({
+      supersedesOperationIds: null,
+    }))).toBe(false);
+  });
+
+  it('grava supersessao somente quando o create recebe ids validos e distintos', () => {
+    const created = createStorageOperationReceipt({
+      operationId: 'restore-2',
+      kind: 'restore',
+      previousCoreRaw: '{"v":2}',
+      previousGenerationId: 'generation-b',
+      createdAt: '2026-08-16T12:00:00.000Z',
+      stagedGenerationId: null,
+      targetGenerationId: 'generation-a',
+      targetCoreRaw: '{"v":2,"target":true}',
+      supersedesOperationIds: ['import-1'],
+    });
+    expect(created.supersedesOperationIds).toEqual(['import-1']);
+    expect(Object.isFrozen(created.supersedesOperationIds)).toBe(true);
+    const semCampo = createStorageOperationReceipt({
+      operationId: 'import-1',
+      kind: 'import',
+      previousCoreRaw: '{"v":2}',
+      previousGenerationId: 'generation-a',
+      createdAt: '2026-08-16T12:00:00.000Z',
+    });
+    expect(Object.prototype.hasOwnProperty.call(semCampo, 'supersedesOperationIds')).toBe(false);
+  });
+
   it('recusa registro que carrega campos do receipt de conclusão', () => {
     expect(isStorageOperationReceipt({
       ...makeOperationReceipt(),
@@ -422,5 +478,63 @@ describe('evaluateStorageOperationCompatibility', () => {
     if (resultado.status === 'compatible') throw new Error('esperado não-compatible');
     expect(typeof resultado.reason).toBe('string');
     expect(resultado.message.length).toBeGreaterThan(0);
+  });
+});
+
+describe('relacao de predecessor e supersessao', () => {
+  const importB = makeOperationReceipt({
+    operationId: 'import-b',
+    kind: 'import',
+    status: 'settled',
+    previousGenerationId: 'generation-a',
+    stagedGenerationId: 'generation-b',
+    targetCoreRaw: '{"b":true}',
+  });
+  const restoreA = makeOperationReceipt({
+    operationId: 'restore-a',
+    kind: 'restore',
+    status: 'settled',
+    previousGenerationId: 'generation-b',
+    stagedGenerationId: null,
+    targetGenerationId: 'generation-a',
+    targetCoreRaw: '{"a":true}',
+  });
+  const restoreB = makeOperationReceipt({
+    operationId: 'restore-b',
+    kind: 'restore',
+    status: 'settled',
+    previousGenerationId: 'generation-a',
+    stagedGenerationId: null,
+    targetGenerationId: 'generation-b',
+    targetCoreRaw: '{"b":true}',
+    supersedesOperationIds: ['import-b'],
+  });
+
+  it('identifica a geracao final sem inferir por timestamp', () => {
+    expect(storageOperationFinalGenerationId(importB)).toBe('generation-b');
+    expect(storageOperationFinalGenerationId(restoreA)).toBe('generation-a');
+    expect(storageOperationFinalGenerationId(makeOperationReceipt({ kind: 'rollback' }))).toBeNull();
+  });
+
+  it('receipt legado unico permanece ativo e dois legados permanecem ativos', () => {
+    expect(listActivePredecessorSourceOperationIds([importB], 'generation-b')).toEqual(['import-b']);
+    const clone = makeOperationReceipt({
+      ...importB,
+      operationId: 'import-b-clone',
+    });
+    expect(listActivePredecessorSourceOperationIds([importB, clone], 'generation-b'))
+      .toEqual(['import-b', 'import-b-clone']);
+  });
+
+  it('supersessao explicita esconde so a relacao nomeada e preserva o receipt', () => {
+    const receipts = [importB, restoreA, restoreB];
+    expect(isStorageOperationPredecessorRelationSuperseded(importB, receipts)).toBe(true);
+    expect(isStorageOperationPredecessorRelationSuperseded(restoreB, receipts)).toBe(false);
+    expect(listActivePredecessorSourceOperationIds(receipts, 'generation-b')).toEqual(['restore-b']);
+    expect(receipts.map((entry) => entry.operationId)).toEqual([
+      'import-b',
+      'restore-a',
+      'restore-b',
+    ]);
   });
 });

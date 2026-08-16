@@ -2,6 +2,20 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-17B-002E-E7A2 — fundação de predecessor/journal (2026-08-16)
+
+- **Supersessão imutável no receipt novo:** `supersedesOperationIds` opcional
+  no mesmo store. Sem versão nova do IndexedDB, sem object store, sem
+  reescrita de receipts settled.
+- **Só settled supersede:** staged/reverted não escondem relação antiga.
+  Dois receipts legado sem o campo continuam `ambiguous`.
+- **Writer no begin do restore:** declara todas as relações ativas da
+  geração alvo. Import/reset criam geração nova e não gravam o campo.
+- **Resolver ignora só o nomeado:** sem timestamp, ordem ou ID lexical.
+- **Retirement é contrato puro:** identidades explícitas, zero writer,
+  `executionAuthorized`/`deleteAuthorized`/`writeAuthorized` falsos.
+- **Evidence passa a proteger `targetGenerationId` de restore.**
+
 ## GOAL-17B-002E-E6B-KEYBOARD — barreira de key-repeat no reset (2026-08-15)
 
 - **Barreira no segundo diálogo, não no writer:** o P0 de teclado é só UI.

@@ -430,4 +430,71 @@ describe('resolveLogicalRestorePredecessorV2', () => {
     expect(second.preview.sessionCount).toBe(1);
     expect(second.preview.customProgramCount).toBe(0);
   });
+
+  it('A → B → A → B deixa exatamente um predecessor comprovavel e preserva receipts', async () => {
+    const world = await createImportedWorld();
+    const first = await resolveLogicalRestorePredecessorV2({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+    });
+    expect(first.status).toBe('available');
+    if (first.status !== 'available') throw new Error('predecessor de B ausente');
+    expect(first.target.targetGenerationId).toBe(world.generationA);
+
+    const restoredA = await commitLogicalStorageRestoreV2({
+      target: first.target,
+      runtime: world.runtime,
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      ownerToken: ownerToken('restore-to-a'),
+    });
+    expect(restoredA.ok).toBe(true);
+
+    const second = await resolveLogicalRestorePredecessorV2({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+    });
+    expect(second.status).toBe('available');
+    if (second.status !== 'available') throw new Error('predecessor de A ausente');
+    expect(second.target.targetGenerationId).toBe(world.generationB);
+
+    const restoredB = await commitLogicalStorageRestoreV2({
+      target: second.target,
+      runtime: world.runtime,
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      ownerToken: ownerToken('restore-to-b'),
+    });
+    expect(restoredB.ok).toBe(true);
+
+    const third = await resolveLogicalRestorePredecessorV2({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+    });
+    expect(third.status).toBe('available');
+    if (third.status !== 'available') throw new Error('ping-pong B sem predecessor unico');
+    expect(third.target.targetGenerationId).toBe(world.generationA);
+    expect(third.status).not.toBe('ambiguous');
+
+    const snapshot = await world.adapter.readStorageAdministrationSnapshot();
+    const importReceipt = snapshot.operationReceipts.find(
+      (entry) => entry.operationId === world.importOperationId,
+    );
+    const restoreToB = snapshot.operationReceipts.find(
+      (entry) => entry.operationId === 'restore-to-b',
+    );
+    expect(importReceipt?.status).toBe('settled');
+    expect(restoreToB?.kind).toBe('restore');
+    expect(restoreToB?.supersedesOperationIds).toEqual([world.importOperationId]);
+    expect(snapshot.operationReceipts).toHaveLength(3);
+
+    const verifiedA = await world.adapter.readVerifiedHistoryGeneration(world.generationA);
+    expect(verifiedA.manifest.verified).toBe(true);
+    expect(verifiedA.sessions.map((entry) => entry.name)).toEqual(['Estado A']);
+  });
 });

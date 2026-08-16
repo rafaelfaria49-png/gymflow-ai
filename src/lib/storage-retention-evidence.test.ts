@@ -503,6 +503,32 @@ describe('evidência física read-only para retenção', () => {
     expect(snapshot.operationReceipts).toEqual([receipt]);
   });
 
+  it('protege targetGenerationId de restore mesmo quando ele nao e previous nem staged', async () => {
+    const receipt = operation({
+      kind: 'restore',
+      status: 'settled',
+      previousGenerationId: ACTIVE_ID,
+      stagedGenerationId: null,
+      targetGenerationId: HISTORICAL_ID,
+      targetCoreRaw: 'PRIVATE_TARGET_CORE',
+    });
+    const result = await inspect(administrationSnapshot({
+      generations: [
+        generation(ACTIVE_ID, { isActive: true }),
+        generation(HISTORICAL_ID),
+      ],
+      manifests: [manifest(ACTIVE_ID), manifest(HISTORICAL_ID)],
+      operationReceipts: [receipt],
+    }));
+
+    expect(result.references.operationReceipts).toBe(1);
+    expect(result.references.operationProtectedGenerations).toBe(2);
+    expect(result.generations.historical).toBe(1);
+    expect(result.generations.orphan).toBe(0);
+    expect(JSON.stringify(result)).not.toContain(HISTORICAL_ID);
+    expect(JSON.stringify(result)).not.toContain('PRIVATE_TARGET');
+  });
+
   it('identifica completion receipt sem consumi-lo', async () => {
     const receipt = completion();
     const snapshot = administrationSnapshot({

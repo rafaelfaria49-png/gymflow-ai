@@ -412,7 +412,9 @@ function analyzeSnapshot(snapshot: StorageAdministrationSnapshotRead): SnapshotA
       continue;
     }
     validOperations.set(value.operationId, value.status);
-    for (const generationId of [value.previousGenerationId, value.stagedGenerationId]) {
+    const referencedGenerationIds = [value.previousGenerationId, value.stagedGenerationId];
+    if (value.kind === 'restore') referencedGenerationIds.push(value.targetGenerationId);
+    for (const generationId of referencedGenerationIds) {
       if (generationId === null) continue;
       const subject = subjectFor(subjects, generationId);
       subject.operationReferenceCount += 1;
