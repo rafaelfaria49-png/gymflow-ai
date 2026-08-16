@@ -718,6 +718,141 @@ describe('roundtrip A -> Z -> A', () => {
   });
 });
 
+describe('predecessor unico apos reset e restore reais', () => {
+  async function restoreCurrentPredecessor(
+    world: World,
+    operationId: string,
+  ) {
+    const resolved = await resolveLogicalRestorePredecessorV2({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+    });
+    expect(resolved.status).toBe('available');
+    if (resolved.status !== 'available') throw new Error(`predecessor ausente em ${operationId}`);
+    const restored = await commitLogicalStorageRestoreV2({
+      target: resolved.target,
+      runtime: world.runtime,
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      ownerToken: ownerToken(operationId),
+    });
+    expect(restored.ok).toBe(true);
+    return { resolved, restored };
+  }
+
+  it('A → Z1 → Z2 → Z1 deixa predecessor(Z1) = Z2 com exatamente um candidato', async () => {
+    const world = await createWorldA();
+    const resetZ1 = await commitLogicalStorageResetV2({
+      runtime: world.runtime,
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      now: () => new Date('2026-08-14T12:00:00.000Z'),
+      ownerToken: ownerToken('reset-z1'),
+    });
+    expect(resetZ1.ok).toBe(true);
+    if (!resetZ1.ok) throw new Error('reset Z1 falhou');
+    const resetZ2 = await commitLogicalStorageResetV2({
+      runtime: world.runtime,
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      now: () => new Date('2026-08-14T12:01:00.000Z'),
+      ownerToken: ownerToken('reset-z2'),
+    });
+    expect(resetZ2.ok).toBe(true);
+    if (!resetZ2.ok) throw new Error('reset Z2 falhou');
+
+    const afterZ2 = await resolveLogicalRestorePredecessorV2({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+    });
+    expect(afterZ2.status).toBe('available');
+    if (afterZ2.status !== 'available') throw new Error('predecessor de Z2 ausente');
+    expect(afterZ2.target.targetGenerationId).toBe(resetZ1.generationId);
+
+    const hop = await restoreCurrentPredecessor(world, 'restore-z1');
+    expect(hop.resolved.target.targetGenerationId).toBe(resetZ1.generationId);
+
+    const afterZ1 = await resolveLogicalRestorePredecessorV2({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+    });
+    expect(afterZ1.status).toBe('available');
+    if (afterZ1.status !== 'available') throw new Error('predecessor de Z1 nao ficou unico');
+    expect(afterZ1.target.targetGenerationId).toBe(resetZ2.generationId);
+    expect(afterZ1.status).not.toBe('ambiguous');
+
+    const snapshot = await world.adapter.readStorageAdministrationSnapshot();
+    const resetZ1Receipt = snapshot.operationReceipts.find(
+      (entry) => entry.operationId === 'reset-z1',
+    );
+    const restoreZ1 = snapshot.operationReceipts.find(
+      (entry) => entry.operationId === 'restore-z1',
+    );
+    expect(resetZ1Receipt?.status).toBe('settled');
+    expect(restoreZ1?.supersedesOperationIds).toEqual(['reset-z1']);
+    const verifiedZ1 = await world.adapter.readVerifiedHistoryGeneration(resetZ1.generationId);
+    expect(verifiedZ1.manifest.verified).toBe(true);
+  });
+
+  it('A → Z1 → Z2 → Z1 → Z2 deixa predecessor(Z2) = Z1 com exatamente um candidato', async () => {
+    const world = await createWorldA();
+    const resetZ1 = await commitLogicalStorageResetV2({
+      runtime: world.runtime,
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      now: () => new Date('2026-08-14T12:00:00.000Z'),
+      ownerToken: ownerToken('reset-z1-loop'),
+    });
+    expect(resetZ1.ok).toBe(true);
+    if (!resetZ1.ok) throw new Error('reset Z1 falhou');
+    const resetZ2 = await commitLogicalStorageResetV2({
+      runtime: world.runtime,
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      now: () => new Date('2026-08-14T12:01:00.000Z'),
+      ownerToken: ownerToken('reset-z2-loop'),
+    });
+    expect(resetZ2.ok).toBe(true);
+    if (!resetZ2.ok) throw new Error('reset Z2 falhou');
+
+    await restoreCurrentPredecessor(world, 'restore-z1-loop');
+    const backToZ2 = await restoreCurrentPredecessor(world, 'restore-z2-loop');
+    expect(backToZ2.resolved.target.targetGenerationId).toBe(resetZ2.generationId);
+
+    const afterZ2 = await resolveLogicalRestorePredecessorV2({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+    });
+    expect(afterZ2.status).toBe('available');
+    if (afterZ2.status !== 'available') throw new Error('predecessor de Z2 nao ficou unico');
+    expect(afterZ2.target.targetGenerationId).toBe(resetZ1.generationId);
+    expect(afterZ2.status).not.toBe('ambiguous');
+
+    const snapshot = await world.adapter.readStorageAdministrationSnapshot();
+    const restoreZ2 = snapshot.operationReceipts.find(
+      (entry) => entry.operationId === 'restore-z2-loop',
+    );
+    expect(restoreZ2?.supersedesOperationIds).toEqual(['reset-z2-loop']);
+    expect(snapshot.operationReceipts.map((entry) => entry.operationId).sort()).toEqual([
+      'reset-z1-loop',
+      'reset-z2-loop',
+      'restore-z1-loop',
+      'restore-z2-loop',
+    ]);
+    const verifiedZ1 = await world.adapter.readVerifiedHistoryGeneration(resetZ1.generationId);
+    expect(verifiedZ1.manifest.verified).toBe(true);
+  });
+});
+
 describe('dispatcher, boot e isolamento estrutural', () => {
   it('dispatcher reconhece reset pelo receipt e converge sem inferir pelo core', async () => {
     const world = await createWorldA();

@@ -4,6 +4,47 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E7A2 — fundação de supersessão de predecessor (2026-08-16)
+
+A auditoria E7A (Classe C) mostrou que o segundo hop/ping-pong deixava
+dois receipts settled para a mesma geração final e o restore virava
+`ambiguous`. Esta fundação declara supersessão explícita sem apagar
+receipts e sem autorizar retenção física.
+
+**Antes:** A→B→A→B e A→Z1→Z2→Z1 produziam mais de um candidato; a
+decision tinha só cardinalidade; `targetGenerationId` de restore não
+entrava nas gerações protegidas da evidence.
+
+**Depois:** o receipt novo pode carregar `supersedesOperationIds`
+opcional e imutável. O begin do restore declara todas as relações
+ativas da geração alvo. O resolver ignora só relações explicitamente
+supersedidas. Evidence protege o alvo do restore. O contrato de
+retirement classifica identidades sem writer. `executionAuthorized`,
+`deleteAuthorized` e `plan.delete` permanecem vazios/falsos.
+
+**Arquivos alterados:**
+- `src/lib/storage-operation-receipt.ts` — campo opcional + helpers
+- `src/lib/storage-admin-runtime.ts` — begin de restore declara supersessão
+- `src/lib/storage-indexeddb.ts` — fingerprint inclui o campo
+- `src/lib/storage-logical-restore-resolve.ts` — ignora relação supersedida
+- `src/lib/storage-logical-restore.ts` — geração final compartilhada
+- `src/lib/storage-retention-evidence.ts` — protege `targetGenerationId`
+- `src/lib/storage-retirement-contract.ts` — contrato puro desconectado
+- testes focados + `docs/DECISOES.md`, `docs/GOALS_LOG.md`, `docs/PENDENCIAS.md`
+
+**Fora de escopo:** E7B, `deleteGeneration`, writer de retirement, cleanup,
+UI de retenção, seletor, etapa F, push/PR.
+
+**Validação:**
+- testes da fundação + ping-pong reais: 0 falha
+- regressão storage (import/restore/reset/boot/runtime/token/receipt/retention): 13 arquivos, 702/702
+- `npx vitest run`: 74 arquivos, 2317 testes, 0 falha
+- `npx tsc --noEmit`, `npm run build`, `npm run build:mobile`: aprovados
+- ESLint dos arquivos do GOAL: 0; global 12 errors, 7 warnings — idêntico a `origin/master`
+- `git diff --check` / `git show --check` / secret scan: limpos
+
+---
+
 ## GOAL-17B-002E-E6B-KEYBOARD — barreira de key-repeat no reset (2026-08-15)
 
 O segundo passo de “Confirmar e zerar” deixava o botão confirm focado.

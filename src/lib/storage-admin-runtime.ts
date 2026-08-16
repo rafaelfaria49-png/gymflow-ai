@@ -29,6 +29,7 @@ import {
   type StorageOperationCompatibility,
   createStorageOperationReceipt,
   evaluateStorageOperationCompatibility,
+  listActivePredecessorSourceOperationIds,
   type StorageOperationKind,
   type StorageOperationReceipt,
   type StorageOperationReceiptPatch,
@@ -917,6 +918,36 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
       }
     }
 
+    let supersedesOperationIds: readonly string[] | undefined;
+    if (input.kind === 'restore') {
+      let physical;
+      try {
+        physical = await this.adapter.readStorageAdministrationSnapshot();
+      } catch (error) {
+        throw new StorageAdministrationConflictError(
+          'administration-snapshot-unstable',
+          'Nao foi possivel ler os receipts settled para declarar a supersessao do restore.',
+          { cause: error },
+        );
+      }
+      if (
+        snapshot.administrationFingerprint !== null
+        && physical.fingerprint !== snapshot.administrationFingerprint
+      ) {
+        throw new StorageAdministrationConflictError(
+          'administration-snapshot-unstable',
+          'O snapshot administrativo mudou antes de gravar a supersessao do restore.',
+        );
+      }
+      const activeRelations = listActivePredecessorSourceOperationIds(
+        physical.operationReceipts,
+        input.targetGenerationId,
+      );
+      if (activeRelations.length > 0) {
+        supersedesOperationIds = Object.freeze([...activeRelations].sort());
+      }
+    }
+
     const receipt = input.kind === 'restore'
       ? createStorageOperationReceipt({
           operationId,
@@ -928,6 +959,9 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
           stagedGenerationId: null,
           targetGenerationId: input.targetGenerationId,
           targetCoreRaw: input.targetCoreRaw,
+          ...(supersedesOperationIds === undefined
+            ? {}
+            : { supersedesOperationIds }),
         })
       : createStorageOperationReceipt({
           operationId,

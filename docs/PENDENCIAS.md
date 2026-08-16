@@ -1,5 +1,16 @@
 # Pendências
 
+## GOAL-17B-002E-E7A2 — fundação de predecessor/journal
+
+- **Retenção executável** continua bloqueada. Não existe writer de
+  retirement, `deleteGeneration` nem cleanup.
+- **Política de produto** (manual vs automática, N ancestrais, preview,
+  idade/espaço) permanece por decidir. Esta fundação só garante
+  predecessor único e contrato de identidade.
+- **Receipts legado já ambíguos** continuam `ambiguous` até uma nova
+  operação declarar supersessão explícita. Sem migração heurística.
+- **E7B / executor / UI de retenção / etapa F** não iniciados.
+
 ## GOAL-17B-002E-E6B-KEYBOARD — barreira de key-repeat no reset
 
 - ~~**Enter/Space mantidos atravessavam os dois diálogos.**~~ O segundo

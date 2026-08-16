@@ -15,6 +15,7 @@ import {
 } from './storage-hybrid';
 import {
   isTerminalStorageOperationStatus,
+  storageOperationFinalGenerationId,
   type RestoreStorageOperationReceipt,
   type StorageOperationReceipt,
 } from './storage-operation-receipt';
@@ -91,9 +92,7 @@ function readRaw(storage: StorageLike, key: string): RawRead {
 }
 
 function finalGenerationOf(receipt: StorageOperationReceipt): string | null {
-  if (receipt.kind === 'import' || receipt.kind === 'reset') return receipt.stagedGenerationId;
-  if (receipt.kind === 'restore') return receipt.targetGenerationId;
-  return null;
+  return storageOperationFinalGenerationId(receipt);
 }
 
 function coreNamesGeneration(raw: string, generationId: string): boolean {

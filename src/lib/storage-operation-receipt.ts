@@ -57,6 +57,10 @@ interface StorageOperationReceiptBase {
   status: StorageOperationStatus;
   createdAt: string;
   updatedAt: string;
+  // Relacoes de predecessor que ESTA operacao substitui para a mesma geracao
+  // final. Ausente em receipts legado. Imutavel apos o nascimento: nao entra
+  // no patch e receipts settled antigos nunca sao reescritos.
+  supersedesOperationIds?: readonly string[];
 }
 
 // `kind` discrimina identidades fisicas diferentes. Import e reset criam uma
@@ -146,6 +150,24 @@ function hasOwn(record: Record<string, unknown>, field: string): boolean {
   return Object.prototype.hasOwnProperty.call(record, field);
 }
 
+function uniqueNonEmptyStrings(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const ids: string[] = [];
+  for (const entry of value) {
+    if (!isNonEmptyString(entry)) return null;
+    ids.push(entry);
+  }
+  if (new Set(ids).size !== ids.length) return null;
+  return ids;
+}
+
+function supersessionFieldIsValid(record: Record<string, unknown>): boolean {
+  if (!hasOwn(record, 'supersedesOperationIds')) return true;
+  const ids = uniqueNonEmptyStrings(record.supersedesOperationIds);
+  if (ids === null) return false;
+  return typeof record.operationId !== 'string' || !ids.includes(record.operationId);
+}
+
 function kindFieldsAreValid(record: Record<string, unknown>): boolean {
   if (record.kind === 'restore') {
     return record.stagedGenerationId === null
@@ -181,9 +203,56 @@ export function isStorageOperationReceipt(value: unknown): value is StorageOpera
     && isNullableString(record.stagedGenerationId)
     && isNullableString(record.targetCoreRaw)
     && kindFieldsAreValid(record)
+    && supersessionFieldIsValid(record)
     && isStorageOperationStatus(record.status)
     && isNonEmptyString(record.createdAt)
     && isNonEmptyString(record.updatedAt);
+}
+
+export function storageOperationFinalGenerationId(
+  receipt: StorageOperationReceipt,
+): string | null {
+  if (receipt.kind === 'import' || receipt.kind === 'reset') return receipt.stagedGenerationId;
+  if (receipt.kind === 'restore') return receipt.targetGenerationId;
+  return null;
+}
+
+export function storageOperationSupersedesOperationIds(
+  receipt: StorageOperationReceipt,
+): readonly string[] {
+  return receipt.supersedesOperationIds ?? [];
+}
+
+export function isStorageOperationPredecessorRelationSuperseded(
+  receipt: StorageOperationReceipt,
+  receipts: readonly StorageOperationReceipt[],
+): boolean {
+  const finalGeneration = storageOperationFinalGenerationId(receipt);
+  if (finalGeneration === null || receipt.status !== 'settled') return false;
+  for (const candidate of receipts) {
+    if (candidate.status !== 'settled') continue;
+    if (candidate.operationId === receipt.operationId) continue;
+    if (storageOperationFinalGenerationId(candidate) !== finalGeneration) continue;
+    if (storageOperationSupersedesOperationIds(candidate).includes(receipt.operationId)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function listActivePredecessorSourceOperationIds(
+  receipts: readonly StorageOperationReceipt[],
+  finalGenerationId: string,
+): readonly string[] {
+  if (!isNonEmptyString(finalGenerationId)) return [];
+  const ids: string[] = [];
+  for (const receipt of receipts) {
+    if (receipt.status !== 'settled') continue;
+    if (storageOperationFinalGenerationId(receipt) !== finalGenerationId) continue;
+    if (isStorageOperationPredecessorRelationSuperseded(receipt, receipts)) continue;
+    ids.push(receipt.operationId);
+  }
+  return ids;
 }
 
 // Razões fechadas de incompatibilidade entre um receipt não terminal e o estado
@@ -380,6 +449,7 @@ type CreateStorageOperationReceiptBaseInput = {
   stagedGenerationId?: string | null;
   targetCoreRaw?: string | null;
   updatedAt?: string;
+  supersedesOperationIds?: readonly string[];
 };
 
 export type CreateStorageOperationReceiptInput =
@@ -394,12 +464,22 @@ export type CreateStorageOperationReceiptInput =
       targetGenerationId?: never;
     });
 
+function frozenSupersedes(
+  value: readonly string[] | undefined,
+  operationId: string,
+): readonly string[] | undefined {
+  const ids = uniqueNonEmptyStrings(value);
+  if (ids === null || ids.includes(operationId)) return undefined;
+  return Object.freeze([...ids]);
+}
+
 export function createStorageOperationReceipt(
   input: CreateStorageOperationReceiptInput,
 ): StorageOperationReceipt {
   const targetGeneration = input.kind === 'restore'
     ? { targetGenerationId: input.targetGenerationId }
     : {};
+  const supersedes = frozenSupersedes(input.supersedesOperationIds, input.operationId);
   return {
     operationId: input.operationId,
     kind: input.kind,
@@ -409,6 +489,7 @@ export function createStorageOperationReceipt(
     stagedGenerationId: input.stagedGenerationId ?? null,
     targetCoreRaw: input.targetCoreRaw ?? null,
     ...targetGeneration,
+    ...(supersedes === undefined ? {} : { supersedesOperationIds: supersedes }),
     status: 'staged',
     createdAt: input.createdAt,
     updatedAt: input.updatedAt ?? input.createdAt,
