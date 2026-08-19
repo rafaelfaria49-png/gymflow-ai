@@ -7,6 +7,7 @@ import {
   type StorageOperationStatus,
   canTransitionStorageOperation,
   createStorageOperationReceipt,
+  detectStorageOperationSupersessionCycle,
   evaluateStorageOperationCompatibility,
   isStorageOperationKind,
   isStorageOperationPredecessorRelationSuperseded,
@@ -15,6 +16,7 @@ import {
   isTerminalStorageOperationStatus,
   listActivePredecessorSourceOperationIds,
   storageOperationFinalGenerationId,
+  validateStorageOperationSupersession,
 } from './storage-operation-receipt';
 
 function makeOperationReceipt(
@@ -536,5 +538,97 @@ describe('relacao de predecessor e supersessao', () => {
       'restore-a',
       'restore-b',
     ]);
+  });
+
+  it('recusa supersede inexistente, nao-settled e cross-generation', () => {
+    expect(validateStorageOperationSupersession({
+      operationId: 'restore-new',
+      supersedesOperationIds: ['missing-op'],
+      finalGenerationId: 'generation-b',
+      receipts: [importB],
+    })).toEqual({ ok: false, reason: 'missing-operation' });
+    expect(validateStorageOperationSupersession({
+      operationId: 'restore-new',
+      supersedesOperationIds: ['import-b'],
+      finalGenerationId: 'generation-b',
+      receipts: [makeOperationReceipt({ ...importB, status: 'staged' })],
+    })).toEqual({ ok: false, reason: 'not-settled' });
+    expect(validateStorageOperationSupersession({
+      operationId: 'restore-new',
+      supersedesOperationIds: ['import-b'],
+      finalGenerationId: 'generation-a',
+      receipts: [importB],
+    })).toEqual({ ok: false, reason: 'cross-generation' });
+  });
+
+  it('detecta ciclo de 2 nos e ciclo de 3+ sem escolher por id', () => {
+    const twoA = makeOperationReceipt({
+      ...restoreA,
+      operationId: 'cycle-a',
+      status: 'settled',
+      previousGenerationId: 'generation-b',
+      targetGenerationId: 'generation-a',
+      stagedGenerationId: null,
+      targetCoreRaw: '{"a":true}',
+      kind: 'restore',
+      supersedesOperationIds: ['cycle-b'],
+    });
+    const twoB = makeOperationReceipt({
+      ...restoreB,
+      operationId: 'cycle-b',
+      status: 'settled',
+      previousGenerationId: 'generation-a',
+      targetGenerationId: 'generation-b',
+      stagedGenerationId: null,
+      targetCoreRaw: '{"b":true}',
+      kind: 'restore',
+      supersedesOperationIds: ['cycle-a'],
+    });
+    expect(detectStorageOperationSupersessionCycle([twoA, twoB])).toBe(true);
+    expect(validateStorageOperationSupersession({
+      operationId: 'restore-new',
+      supersedesOperationIds: ['cycle-a'],
+      finalGenerationId: 'generation-a',
+      receipts: [twoA, twoB],
+    })).toEqual({ ok: false, reason: 'cycle' });
+
+    const threeA = makeOperationReceipt({
+      operationId: 'n1',
+      kind: 'restore',
+      status: 'settled',
+      previousGenerationId: 'generation-b',
+      stagedGenerationId: null,
+      targetGenerationId: 'generation-a',
+      targetCoreRaw: '{"a":true}',
+      previousCoreRaw: '{"b":true}',
+      createdAt: '2026-08-16T12:00:00.000Z',
+      supersedesOperationIds: ['n2'],
+    });
+    const threeB = makeOperationReceipt({
+      operationId: 'n2',
+      kind: 'restore',
+      status: 'settled',
+      previousGenerationId: 'generation-c',
+      stagedGenerationId: null,
+      targetGenerationId: 'generation-b',
+      targetCoreRaw: '{"b":true}',
+      previousCoreRaw: '{"c":true}',
+      createdAt: '2026-08-16T12:00:00.000Z',
+      supersedesOperationIds: ['n3'],
+    });
+    const threeC = makeOperationReceipt({
+      operationId: 'n3',
+      kind: 'restore',
+      status: 'settled',
+      previousGenerationId: 'generation-a',
+      stagedGenerationId: null,
+      targetGenerationId: 'generation-c',
+      targetCoreRaw: '{"c":true}',
+      previousCoreRaw: '{"a":true}',
+      createdAt: '2026-08-16T12:00:00.000Z',
+      supersedesOperationIds: ['n1'],
+    });
+    expect(detectStorageOperationSupersessionCycle([threeA, threeB, threeC])).toBe(true);
+    expect(detectStorageOperationSupersessionCycle([importB, restoreA, restoreB])).toBe(false);
   });
 });

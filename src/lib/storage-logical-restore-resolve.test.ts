@@ -25,6 +25,7 @@ import {
 import type { StorageAdminOwnerTokenCoordinator } from './storage-admin-owner-token';
 import type { PersistedState, StorageLike } from './storage-types';
 import type { StorageOperationReceipt } from './storage-operation-receipt';
+import { createStorageOperationReceipt } from './storage-operation-receipt';
 
 const KEY = 'gymflow:state:v1';
 let sequence = 0;
@@ -496,5 +497,78 @@ describe('resolveLogicalRestorePredecessorV2', () => {
     const verifiedA = await world.adapter.readVerifiedHistoryGeneration(world.generationA);
     expect(verifiedA.manifest.verified).toBe(true);
     expect(verifiedA.sessions.map((entry) => entry.name)).toEqual(['Estado A']);
+  });
+
+  it('ciclo de 2 nos settled e conflito explicito, nunca unavailable', async () => {
+    const world = await createImportedWorld();
+    await world.adapter.putStorageOperationReceipt({
+      ...createStorageOperationReceipt({
+        operationId: 'cycle-a',
+        kind: 'restore',
+        previousCoreRaw: '{"a":true}',
+        previousGenerationId: world.generationB,
+        createdAt: '2026-08-16T12:00:00.000Z',
+        stagedGenerationId: null,
+        targetGenerationId: world.generationA,
+        targetCoreRaw: world.coreA,
+        supersedesOperationIds: ['cycle-b'],
+      }),
+      status: 'settled',
+    });
+    await world.adapter.putStorageOperationReceipt({
+      ...createStorageOperationReceipt({
+        operationId: 'cycle-b',
+        kind: 'restore',
+        previousCoreRaw: world.coreA,
+        previousGenerationId: world.generationA,
+        createdAt: '2026-08-16T12:01:00.000Z',
+        stagedGenerationId: null,
+        targetGenerationId: world.generationB,
+        targetCoreRaw: '{"b":true}',
+        supersedesOperationIds: ['cycle-a'],
+      }),
+      status: 'settled',
+    });
+
+    const resolved = await resolveLogicalRestorePredecessorV2({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+    });
+    expect(resolved).toEqual({ status: 'conflict', reason: 'supersession-cycle' });
+    expect(resolved.status).not.toBe('unavailable');
+  });
+
+  it('ciclo de 3 nos settled e conflito explicito, nunca unavailable', async () => {
+    const world = await createImportedWorld();
+    const nodes = [
+      ['n1', 'n2', world.generationA, world.generationB],
+      ['n2', 'n3', world.generationB, world.generationA],
+      ['n3', 'n1', world.generationA, world.generationB],
+    ] as const;
+    for (const [id, supersedes, previous, target] of nodes) {
+      await world.adapter.putStorageOperationReceipt({
+        ...createStorageOperationReceipt({
+          operationId: id,
+          kind: 'restore',
+          previousCoreRaw: '{"cycle":true}',
+          previousGenerationId: previous,
+          createdAt: '2026-08-16T12:00:00.000Z',
+          stagedGenerationId: null,
+          targetGenerationId: target,
+          targetCoreRaw: '{"cycle-target":true}',
+          supersedesOperationIds: [supersedes],
+        }),
+        status: 'settled',
+      });
+    }
+
+    const resolved = await resolveLogicalRestorePredecessorV2({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+    });
+    expect(resolved).toEqual({ status: 'conflict', reason: 'supersession-cycle' });
+    expect(resolved.status).not.toBe('unavailable');
   });
 });

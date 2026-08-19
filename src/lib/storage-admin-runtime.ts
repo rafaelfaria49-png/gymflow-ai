@@ -28,12 +28,15 @@ import { parsePhysicalEnvelope } from './storage-hybrid';
 import {
   type StorageOperationCompatibility,
   createStorageOperationReceipt,
+  declaredSupersedesMatchLiveRelations,
+  detectStorageOperationSupersessionCycle,
   evaluateStorageOperationCompatibility,
   listActivePredecessorSourceOperationIds,
   type StorageOperationKind,
   type StorageOperationReceipt,
   type StorageOperationReceiptPatch,
   type StorageOperationStatus,
+  validateStorageOperationSupersession,
 } from './storage-operation-receipt';
 import {
   HYBRID_STORAGE_VERSION,
@@ -931,12 +934,18 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
         );
       }
       if (
-        snapshot.administrationFingerprint !== null
-        && physical.fingerprint !== snapshot.administrationFingerprint
+        snapshot.administrationFingerprint === null
+        || physical.fingerprint !== snapshot.administrationFingerprint
       ) {
         throw new StorageAdministrationConflictError(
           'administration-snapshot-unstable',
           'O snapshot administrativo mudou antes de gravar a supersessao do restore.',
+        );
+      }
+      if (detectStorageOperationSupersessionCycle(physical.operationReceipts)) {
+        throw new StorageAdministrationConflictError(
+          'operation-incompatible',
+          'A supersessao settled forma um ciclo e o begin recusa persistir.',
         );
       }
       const activeRelations = listActivePredecessorSourceOperationIds(
@@ -944,7 +953,48 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
         input.targetGenerationId,
       );
       if (activeRelations.length > 0) {
-        supersedesOperationIds = Object.freeze([...activeRelations].sort());
+        const validated = validateStorageOperationSupersession({
+          operationId,
+          supersedesOperationIds: activeRelations,
+          finalGenerationId: input.targetGenerationId,
+          receipts: physical.operationReceipts,
+        });
+        if (!validated.ok) {
+          throw new StorageAdministrationConflictError(
+            'operation-incompatible',
+            `A supersessao do restore falhou fechada (${validated.reason}).`,
+          );
+        }
+        supersedesOperationIds = validated.ids;
+      }
+
+      // Revalidacao imediata antes da persistencia: o owner-token nao prova o
+      // snapshot. Um begin cru nao pode gravar a janela stale.
+      let persistSnapshot;
+      try {
+        persistSnapshot = await this.adapter.readStorageAdministrationSnapshot();
+      } catch (error) {
+        throw new StorageAdministrationConflictError(
+          'administration-snapshot-unstable',
+          'Nao foi possivel revalidar o snapshot imediatamente antes de persistir o receipt.',
+          { cause: error },
+        );
+      }
+      if (persistSnapshot.fingerprint !== physical.fingerprint) {
+        throw new StorageAdministrationConflictError(
+          'administration-snapshot-unstable',
+          'O snapshot administrativo mudou entre a prova da supersessao e a persistencia.',
+        );
+      }
+      const liveRelations = listActivePredecessorSourceOperationIds(
+        persistSnapshot.operationReceipts,
+        input.targetGenerationId,
+      );
+      if (!declaredSupersedesMatchLiveRelations(supersedesOperationIds, liveRelations)) {
+        throw new StorageAdministrationConflictError(
+          'administration-snapshot-unstable',
+          'As relacoes ativas mudaram imediatamente antes de persistir o receipt.',
+        );
       }
     }
 

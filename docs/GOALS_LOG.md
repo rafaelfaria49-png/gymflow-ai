@@ -4,6 +4,46 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E7A3 — journal seguro de retirement (2026-08-19)
+
+Fecha os cinco P2 herdados de E7A2 e funda proof + journal de retirement sem
+tornar delete fisicamente possível.
+
+**Antes:** `supersedesOperationIds` aceitava IDs sem prova referencial; ciclo
+mútuo settled virava `unavailable`; begin cru podia persistir janela stale;
+`decision-ready` bloqueava por qualquer receipt; `retirement-classified` não
+exigia prova física.
+
+**Depois:** supersessão falha fechada se o ID não existe, não é settled, cruza
+geração, se referencia, cria ciclo ou já não está ativo no snapshot
+revalidado. Ciclo de 2+ nós é `conflict`. O begin revalida fingerprint e
+relações imediatamente antes de persistir. Settled válido é histórico;
+`decision-ready` volta a ser alcançável só como classificação. A prova é
+capability opaca; o writer exige owner-token, é idempotente e não muta
+gerações. Recovery classifica journal incompleto como bloqueio e nunca apaga.
+IndexedDB permanece v4. `executionAuthorized`, `deleteAuthorized` e
+`plan.delete` continuam falsos/vazios.
+
+**Arquivos principais:** `storage-operation-receipt.ts`, `storage-admin-runtime.ts`,
+`storage-indexeddb.ts`, `storage-logical-restore-resolve.ts`,
+`storage-retention.ts`, `storage-retention-decision.ts`,
+`storage-retirement-contract.ts`, `storage-retirement-proof.ts`,
+`storage-retirement-journal.ts`, `storage-boot-recovery.ts`,
+`storage-admin-owner-token.ts`, `GymFlowContext.tsx`, testes e docs.
+
+**Fora de escopo:** E7B, `deleteGeneration`, cleanup, UI de retenção, seletor,
+etapa F, push/PR.
+
+**Validação:**
+- testes da fundação (proof/journal/ciclo/supersessão/decision-ready): 6 arquivos, 150/150
+- regressão storage (import/restore/reset/predecessor/boot/runtime/token/receipt/retention): 13 arquivos, 701/701
+- `npx vitest run`: 75 arquivos, 2334 testes, 0 falha
+- `npx tsc --noEmit`, `npm run build`, `npm run build:mobile`: aprovados
+- ESLint dos módulos do GOAL: 0; global 12 errors, 7 warnings — idêntico a `origin/master`
+- `git diff --check` / `git show --check` / secret scan: limpos
+
+---
+
 ## GOAL-17B-002E-E7A2 — fundação de supersessão de predecessor (2026-08-16)
 
 A auditoria E7A (Classe C) mostrou que o segundo hop/ping-pong deixava

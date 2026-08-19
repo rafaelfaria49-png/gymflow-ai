@@ -1,9 +1,19 @@
 # Pendências
 
+## GOAL-17B-002E-E7A3 — journal seguro de retirement
+
+- **Retenção executável** continua bloqueada. O journal registra intenção
+  comprovada; `deleteGeneration`, cleanup e executor E7B não existem.
+- **Política de produto** (manual vs automática, N ancestrais, preview,
+  idade/espaço) permanece por decidir.
+- **Ciclo explícito no restore público** aparece como `restore-failed`; não há
+  UI dedicada de conflito de supersessão.
+- **E7B / executor / UI de retenção / seletor / etapa F** não iniciados.
+
 ## GOAL-17B-002E-E7A2 — fundação de predecessor/journal
 
-- **Retenção executável** continua bloqueada. Não existe writer de
-  retirement, `deleteGeneration` nem cleanup.
+- **Retenção executável** continua bloqueada. Journal de retirement existe
+  como fundação; `deleteGeneration` e cleanup seguem ausentes.
 - **Política de produto** (manual vs automática, N ancestrais, preview,
   idade/espaço) permanece por decidir. Esta fundação só garante
   predecessor único e contrato de identidade.

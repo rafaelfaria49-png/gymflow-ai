@@ -12,6 +12,7 @@ import type { StorageAdminOwnerTokenCoordinator } from './storage-admin-owner-to
 import { parsePhysicalEnvelope } from './storage-hybrid';
 import type { StorageLike } from './storage-types';
 import { isRecord } from './storage-validation';
+import { recoverStorageRetirementJournal } from './storage-retirement-journal';
 
 // ---------------------------------------------------------------------------
 // GOAL-17B-002D-D1 — recuperação administrativa ANTES da hidratação
@@ -223,6 +224,39 @@ export function classifyStorageBootRecovery(result: unknown): StorageBootRecover
 // Execução única, sem memoização. Nunca rejeita: uma exceção inesperada vira
 // bloqueio, porque continuar depois de um erro que não sabemos ler seria
 // exatamente o "por garantia" que o fluxo proíbe.
+function hasRetirementJournalReader(
+  adapter: AdministrableWorkoutHistoryStorageAdapter,
+): adapter is AdministrableWorkoutHistoryStorageAdapter & {
+  readStorageRetirementJournal(): Promise<unknown>;
+} {
+  return typeof (adapter as { readStorageRetirementJournal?: unknown }).readStorageRetirementJournal
+    === 'function';
+}
+
+async function classifyPersistedRetirementJournal(
+  adapter: AdministrableWorkoutHistoryStorageAdapter,
+): Promise<StorageBootRecoveryOutcome | null> {
+  if (!hasRetirementJournalReader(adapter)) return null;
+  let raw: unknown;
+  try {
+    raw = await adapter.readStorageRetirementJournal();
+  } catch {
+    return blocked('blocked-administration-conflicted');
+  }
+  if (raw === null || raw === undefined) return null;
+
+  let fingerprint: string | undefined;
+  try {
+    fingerprint = (await adapter.readStorageAdministrationSnapshot()).fingerprint;
+  } catch {
+    return blocked('blocked-administration-conflicted');
+  }
+
+  const recovered = recoverStorageRetirementJournal(raw, fingerprint);
+  if (recovered.status === 'recorded' || recovered.status === 'absent') return null;
+  return blocked('blocked-administration-conflicted');
+}
+
 export async function runStorageBootRecovery(
   input: StorageBootRecoveryInput,
 ): Promise<StorageBootRecoveryOutcome> {
@@ -247,7 +281,10 @@ export async function runStorageBootRecovery(
     ) {
       return classifyInitialAdministrationUnavailable(result, input);
     }
-    return classifyStorageBootRecovery(result);
+    const classified = classifyStorageBootRecovery(result);
+    if (classified.hydrationAllowed !== true) return classified;
+    const journalBlock = await classifyPersistedRetirementJournal(input.adapter);
+    return journalBlock ?? classified;
   } catch {
     return blocked('blocked-recovery-required');
   }

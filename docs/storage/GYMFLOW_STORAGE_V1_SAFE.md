@@ -1734,3 +1734,30 @@ O resultado do lease contém somente status e razões fechadas. Owner, operaçã
 nonce, chave física, timestamps, raws, digests, receipts, stack e `cause` não
 são publicados. Nenhum executor, política, seleção, deleção, UI ou Slice F foi
 adicionado.
+
+## GOAL-17B-002E-E7A3 — journal seguro de retirement
+
+A fundação fecha os P2 herdados de E7A2 sem autorizar delete físico.
+
+`supersedesOperationIds` só é aceito após prova referencial: o ID existe, o
+receipt é válido e settled, a geração final coincide, não há auto-referência,
+não há ciclo e a relação continua ativa no snapshot revalidado imediatamente
+antes da persistência. Begin cru que omite supersessão obrigatória falha
+fechado. IndexedDB permanece v4; o journal vive na chave de metadata
+`retirementJournal:v1` e não entra no fingerprint físico.
+
+Ciclos de 2 ou mais nós no grafo settled são `conflict` explícito no resolvedor
+de predecessor. Não viram `unavailable` e não são desempatados por timestamp,
+ordem ou ID.
+
+`decision-ready` pode ser alcançado como classificação quando receipts settled
+válidos são apenas histórico. Operação aberta, completion pendente e estado
+malformado continuam bloqueando. `executionAuthorized` e `deleteAuthorized`
+permanecem falsos. O planner de retenção continua devolvendo `delete` vazio.
+
+A prova de retirement é uma capability opaca (WeakSet). Sem ela,
+`retirement-classified` é inalcançável. O writer exige owner-token, revalida o
+fingerprint antes e depois da escrita, é idempotente e não altera gerações,
+manifests, records ou summary. Recovery classifica journal incompleto/malformado
+como bloqueio e nunca executa delete. E7B, `deleteGeneration` e UI de retenção
+não começaram.

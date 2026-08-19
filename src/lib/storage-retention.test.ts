@@ -372,40 +372,43 @@ describe('planner conservador de retenção administrativa', () => {
     'restore',
     'rollback',
     'reset',
-  ] as const)('bloqueia qualquer operation receipt: %s', (kind) => {
+  ] as const)('bloqueia operation receipt aberto: %s', (kind) => {
     expectBlocked(snapshot({
       operationReceipts: [operation(kind)],
       unsettledOperations: [operation(kind)],
     }), 'operation-receipt-present');
   });
 
-  it('bloqueia operation receipt terminal sem interpretar referências', () => {
-    expectBlocked(snapshot({
+  it('receipt settled valido nao bloqueia sozinho o planner', () => {
+    const plan = planStorageRetention(snapshot({
       operationReceipts: [operation('import', {
         status: 'settled',
         previousGenerationId: 'PRIVATE_SESSION',
         stagedGenerationId: 'PRIVATE_BACKUP',
         targetCoreRaw: 'PRIVATE_CORE',
       })],
-    }), 'operation-receipt-present');
+    }));
+    expect(plan.status).toBe('policy-required');
+    expect(plan.reason).toBe('policy-required');
+    expect(plan.delete).toEqual([]);
   });
 
-  it('bloqueia kind desconhecido', () => {
+  it('bloqueia kind desconhecido como snapshot-invalid', () => {
     expectBlocked(snapshot({
       operationReceipts: [{
         kind: 'PRIVATE_STORAGE_MESSAGE',
         previousCoreRaw: 'PRIVATE_RAW',
       } as never],
-    }), 'operation-receipt-present');
+    }), 'snapshot-invalid');
   });
 
-  it('bloqueia status desconhecido', () => {
+  it('bloqueia status desconhecido como snapshot-invalid', () => {
     expectBlocked(snapshot({
       operationReceipts: [{
         ...operation('import'),
         status: 'PRIVATE_INDEXEDDB_MESSAGE',
       } as never],
-    }), 'operation-receipt-present');
+    }), 'snapshot-invalid');
   });
 
   it('bloqueia unsettled operation mesmo quando a lista histórica está vazia', () => {

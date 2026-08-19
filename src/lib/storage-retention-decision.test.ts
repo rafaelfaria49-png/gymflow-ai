@@ -228,7 +228,7 @@ function readerFor(input: {
 }
 
 function planFor(value: StorageAdministrationSnapshotRead): StorageRetentionPlan {
-  if (value.operationReceipts.length > 0 || value.unsettledOperations.length > 0) {
+  if (value.unsettledOperations.length > 0) {
     return {
       status: 'blocked',
       reason: 'operation-receipt-present',
@@ -738,6 +738,28 @@ describe('fundação E7A2 preserva bloqueios e zero autoridade', () => {
       unsettledOperations: [receipt],
     }));
     expect(result.status).toBe('blocked-operation-receipt');
+    expectNoAuthority(result);
+  });
+
+  it('receipt settled valido nao bloqueia sozinho e permanece sem execucao', async () => {
+    const receipt = {
+      ...operation(),
+      status: 'settled' as const,
+      previousGenerationId: HISTORICAL_ID,
+      stagedGenerationId: ACTIVE_ID,
+      targetCoreRaw: 'PRIVATE_CORE',
+    } as StorageOperationReceipt;
+    const result = await decisionFor(snapshot({
+      generations: [
+        generation(ACTIVE_ID, { isActive: true }),
+        generation(HISTORICAL_ID),
+      ],
+      manifests: [manifest(ACTIVE_ID), manifest(HISTORICAL_ID)],
+      operationReceipts: [receipt],
+    }));
+    expect(result.status).toBe('decision-ready');
+    expect(result.generations.protected).toBeGreaterThan(0);
+    expect(result.generations.futureDeleteCandidate).toBe(0);
     expectNoAuthority(result);
   });
 

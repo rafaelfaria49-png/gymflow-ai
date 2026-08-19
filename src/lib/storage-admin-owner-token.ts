@@ -1,6 +1,8 @@
 import type { StorageOperationKind } from './storage-operation-receipt';
 import type { StorageLike } from './storage-types';
 
+export type StorageAdminOwnerTokenOperationKind = StorageOperationKind | 'retirement';
+
 // Lease cooperativo entre documentos para as operações administrativas.
 //
 // O localStorage não oferece compare-and-swap nem transação entre abas. Este
@@ -18,7 +20,7 @@ interface StoredStorageAdminOwnerToken {
   schemaVersion: typeof OWNER_TOKEN_SCHEMA_VERSION;
   ownerId: string;
   operationId: string;
-  operationKind: StorageOperationKind;
+  operationKind: StorageAdminOwnerTokenOperationKind;
   acquiredAt: number;
   expiresAt: number;
   nonce: string;
@@ -85,7 +87,7 @@ export interface StorageAdminOwnerTokenCoordinator {
   createOperationId(): string;
   acquire(input: {
     operationId: string;
-    operationKind: StorageOperationKind;
+    operationKind: StorageAdminOwnerTokenOperationKind;
   }): StorageAdminOwnerTokenAcquisition;
 }
 
@@ -164,11 +166,12 @@ function hasExactTokenKeys(value: Record<string, unknown>): boolean {
     && actual.every((key, index) => key === expected[index]);
 }
 
-function isOperationKind(value: unknown): value is StorageOperationKind {
+function isOperationKind(value: unknown): value is StorageAdminOwnerTokenOperationKind {
   return value === 'import'
     || value === 'restore'
     || value === 'reset'
-    || value === 'rollback';
+    || value === 'rollback'
+    || value === 'retirement';
 }
 
 function isStoredToken(value: unknown): value is StoredStorageAdminOwnerToken {
@@ -270,7 +273,7 @@ class StorageAdminOwnerTokenLeaseImpl implements StorageAdminOwnerTokenLease {
   readonly #tokenKey: string;
   readonly #ownerId: string;
   readonly #operationId: string;
-  readonly #operationKind: StorageOperationKind;
+  readonly #operationKind: StorageAdminOwnerTokenOperationKind;
   readonly #now: () => number;
   readonly #nonceFactory: () => string;
   readonly #leaseDurationMs: number;
@@ -308,7 +311,7 @@ class StorageAdminOwnerTokenLeaseImpl implements StorageAdminOwnerTokenLease {
   belongsTo(
     ownerId: string,
     operationId: string,
-    operationKind: StorageOperationKind,
+    operationKind: StorageAdminOwnerTokenOperationKind,
   ): boolean {
     return this.#ownerId === ownerId
       && this.#operationId === operationId
@@ -514,7 +517,7 @@ export function createStorageAdminOwnerTokenCoordinator(
 
     acquire(input: {
       operationId: string;
-      operationKind: StorageOperationKind;
+      operationKind: StorageAdminOwnerTokenOperationKind;
     }): StorageAdminOwnerTokenAcquisition {
       if (
         !configured

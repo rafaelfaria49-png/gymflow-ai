@@ -38,8 +38,18 @@ import {
   type StorageOperationReceiptPatch,
   type StorageOperationStatus,
   canTransitionStorageOperation,
+  declaredSupersedesMatchLiveRelations,
+  detectStorageOperationSupersessionCycle,
   isStorageOperationReceipt,
+  listActivePredecessorSourceOperationIds,
+  storageOperationFinalGenerationId,
+  validateStorageOperationSupersession,
 } from './storage-operation-receipt';
+import {
+  isStorageRetirementJournal,
+  STORAGE_RETIREMENT_JOURNAL_METADATA_KEY,
+  type StorageRetirementJournal,
+} from './storage-retirement-journal';
 
 export const GYMFLOW_INDEXEDDB_NAME = 'gymflow-persistence';
 // v2 adicionou o manifest por geração; v3 adicionou os receipts duráveis da
@@ -670,6 +680,7 @@ function fingerprintAdministrationSnapshot(input: {
   receiptCoreMarkers: ReadonlyMap<string, ReceiptCoreMarkers>;
 }): string {
   const metadata = (input.metadataRecords as Partial<MetadataRecord>[])
+    .filter((record) => record?.key !== STORAGE_RETIREMENT_JOURNAL_METADATA_KEY)
     .map((record) => [String(record?.key), JSON.stringify(record?.value ?? null)] as const)
     .sort((left, right) => left[0].localeCompare(right[0]));
 
@@ -1577,6 +1588,7 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     try {
       const receiptStore = transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE);
       const existingRecords = await requestResult(receiptStore.getAll()) as unknown[];
+      const existingReceipts: StorageOperationReceipt[] = [];
       for (const record of existingRecords) {
         if (!isStorageOperationReceipt(record)) {
           throw new StorageOperationReceiptIntegrityError(
@@ -1585,6 +1597,53 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
         }
         if (UNSETTLED_OPERATION_STATUSES.includes(record.status)) {
           throw new StorageOperationAlreadyInProgressError(record);
+        }
+        existingReceipts.push(record);
+      }
+
+      if (detectStorageOperationSupersessionCycle(existingReceipts)) {
+        throw new StorageOperationBeginConflictError(
+          'A supersessao settled ja forma um ciclo; o begin recusa persistir.',
+        );
+      }
+
+      const declaredSupersedes = receipt.supersedesOperationIds;
+      if (declaredSupersedes !== undefined) {
+        const finalGenerationId = storageOperationFinalGenerationId(receipt);
+        if (finalGenerationId === null) {
+          throw new StorageOperationBeginConflictError(
+            'A supersessao exige geracao final comprovavel no receipt novo.',
+          );
+        }
+        const validated = validateStorageOperationSupersession({
+          operationId: receipt.operationId,
+          supersedesOperationIds: declaredSupersedes,
+          finalGenerationId,
+          receipts: existingReceipts,
+        });
+        if (!validated.ok) {
+          throw new StorageOperationBeginConflictError(
+            `A supersessao referencial falhou fechada (${validated.reason}).`,
+          );
+        }
+        const liveRelations = listActivePredecessorSourceOperationIds(
+          existingReceipts,
+          finalGenerationId,
+        );
+        if (!declaredSupersedesMatchLiveRelations(declaredSupersedes, liveRelations)) {
+          throw new StorageOperationBeginConflictError(
+            'As relacoes ativas divergiram da supersessao declarada no begin.',
+          );
+        }
+      } else if (receipt.kind === 'restore') {
+        const liveRelations = listActivePredecessorSourceOperationIds(
+          existingReceipts,
+          receipt.targetGenerationId,
+        );
+        if (liveRelations.length > 0) {
+          throw new StorageOperationBeginConflictError(
+            'O begin cru omitiu supersessao obrigatoria das relacoes ativas.',
+          );
         }
       }
 
@@ -2527,6 +2586,53 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       );
     }
     return record;
+  }
+
+  async readStorageRetirementJournal(): Promise<unknown> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(METADATA_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    try {
+      const value = await this.readMetadataValue<unknown>(
+        transaction,
+        STORAGE_RETIREMENT_JOURNAL_METADATA_KEY,
+      );
+      await completed;
+      return value ?? null;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async writeStorageRetirementJournalRecord(journal: StorageRetirementJournal): Promise<void> {
+    if (!isStorageRetirementJournal(journal)) {
+      throw new Error('O journal de retirement está com formato inválido.');
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(METADATA_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+    try {
+      await requestResult(transaction.objectStore(METADATA_STORE).put({
+        key: STORAGE_RETIREMENT_JOURNAL_METADATA_KEY,
+        value: {
+          schemaVersion: journal.schemaVersion,
+          status: journal.status,
+          candidateGenerationId: journal.candidateGenerationId,
+          reservedPredecessorGenerationId: journal.reservedPredecessorGenerationId,
+          currentGenerationId: journal.currentGenerationId,
+          supersedeOperationIds: [...journal.supersedeOperationIds],
+          originFingerprint: journal.originFingerprint,
+          recordedAt: journal.recordedAt,
+        },
+      } satisfies MetadataRecord));
+      await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
   }
 
   // Base otimista do append/reescrita: o digest encadeado precisa ser calculado

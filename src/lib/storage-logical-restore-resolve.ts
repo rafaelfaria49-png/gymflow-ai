@@ -5,6 +5,7 @@ import type {
 import { proveLogicalStorageRestoreTargetV2 } from './storage-logical-restore';
 import { parsePhysicalEnvelope } from './storage-hybrid';
 import {
+  detectStorageOperationSupersessionCycle,
   isStorageOperationPredecessorRelationSuperseded,
   storageOperationFinalGenerationId,
   type StorageOperationReceipt,
@@ -31,6 +32,8 @@ export type LogicalRestorePredecessorErrorReason =
   | 'snapshot-changed'
   | 'preview-unavailable';
 
+export type LogicalRestorePredecessorConflictReason = 'supersession-cycle';
+
 export type LogicalRestorePredecessorResolution =
   | {
       status: 'available';
@@ -39,6 +42,7 @@ export type LogicalRestorePredecessorResolution =
     }
   | { status: 'unavailable' }
   | { status: 'ambiguous' }
+  | { status: 'conflict'; reason: LogicalRestorePredecessorConflictReason }
   | { status: 'busy'; reason: LogicalRestorePredecessorBusyReason }
   | { status: 'error'; reason: LogicalRestorePredecessorErrorReason };
 
@@ -128,6 +132,7 @@ export function logicalRestoreTargetsMatch(
  * Instantes, ordem de enumeracao, "ultimo receipt", maior ID, ID lexical e
  * geracao mais recente nunca escolhem o predecessor. Relacoes explicitamente
  * supersedidas por outro receipt settled da mesma geracao final sao ignoradas.
+ * Ciclo de 2+ nos e conflito explicito, nunca unavailable silencioso.
  * Zero candidatos comprovaveis => unavailable; mais de um sem supersessao =>
  * ambiguous sem escolha.
  */
@@ -159,6 +164,10 @@ export async function resolveLogicalRestorePredecessorV2(
   const currentGenerationId = snapshot.metadata.activeGeneration;
   if (currentGenerationId === null || !coreNamesGeneration(current.raw, currentGenerationId)) {
     return { status: 'error', reason: 'current-pair-divergent' };
+  }
+
+  if (detectStorageOperationSupersessionCycle(snapshot.operationReceipts)) {
+    return { status: 'conflict', reason: 'supersession-cycle' };
   }
 
   const proven: LogicalStorageRestoreTargetV2[] = [];

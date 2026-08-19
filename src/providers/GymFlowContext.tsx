@@ -3197,6 +3197,13 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       if (resolved.status === 'unavailable' || resolved.status === 'ambiguous') {
         return { status: resolved.status };
       }
+      if (resolved.status === 'conflict') {
+        return {
+          status: 'error',
+          reason: 'restore-failed',
+          message: RESTORE_FAILURE_MESSAGES['restore-failed'],
+        };
+      }
       const mapped = mapRestoreResolution(resolved.status, resolved.reason);
       if ('status' in mapped) return mapped;
       return { status: resolved.status, ...mapped };
@@ -3280,6 +3287,13 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         provenRestoreTargetRef.current = null;
         toast.error(RESTORE_FAILURE_MESSAGES['restore-ambiguous']);
         return failRestore('restore-ambiguous');
+      }
+      if (resolved.status === 'conflict') {
+        storageBlockedRef.current = wasBlocked;
+        restoreInProgressRef.current = false;
+        provenRestoreTargetRef.current = null;
+        toast.error(RESTORE_FAILURE_MESSAGES['restore-failed']);
+        return failRestore('restore-failed');
       }
       if (resolved.status !== 'available') {
         const mapped = mapRestoreResolution(resolved.status, resolved.reason);

@@ -2,6 +2,20 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-17B-002E-E7A3 — journal seguro de retirement (2026-08-19)
+
+- **Journal no metadata store v4:** chave `retirementJournal:v1`, sem bump de
+  IndexedDB e sem object store novo. O fingerprint físico exclui essa chave
+  para a prova permanecer revalidável após a escrita.
+- **Supersessão só com prova referencial na transação do begin:** ID, settled,
+  mesma geração final, sem self-ref, sem ciclo, relações ainda ativas.
+- **Ciclo é conflito explícito:** 2+ nós no grafo settled nunca viram
+  unavailable; restore público mapeia para `restore-failed`.
+- **decision-ready com settled histórico:** só operação aberta/completion/
+  malformado bloqueiam; settled válido não é bloqueio automático.
+- **Prova opaca + writer idempotente:** WeakSet, owner-token obrigatório,
+  revalidação A/B, zero mutação física, recovery fail-closed.
+
 ## GOAL-17B-002E-E7A2 — fundação de predecessor/journal (2026-08-16)
 
 - **Supersessão imutável no receipt novo:** `supersedesOperationIds` opcional

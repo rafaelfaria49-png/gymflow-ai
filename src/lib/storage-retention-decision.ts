@@ -335,15 +335,20 @@ function ready(
   evidence: StorageRetentionEvidence,
 ): StorageRetentionDecisionReady {
   const historical = evidence.generations.historical;
+  const receiptProtectedHistorical = Math.max(
+    0,
+    historical - evidence.generations.orphan,
+  );
   const rollbackReserve = historical > 0 ? 1 : 0;
+  const protectedCount = Math.max(rollbackReserve, receiptProtectedHistorical);
   return Object.freeze({
     status: 'decision-ready',
     reason: 'retention-classified',
     generations: freezeCounts(
       evidence.generations.evaluated,
       1,
-      rollbackReserve,
-      historical - rollbackReserve,
+      protectedCount,
+      historical - protectedCount,
     ),
     bootProofVerified: true,
     ownerTokenRequired: true,
@@ -430,9 +435,7 @@ export function decideStorageRetention(
     }
 
     if (
-      references.operationReceipts > 0
-      || references.unsettledOperationReceipts > 0
-      || references.operationProtectedGenerations > 0
+      references.unsettledOperationReceipts > 0
       || plan.reason === 'operation-receipt-present'
     ) {
       return blocked(
@@ -513,7 +516,7 @@ export function decideStorageRetention(
       && generations.structurallyConflicted === 0
       && generations.physicallyUnverified === 0
       && generations.missingReferenced === 0
-      && generations.orphan === generations.historical;
+      && generations.orphan <= generations.historical;
     if (!safeEvidence) {
       return blocked(
         'blocked-unknown-state',

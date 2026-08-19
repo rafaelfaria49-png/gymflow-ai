@@ -5,13 +5,19 @@
 // A saida nomeia candidata, predecessor reservado e relacoes a supersedir
 // apenas para um executor futuro ainda inexistente.
 
+import {
+  inspectStorageRetirementProof,
+  isStorageRetirementProof,
+} from './storage-retirement-proof';
+
 export type StorageRetirementStatus =
   | 'retirement-classified'
   | 'blocked-unknown-state'
   | 'blocked-identity-invalid'
   | 'blocked-predecessor-not-reserved'
   | 'blocked-candidate-protected'
-  | 'blocked-supersession-invalid';
+  | 'blocked-supersession-invalid'
+  | 'blocked-physical-proof-missing';
 
 export type StorageRetirementReason =
   | 'retirement-classified'
@@ -19,7 +25,8 @@ export type StorageRetirementReason =
   | 'identity-invalid'
   | 'predecessor-not-reserved'
   | 'candidate-protected'
-  | 'supersession-invalid';
+  | 'supersession-invalid'
+  | 'physical-proof-missing';
 
 export interface StorageRetirementClassification {
   readonly status: StorageRetirementStatus;
@@ -41,6 +48,7 @@ export interface ClassifyStorageRetirementInput {
   readonly currentGenerationId: unknown;
   readonly supersedeOperationIds: unknown;
   readonly revalidationFingerprint?: unknown;
+  readonly proof?: unknown;
 }
 
 const INPUT_KEYS = [
@@ -110,9 +118,9 @@ function blocked(
 }
 
 /**
- * Classifica uma proposta de retirement sem I/O e sem autoridade. Qualquer
- * executor futuro ainda precisara de journal, owner-token, prova A/B e
- * revalidacao imediatamente antes de qualquer mutacao.
+ * Classifica uma proposta de retirement sem I/O e sem autoridade. Exige prova
+ * física opaca: sem ela o estado nunca vira retirement-classified. Qualquer
+ * writer ainda precisa de journal, owner-token e revalidacao imediata.
  */
 export function classifyStorageRetirement(
   input: unknown,
@@ -120,7 +128,7 @@ export function classifyStorageRetirement(
   try {
     if (!isRecord(input)) return blocked('blocked-unknown-state', 'unknown-state');
     const keys = Object.keys(input);
-    const allowed = new Set<string>([...INPUT_KEYS, 'revalidationFingerprint']);
+    const allowed = new Set<string>([...INPUT_KEYS, 'revalidationFingerprint', 'proof']);
     if (keys.some((key) => !allowed.has(key))) {
       return blocked('blocked-unknown-state', 'unknown-state');
     }
@@ -182,12 +190,42 @@ export function classifyStorageRetirement(
       });
     }
 
+    const proofRecord = inspectStorageRetirementProof(input.proof);
+    if (!isStorageRetirementProof(input.proof) || proofRecord === null) {
+      return blocked('blocked-physical-proof-missing', 'physical-proof-missing', {
+        candidateGenerationId: candidate,
+        reservedPredecessorGenerationId: reserved,
+        currentGenerationId: current,
+        supersedeOperationIds,
+        revalidationFingerprint: isNonEmptyString(fingerprint) ? fingerprint : null,
+      });
+    }
+    if (
+      proofRecord.candidateGenerationId !== candidate
+      || proofRecord.reservedPredecessorGenerationId !== reserved
+      || proofRecord.currentGenerationId !== current
+      || proofRecord.supersedeOperationIds.length !== supersedeOperationIds.length
+      || proofRecord.supersedeOperationIds.some((id, index) => id !== supersedeOperationIds[index])
+      || (
+        isNonEmptyString(fingerprint)
+        && proofRecord.fingerprint !== fingerprint
+      )
+    ) {
+      return blocked('blocked-physical-proof-missing', 'physical-proof-missing', {
+        candidateGenerationId: candidate,
+        reservedPredecessorGenerationId: reserved,
+        currentGenerationId: current,
+        supersedeOperationIds,
+        revalidationFingerprint: isNonEmptyString(fingerprint) ? fingerprint : null,
+      });
+    }
+
     return freezeClassification('retirement-classified', 'retirement-classified', {
       candidateGenerationId: candidate,
       reservedPredecessorGenerationId: reserved,
       currentGenerationId: current,
       supersedeOperationIds,
-      revalidationFingerprint: isNonEmptyString(fingerprint) ? fingerprint : null,
+      revalidationFingerprint: proofRecord.fingerprint,
     });
   } catch {
     return blocked('blocked-unknown-state', 'unknown-state');
