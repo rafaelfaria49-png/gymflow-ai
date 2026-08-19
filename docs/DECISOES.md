@@ -2,6 +2,10 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-17B-002E-E7A4 — journal atômico de retirement (2026-08-19)
+
+- **CAS na mesma transação da revalidação:** `compareAndPutStorageRetirementJournal` lê o retrato administrativo e o journal, decide e só então faz `put`. `retirementJournal:v1` continua fora do fingerprint; keep-alive de metadata cobre o SHA-256. O lease cooperativo não é CAS.
+
 ## GOAL-17B-002E-E7A3 — journal seguro de retirement (2026-08-19)
 
 - **Journal no metadata store v4:** chave `retirementJournal:v1`, sem bump de

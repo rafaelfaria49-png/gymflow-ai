@@ -1761,3 +1761,24 @@ fingerprint antes e depois da escrita, é idempotente e não altera gerações,
 manifests, records ou summary. Recovery classifica journal incompleto/malformado
 como bloqueio e nunca executa delete. E7B, `deleteGeneration` e UI de retenção
 não começaram.
+
+## GOAL-17B-002E-E7A4 — journal atômico de retirement
+
+O P2 de concorrência da E7A3 fecha-se sem incluir `retirementJournal:v1` no
+fingerprint global e sem mudar a autoridade de retenção.
+
+A persistência passou a ser compare-and-put numa única transação IndexedDB
+`readwrite` que cobre os stores do retrato administrativo. Nessa transação o
+adapter relê metadata/histórico/manifests/receipts, revalida o fingerprint da
+prova, lê o journal atual, decide e só então executa `put`. Ausente autoriza a
+primeira gravação; intenção equivalente (ignorando `recordedAt`) converge para
+`already-recorded` sem regravação; intenção divergente, journal malformado ou
+incompleto falham fechados sem overwrite; fingerprint distinto recusa com
+`blocked-snapshot-changed`.
+
+Duas escritas divergentes concorrentes serializam: exatamente uma intenção
+fica persistida e a outra retorna conflito. Duas escritas equivalentes
+concorrentes produzem `recorded` + `already-recorded`. O lease cooperativo não
+é tratado como CAS. IndexedDB permanece v4, sem store novo e sem migration.
+Recovery continua fail-closed e nunca executa delete. E7B, `deleteGeneration` e
+UI de retenção não começaram.

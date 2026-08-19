@@ -1,16 +1,16 @@
 import type { StorageAdminOwnerTokenLease } from './storage-admin-owner-token';
-import type { StorageAdministrationSnapshotRead } from './storage-adapter';
 import {
   inspectStorageRetirementProof,
   isStorageRetirementProof,
   type StorageRetirementProof,
 } from './storage-retirement-proof';
 
-// GOAL-17B-002E-E7A3 — journal persistível de retirement, desconectado da UI.
+// GOAL-17B-002E-E7A3/E7A4 — journal persistível de retirement, desconectado da UI.
 //
-// O writer exige owner-token e prova opaca, revalida o fingerprint imediatamente
-// antes da escrita e é idempotente. Nunca altera gerações físicas, nunca apaga
-// manifest/records/summary e nunca autoriza delete.
+// O writer exige owner-token e prova opaca. A persistência é compare-and-put
+// numa única transação IndexedDB: revalida o fingerprint administrativo, lê o
+// journal atual, compara e só então grava. Nunca altera gerações físicas, nunca
+// apaga manifest/records/summary e nunca autoriza delete.
 
 export const STORAGE_RETIREMENT_JOURNAL_SCHEMA_VERSION = 1;
 export const STORAGE_RETIREMENT_JOURNAL_METADATA_KEY = 'retirementJournal:v1';
@@ -60,19 +60,34 @@ export type StorageRetirementJournalRecovery = {
   readonly deleteAuthorized: false;
 };
 
+export interface CompareAndPutStorageRetirementJournalInput {
+  readonly expectedFingerprint: string;
+  readonly journal: StorageRetirementJournal;
+}
+
 export interface StorageRetirementJournalPersistence {
   readStorageRetirementJournal(): Promise<unknown>;
-  writeStorageRetirementJournalRecord(journal: StorageRetirementJournal): Promise<void>;
+  compareAndPutStorageRetirementJournal(
+    input: CompareAndPutStorageRetirementJournalInput,
+  ): Promise<StorageRetirementJournalWriteResult>;
 }
 
 export interface WriteStorageRetirementJournalInput {
   readonly lease: StorageAdminOwnerTokenLease;
   readonly proof: StorageRetirementProof;
-  readonly adapter: StorageRetirementJournalPersistence & {
-    readStorageAdministrationSnapshot(): Promise<StorageAdministrationSnapshotRead>;
-  };
+  readonly adapter: StorageRetirementJournalPersistence;
   readonly now?: () => Date;
 }
+
+export type StorageRetirementJournalCasDecision = {
+  readonly status:
+    | 'recorded'
+    | 'already-recorded'
+    | 'blocked-snapshot-changed'
+    | 'blocked-journal-conflict';
+  readonly journal: StorageRetirementJournal | null;
+  readonly shouldPut: boolean;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -166,6 +181,13 @@ function freezeWrite(
   });
 }
 
+export function toStorageRetirementJournalWriteResult(
+  status: StorageRetirementJournalWriteStatus,
+  journal: StorageRetirementJournal | null,
+): StorageRetirementJournalWriteResult {
+  return freezeWrite(status, journal);
+}
+
 function freezeRecovery(
   status: StorageRetirementJournalRecoveryStatus,
   journal: StorageRetirementJournal | null,
@@ -209,8 +231,61 @@ export function recoverStorageRetirementJournal(
 }
 
 /**
- * Persiste o journal de retirement. Idempotente, fail-closed e sem mutação
- * física de gerações.
+ * Decisão pura do compare-and-put. Nenhum estado divergente, incompleto ou
+ * malformado autoriza overwrite. Equivalência ignora `recordedAt`.
+ */
+export function decideStorageRetirementJournalCas(input: {
+  readonly expectedFingerprint: string;
+  readonly actualFingerprint: string;
+  readonly existingRaw: unknown;
+  readonly next: StorageRetirementJournal;
+}): StorageRetirementJournalCasDecision {
+  if (
+    !isNonEmptyString(input.expectedFingerprint)
+    || !isNonEmptyString(input.actualFingerprint)
+    || input.expectedFingerprint !== input.actualFingerprint
+    || input.next.originFingerprint !== input.expectedFingerprint
+  ) {
+    return Object.freeze({
+      status: 'blocked-snapshot-changed',
+      journal: null,
+      shouldPut: false,
+    });
+  }
+
+  const recovered = recoverStorageRetirementJournal(input.existingRaw, input.actualFingerprint);
+  if (recovered.status === 'absent') {
+    return Object.freeze({
+      status: 'recorded',
+      journal: freezeJournal(input.next),
+      shouldPut: true,
+    });
+  }
+  if (recovered.status === 'recorded' && recovered.journal !== null) {
+    if (journalsMatch(recovered.journal, input.next)) {
+      return Object.freeze({
+        status: 'already-recorded',
+        journal: recovered.journal,
+        shouldPut: false,
+      });
+    }
+    return Object.freeze({
+      status: 'blocked-journal-conflict',
+      journal: recovered.journal,
+      shouldPut: false,
+    });
+  }
+  return Object.freeze({
+    status: 'blocked-journal-conflict',
+    journal: recovered.journal,
+    shouldPut: false,
+  });
+}
+
+/**
+ * Persiste o journal de retirement. Owner-token obrigatório no writer; a
+ * primitive de persistência é compare-and-put atômico e não usa o lease como
+ * CAS. Idempotente, fail-closed e sem mutação física de gerações.
  */
 export async function writeStorageRetirementJournal(
   input: WriteStorageRetirementJournalInput,
@@ -226,13 +301,6 @@ export async function writeStorageRetirementJournal(
       return freezeWrite('blocked-proof-missing', null);
     }
 
-    const snapshot = await input.adapter.readStorageAdministrationSnapshot().catch(() => null);
-    if (snapshot === null || snapshot.fingerprint !== proofRecord.fingerprint) {
-      return freezeWrite('blocked-snapshot-changed', null);
-    }
-
-    const existingRaw = await input.adapter.readStorageRetirementJournal().catch(() => undefined);
-    const recovered = recoverStorageRetirementJournal(existingRaw, snapshot.fingerprint);
     const next = freezeJournal({
       schemaVersion: STORAGE_RETIREMENT_JOURNAL_SCHEMA_VERSION,
       status: 'recorded',
@@ -244,38 +312,19 @@ export async function writeStorageRetirementJournal(
       recordedAt: (input.now ?? (() => new Date()))().toISOString(),
     });
 
-    if (recovered.status === 'recorded' && recovered.journal !== null) {
-      if (journalsMatch(recovered.journal, next)) {
-        return freezeWrite('already-recorded', recovered.journal);
-      }
-      return freezeWrite('blocked-journal-conflict', recovered.journal);
-    }
-    if (recovered.status !== 'absent') {
-      return freezeWrite('blocked-journal-conflict', recovered.journal);
-    }
-
     const confirmed = input.lease.confirm();
     if (confirmed.status !== 'owned') {
       return freezeWrite('blocked-owner-token', null);
     }
 
-    await input.adapter.writeStorageRetirementJournalRecord(next);
-
-    const snapshotAfter = await input.adapter.readStorageAdministrationSnapshot().catch(() => null);
-    if (snapshotAfter === null || snapshotAfter.fingerprint !== proofRecord.fingerprint) {
-      return freezeWrite('blocked-snapshot-changed', next);
-    }
-    const persisted = recoverStorageRetirementJournal(
-      await input.adapter.readStorageRetirementJournal().catch(() => null),
-      snapshotAfter.fingerprint,
-    );
-    if (persisted.status !== 'recorded' || persisted.journal === null) {
+    if (typeof input.adapter.compareAndPutStorageRetirementJournal !== 'function') {
       return freezeWrite('blocked-unknown-state', null);
     }
-    if (!journalsMatch(persisted.journal, next)) {
-      return freezeWrite('blocked-journal-conflict', persisted.journal);
-    }
-    return freezeWrite('recorded', persisted.journal);
+
+    return await input.adapter.compareAndPutStorageRetirementJournal({
+      expectedFingerprint: proofRecord.fingerprint,
+      journal: next,
+    });
   } catch {
     return freezeWrite('blocked-unknown-state', null);
   }

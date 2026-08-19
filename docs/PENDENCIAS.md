@@ -1,5 +1,11 @@
 # Pendências
 
+## GOAL-17B-002E-E7A4 — journal atômico de retirement
+
+- ~~**Corrida last-write-win no journal.**~~ Fechada por compare-and-put na mesma transação da revalidação. IndexedDB permanece v4.
+- **Retenção executável** continua bloqueada. `deleteGeneration`, cleanup e executor E7B não existem.
+- **E7B / executor / UI de retenção / seletor / etapa F** não iniciados.
+
 ## GOAL-17B-002E-E7A3 — journal seguro de retirement
 
 - **Retenção executável** continua bloqueada. O journal registra intenção

@@ -668,6 +668,7 @@ describe('guards do planner de retenção', () => {
       'src/lib/storage-admin-status.ts',
       'src/lib/storage-retention.test.ts',
       'src/lib/storage-retention.ts',
+      'src/lib/storage-retirement-journal.test.ts',
     ]);
   });
 

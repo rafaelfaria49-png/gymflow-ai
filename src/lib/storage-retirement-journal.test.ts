@@ -22,15 +22,25 @@ import {
   serializeLogicalPayloadCanonically,
 } from './storage-logical-backup';
 import { commitLogicalStorageResetV2 } from './storage-logical-reset';
-import { createStorageOperationReceipt } from './storage-operation-receipt';
+import { resolveLogicalRestorePredecessorV2 } from './storage-logical-restore-resolve';
+import {
+  createStorageOperationReceipt,
+  listActivePredecessorSourceOperationIds,
+} from './storage-operation-receipt';
+import { planStorageRetention } from './storage-retention';
 import { classifyStorageRetirement } from './storage-retirement-contract';
 import {
   inspectStorageRetirementProof,
   proveStorageRetirement,
+  type StorageRetirementProof,
 } from './storage-retirement-proof';
 import {
+  decideStorageRetirementJournalCas,
   recoverStorageRetirementJournal,
+  STORAGE_RETIREMENT_JOURNAL_METADATA_KEY,
+  STORAGE_RETIREMENT_JOURNAL_SCHEMA_VERSION,
   writeStorageRetirementJournal,
+  type StorageRetirementJournal,
 } from './storage-retirement-journal';
 import {
   createEmptyPersistedState,
@@ -215,6 +225,119 @@ async function createThreeGenerationWorld() {
   };
 }
 
+type RetirementWorld = Awaited<ReturnType<typeof createThreeGenerationWorld>>;
+
+async function createFourGenerationWorld() {
+  const world = await createThreeGenerationWorld();
+  const reset = await commitLogicalStorageResetV2({
+    runtime: world.runtime,
+    adapter: world.adapter,
+    storage: world.storage,
+    key: KEY,
+    now: () => new Date('2026-08-19T12:03:00.000Z'),
+    ownerToken: ownerToken('reset-z2'),
+  });
+  if (!reset.ok) throw new Error(`segundo reset setup falhou: ${reset.reason}`);
+  return {
+    ...world,
+    generationZ1: world.generationZ,
+    generationZ2: reset.generationId,
+  };
+}
+
+function twoConnections(factory: IDBFactory, databaseName: string) {
+  const left = new IndexedDbWorkoutHistoryStorage({ factory, databaseName });
+  const right = new IndexedDbWorkoutHistoryStorage({ factory, databaseName });
+  return { left, right };
+}
+
+async function proveCandidate(world: RetirementWorld, candidateGenerationId: string) {
+  const snapshot = await world.adapter.readStorageAdministrationSnapshot();
+  const predecessor = await resolveLogicalRestorePredecessorV2({
+    adapter: world.adapter,
+    storage: world.storage,
+    key: KEY,
+  });
+  if (predecessor.status !== 'available') {
+    throw new Error(`predecessor nao disponivel: ${predecessor.status}`);
+  }
+  return proveStorageRetirement({
+    adapter: world.adapter,
+    storage: world.storage,
+    key: KEY,
+    candidateGenerationId,
+    reservedPredecessorGenerationId: predecessor.target.targetGenerationId,
+    supersedeOperationIds: listActivePredecessorSourceOperationIds(
+      snapshot.operationReceipts,
+      candidateGenerationId,
+    ),
+  });
+}
+
+function journalFromProof(
+  proof: StorageRetirementProof,
+  recordedAt: string,
+  override: Partial<Pick<StorageRetirementJournal, 'candidateGenerationId'>> = {},
+): StorageRetirementJournal {
+  const record = inspectStorageRetirementProof(proof);
+  if (record === null) throw new Error('prova ausente');
+  return {
+    schemaVersion: STORAGE_RETIREMENT_JOURNAL_SCHEMA_VERSION,
+    status: 'recorded',
+    candidateGenerationId: override.candidateGenerationId ?? record.candidateGenerationId,
+    reservedPredecessorGenerationId: record.reservedPredecessorGenerationId,
+    currentGenerationId: record.currentGenerationId,
+    supersedeOperationIds: [...record.supersedeOperationIds],
+    originFingerprint: record.fingerprint,
+    recordedAt,
+  };
+}
+
+async function putRawJournal(factory: IDBFactory, databaseName: string, value: unknown) {
+  const request = factory.open(databaseName, GYMFLOW_INDEXEDDB_VERSION);
+  const database = await new Promise<IDBDatabase>((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction('metadata', 'readwrite');
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = () => reject(transaction.error ?? new Error('abort'));
+    transaction.objectStore('metadata').put({
+      key: STORAGE_RETIREMENT_JOURNAL_METADATA_KEY,
+      value,
+    });
+  });
+  database.close();
+}
+
+async function physicalLineage(adapter: IndexedDbWorkoutHistoryStorage) {
+  const generations = await adapter.listHistoryGenerations();
+  const snapshot = await adapter.readStorageAdministrationSnapshot();
+  return {
+    generations: generations.map((entry) => [
+      entry.generationId,
+      entry.recordCount,
+      entry.orderedDigest,
+      entry.isActive,
+    ]),
+    operationIds: snapshot.operationReceipts.map((receipt) => receipt.operationId).sort(),
+  };
+}
+
+function sampleJournal(originFingerprint: string): StorageRetirementJournal {
+  return {
+    schemaVersion: STORAGE_RETIREMENT_JOURNAL_SCHEMA_VERSION,
+    status: 'recorded',
+    candidateGenerationId: 'generation-a',
+    reservedPredecessorGenerationId: 'generation-b',
+    currentGenerationId: 'generation-z',
+    supersedeOperationIds: [],
+    originFingerprint,
+    recordedAt: '2026-08-19T12:10:00.000Z',
+  };
+}
+
 function codeOf(file: string): string {
   return readFileSync(file, 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, ' ')
@@ -240,6 +363,79 @@ function listFiles(root: string, extensions: readonly string[]): string[] {
 function relativeSource(file: string): string {
   return relative(REPO_ROOT, file).replace(/\\/g, '/');
 }
+
+describe('decisao pura do compare-and-put do journal', () => {
+  const next = sampleJournal('fp-1');
+
+  it('ausente + ausente autoriza a primeira gravacao', () => {
+    const decision = decideStorageRetirementJournalCas({
+      expectedFingerprint: 'fp-1',
+      actualFingerprint: 'fp-1',
+      existingRaw: null,
+      next,
+    });
+    expect(decision).toMatchObject({ status: 'recorded', shouldPut: true });
+    expect(decision.journal?.candidateGenerationId).toBe('generation-a');
+  });
+
+  it('intencao equivalente ignora recordedAt e nao regrava', () => {
+    const decision = decideStorageRetirementJournalCas({
+      expectedFingerprint: 'fp-1',
+      actualFingerprint: 'fp-1',
+      existingRaw: { ...next, recordedAt: '2026-08-19T12:11:00.000Z' },
+      next,
+    });
+    expect(decision).toMatchObject({
+      status: 'already-recorded',
+      shouldPut: false,
+      journal: { ...next, recordedAt: '2026-08-19T12:11:00.000Z' },
+    });
+  });
+
+  it('intencao divergente bloqueia sem overwrite', () => {
+    const decision = decideStorageRetirementJournalCas({
+      expectedFingerprint: 'fp-1',
+      actualFingerprint: 'fp-1',
+      existingRaw: { ...next, candidateGenerationId: 'generation-other' },
+      next,
+    });
+    expect(decision.status).toBe('blocked-journal-conflict');
+    expect(decision.shouldPut).toBe(false);
+    expect(decision.journal?.candidateGenerationId).toBe('generation-other');
+  });
+
+  it('journal malformado ou incompleto falha fechado', () => {
+    expect(decideStorageRetirementJournalCas({
+      expectedFingerprint: 'fp-1',
+      actualFingerprint: 'fp-1',
+      existingRaw: { status: 'pending' },
+      next,
+    })).toMatchObject({ status: 'blocked-journal-conflict', shouldPut: false, journal: null });
+
+    expect(decideStorageRetirementJournalCas({
+      expectedFingerprint: 'fp-1',
+      actualFingerprint: 'fp-1',
+      existingRaw: 'not-a-journal',
+      next,
+    })).toMatchObject({ status: 'blocked-journal-conflict', shouldPut: false, journal: null });
+  });
+
+  it('fingerprint administrativo divergente recusa a escrita', () => {
+    expect(decideStorageRetirementJournalCas({
+      expectedFingerprint: 'fp-1',
+      actualFingerprint: 'fp-2',
+      existingRaw: null,
+      next,
+    })).toMatchObject({ status: 'blocked-snapshot-changed', shouldPut: false, journal: null });
+
+    expect(decideStorageRetirementJournalCas({
+      expectedFingerprint: 'fp-1',
+      actualFingerprint: 'fp-1',
+      existingRaw: null,
+      next: sampleJournal('fp-stale'),
+    })).toMatchObject({ status: 'blocked-snapshot-changed', shouldPut: false, journal: null });
+  });
+});
 
 describe('prova fisica e journal de retirement', () => {
   it('prova candidata, predecessor e fingerprint; prova forjada nao classifica', async () => {
@@ -442,6 +638,7 @@ describe('prova fisica e journal de retirement', () => {
     expect(second.status).toBe('already-recorded');
 
     const snapshot = await world.adapter.readStorageAdministrationSnapshot();
+    expect(snapshot.fingerprint).toBe(inspectStorageRetirementProof(proved.proof)?.fingerprint);
     const recovered = recoverStorageRetirementJournal(
       await world.adapter.readStorageRetirementJournal(),
       snapshot.fingerprint,
@@ -542,6 +739,416 @@ describe('prova fisica e journal de retirement', () => {
   });
 });
 
+describe('compare-and-put atomico do journal de retirement', () => {
+  it('journal ausente grava recorded e a mesma intencao sequencial vira already-recorded', async () => {
+    const world = await createThreeGenerationWorld();
+    const proved = await proveStorageRetirement({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      candidateGenerationId: world.generationA,
+      reservedPredecessorGenerationId: world.generationB,
+      supersedeOperationIds: [],
+    });
+    expect(proved.status).toBe('proved');
+    if (proved.status !== 'proved') throw new Error('prova ausente');
+    const lineage = await physicalLineage(world.adapter);
+
+    const first = await writeStorageRetirementJournal({
+      lease: ownedLease(),
+      proof: proved.proof,
+      adapter: world.adapter,
+      now: () => new Date('2026-08-19T12:10:00.000Z'),
+    });
+    expect(first.status).toBe('recorded');
+    expect(first.executionAuthorized).toBe(false);
+    expect(first.deleteAuthorized).toBe(false);
+    expect(first.writeAuthorized).toBe(false);
+
+    const second = await writeStorageRetirementJournal({
+      lease: ownedLease(),
+      proof: proved.proof,
+      adapter: world.adapter,
+      now: () => new Date('2026-08-19T12:11:00.000Z'),
+    });
+    expect(second.status).toBe('already-recorded');
+    expect(second.journal?.recordedAt).toBe('2026-08-19T12:10:00.000Z');
+    expect(await physicalLineage(world.adapter)).toEqual(lineage);
+    expect(planStorageRetention(await world.adapter.readStorageAdministrationSnapshot()).delete)
+      .toEqual([]);
+  });
+
+  it('intencao divergente sequencial conflita e nao sobrescreve', async () => {
+    const world = await createFourGenerationWorld();
+    const provedA = await proveCandidate(world, world.generationA);
+    const provedB = await proveCandidate(world, world.generationB);
+    expect(provedA.status).toBe('proved');
+    expect(provedB.status).toBe('proved');
+    if (provedA.status !== 'proved' || provedB.status !== 'proved') {
+      throw new Error('provas divergentes ausentes');
+    }
+
+    const first = await writeStorageRetirementJournal({
+      lease: ownedLease(),
+      proof: provedA.proof,
+      adapter: world.adapter,
+      now: () => new Date('2026-08-19T12:10:00.000Z'),
+    });
+    expect(first.status).toBe('recorded');
+
+    const second = await writeStorageRetirementJournal({
+      lease: ownedLease(),
+      proof: provedB.proof,
+      adapter: world.adapter,
+      now: () => new Date('2026-08-19T12:11:00.000Z'),
+    });
+    expect(second.status).toBe('blocked-journal-conflict');
+    expect(second.journal?.candidateGenerationId).toBe(world.generationA);
+
+    const recovered = recoverStorageRetirementJournal(
+      await world.adapter.readStorageRetirementJournal(),
+      (await world.adapter.readStorageAdministrationSnapshot()).fingerprint,
+    );
+    expect(recovered.status).toBe('recorded');
+    expect(recovered.journal?.candidateGenerationId).toBe(world.generationA);
+    expect(recovered.deleteAuthorized).toBe(false);
+  });
+
+  it('duas intencoes divergentes concorrentes: exatamente uma vence', async () => {
+    const world = await createFourGenerationWorld();
+    const provedA = await proveCandidate(world, world.generationA);
+    const provedB = await proveCandidate(world, world.generationB);
+    expect(provedA.status).toBe('proved');
+    expect(provedB.status).toBe('proved');
+    if (provedA.status !== 'proved' || provedB.status !== 'proved') {
+      throw new Error('provas divergentes ausentes');
+    }
+    const lineage = await physicalLineage(world.adapter);
+    const { left, right } = twoConnections(world.factory, world.databaseName);
+    await left.open();
+    await right.open();
+
+    const [first, second] = await Promise.all([
+      writeStorageRetirementJournal({
+        lease: ownedLease(),
+        proof: provedA.proof,
+        adapter: left,
+        now: () => new Date('2026-08-19T12:10:00.000Z'),
+      }),
+      writeStorageRetirementJournal({
+        lease: ownedLease(),
+        proof: provedB.proof,
+        adapter: right,
+        now: () => new Date('2026-08-19T12:11:00.000Z'),
+      }),
+    ]);
+
+    const statuses = [first.status, second.status].sort();
+    expect(statuses).toEqual(['blocked-journal-conflict', 'recorded']);
+    const winner = first.status === 'recorded' ? first : second;
+    const loser = first.status === 'recorded' ? second : first;
+    expect(winner.journal?.candidateGenerationId).toBe(
+      winner === first ? world.generationA : world.generationB,
+    );
+    expect(loser.journal?.candidateGenerationId).toBe(winner.journal?.candidateGenerationId);
+
+    const persisted = recoverStorageRetirementJournal(
+      await world.adapter.readStorageRetirementJournal(),
+      (await world.adapter.readStorageAdministrationSnapshot()).fingerprint,
+    );
+    expect(persisted.status).toBe('recorded');
+    expect([world.generationA, world.generationB]).toContain(persisted.journal?.candidateGenerationId);
+    expect(persisted.journal?.candidateGenerationId).toBe(winner.journal?.candidateGenerationId);
+    expect(await physicalLineage(world.adapter)).toEqual(lineage);
+    expect(first.deleteAuthorized).toBe(false);
+    expect(second.deleteAuthorized).toBe(false);
+    expect(planStorageRetention(await world.adapter.readStorageAdministrationSnapshot()).delete)
+      .toEqual([]);
+  });
+
+  it('duas escritas equivalentes concorrentes convergem sem conflito falso', async () => {
+    const world = await createThreeGenerationWorld();
+    const proved = await proveStorageRetirement({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      candidateGenerationId: world.generationA,
+      reservedPredecessorGenerationId: world.generationB,
+      supersedeOperationIds: [],
+    });
+    expect(proved.status).toBe('proved');
+    if (proved.status !== 'proved') throw new Error('prova ausente');
+    const { left, right } = twoConnections(world.factory, world.databaseName);
+    await left.open();
+    await right.open();
+
+    const [first, second] = await Promise.all([
+      writeStorageRetirementJournal({
+        lease: ownedLease(),
+        proof: proved.proof,
+        adapter: left,
+        now: () => new Date('2026-08-19T12:10:00.000Z'),
+      }),
+      writeStorageRetirementJournal({
+        lease: ownedLease(),
+        proof: proved.proof,
+        adapter: right,
+        now: () => new Date('2026-08-19T12:11:00.000Z'),
+      }),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual(['already-recorded', 'recorded']);
+    const recorded = first.status === 'recorded' ? first : second;
+    const already = first.status === 'recorded' ? second : first;
+    expect(already.journal?.recordedAt).toBe(recorded.journal?.recordedAt);
+    expect(already.journal?.candidateGenerationId).toBe(world.generationA);
+
+    const persisted = recoverStorageRetirementJournal(
+      await world.adapter.readStorageRetirementJournal(),
+      (await world.adapter.readStorageAdministrationSnapshot()).fingerprint,
+    );
+    expect(persisted.status).toBe('recorded');
+    expect(persisted.journal?.candidateGenerationId).toBe(world.generationA);
+    expect(first.deleteAuthorized).toBe(false);
+    expect(second.deleteAuthorized).toBe(false);
+  });
+
+  it('primitive CAS recusa intencao divergente sem last-write-win', async () => {
+    const world = await createThreeGenerationWorld();
+    const proved = await proveStorageRetirement({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      candidateGenerationId: world.generationA,
+      reservedPredecessorGenerationId: world.generationB,
+      supersedeOperationIds: [],
+    });
+    expect(proved.status).toBe('proved');
+    if (proved.status !== 'proved') throw new Error('prova ausente');
+    const journalA = journalFromProof(proved.proof, '2026-08-19T12:10:00.000Z');
+    const journalDivergent = journalFromProof(
+      proved.proof,
+      '2026-08-19T12:11:00.000Z',
+      { candidateGenerationId: 'generation-divergent' },
+    );
+    const { left, right } = twoConnections(world.factory, world.databaseName);
+    await left.open();
+    await right.open();
+
+    const [first, second] = await Promise.all([
+      left.compareAndPutStorageRetirementJournal({
+        expectedFingerprint: journalA.originFingerprint,
+        journal: journalA,
+      }),
+      right.compareAndPutStorageRetirementJournal({
+        expectedFingerprint: journalDivergent.originFingerprint,
+        journal: journalDivergent,
+      }),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual(['blocked-journal-conflict', 'recorded']);
+    const winner = first.status === 'recorded' ? first : second;
+    expect(['generation-divergent', world.generationA]).toContain(winner.journal?.candidateGenerationId);
+    const persisted = await world.adapter.readStorageRetirementJournal() as StorageRetirementJournal;
+    expect(persisted.candidateGenerationId).toBe(winner.journal?.candidateGenerationId);
+  });
+
+  it('journal malformado existente nao e sobrescrito', async () => {
+    const world = await createThreeGenerationWorld();
+    await putRawJournal(world.factory, world.databaseName, { status: 'pending', schemaVersion: 1 });
+    const proved = await proveStorageRetirement({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      candidateGenerationId: world.generationA,
+      reservedPredecessorGenerationId: world.generationB,
+      supersedeOperationIds: [],
+    });
+    expect(proved.status).toBe('proved');
+    if (proved.status !== 'proved') throw new Error('prova ausente');
+
+    const written = await writeStorageRetirementJournal({
+      lease: ownedLease(),
+      proof: proved.proof,
+      adapter: world.adapter,
+    });
+    expect(written.status).toBe('blocked-journal-conflict');
+    expect(written.journal).toBeNull();
+    expect(await world.adapter.readStorageRetirementJournal()).toEqual({
+      status: 'pending',
+      schemaVersion: 1,
+    });
+    expect((await world.adapter.readVerifiedHistoryGeneration(world.generationA)).manifest.verified)
+      .toBe(true);
+  });
+
+  it('fingerprint mudado antes da transacao recusa a escrita', async () => {
+    const world = await createThreeGenerationWorld();
+    const proved = await proveStorageRetirement({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      candidateGenerationId: world.generationA,
+      reservedPredecessorGenerationId: world.generationB,
+      supersedeOperationIds: [],
+    });
+    expect(proved.status).toBe('proved');
+    if (proved.status !== 'proved') throw new Error('prova ausente');
+    await world.adapter.replaceHistory([session('c', 'Estado C')]);
+
+    const written = await writeStorageRetirementJournal({
+      lease: ownedLease(),
+      proof: proved.proof,
+      adapter: world.adapter,
+    });
+    expect(written.status).toBe('blocked-snapshot-changed');
+    expect(await world.adapter.readStorageRetirementJournal()).toBeNull();
+    expect((await world.adapter.readVerifiedHistoryGeneration(world.generationA)).manifest.verified)
+      .toBe(true);
+  });
+
+  it('estado administrativo mudado durante a tentativa falha fechado', async () => {
+    const world = await createThreeGenerationWorld();
+    const proved = await proveStorageRetirement({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      candidateGenerationId: world.generationA,
+      reservedPredecessorGenerationId: world.generationB,
+      supersedeOperationIds: [],
+    });
+    expect(proved.status).toBe('proved');
+    if (proved.status !== 'proved') throw new Error('prova ausente');
+    const { left, right } = twoConnections(world.factory, world.databaseName);
+    await left.open();
+    await right.open();
+
+    const [written] = await Promise.all([
+      writeStorageRetirementJournal({
+        lease: ownedLease(),
+        proof: proved.proof,
+        adapter: left,
+        now: () => new Date('2026-08-19T12:10:00.000Z'),
+      }),
+      right.replaceHistory([session('c', 'Estado C')]),
+    ]);
+
+    expect(['recorded', 'blocked-snapshot-changed']).toContain(written.status);
+    expect(written.deleteAuthorized).toBe(false);
+    const snapshot = await world.adapter.readStorageAdministrationSnapshot();
+    const recovered = recoverStorageRetirementJournal(
+      await world.adapter.readStorageRetirementJournal(),
+      snapshot.fingerprint,
+    );
+    expect(recovered.status).not.toBe('recorded');
+    expect((await world.adapter.readVerifiedHistoryGeneration(world.generationA)).manifest.verified)
+      .toBe(true);
+    expect((await world.adapter.readVerifiedHistoryGeneration(world.generationB)).manifest.verified)
+      .toBe(true);
+    expect((await world.adapter.readVerifiedHistoryGeneration(world.generationZ)).manifest.verified)
+      .toBe(true);
+  });
+
+  it('prova forjada ou clonada continua recusada', async () => {
+    const world = await createThreeGenerationWorld();
+    const proved = await proveStorageRetirement({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      candidateGenerationId: world.generationA,
+      reservedPredecessorGenerationId: world.generationB,
+      supersedeOperationIds: [],
+    });
+    expect(proved.status).toBe('proved');
+    if (proved.status !== 'proved') throw new Error('prova ausente');
+    const record = inspectStorageRetirementProof(proved.proof);
+    const forged = await writeStorageRetirementJournal({
+      lease: ownedLease(),
+      proof: { ...record } as never,
+      adapter: world.adapter,
+    });
+    const cloned = await writeStorageRetirementJournal({
+      lease: ownedLease(),
+      proof: JSON.parse(JSON.stringify(proved.proof)) as never,
+      adapter: world.adapter,
+    });
+    expect(forged.status).toBe('blocked-proof-missing');
+    expect(cloned.status).toBe('blocked-proof-missing');
+    expect(await world.adapter.readStorageRetirementJournal()).toBeNull();
+  });
+
+  it('reload apos recorded e recovery repetido preservam o journal', async () => {
+    const world = await createThreeGenerationWorld();
+    const proved = await proveStorageRetirement({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      candidateGenerationId: world.generationA,
+      reservedPredecessorGenerationId: world.generationB,
+      supersedeOperationIds: [],
+    });
+    expect(proved.status).toBe('proved');
+    if (proved.status !== 'proved') throw new Error('prova ausente');
+    const written = await writeStorageRetirementJournal({
+      lease: ownedLease(),
+      proof: proved.proof,
+      adapter: world.adapter,
+      now: () => new Date('2026-08-19T12:10:00.000Z'),
+    });
+    expect(written.status).toBe('recorded');
+    await world.adapter.close();
+
+    const reopened = new IndexedDbWorkoutHistoryStorage({
+      factory: world.factory,
+      databaseName: world.databaseName,
+    });
+    await reopened.open();
+    const snapshot = await reopened.readStorageAdministrationSnapshot();
+    const recovered = recoverStorageRetirementJournal(
+      await reopened.readStorageRetirementJournal(),
+      snapshot.fingerprint,
+    );
+    expect(recovered.status).toBe('recorded');
+    expect(recovered.journal?.candidateGenerationId).toBe(world.generationA);
+    expect(recoverStorageRetirementJournal(
+      await reopened.readStorageRetirementJournal(),
+      snapshot.fingerprint,
+    )).toEqual(recovered);
+
+    const boot = await runStorageBootRecovery({
+      adapter: reopened,
+      storage: world.storage,
+      key: KEY,
+    });
+    expect(boot.hydrationAllowed).toBe(true);
+    expect(boot.status).not.toBe('blocked-administration-conflicted');
+    expect(planStorageRetention(snapshot).delete).toEqual([]);
+  });
+
+  it('adapter sem compare-and-put falha fechado e o lease nao e CAS', async () => {
+    const world = await createThreeGenerationWorld();
+    const proved = await proveStorageRetirement({
+      adapter: world.adapter,
+      storage: world.storage,
+      key: KEY,
+      candidateGenerationId: world.generationA,
+      reservedPredecessorGenerationId: world.generationB,
+      supersedeOperationIds: [],
+    });
+    expect(proved.status).toBe('proved');
+    if (proved.status !== 'proved') throw new Error('prova ausente');
+    const written = await writeStorageRetirementJournal({
+      lease: ownedLease(),
+      proof: proved.proof,
+      adapter: {
+        readStorageRetirementJournal: async () => null,
+      } as never,
+    });
+    expect(written.status).toBe('blocked-unknown-state');
+    expect(await world.adapter.readStorageRetirementJournal()).toBeNull();
+  });
+});
+
 describe('guards zero delete da fundacao de retirement', () => {
   it('modulos novos nao introduzem delete fisico', () => {
     const files = [
@@ -561,6 +1168,25 @@ describe('guards zero delete da fundacao de retirement', () => {
       for (const pattern of forbidden) expect(source).not.toMatch(pattern);
       expect(source).toContain('deleteAuthorized: false');
     }
+
+    const indexedDb = readFileSync(join(SOURCE_ROOT, 'lib', 'storage-indexeddb.ts'), 'utf8');
+    const cas = indexedDb.match(
+      /async compareAndPutStorageRetirementJournal[\s\S]*?\n  \/\/ Fixture de teste/,
+    )?.[0];
+    expect(cas).toBeTruthy();
+    expect(cas).toContain('decideStorageRetirementJournalCas');
+    expect(cas).not.toMatch(/\bdeleteGeneration\b/);
+    expect(cas).not.toMatch(/\bdeleteDatabase\b/);
+    expect(cas).not.toMatch(/objectStore\.delete/);
+    expect(cas).not.toMatch(/objectStore\.clear/);
+    expect(cas).not.toMatch(/clearInactiveGeneration/);
+  });
+
+  it('writer de producao so persiste via compare-and-put', () => {
+    const source = codeOf(join(SOURCE_ROOT, 'lib', 'storage-retirement-journal.ts'));
+    expect(source).toContain('compareAndPutStorageRetirementJournal');
+    expect(source).not.toMatch(/writeStorageRetirementJournalRecord/);
+    expect(source).not.toMatch(/readStorageAdministrationSnapshot/);
   });
 
   it('writer nao possui call site de UI ou Provider', () => {
