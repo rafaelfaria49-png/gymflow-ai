@@ -10,6 +10,7 @@ import type {
   StageHistoryGenerationForOperationInput,
   StageHistoryGenerationForOperationResult,
   StorageAdministrationSnapshotRead,
+  StorageAdministrationSnapshotWithRetirementJournal,
   TransitionStorageOperationIfUnambiguousInput,
   VerifiedHistoryGeneration,
   WorkoutHistoryAdministrationAdapter,
@@ -797,6 +798,66 @@ async function markReceiptCores(
     });
   }
   return markers;
+}
+
+function parseStorageOperationReceipts(
+  records: readonly unknown[],
+): StorageOperationReceipt[] {
+  const operationReceipts: StorageOperationReceipt[] = [];
+  for (const record of records) {
+    if (!isStorageOperationReceipt(record)) {
+      throw new StorageOperationReceiptIntegrityError(
+        'Existe um receipt administrativo com formato inválido no armazenamento.',
+      );
+    }
+    operationReceipts.push(record);
+  }
+  operationReceipts.sort((left, right) => (
+    left.createdAt === right.createdAt
+      ? left.operationId.localeCompare(right.operationId)
+      : left.createdAt.localeCompare(right.createdAt)
+  ));
+  return operationReceipts;
+}
+
+function sameReceiptCoreInputs(
+  left: readonly StorageOperationReceipt[],
+  right: readonly StorageOperationReceipt[],
+): boolean {
+  return left.length === right.length && left.every((receipt, index) => {
+    const other = right[index];
+    return receipt.operationId === other.operationId
+      && receipt.previousCoreRaw === other.previousCoreRaw
+      && receipt.targetCoreRaw === other.targetCoreRaw;
+  });
+}
+
+interface PreparedReceiptCoreState {
+  receipts: StorageOperationReceipt[];
+  markers: Map<string, ReceiptCoreMarkers>;
+}
+
+async function prepareReceiptCoreState(
+  database: IDBDatabase,
+  subtleCrypto: SubtleCrypto | null | undefined,
+): Promise<PreparedReceiptCoreState> {
+  const transaction = database.transaction(STORAGE_OPERATION_RECEIPTS_STORE, 'readonly');
+  const completed = transactionResult(transaction);
+  try {
+    const records = await requestResult(
+      transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE).getAll(),
+    ) as unknown[];
+    await completed;
+    const receipts = parseStorageOperationReceipts(records);
+    return {
+      receipts,
+      markers: await markReceiptCores(receipts, subtleCrypto),
+    };
+  } catch (error) {
+    abortQuietly(transaction);
+    await completed.catch(() => undefined);
+    throw error;
+  }
 }
 
 function readRetirementJournalRaw(metadataRecords: readonly unknown[]): unknown {
@@ -2357,7 +2418,27 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
   // descrevem o MESMO instante. Não repara, não apaga, não cria manifest, não
   // liquida receipt, não move ponteiro, não escreve nada.
   async readStorageAdministrationSnapshot(): Promise<StorageAdministrationSnapshotRead> {
+    return (await this.readStorageAdministrationSnapshotInternal()).snapshot;
+  }
+
+  async readStorageAdministrationSnapshotWithRetirementJournal(): Promise<
+    StorageAdministrationSnapshotWithRetirementJournal
+  > {
+    return this.readStorageAdministrationSnapshotInternal();
+  }
+
+  private async readStorageAdministrationSnapshotInternal(): Promise<
+    StorageAdministrationSnapshotWithRetirementJournal
+  > {
     const database = this.requireDatabase();
+    // O SHA-256 dos cores dos receipts é assíncrono e não pode rodar com a
+    // transação aberta. Prepare-o antes do retrato final; a transação abaixo
+    // relê os receipts e falha fechado se qualquer core que alimenta os
+    // marcadores tiver mudado nesse intervalo.
+    const preparedReceiptCoreState = await prepareReceiptCoreState(
+      database,
+      this.subtleCrypto,
+    );
     const transaction = database.transaction(
       [
         METADATA_STORE,
@@ -2380,23 +2461,19 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
           requestResult(transaction.objectStore(COMPLETION_RECEIPTS_STORE).getAll()) as Promise<unknown[]>,
         ]);
       await completed;
+      // O journal é capturado dos mesmos metadataRecords da transação. Ele
+      // continua fora do fingerprint por compatibilidade com proofs recorded,
+      // mas o fechamento que o consome agora tem um instante único.
+      const retirementJournal = readRetirementJournalRaw(metadataRecords);
 
       // Todo receipt é validado antes de qualquer filtragem: um registro
       // malformado nunca vira "nada em aberto".
-      const operationReceipts: StorageOperationReceipt[] = [];
-      for (const record of operationRecords) {
-        if (!isStorageOperationReceipt(record)) {
-          throw new StorageOperationReceiptIntegrityError(
-            'Existe um receipt administrativo com formato inválido no armazenamento.',
-          );
-        }
-        operationReceipts.push(record);
+      const operationReceipts = parseStorageOperationReceipts(operationRecords);
+      if (!sameReceiptCoreInputs(preparedReceiptCoreState.receipts, operationReceipts)) {
+        throw new StorageOperationReceiptIntegrityError(
+          'Os cores dos receipts mudaram durante a leitura do snapshot administrativo.',
+        );
       }
-      operationReceipts.sort((left, right) => (
-        left.createdAt === right.createdAt
-          ? left.operationId.localeCompare(right.operationId)
-          : left.createdAt.localeCompare(right.createdAt)
-      ));
 
       const completionReceipts: WorkoutCompletionReceipt[] = [];
       for (const record of completionRecords) {
@@ -2432,53 +2509,52 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
         (entry as Partial<MetadataRecord> | null)?.key === `${INTERNAL_NEXT_ORDER_PREFIX}${activeGeneration}`
       ));
 
-      // Depois do commit da transação readonly: o digest dos cores brutos dos
-      // receipts é assíncrono e não pode rodar com uma transação aberta.
-      const receiptCoreMarkers = await markReceiptCores(operationReceipts, this.subtleCrypto);
-
       return {
-        metadata: {
-          ...METADATA_DEFAULTS,
-          ...Object.fromEntries(
-            (metadataRecords as Partial<MetadataRecord>[])
-              .filter((record) => typeof record?.key === 'string'
-                && Object.prototype.hasOwnProperty.call(METADATA_DEFAULTS, record.key))
-              .map((record) => [record.key as string, record.value]),
+        snapshot: {
+          metadata: {
+            ...METADATA_DEFAULTS,
+            ...Object.fromEntries(
+              (metadataRecords as Partial<MetadataRecord>[])
+                .filter((record) => typeof record?.key === 'string'
+                  && Object.prototype.hasOwnProperty.call(METADATA_DEFAULTS, record.key))
+                .map((record) => [record.key as string, record.value]),
+            ),
+            activeGeneration,
+            migrationGeneration,
+          } as HistoryStorageMetadata,
+          activeGenerationId: activeGeneration,
+          migrationGenerationId: migrationGeneration,
+          generations: summaries,
+          manifests: Array.from(manifests.values()).filter((manifest): manifest is HistoryGenerationManifest => (
+            manifest !== null
+          )),
+          activeGenerationRecords: activeGenerationRecords.map((record) => ({
+            generationId: record.generationId,
+            sessionId: record.sessionId,
+            order: record.order,
+            // Cópia estrutural: o chamador nunca recebe referência viva do IDB.
+            session: JSON.parse(JSON.stringify(record.session)) as WorkoutSession,
+            digest: record.digest ?? null,
+          })),
+          activeGenerationManifest: activeManifestEntry ?? null,
+          activeGenerationPresent: Boolean(activeGeneration) && (
+            activeGenerationRecords.length > 0 || activeManifestEntry !== undefined || hasActiveStagingMarker
           ),
-          activeGeneration,
-          migrationGeneration,
-        } as HistoryStorageMetadata,
-        activeGenerationId: activeGeneration,
-        migrationGenerationId: migrationGeneration,
-        generations: summaries,
-        manifests: Array.from(manifests.values()).filter((manifest): manifest is HistoryGenerationManifest => (
-          manifest !== null
-        )),
-        activeGenerationRecords: activeGenerationRecords.map((record) => ({
-          generationId: record.generationId,
-          sessionId: record.sessionId,
-          order: record.order,
-          // Cópia estrutural: o chamador nunca recebe referência viva do IDB.
-          session: JSON.parse(JSON.stringify(record.session)) as WorkoutSession,
-          digest: record.digest ?? null,
-        })),
-        activeGenerationManifest: activeManifestEntry ?? null,
-        activeGenerationPresent: Boolean(activeGeneration) && (
-          activeGenerationRecords.length > 0 || activeManifestEntry !== undefined || hasActiveStagingMarker
-        ),
-        operationReceipts,
-        unsettledOperations: operationReceipts.filter((receipt) => (
-          UNSETTLED_OPERATION_STATUSES.includes(receipt.status)
-        )),
-        pendingCompletionReceipts,
-        fingerprint: fingerprintAdministrationSnapshot({
-          metadataRecords,
-          manifests,
-          historyRecords,
           operationReceipts,
+          unsettledOperations: operationReceipts.filter((receipt) => (
+            UNSETTLED_OPERATION_STATUSES.includes(receipt.status)
+          )),
           pendingCompletionReceipts,
-          receiptCoreMarkers,
-        }),
+          fingerprint: fingerprintAdministrationSnapshot({
+            metadataRecords,
+            manifests,
+            historyRecords,
+            operationReceipts,
+            pendingCompletionReceipts,
+            receiptCoreMarkers: preparedReceiptCoreState.markers,
+          }),
+        },
+        retirementJournal,
       };
     } catch (error) {
       abortQuietly(transaction);

@@ -1,5 +1,13 @@
 # Pendências
 
+## GOAL-17B-002E-E7A6 — correlação de executor readiness
+
+- ~~**Journal stale race no fechamento final.**~~ Fechada no corretivo final de 2026-08-29: markers assíncronos agora precedem a transação readonly final, sem `await` depois dela.
+- ~~**Boot/recovery e retention evidence sem correlação explícita do mesmo ciclo.**~~ Fechada: readiness observa boot, evidence, snapshot A/B, predecessor, seleção, policy, proof e journal no mesmo fechamento.
+- **Retenção executável** continua bloqueada. `deleteGeneration`, cleanup e executor E7B não existem. `executionAuthorized`, `deleteAuthorized`, `executorReady` e `physicalDeleteReady` permanecem falsos.
+- **UI de retenção / seletor visual / confirmação destrutiva** não implementadas.
+- **E7B / etapa F** não iniciados.
+
 ## GOAL-17B-002E-E7A5 — política manual de retenção MVP
 
 - ~~**Política de produto (manual vs automática, N ancestrais, preview, idade/espaço).**~~ Formalizada: manual, uma candidata explícita, predecessor imediato sempre preservado, sem keep-N, sem escolha por idade/espaço, preview e confirmação humana futura obrigatórios.

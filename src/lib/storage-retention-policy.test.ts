@@ -393,6 +393,7 @@ describe('guards da política de retenção', () => {
     expect(callers).toEqual([
       'src/lib/storage-retention-policy.ts',
       'src/lib/storage-retirement-contract.ts',
+      'src/lib/storage-retirement-readiness.ts',
     ]);
   });
 

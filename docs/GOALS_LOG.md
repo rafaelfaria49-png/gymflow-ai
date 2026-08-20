@@ -4,6 +4,73 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E7A6 — corretivo final do journal stale race (2026-08-29)
+
+Fecha o P1 residual encontrado na reauditoria independente da correlação de
+executor readiness.
+
+**Antes:** `readStorageAdministrationSnapshotInternal` capturava o journal na
+transação readonly, mas executava `await markReceiptCores(...)` depois do
+commit. Uma mutação concorrente de `retirementJournal:v1` nesse intervalo
+podia deixar o fechamento usando um journal antigo e ainda emitir
+`readiness-proven`.
+
+**Depois:** os markers dos cores dos receipts são calculados antes da
+transação readonly final. Essa transação relê os receipts, snapshot e journal
+no mesmo instante; se os campos que alimentam os markers mudarem, a leitura
+falha fechado. Após o commit final não há mais `await`: validações, comparação
+do journal/fingerprint e emissão da capability são síncronas. O fingerprint
+permanece com a mesma semântica e IndexedDB continua v4.
+
+**Validação:**
+- readiness + race adversarial: 26/26
+- intent mixing: 4/4 cenários adversariais
+- regressões storage relevantes: 15 arquivos, 1161/1161
+- suíte completa: 77 arquivos, 2399/2399
+- `npx tsc --noEmit`, `npm run build`, `npm run build:mobile`: aprovados
+- ESLint dos arquivos alterados: 0
+- `git diff --check`: limpo
+- secret scan: nenhum segredo de alta confiança
+
+**Commit:** amend local do único commit E7A6 sobre `9e67333`; sem push e sem PR.
+
+## GOAL-17B-002E-E7A6 — correlação de executor readiness (2026-08-20)
+
+Cria a fundação read-only que prova que boot seguro, snapshot físico,
+evidence, seleção manual, policy, retirement proof e journal descrevem o
+mesmo mundo administrativo estável. Não implementa executor físico nem delete.
+
+**Antes:** E7A5 fechou a política manual, mas boot/recovery e retention
+evidence ainda podiam ser compostos como objetos de ciclos diferentes. Não
+havia capability de readiness nem revalidação A/B no fechamento.
+
+**Depois:** `storage-retirement-readiness.ts` observa um ciclo vivo: boot
+seguro, evidence coletada no mesmo fingerprint, snapshot A/B idêntico,
+predecessor reservado estável, exatamente uma candidata explícita,
+policy `candidate-eligible`, proof opaca revalidada e journal ausente ou
+recorded da mesma intenção. A capability é WeakSet, não persistida e
+inforjável por literal/clone/JSON. Mesmo `readiness-proven` mantém
+`executionAuthorized`, `deleteAuthorized`, `executorReady` e
+`physicalDeleteReady` falsos. O planner continua com `delete: []`.
+IndexedDB permanece v4.
+
+**Arquivos principais:** `storage-retirement-readiness.ts`,
+`storage-retirement-readiness.test.ts`, guards do journal e docs.
+
+**Fora de escopo:** E7B, `deleteGeneration`, cleanup, UI de retenção,
+confirmação visual, etapa F, push/PR.
+
+**Validação:**
+- testes focados de readiness: `storage-retirement-readiness.test.ts` 21/21
+- regressão storage (boot, evidence, E7A2 predecessor, E7A3 journal/proof, E7A4 CAS, E7A5 policy, restore, reset, import E4B, backup, receipt): 14 arquivos, 886/886
+- E5 restore / E6 reset / E4B import no Context, guards e IndexedDB/runtime: 12 arquivos, 490/490
+- suíte completa: 77 arquivos, 2394/2394
+- `npx tsc --noEmit`, `npm run build`, `npm run build:mobile`: aprovados
+- ESLint dos módulos do GOAL: 0; global 12 errors, 7 warnings — idêntico à base `9e67333` / E7A5
+- `git diff --check` / secret scan: limpos
+
+---
+
 ## GOAL-17B-002E-E7A5 — política manual de retenção MVP (2026-08-19)
 
 Formaliza somente a política de produto para retenção MVP, sem executor, sem

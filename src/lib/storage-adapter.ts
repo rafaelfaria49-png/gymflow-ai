@@ -202,6 +202,14 @@ export interface StorageAdministrationSnapshotRead {
   fingerprint: string;
 }
 
+// Fechamento final da readiness: o snapshot administrativo e o journal são
+// retornados pela mesma transação readonly, para que a decisão nunca combine
+// dois instantes diferentes.
+export interface StorageAdministrationSnapshotWithRetirementJournal {
+  snapshot: StorageAdministrationSnapshotRead;
+  retirementJournal: unknown;
+}
+
 // Primitivas administrativas de baixo nível.
 //
 // Elas ficam fora de `WorkoutHistoryStorageAdapter` de propósito: o contrato de
@@ -223,6 +231,11 @@ export interface WorkoutHistoryAdministrationAdapter {
   // registros necessários para verificar integralmente a geração ativa. Nunca
   // escreve, nunca repara, nunca fabrica lista vazia por store ausente.
   readStorageAdministrationSnapshot(): Promise<StorageAdministrationSnapshotRead>;
+  // Variante usada pelo fechamento da readiness. Adapters externos podem não
+  // expô-la; a readiness bloqueia fail-closed quando ela não existe.
+  readStorageAdministrationSnapshotWithRetirementJournal?: () => Promise<
+    StorageAdministrationSnapshotWithRetirementJournal
+  >;
   // Transição atômica que só acontece quando o estado administrativo é
   // inequívoco: exatamente um receipt não terminal, que é o `operationId`
   // informado, zero CompletionReceipt pendente e CAS da geração ativa — tudo na

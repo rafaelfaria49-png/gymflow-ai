@@ -1088,6 +1088,7 @@ describe('dispatcher, boot e isolamento estrutural', () => {
       'src/lib/storage-logical-reset.test.ts',
       'src/lib/storage-logical-reset.ts',
       'src/lib/storage-retirement-journal.test.ts',
+      'src/lib/storage-retirement-readiness.test.ts',
       'src/providers/GymFlowContext.logical-reset.test.tsx',
       'src/providers/GymFlowContext.tsx',
     ]);
