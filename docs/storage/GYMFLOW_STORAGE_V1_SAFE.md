@@ -1734,3 +1734,51 @@ O resultado do lease contém somente status e razões fechadas. Owner, operaçã
 nonce, chave física, timestamps, raws, digests, receipts, stack e `cause` não
 são publicados. Nenhum executor, política, seleção, deleção, UI ou Slice F foi
 adicionado.
+
+## GOAL-17B-002E-E7A3 — journal seguro de retirement
+
+A fundação fecha os P2 herdados de E7A2 sem autorizar delete físico.
+
+`supersedesOperationIds` só é aceito após prova referencial: o ID existe, o
+receipt é válido e settled, a geração final coincide, não há auto-referência,
+não há ciclo e a relação continua ativa no snapshot revalidado imediatamente
+antes da persistência. Begin cru que omite supersessão obrigatória falha
+fechado. IndexedDB permanece v4; o journal vive na chave de metadata
+`retirementJournal:v1` e não entra no fingerprint físico.
+
+Ciclos de 2 ou mais nós no grafo settled são `conflict` explícito no resolvedor
+de predecessor. Não viram `unavailable` e não são desempatados por timestamp,
+ordem ou ID.
+
+`decision-ready` pode ser alcançado como classificação quando receipts settled
+válidos são apenas histórico. Operação aberta, completion pendente e estado
+malformado continuam bloqueando. `executionAuthorized` e `deleteAuthorized`
+permanecem falsos. O planner de retenção continua devolvendo `delete` vazio.
+
+A prova de retirement é uma capability opaca (WeakSet). Sem ela,
+`retirement-classified` é inalcançável. O writer exige owner-token, revalida o
+fingerprint antes e depois da escrita, é idempotente e não altera gerações,
+manifests, records ou summary. Recovery classifica journal incompleto/malformado
+como bloqueio e nunca executa delete. E7B, `deleteGeneration` e UI de retenção
+não começaram.
+
+## GOAL-17B-002E-E7A4 — journal atômico de retirement
+
+O P2 de concorrência da E7A3 fecha-se sem incluir `retirementJournal:v1` no
+fingerprint global e sem mudar a autoridade de retenção.
+
+A persistência passou a ser compare-and-put numa única transação IndexedDB
+`readwrite` que cobre os stores do retrato administrativo. Nessa transação o
+adapter relê metadata/histórico/manifests/receipts, revalida o fingerprint da
+prova, lê o journal atual, decide e só então executa `put`. Ausente autoriza a
+primeira gravação; intenção equivalente (ignorando `recordedAt`) converge para
+`already-recorded` sem regravação; intenção divergente, journal malformado ou
+incompleto falham fechados sem overwrite; fingerprint distinto recusa com
+`blocked-snapshot-changed`.
+
+Duas escritas divergentes concorrentes serializam: exatamente uma intenção
+fica persistida e a outra retorna conflito. Duas escritas equivalentes
+concorrentes produzem `recorded` + `already-recorded`. O lease cooperativo não
+é tratado como CAS. IndexedDB permanece v4, sem store novo e sem migration.
+Recovery continua fail-closed e nunca executa delete. E7B, `deleteGeneration` e
+UI de retenção não começaram.

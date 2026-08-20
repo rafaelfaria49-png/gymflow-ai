@@ -53,20 +53,35 @@ function relativeSource(file: string): string {
 }
 
 describe('contrato puro de retirement', () => {
-  it('classifica proposta valida sem autorizar escrita ou delete', () => {
+  it('classifica proposta valida sem prova fisica como blocked-physical-proof-missing', () => {
     const result = classifyStorageRetirement(validInput());
     expect(result).toMatchObject({
-      status: 'retirement-classified',
-      reason: 'retirement-classified',
+      status: 'blocked-physical-proof-missing',
+      reason: 'physical-proof-missing',
       candidateGenerationId: 'generation-a',
       reservedPredecessorGenerationId: 'generation-z1',
       currentGenerationId: 'generation-z2',
       supersedeOperationIds: ['reset-z1'],
-      revalidationFingerprint: 'fingerprint-ciclo',
     });
     expectNoAuthority(result);
     expect(Object.isFrozen(result)).toBe(true);
     expect(Object.isFrozen(result.supersedeOperationIds)).toBe(true);
+  });
+
+  it('recusa prova forjada e nao classifica retirement', () => {
+    const forged = {
+      candidateGenerationId: 'generation-a',
+      reservedPredecessorGenerationId: 'generation-z1',
+      currentGenerationId: 'generation-z2',
+      supersedeOperationIds: ['reset-z1'],
+      fingerprint: 'fingerprint-ciclo',
+    };
+    const result = classifyStorageRetirement(validInput({
+      proof: forged,
+      revalidationFingerprint: 'fingerprint-ciclo',
+    }));
+    expect(result.status).toBe('blocked-physical-proof-missing');
+    expectNoAuthority(result);
   });
 
   it('recusa candidata igual a geracao atual', () => {

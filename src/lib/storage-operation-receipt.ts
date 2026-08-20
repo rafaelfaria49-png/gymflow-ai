@@ -255,6 +255,150 @@ export function listActivePredecessorSourceOperationIds(
   return ids;
 }
 
+export type StorageOperationSupersessionValidationReason =
+  | 'malformed'
+  | 'self-reference'
+  | 'missing-operation'
+  | 'receipt-invalid'
+  | 'not-settled'
+  | 'cross-generation'
+  | 'cycle'
+  | 'relation-not-active';
+
+export type StorageOperationSupersessionValidation =
+  | { readonly ok: true; readonly ids: readonly string[] }
+  | {
+      readonly ok: false;
+      readonly reason: StorageOperationSupersessionValidationReason;
+    };
+
+function settledReceiptById(
+  receipts: readonly StorageOperationReceipt[],
+  operationId: string,
+): StorageOperationReceipt | null {
+  for (const receipt of receipts) {
+    if (receipt.operationId !== operationId) continue;
+    if (!isStorageOperationReceipt(receipt)) return null;
+    return receipt;
+  }
+  return null;
+}
+
+function supersessionEdges(
+  receipts: readonly StorageOperationReceipt[],
+): Map<string, readonly string[]> {
+  const known = new Set(
+    receipts
+      .filter((receipt) => receipt.status === 'settled')
+      .map((receipt) => receipt.operationId),
+  );
+  const edges = new Map<string, readonly string[]>();
+  for (const receipt of receipts) {
+    if (receipt.status !== 'settled') continue;
+    edges.set(
+      receipt.operationId,
+      storageOperationSupersedesOperationIds(receipt).filter((id) => known.has(id)),
+    );
+  }
+  return edges;
+}
+
+/**
+ * Detecta ciclo de 2 ou mais nós no grafo de supersessão settled.
+ * Não escolhe por timestamp, ordem de enumeração ou ID lexical: qualquer
+ * ciclo é conflito explícito.
+ */
+export function detectStorageOperationSupersessionCycle(
+  receipts: readonly StorageOperationReceipt[],
+  extraEdge?: { readonly from: string; readonly to: readonly string[] },
+): boolean {
+  const edges = supersessionEdges(receipts);
+  if (extraEdge !== undefined) {
+    const known = new Set(edges.keys());
+    known.add(extraEdge.from);
+    const existing = edges.get(extraEdge.from) ?? [];
+    edges.set(
+      extraEdge.from,
+      [...new Set([...existing, ...extraEdge.to.filter((id) => known.has(id) || id === extraEdge.from)])],
+    );
+  }
+
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const walk = (node: string): boolean => {
+    if (visiting.has(node)) return true;
+    if (visited.has(node)) return false;
+    visiting.add(node);
+    for (const next of edges.get(node) ?? []) {
+      if (walk(next)) return true;
+    }
+    visiting.delete(node);
+    visited.add(node);
+    return false;
+  };
+
+  for (const node of edges.keys()) {
+    if (walk(node)) return true;
+  }
+  return false;
+}
+
+/**
+ * Prova referencial completa antes de aceitar supersedesOperationIds.
+ * Estado inválido falha fechado: não corrige, não escolhe e não persiste.
+ */
+export function validateStorageOperationSupersession(input: {
+  readonly operationId: unknown;
+  readonly supersedesOperationIds: unknown;
+  readonly finalGenerationId: unknown;
+  readonly receipts: readonly StorageOperationReceipt[];
+}): StorageOperationSupersessionValidation {
+  if (!isNonEmptyString(input.operationId) || !isNonEmptyString(input.finalGenerationId)) {
+    return { ok: false, reason: 'malformed' };
+  }
+  const ids = uniqueNonEmptyStrings(input.supersedesOperationIds);
+  if (ids === null) return { ok: false, reason: 'malformed' };
+  if (ids.includes(input.operationId)) return { ok: false, reason: 'self-reference' };
+
+  if (detectStorageOperationSupersessionCycle(input.receipts)) {
+    return { ok: false, reason: 'cycle' };
+  }
+  if (detectStorageOperationSupersessionCycle(input.receipts, {
+    from: input.operationId,
+    to: ids,
+  })) {
+    return { ok: false, reason: 'cycle' };
+  }
+
+  const active = new Set(
+    listActivePredecessorSourceOperationIds(input.receipts, input.finalGenerationId),
+  );
+
+  for (const id of ids) {
+    const named = settledReceiptById(input.receipts, id);
+    if (named === null) {
+      const exists = input.receipts.some((receipt) => receipt.operationId === id);
+      return { ok: false, reason: exists ? 'receipt-invalid' : 'missing-operation' };
+    }
+    if (named.status !== 'settled') return { ok: false, reason: 'not-settled' };
+    if (storageOperationFinalGenerationId(named) !== input.finalGenerationId) {
+      return { ok: false, reason: 'cross-generation' };
+    }
+    if (!active.has(id)) return { ok: false, reason: 'relation-not-active' };
+  }
+
+  return { ok: true, ids: Object.freeze([...ids]) };
+}
+
+export function declaredSupersedesMatchLiveRelations(
+  declared: readonly string[] | undefined,
+  live: readonly string[],
+): boolean {
+  const left = [...(declared ?? [])].sort();
+  const right = [...live].sort();
+  return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
 // Razões fechadas de incompatibilidade entre um receipt não terminal e o estado
 // físico observado (core v2 + metadata + gerações existentes).
 export type StorageOperationIncompatibilityReason =

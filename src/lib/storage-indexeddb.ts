@@ -38,8 +38,22 @@ import {
   type StorageOperationReceiptPatch,
   type StorageOperationStatus,
   canTransitionStorageOperation,
+  declaredSupersedesMatchLiveRelations,
+  detectStorageOperationSupersessionCycle,
   isStorageOperationReceipt,
+  listActivePredecessorSourceOperationIds,
+  storageOperationFinalGenerationId,
+  validateStorageOperationSupersession,
 } from './storage-operation-receipt';
+import {
+  decideStorageRetirementJournalCas,
+  isStorageRetirementJournal,
+  STORAGE_RETIREMENT_JOURNAL_METADATA_KEY,
+  toStorageRetirementJournalWriteResult,
+  type CompareAndPutStorageRetirementJournalInput,
+  type StorageRetirementJournal,
+  type StorageRetirementJournalWriteResult,
+} from './storage-retirement-journal';
 
 export const GYMFLOW_INDEXEDDB_NAME = 'gymflow-persistence';
 // v2 adicionou o manifest por geração; v3 adicionou os receipts duráveis da
@@ -66,6 +80,13 @@ const BY_OPERATION_KIND_INDEX = 'byKind';
 const BY_OPERATION_UPDATED_AT_INDEX = 'byUpdatedAt';
 const LEGACY_SNAPSHOT_ID = 'v1-rollback';
 const INTERNAL_NEXT_ORDER_PREFIX = 'generationNextOrder:';
+const ADMINISTRATION_CAS_STORES = [
+  METADATA_STORE,
+  WORKOUT_HISTORY_STORE,
+  GENERATION_MANIFESTS_STORE,
+  STORAGE_OPERATION_RECEIPTS_STORE,
+  COMPLETION_RECEIPTS_STORE,
+] as const;
 
 // Status administrativos que ainda podem avançar. `settled` e `reverted` são
 // terminais e nunca aparecem na listagem de operações em aberto.
@@ -670,6 +691,10 @@ function fingerprintAdministrationSnapshot(input: {
   receiptCoreMarkers: ReadonlyMap<string, ReceiptCoreMarkers>;
 }): string {
   const metadata = (input.metadataRecords as Partial<MetadataRecord>[])
+    // E7A4: o journal permanece fora do fingerprint para a prova continuar
+    // revalidável após recorded. A corrida é fechada por compare-and-put, não
+    // por incluir `retirementJournal:v1` no retrato global.
+    .filter((record) => record?.key !== STORAGE_RETIREMENT_JOURNAL_METADATA_KEY)
     .map((record) => [String(record?.key), JSON.stringify(record?.value ?? null)] as const)
     .sort((left, right) => left[0].localeCompare(right[0]));
 
@@ -772,6 +797,56 @@ async function markReceiptCores(
     });
   }
   return markers;
+}
+
+function readRetirementJournalRaw(metadataRecords: readonly unknown[]): unknown {
+  for (const entry of metadataRecords) {
+    const record = entry as Partial<MetadataRecord> | null;
+    if (record?.key === STORAGE_RETIREMENT_JOURNAL_METADATA_KEY) {
+      return Object.prototype.hasOwnProperty.call(record, 'value') ? record.value ?? null : null;
+    }
+  }
+  return null;
+}
+
+function retirementJournalRecord(journal: StorageRetirementJournal): MetadataRecord {
+  return {
+    key: STORAGE_RETIREMENT_JOURNAL_METADATA_KEY,
+    value: {
+      schemaVersion: journal.schemaVersion,
+      status: journal.status,
+      candidateGenerationId: journal.candidateGenerationId,
+      reservedPredecessorGenerationId: journal.reservedPredecessorGenerationId,
+      currentGenerationId: journal.currentGenerationId,
+      supersedeOperationIds: [...journal.supersedeOperationIds],
+      originFingerprint: journal.originFingerprint,
+      recordedAt: journal.recordedAt,
+    },
+  };
+}
+
+// Mantém a transação IndexedDB ativa enquanto o SHA-256 dos cores (fora de
+// IDB) calcula o fingerprint. Sem isso o compare-and-put não cabe na mesma
+// transação da revalidação. O ping para antes do put.
+function startMetadataKeepAlive(transaction: IDBTransaction): () => void {
+  let stopped = false;
+  const ping = (): void => {
+    if (stopped) return;
+    try {
+      const request = transaction.objectStore(METADATA_STORE).get(
+        STORAGE_RETIREMENT_JOURNAL_METADATA_KEY,
+      );
+      request.onsuccess = () => {
+        if (!stopped) ping();
+      };
+    } catch {
+      stopped = true;
+    }
+  };
+  ping();
+  return () => {
+    stopped = true;
+  };
 }
 
 export async function checksumLegacySnapshot(
@@ -1577,6 +1652,7 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     try {
       const receiptStore = transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE);
       const existingRecords = await requestResult(receiptStore.getAll()) as unknown[];
+      const existingReceipts: StorageOperationReceipt[] = [];
       for (const record of existingRecords) {
         if (!isStorageOperationReceipt(record)) {
           throw new StorageOperationReceiptIntegrityError(
@@ -1585,6 +1661,53 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
         }
         if (UNSETTLED_OPERATION_STATUSES.includes(record.status)) {
           throw new StorageOperationAlreadyInProgressError(record);
+        }
+        existingReceipts.push(record);
+      }
+
+      if (detectStorageOperationSupersessionCycle(existingReceipts)) {
+        throw new StorageOperationBeginConflictError(
+          'A supersessao settled ja forma um ciclo; o begin recusa persistir.',
+        );
+      }
+
+      const declaredSupersedes = receipt.supersedesOperationIds;
+      if (declaredSupersedes !== undefined) {
+        const finalGenerationId = storageOperationFinalGenerationId(receipt);
+        if (finalGenerationId === null) {
+          throw new StorageOperationBeginConflictError(
+            'A supersessao exige geracao final comprovavel no receipt novo.',
+          );
+        }
+        const validated = validateStorageOperationSupersession({
+          operationId: receipt.operationId,
+          supersedesOperationIds: declaredSupersedes,
+          finalGenerationId,
+          receipts: existingReceipts,
+        });
+        if (!validated.ok) {
+          throw new StorageOperationBeginConflictError(
+            `A supersessao referencial falhou fechada (${validated.reason}).`,
+          );
+        }
+        const liveRelations = listActivePredecessorSourceOperationIds(
+          existingReceipts,
+          finalGenerationId,
+        );
+        if (!declaredSupersedesMatchLiveRelations(declaredSupersedes, liveRelations)) {
+          throw new StorageOperationBeginConflictError(
+            'As relacoes ativas divergiram da supersessao declarada no begin.',
+          );
+        }
+      } else if (receipt.kind === 'restore') {
+        const liveRelations = listActivePredecessorSourceOperationIds(
+          existingReceipts,
+          receipt.targetGenerationId,
+        );
+        if (liveRelations.length > 0) {
+          throw new StorageOperationBeginConflictError(
+            'O begin cru omitiu supersessao obrigatoria das relacoes ativas.',
+          );
         }
       }
 
@@ -2527,6 +2650,141 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       );
     }
     return record;
+  }
+
+  async readStorageRetirementJournal(): Promise<unknown> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(METADATA_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    try {
+      const value = await this.readMetadataValue<unknown>(
+        transaction,
+        STORAGE_RETIREMENT_JOURNAL_METADATA_KEY,
+      );
+      await completed;
+      return value ?? null;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  // Compare-and-put atômico: uma transação readwrite cobre os stores do
+  // retrato administrativo e o metadata do journal. Revalida o fingerprint
+  // (sem incluir retirementJournal:v1), lê o journal atual, decide e só então
+  // grava. Duas transações concorrentes serializam; last-write-win silencioso
+  // é impossível. O lease cooperativo não participa desta primitive.
+  async compareAndPutStorageRetirementJournal(
+    input: CompareAndPutStorageRetirementJournalInput,
+  ): Promise<StorageRetirementJournalWriteResult> {
+    if (
+      !isStorageRetirementJournal(input.journal)
+      || typeof input.expectedFingerprint !== 'string'
+      || input.expectedFingerprint.length === 0
+    ) {
+      return toStorageRetirementJournalWriteResult('blocked-unknown-state', null);
+    }
+
+    const database = this.requireDatabase();
+    const transaction = database.transaction([...ADMINISTRATION_CAS_STORES], 'readwrite');
+    const completed = transactionResult(transaction);
+    let stopKeepAlive: () => void = () => undefined;
+
+    try {
+      const [metadataRecords, historyRecords, manifestRecords, operationRecords, completionRecords] =
+        await Promise.all([
+          requestResult(transaction.objectStore(METADATA_STORE).getAll()) as Promise<unknown[]>,
+          requestResult(transaction.objectStore(WORKOUT_HISTORY_STORE).getAll()) as Promise<HistoryRecord[]>,
+          requestResult(transaction.objectStore(GENERATION_MANIFESTS_STORE).getAll()) as Promise<unknown[]>,
+          requestResult(transaction.objectStore(STORAGE_OPERATION_RECEIPTS_STORE).getAll()) as Promise<unknown[]>,
+          requestResult(transaction.objectStore(COMPLETION_RECEIPTS_STORE).getAll()) as Promise<unknown[]>,
+        ]);
+
+      const operationReceipts: StorageOperationReceipt[] = [];
+      for (const record of operationRecords) {
+        if (!isStorageOperationReceipt(record)) {
+          throw new StorageOperationReceiptIntegrityError(
+            'Existe um receipt administrativo com formato inválido no armazenamento.',
+          );
+        }
+        operationReceipts.push(record);
+      }
+
+      const pendingCompletionReceipts: WorkoutCompletionReceipt[] = [];
+      for (const record of completionRecords) {
+        if (!isWorkoutCompletionReceipt(record)) {
+          throw new CompletionReceiptIntegrityError(
+            'Existe um receipt de conclusão de treino com formato inválido no armazenamento.',
+          );
+        }
+        if (record.status === 'pending') pendingCompletionReceipts.push(record);
+      }
+
+      const recordCounts = new Map<string, number>();
+      for (const record of historyRecords) {
+        if (typeof record?.generationId !== 'string') continue;
+        recordCounts.set(record.generationId, (recordCounts.get(record.generationId) ?? 0) + 1);
+      }
+      const { manifests } = summarizeGenerations(metadataRecords, manifestRecords, recordCounts);
+
+      stopKeepAlive = startMetadataKeepAlive(transaction);
+      const receiptCoreMarkers = await markReceiptCores(operationReceipts, this.subtleCrypto);
+      const actualFingerprint = fingerprintAdministrationSnapshot({
+        metadataRecords,
+        manifests,
+        historyRecords,
+        operationReceipts,
+        pendingCompletionReceipts,
+        receiptCoreMarkers,
+      });
+
+      const decision = decideStorageRetirementJournalCas({
+        expectedFingerprint: input.expectedFingerprint,
+        actualFingerprint,
+        existingRaw: readRetirementJournalRaw(metadataRecords),
+        next: input.journal,
+      });
+
+      if (decision.shouldPut) {
+        if (decision.journal === null) {
+          throw new Error('O compare-and-put recusou gravar um journal nulo.');
+        }
+        await requestResult(transaction.objectStore(METADATA_STORE).put(
+          retirementJournalRecord(decision.journal),
+        ));
+      }
+
+      stopKeepAlive();
+      await completed;
+      return toStorageRetirementJournalWriteResult(decision.status, decision.journal);
+    } catch {
+      stopKeepAlive();
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      return toStorageRetirementJournalWriteResult('blocked-unknown-state', null);
+    }
+  }
+
+  // Fixture de teste: planta um journal sem CAS. Nenhum writer de produção
+  // chama este método.
+  async writeStorageRetirementJournalRecord(journal: StorageRetirementJournal): Promise<void> {
+    if (!isStorageRetirementJournal(journal)) {
+      throw new Error('O journal de retirement está com formato inválido.');
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(METADATA_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+    try {
+      await requestResult(transaction.objectStore(METADATA_STORE).put(
+        retirementJournalRecord(journal),
+      ));
+      await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
   }
 
   // Base otimista do append/reescrita: o digest encadeado precisa ser calculado

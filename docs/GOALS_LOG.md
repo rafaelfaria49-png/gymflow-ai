@@ -4,6 +4,86 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E7A4 — journal atômico de retirement (2026-08-19)
+
+Fecha o P2 residual da E7A3: duas escritas concorrentes divergentes não podem
+terminar em last-write-win silencioso no `retirementJournal:v1`.
+
+**Antes:** o writer lia o snapshot, revalidava a prova e gravava o journal numa
+transação posterior. O fingerprint exclui o journal (para a prova continuar
+revalidável), então duas intenções divergentes podiam ambas ver “ausente” e a
+segunda `put` vencia em silêncio.
+
+**Depois:** persistência é compare-and-put numa única transação `readwrite` dos
+mesmos stores do retrato administrativo. A transação relê o estado, revalida o
+fingerprint, compara o journal atual e só então grava. Equivalente converge
+para `already-recorded`; divergente/malformado/incompleto → conflito sem
+overwrite; fingerprint distinto → `blocked-snapshot-changed`. Owner-token
+permanece no writer de alto nível; o lease não é CAS. IndexedDB permanece v4.
+`executionAuthorized`, `deleteAuthorized` e `plan.delete` continuam
+falsos/vazios. Recovery e boot aprovados na E7A3 não mudam.
+
+**Arquivos principais:** `storage-retirement-journal.ts`, `storage-indexeddb.ts`,
+`storage-retirement-journal.test.ts`, docs.
+
+**Fora de escopo:** E7B, `deleteGeneration`, cleanup, UI de retenção, seletor,
+etapa F, PR novo, merge.
+
+**Validação:**
+- testes focados E7A4/E7A3 (journal/proof/CAS): 28/28
+- `storage-retirement-contract.test.ts`: 7/7
+- regressão storage (predecessor, restore, reset, import, runtime, boot,
+  owner-token, retention planner/evidence/decision, indexeddb, context storage):
+  aprovada em lotes; `storage-retention.test.ts` 45/45 após allowlist do teste
+  do journal
+- `npx vitest run --testTimeout=30000`: 75 arquivos, 2351 testes passaram;
+  1 unhandled `window is not defined` residual do timer de reload em
+  `GymFlowContext.logical-restore.test.tsx` (não é asserção falha). Isolado:
+  esse arquivo 16/16 e `logical-restore.real.test.tsx` 17/17, zero unhandled
+- `npx tsc --noEmit`, `npm run build`, `npm run build:mobile`: aprovados
+- ESLint dos módulos do GOAL: 0; global 12 errors, 7 warnings — idêntico à E7A3
+- `git diff --check` / secret scan: limpos
+
+## GOAL-17B-002E-E7A3 — journal seguro de retirement (2026-08-19)
+
+Fecha os cinco P2 herdados de E7A2 e funda proof + journal de retirement sem
+tornar delete fisicamente possível.
+
+**Antes:** `supersedesOperationIds` aceitava IDs sem prova referencial; ciclo
+mútuo settled virava `unavailable`; begin cru podia persistir janela stale;
+`decision-ready` bloqueava por qualquer receipt; `retirement-classified` não
+exigia prova física.
+
+**Depois:** supersessão falha fechada se o ID não existe, não é settled, cruza
+geração, se referencia, cria ciclo ou já não está ativo no snapshot
+revalidado. Ciclo de 2+ nós é `conflict`. O begin revalida fingerprint e
+relações imediatamente antes de persistir. Settled válido é histórico;
+`decision-ready` volta a ser alcançável só como classificação. A prova é
+capability opaca; o writer exige owner-token, é idempotente e não muta
+gerações. Recovery classifica journal incompleto como bloqueio e nunca apaga.
+IndexedDB permanece v4. `executionAuthorized`, `deleteAuthorized` e
+`plan.delete` continuam falsos/vazios.
+
+**Arquivos principais:** `storage-operation-receipt.ts`, `storage-admin-runtime.ts`,
+`storage-indexeddb.ts`, `storage-logical-restore-resolve.ts`,
+`storage-retention.ts`, `storage-retention-decision.ts`,
+`storage-retirement-contract.ts`, `storage-retirement-proof.ts`,
+`storage-retirement-journal.ts`, `storage-boot-recovery.ts`,
+`storage-admin-owner-token.ts`, `GymFlowContext.tsx`, testes e docs.
+
+**Fora de escopo:** E7B, `deleteGeneration`, cleanup, UI de retenção, seletor,
+etapa F, push/PR.
+
+**Validação:**
+- testes da fundação (proof/journal/ciclo/supersessão/decision-ready): 6 arquivos, 150/150
+- regressão storage (import/restore/reset/predecessor/boot/runtime/token/receipt/retention): 13 arquivos, 701/701
+- `npx vitest run`: 75 arquivos, 2334 testes, 0 falha
+- `npx tsc --noEmit`, `npm run build`, `npm run build:mobile`: aprovados
+- ESLint dos módulos do GOAL: 0; global 12 errors, 7 warnings — idêntico a `origin/master`
+- `git diff --check` / `git show --check` / secret scan: limpos
+
+---
+
 ## GOAL-17B-002E-E7A2 — fundação de supersessão de predecessor (2026-08-16)
 
 A auditoria E7A (Classe C) mostrou que o segundo hop/ping-pong deixava

@@ -5,6 +5,11 @@
 // precisa ser aprovada. Todo o restante falha fechado, sem devolver conteúdo ou
 // identidades do snapshot.
 
+import {
+  isStorageOperationReceipt,
+  isTerminalStorageOperationStatus,
+} from './storage-operation-receipt';
+
 export type StorageRetentionPlanStatus = 'policy-required' | 'blocked';
 
 export type StorageRetentionReason =
@@ -150,8 +155,16 @@ function checkSnapshot(value: unknown): StorageRetentionCheck {
   if (hasOwn(value, 'cleanupPending')) {
     return blocked('cleanup-pending');
   }
-  if (value.operationReceipts.length > 0 || value.unsettledOperations.length > 0) {
+  if (value.unsettledOperations.length > 0) {
     return blocked('operation-receipt-present');
+  }
+  for (const receipt of value.operationReceipts) {
+    if (!isStorageOperationReceipt(receipt)) {
+      return blocked('snapshot-invalid');
+    }
+    if (!isTerminalStorageOperationStatus(receipt.status)) {
+      return blocked('operation-receipt-present');
+    }
   }
   if (value.pendingCompletionReceipts.length > 0) {
     return blocked('completion-receipt-present');
