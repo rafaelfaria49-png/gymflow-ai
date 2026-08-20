@@ -4,6 +4,43 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-17B-002E-E7A5 — política manual de retenção MVP (2026-08-19)
+
+Formaliza somente a política de produto para retenção MVP, sem executor, sem
+delete físico e sem UI.
+
+**Antes:** E7A3/E7A4 fundaram predecessor comprovável, supersessão, prova opaca,
+journal persistível e compare-and-put atômico, mas a política de produto
+(manual vs automática, keep-N, idade/espaço, preview, confirmação) permanecia
+aberta. A decisão agregada ainda contava históricas extras como candidatas
+futuras por cardinalidade.
+
+**Depois:** `storage-retention-policy.ts` avalia uma política MANUAL: no máximo
+uma geração explicitamente selecionada; geração atual, predecessor imediato,
+migration/staged, receipts, recovery, completion e estado ambíguo bloqueiam;
+idade, tamanho, timestamp e ordem de ID/enumeração não desempatam identidade.
+A saída pública é sanitizada, exige preview e declara confirmação humana futura
+separada da seleção. Mesmo `candidate-eligible` mantém `executionAuthorized`
+e `deleteAuthorized` falsos. A decisão agregada passa a proteger todas as
+históricas não selecionadas (`futureDeleteCandidate === 0`). O planner continua
+com `delete: []`.
+
+**Arquivos principais:** `storage-retention-policy.ts`,
+`storage-retention-policy.test.ts`, `storage-retention-decision.ts`,
+`storage-retirement-contract.ts`, testes de decisão/status/contrato e docs.
+
+**Fora de escopo:** E7B, `deleteGeneration`, cleanup, UI de retenção, seletor
+visual, etapa F, push/PR.
+
+**Validação:**
+- testes da política pura: `storage-retention-policy.test.ts` + contrato/decisão/status/planner 128/128
+- regressão E7A2 predecessor, E7A3 proof/journal, E7A4 CAS, planner/evidência/decisão, restore/reset: 9 arquivos, 228/228
+- importação lógica v2: 248/248
+- suíte completa: 76 arquivos, 2373/2373
+- `npx tsc --noEmit`, `npm run build`, `npm run build:mobile`: aprovados
+- ESLint dos módulos do GOAL: 0; global 12 errors, 7 warnings — idêntico à base `ffe87cd` / E7A4
+- `git diff --check` / secret scan: limpos
+
 ## GOAL-17B-002E-E7A4 — journal atômico de retirement (2026-08-19)
 
 Fecha o P2 residual da E7A3: duas escritas concorrentes divergentes não podem

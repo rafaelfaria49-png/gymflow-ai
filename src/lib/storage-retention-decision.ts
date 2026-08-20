@@ -1,12 +1,15 @@
 import type { StorageRetentionEvidence } from './storage-retention-evidence';
 import type { StorageRetentionPlan } from './storage-retention';
 
-// GOAL-17B-002D-D2 — composição pura da decisão de retenção.
+// GOAL-17B-002D-D2 / GOAL-17B-002E-E7A5 — composição pura da decisão de retenção.
 //
 // O planner estrutural e a evidência física já removeram identidades de suas
 // saídas públicas. Esta camada preserva essa fronteira: combina somente enums,
 // booleanos e contagens e nunca escolhe qual geração seria uma candidata.
-// "Candidata futura" é capacidade de classificação, não autoridade de apagar.
+// A política de produto E7A5 é MANUAL: históricas não selecionadas por um
+// humano permanecem protegidas. Não existe keep-N, escolha por idade/espaço
+// nem candidatura automática. futureDeleteCandidate permanece 0 aqui porque
+// esta função não recebe seleção humana.
 
 export type StorageRetentionDecisionStatus =
   | 'decision-ready'
@@ -335,20 +338,14 @@ function ready(
   evidence: StorageRetentionEvidence,
 ): StorageRetentionDecisionReady {
   const historical = evidence.generations.historical;
-  const receiptProtectedHistorical = Math.max(
-    0,
-    historical - evidence.generations.orphan,
-  );
-  const rollbackReserve = historical > 0 ? 1 : 0;
-  const protectedCount = Math.max(rollbackReserve, receiptProtectedHistorical);
   return Object.freeze({
     status: 'decision-ready',
     reason: 'retention-classified',
     generations: freezeCounts(
       evidence.generations.evaluated,
       1,
-      protectedCount,
-      historical - protectedCount,
+      historical,
+      0,
     ),
     bootProofVerified: true,
     ownerTokenRequired: true,
@@ -382,9 +379,10 @@ function activeAndMigrationCollide(evidence: StorageRetentionEvidence): boolean 
 
 /**
  * Combina contratos já sanitizados. Não abre storage, não seleciona ids e não
- * autoriza execução: qualquer executor futuro ainda precisará de política,
- * owner-token, identidade da candidata e revalidação imediatamente antes da
- * mutação.
+ * autoriza execução: a política de produto exige seleção humana explícita de
+ * no máximo uma geração, preview sanitizado e confirmação futura separada.
+ * Qualquer executor ainda precisará de owner-token, prova e revalidação
+ * imediatamente antes da mutação.
  */
 export function decideStorageRetention(
   input: DecideStorageRetentionInput,
