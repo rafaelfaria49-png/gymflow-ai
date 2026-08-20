@@ -1,10 +1,16 @@
-// GOAL-17B-002E-E7A2 — contrato puro de retirement futuro.
+// GOAL-17B-002E-E7A2 / E7A5 — contrato puro de retirement futuro.
 //
 // Classifica uma proposta de retirement com identidades explicitas. Nao abre
 // storage, nao escreve journal, nao apaga geracao e nao autoriza execucao.
-// A saida nomeia candidata, predecessor reservado e relacoes a supersedir
-// apenas para um executor futuro ainda inexistente.
+// A saida identitaria nomeia candidata, predecessor reservado e relacoes a
+// supersedir apenas para um executor futuro ainda inexistente.
+// A saida publica de produto e o gate E7A5: sanitizada, manual, uma candidata
+// por operacao, sem keep-N e sem autoridade executavel.
 
+import {
+  evaluateStorageRetentionPolicy,
+  type StorageRetentionPolicyResult,
+} from './storage-retention-policy';
 import {
   inspectStorageRetirementProof,
   isStorageRetirementProof,
@@ -118,9 +124,20 @@ function blocked(
 }
 
 /**
+ * Gate publico de produto. Nao devolve identidades, nao escreve journal e nao
+ * autoriza delete. A classificacao identitaria permanece interna e insuficiente.
+ */
+export function gateStorageRetirementByProductPolicy(
+  input: unknown,
+): StorageRetentionPolicyResult {
+  return evaluateStorageRetentionPolicy(input);
+}
+
+/**
  * Classifica uma proposta de retirement sem I/O e sem autoridade. Exige prova
  * física opaca: sem ela o estado nunca vira retirement-classified. Qualquer
- * writer ainda precisa de journal, owner-token e revalidacao imediata.
+ * writer ainda precisa de journal, owner-token, politica manual E7A5 e
+ * revalidacao imediata. retirement-classified nao e execucao.
  */
 export function classifyStorageRetirement(
   input: unknown,

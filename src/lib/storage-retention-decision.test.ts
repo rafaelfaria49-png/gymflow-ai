@@ -373,7 +373,7 @@ describe('decisão pura de retenção', () => {
     expectNoAuthority(result);
   });
 
-  it('reserva uma anterior e conta somente as históricas excedentes como candidatas futuras', async () => {
+  it('protege históricas extras até seleção humana explícita, sem keep-N', async () => {
     const result = await decisionFor(withHistorical(
       HISTORICAL_ID,
       'generation-historical-two-PRIVATE_ID',
@@ -387,8 +387,8 @@ describe('decisão pura de retenção', () => {
       generations: {
         evaluated: 4,
         keep: 1,
-        protected: 1,
-        futureDeleteCandidate: 2,
+        protected: 3,
+        futureDeleteCandidate: 0,
       },
     });
     expectNoAuthority(result);

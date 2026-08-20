@@ -1,17 +1,25 @@
 # Pendências
 
+## GOAL-17B-002E-E7A5 — política manual de retenção MVP
+
+- ~~**Política de produto (manual vs automática, N ancestrais, preview, idade/espaço).**~~ Formalizada: manual, uma candidata explícita, predecessor imediato sempre preservado, sem keep-N, sem escolha por idade/espaço, preview e confirmação humana futura obrigatórios.
+- **Retenção executável** continua bloqueada. `deleteGeneration`, cleanup e executor E7B não existem. `executionAuthorized` e `deleteAuthorized` permanecem falsos.
+- **UI de retenção / seletor visual / confirmação destrutiva** não implementadas. O contrato exige preview sanitizado e confirmação separada da seleção; este GOAL não as cria.
+- **E7B / etapa F** não iniciados.
+
 ## GOAL-17B-002E-E7A4 — journal atômico de retirement
 
 - ~~**Corrida last-write-win no journal.**~~ Fechada por compare-and-put na mesma transação da revalidação. IndexedDB permanece v4.
 - **Retenção executável** continua bloqueada. `deleteGeneration`, cleanup e executor E7B não existem.
+- ~~**Política de produto**~~ Formalizada no E7A5 (manual, uma candidata, sem keep-N).
 - **E7B / executor / UI de retenção / seletor / etapa F** não iniciados.
 
 ## GOAL-17B-002E-E7A3 — journal seguro de retirement
 
 - **Retenção executável** continua bloqueada. O journal registra intenção
   comprovada; `deleteGeneration`, cleanup e executor E7B não existem.
-- **Política de produto** (manual vs automática, N ancestrais, preview,
-  idade/espaço) permanece por decidir.
+- ~~**Política de produto** (manual vs automática, N ancestrais, preview,
+  idade/espaço) permanece por decidir.~~ Formalizada no E7A5.
 - **Ciclo explícito no restore público** aparece como `restore-failed`; não há
   UI dedicada de conflito de supersessão.
 - **E7B / executor / UI de retenção / seletor / etapa F** não iniciados.
@@ -20,9 +28,9 @@
 
 - **Retenção executável** continua bloqueada. Journal de retirement existe
   como fundação; `deleteGeneration` e cleanup seguem ausentes.
-- **Política de produto** (manual vs automática, N ancestrais, preview,
-  idade/espaço) permanece por decidir. Esta fundação só garante
-  predecessor único e contrato de identidade.
+- ~~**Política de produto** (manual vs automática, N ancestrais, preview,
+  idade/espaço) permanece por decidir.~~ Formalizada no E7A5. A fundação
+  continua garantindo predecessor único e contrato de identidade.
 - **Receipts legado já ambíguos** continuam `ambiguous` até uma nova
   operação declarar supersessão explícita. Sem migração heurística.
 - **E7B / executor / UI de retenção / etapa F** não iniciados.
@@ -963,12 +971,7 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   *Aberto · P1 · Classe C.* Faltam defaults canônicos, tratamento de identidade,
   completion receipts e protocolo de retomada. *Próximo passo:* congelar esses
   contratos antes de criar receipt ou geração.
-- **17B-002D-D2-P4 — não existe política de retenção por idade/quantidade.**
-  *Aberto · P2 · Classe B.* Após a auditoria independente Classe C do primeiro
-  commit, o corretivo restringiu `policy-required` ao snapshot estável com uma
-  única geração ativa, zero receipt, zero `cleanupPending` e zero referência
-  desconhecida. `delete` continua sempre vazio; sem política aprovada, nem D2
-  nem F podem apagar por heurística.
+- **17B-002D-D2-P4 — política de retenção por idade/quantidade foi recusada.** *Resolvido em E7A5 · P2.* O MVP formaliza retenção MANUAL: sem keep-N, sem trigger por idade/espaço/timestamp/ordem de ID. `delete` continua sempre vazio; nenhuma heurística apaga geração.
 - **17B-002D-D2-P5 — executor de retenção não existe.** *Aberto · P2.* Uma
   execução futura exigirá contrato próprio de prova física, revalidação e
   serialização. O planner não devolve fingerprint, não trata `verified` como
@@ -990,10 +993,10 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
 
 - **17B-002D-D2-P8 — a decisão não seleciona identidade física.** *Aberto · P2.*
   Por privacidade, planner, evidência e decisão expõem somente estados e
-  contagens. `futureDeleteCandidate: N` não diz quais são as N gerações nem qual
-  histórica precisa permanecer como reserva. *Próximo passo:* um executor
-  auditado deverá resolver identidades dentro de um snapshot estável, provar a
-  reserva e revalidar tudo imediatamente antes de qualquer mutação.
+  contagens. E7A5 zera a candidatura automática: históricas não selecionadas
+  ficam protegidas. A política pura ainda precisa de um executor auditado para
+  aplicar a seleção humana, provar a reserva e revalidar imediatamente antes
+  de qualquer mutação.
 - **17B-002D-D2-P9 — a prova de boot ainda não tem correlação de ciclo.**
   *Aberto · P2.* A função pura reconhece o outcome fechado do boot e exige
   `cleanupPending: false`, mas não existe call site que amarre esse outcome à
@@ -1001,11 +1004,11 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   delete são sempre falsos. *Próximo passo:* a integração futura deverá carregar
   uma prova de ciclo não reutilizável ou recolher boot/evidência sob o mesmo
   coordenador.
-- **17B-002D-D2-P10 — candidatura não é política nem execução.** *Aberto · P2.*
-  Continua faltando política aprovada de idade/quantidade, owner-token,
-  serialização entre abas, seleção da candidata, CAS, nova prova A/B e protocolo
-  de falha/retomada. *Próximo passo:* implementar esses contratos em GOAL
-  separado antes de criar qualquer método ou call site mutável.
+- **17B-002D-D2-P10 — política de produto formalizada; execução continua ausente.** *Parcial · P2.*
+  E7A5 definiu política MANUAL, uma candidata explícita, predecessor protegido,
+  preview sanitizado e confirmação humana futura. Continuam faltando executor,
+  UI, serialização de deleção, nova prova A/B e protocolo de falha/retomada.
+  *Próximo passo:* E7B antes de qualquer método ou call site mutável.
 - **Sem novo risco de perda nesta etapa.** O módulo não recebe storage ou
   adapter, não publica IDs e devolve `deleteAuthorized: false` e
   `executionAuthorized: false` em todos os estados. Slice E e Slice F continuam
@@ -1030,9 +1033,10 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   enquanto a primeira mutação ainda termina. O recovery converge o efeito; um
   lock transacional real exigiria outra plataforma/arquitetura.
 - **17B-002D-D2-P5/P8/P10 — executor de retenção continua inexistente.**
-  *Aberto · P2.* O E1 fornece o coordenador, mas não autoriza execução, não
-  resolve IDs de candidatas, não define política, reserva anterior, revalidação
-  A/B ou CAS de deleção. `ownerTokenRequired: true` não vira autorização.
+  *Aberto · P2.* O E1 fornece o coordenador e o E7A5 formaliza a política
+  manual, mas nenhum dos dois autoriza execução, resolve o write de deleção
+  nem revalida A/B imediatamente antes da mutação. `ownerTokenRequired: true`
+  não vira autorização.
 - **17B-002E-E1-P3 — validar comportamento em WebView físico.** *Aberto · P3.*
   Semântica de eventos, suspensão de aba e disponibilidade de storage em
   Capacitor continuam reservadas ao Slice F. O contrato local é determinístico,

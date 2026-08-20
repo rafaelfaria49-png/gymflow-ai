@@ -666,6 +666,7 @@ describe('guards do planner de retenção', () => {
 
     expect(files).toEqual([
       'src/lib/storage-admin-status.ts',
+      'src/lib/storage-retention-policy.test.ts',
       'src/lib/storage-retention.test.ts',
       'src/lib/storage-retention.ts',
       'src/lib/storage-retirement-journal.test.ts',

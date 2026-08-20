@@ -1155,6 +1155,7 @@ describe('guards zero delete da fundacao de retirement', () => {
       'storage-retirement-proof.ts',
       'storage-retirement-journal.ts',
       'storage-retirement-contract.ts',
+      'storage-retention-policy.ts',
     ].map((name) => join(SOURCE_ROOT, 'lib', name));
     const forbidden = [
       /\bdeleteDatabase\b/,

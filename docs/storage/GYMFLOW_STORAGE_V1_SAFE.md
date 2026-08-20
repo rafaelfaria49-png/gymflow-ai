@@ -1673,19 +1673,20 @@ protegida e a candidatura é zero.
 - boot em status ready, hidratação autorizada e zero cleanup pendente;
 - presença de histórica quando `rollbackReserveRequired` for verdadeiro.
 
-A ativa fica em `keep`. Havendo históricas, uma unidade fica em `protected`;
-somente as demais aumentam `futureDeleteCandidate`. Isso não seleciona ID e não
-afirma que o rollback híbrido exista: é apenas uma reserva cardinal conservadora.
+A ativa fica em `keep`. Havendo históricas, todas permanecem em `protected`
+até uma seleção humana explícita na política de produto (E7A5);
+`futureDeleteCandidate` nesta camada é 0. Isso não seleciona ID e não
+afirma que o rollback híbrido exista: é preservação conservadora, não keep-N.
 
 O resultado é deep-frozen e nunca contém generation/session id, digest,
 fingerprint, manifest, receipt, raw, mensagem de storage, stack ou `cause`.
 `ownerTokenRequired` permanece verdadeiro e tanto `executionAuthorized` quanto
 `deleteAuthorized` permanecem falsos, inclusive em `decision-ready`.
 
-O executor futuro ainda precisará definir política, correlacionar boot e
+O executor futuro ainda precisará da política E7A5, correlacionar boot e
 evidência no mesmo ciclo, resolver identidades, proteger a geração anterior
 correta, adquirir owner-token, revalidar snapshot/prova e aplicar CAS antes de
-qualquer exclusão. Nada disso, nem UI, Provider, E ou F, começou nesta etapa.
+qualquer exclusão. Nada disso, nem UI, Provider ou etapa F, começou nesta etapa.
 
 ## GOAL-17B-002E-E1 — lease administrativo cooperativo
 
@@ -1782,3 +1783,36 @@ concorrentes produzem `recorded` + `already-recorded`. O lease cooperativo não
 é tratado como CAS. IndexedDB permanece v4, sem store novo e sem migration.
 Recovery continua fail-closed e nunca executa delete. E7B, `deleteGeneration` e
 UI de retenção não começaram.
+
+## GOAL-17B-002E-E7A5 — política manual de retenção MVP
+
+A política de produto é um contrato puro, sem I/O, sem writer de journal, sem
+owner-token e sem autoridade de delete.
+
+Retenção é MANUAL. Não há cleanup em background, trigger por idade ou espaço,
+timer nem execução no boot. Cada operação futura pode aposentar no máximo uma
+geração, e somente se um humano a tiver selecionado explicitamente. Keep-N
+arbitrário é recusado (`blocked-policy-disabled`).
+
+São sempre preservados: geração atual, predecessor imediato comprovado,
+`activeGeneration`, `migrationGeneration`, gerações staged, alvos protegidos
+por operação, referências de recovery, completion pendente e qualquer geração
+cuja segurança esteja ambígua. Ancestrais adicionais só se tornam candidatos
+quando nomeados e comprovadamente não protegidos.
+
+Idade, tamanho, timestamp, ordem lexical de ID e ordem de enumeração do
+IndexedDB podem existir como informação, mas nunca escolhem identidade. O
+preview público, obrigatório antes de qualquer delete futuro, publica somente
+contagens aproximadas, a garantia de que o predecessor imediato permanece e o
+aviso de irreversibilidade — sem `generationId`, `operationId`, receipt, raw,
+digest, fingerprint ou owner-token. A confirmação destrutiva futura deve ser
+humana e distinta do ato de selecionar a candidata.
+
+Estados fechados: `candidate-eligible`, `blocked-current-generation`,
+`blocked-immediate-predecessor`, `blocked-protected-reference`,
+`blocked-ambiguous`, `blocked-not-explicitly-selected`,
+`blocked-multiple-candidates`, `blocked-policy-disabled`.
+
+Mesmo em `candidate-eligible`, `executionAuthorized === false` e
+`deleteAuthorized === false`. O planner de retenção continua com lista de
+delete vazia. E7B, `deleteGeneration`, cleanup, UI e etapa F não começaram.

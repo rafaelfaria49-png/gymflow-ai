@@ -2,6 +2,15 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-17B-002E-E7A5 — política manual de retenção MVP (2026-08-19)
+
+- **Retenção MVP é somente manual:** sem cleanup em background, timer, boot, idade ou espaço como gatilho ou desempate de identidade.
+- **Uma candidata por operação futura:** duas seleções bloqueiam; zero seleção bloqueia; keep-N arbitrário é `blocked-policy-disabled`.
+- **Predecessor imediato e referências protegidas nunca saem:** atual, `activeGeneration`, migration, staged, receipts/recovery/completion e estado ambíguo permanecem preservados.
+- **Idade/espaço/timestamp/ordem de ID ou IndexedDB não escolhem candidata:** só seleção humana explícita; ancestrais extras só após nomeação e prova de segurança.
+- **Preview sanitizado e confirmação futura são contratuais:** a UI futura precisa de preview sem IDs/secrets e de confirmação destrutiva separada da seleção; este GOAL não implementa UI, executor nem delete.
+- **Decisão agregada deixa `futureDeleteCandidate` em 0:** históricas não selecionadas ficam em `protected`; candidatura não é cardinalidade.
+
 ## GOAL-17B-002E-E7A4 — journal atômico de retirement (2026-08-19)
 
 - **CAS na mesma transação da revalidação:** `compareAndPutStorageRetirementJournal` lê o retrato administrativo e o journal, decide e só então faz `put`. `retirementJournal:v1` continua fora do fingerprint; keep-alive de metadata cobre o SHA-256. O lease cooperativo não é CAS.

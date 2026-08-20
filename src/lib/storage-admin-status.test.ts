@@ -258,14 +258,14 @@ describe('storage-admin-status — composição sanitizada read-only', () => {
     expect(value.deleteAuthorized).toBe(false);
   });
 
-  it('publica somente contagens para candidatas futuras e mantém as autorizações falsas', async () => {
+  it('não publica candidatas futuras automáticas e mantém as autorizações falsas', async () => {
     const value = await createReader({ evidence: evidence(3) }).reader.inspect();
     expect(value.overall).toBe('healthy');
     expect(value.retention).toEqual({
       status: 'ready',
       keep: 1,
-      protected: 1,
-      futureDeleteCandidate: 2,
+      protected: 3,
+      futureDeleteCandidate: 0,
     });
     expect(value.executionAuthorized).toBe(false);
     expect(value.deleteAuthorized).toBe(false);

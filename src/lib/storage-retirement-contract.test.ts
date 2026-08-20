@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   classifyStorageRetirement,
+  gateStorageRetirementByProductPolicy,
   type StorageRetirementClassification,
 } from './storage-retirement-contract';
 
@@ -109,6 +110,46 @@ describe('contrato puro de retirement', () => {
     })).status).toBe('blocked-unknown-state');
     expect(classifyStorageRetirement(null).status).toBe('blocked-unknown-state');
     expectNoAuthority(classifyStorageRetirement(null));
+  });
+});
+
+describe('gate de produto do retirement', () => {
+  it('devolve saida sanitizada e sem autoridade mesmo quando elegivel', () => {
+    const result = gateStorageRetirementByProductPolicy({
+      mode: 'manual',
+      selectedGenerationIds: ['generation-candidate-PRIVATE_ID'],
+      currentGenerationId: 'generation-current-PRIVATE_ID',
+      immediatePredecessorGenerationId: 'generation-predecessor-PRIVATE_ID',
+      predecessorResolution: 'proved',
+      protectedGenerationIds: [],
+      activeGenerationId: 'generation-current-PRIVATE_ID',
+      migrationGenerationId: null,
+      stagedGenerationIds: [],
+      recoveryGenerationIds: [],
+      pendingCompletionGenerationIds: [],
+      operationProtectedGenerationIds: [],
+      associatedSessionCount: 2,
+      associatedDataCount: 1,
+    });
+    expect(result.status).toBe('candidate-eligible');
+    expect(result.executionAuthorized).toBe(false);
+    expect(result.deleteAuthorized).toBe(false);
+    expect(result.ownerTokenRequired).toBe(true);
+    expect(result.humanConfirmationRequired).toBe(true);
+    expect(result.selectionIsNotConfirmation).toBe(true);
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('generation-candidate-PRIVATE_ID');
+    expect(serialized).not.toContain('generation-predecessor-PRIVATE_ID');
+    expect(serialized).not.toContain('generation-current-PRIVATE_ID');
+  });
+
+  it('nao transforma classificacao identitaria em execucao', () => {
+    const classified = classifyStorageRetirement(validInput());
+    expect(classified.status).toBe('blocked-physical-proof-missing');
+    expectNoAuthority(classified);
+    expect(classified.executionAuthorized).toBe(false);
+    expect(classified.deleteAuthorized).toBe(false);
+    expect(classified.writeAuthorized).toBe(false);
   });
 });
 
