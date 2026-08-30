@@ -750,7 +750,10 @@ describe('guards da evidência física de retenção', () => {
       .map(relativeSource)
       .sort();
 
-    expect(callers).toEqual(['src/lib/storage-retention-evidence.ts']);
+    expect(callers).toEqual([
+      'src/lib/storage-retention-evidence.ts',
+      'src/lib/storage-retirement-readiness.ts',
+    ]);
   });
 
   it('não altera package.json nem package-lock.json por contrato de fonte', () => {

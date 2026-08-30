@@ -670,6 +670,8 @@ describe('guards do planner de retenção', () => {
       'src/lib/storage-retention.test.ts',
       'src/lib/storage-retention.ts',
       'src/lib/storage-retirement-journal.test.ts',
+      'src/lib/storage-retirement-readiness.test.ts',
+      'src/lib/storage-retirement-readiness.ts',
     ]);
   });
 
@@ -699,6 +701,9 @@ describe('guards do planner de retenção', () => {
       .map(relativeSource)
       .sort();
 
-    expect(callers).toEqual(['src/lib/storage-retention.ts']);
+    expect(callers).toEqual([
+      'src/lib/storage-retention.ts',
+      'src/lib/storage-retirement-readiness.ts',
+    ]);
   });
 });

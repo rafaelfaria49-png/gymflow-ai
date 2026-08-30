@@ -1816,3 +1816,34 @@ Estados fechados: `candidate-eligible`, `blocked-current-generation`,
 Mesmo em `candidate-eligible`, `executionAuthorized === false` e
 `deleteAuthorized === false`. O planner de retenção continua com lista de
 delete vazia. E7B, `deleteGeneration`, cleanup, UI e etapa F não começaram.
+
+## GOAL-17B-002E-E7A6 — correlação de executor readiness
+
+A fundação read-only prova que boot seguro, snapshot físico, evidence,
+seleção manual, política, proof de retirement e journal descrevem o mesmo
+mundo administrativo estável. Ela não implementa executor e não autoriza delete.
+
+Boot e evidence deixam de ser combináveis como objetos de ciclos diferentes.
+`proveStorageRetirementReadiness` executa o ciclo vivo: `runStorageBootRecovery`
+precisa terminar em estado seguro com hidratação permitida; a evidence é
+coletada na hora; o fingerprint do retrato administrativo é lido antes da
+evidence e de novo no fechamento; geração atual, predecessor reservado e
+candidata explícita são revalidados; a política permanece `candidate-eligible`;
+a proof opaca é revalidada no mesmo fingerprint; o journal está ausente ou
+`recorded` da mesma intenção. Evidence antiga não entra por contagens coincidentes.
+
+A capability de readiness é opaca (WeakSet). Literal, clone, spread e JSON
+roundtrip não fabricam `readiness-proven`. Ela não é persistida. A superfície
+pública não publica fingerprint, `generationId` nem outras identidades físicas.
+
+Boot bloqueado permanece bloqueado. `blocked-recovery-required`,
+`blocked-administration-conflicted`, `blocked-operation-conflict` e
+`blocked-storage-unavailable` nunca viram estado pronto. Readiness não escolhe
+candidata: idade, tamanho, timestamp e ordem de enumeração não alteram
+identidade.
+
+Mesmo em `readiness-proven`, `executionAuthorized === false`,
+`deleteAuthorized === false`, `executorReady === false` e
+`physicalDeleteReady === false`. O planner continua com `delete: []`.
+IndexedDB permanece v4. E7B, `deleteGeneration`, cleanup, UI e etapa F não
+começaram.

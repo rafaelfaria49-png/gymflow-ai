@@ -2,6 +2,14 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-17B-002E-E7A6 — corretivo final do journal stale race (2026-08-29)
+
+- **Markers assíncronos antes do fechamento:** `markReceiptCores` termina antes da transação readonly final; essa transação relê snapshot, receipts e `retirementJournal:v1`, e qualquer mudança dos cores entre as duas leituras bloqueia sem alterar a semântica do fingerprint.
+
+## GOAL-17B-002E-E7A6 — correlação de executor readiness (2026-08-20)
+
+- **Readiness correlaciona um ciclo vivo, não objetos pré-computados:** boot, evidence, snapshot A/B, predecessor, seleção, policy, proof e journal são observados no mesmo fechamento; a capability opaca não é persistida e não autoriza execução.
+
 ## GOAL-17B-002E-E7A5 — política manual de retenção MVP (2026-08-19)
 
 - **Retenção MVP é somente manual:** sem cleanup em background, timer, boot, idade ou espaço como gatilho ou desempate de identidade.
