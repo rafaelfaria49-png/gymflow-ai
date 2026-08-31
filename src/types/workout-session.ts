@@ -12,6 +12,7 @@
 // src/lib/workout-session-domain.ts.
 
 import type { WorkoutSession } from './index';
+import type { ExerciseGroupType } from '../domain/techniques/types';
 
 /**
  * Situação de uma sessão.
@@ -82,6 +83,10 @@ export interface SessionPlanEntry {
   repRange?: [number, number];
   targetRPE?: number;
   restSec?: number;
+  groupId?: string;
+  groupOrder?: number;
+  groupRestSec?: number;
+  groupType?: ExerciseGroupType;
 }
 
 /** Plano imutável derivado da origem escolhida no início do treino. */

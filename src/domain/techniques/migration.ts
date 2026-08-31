@@ -2,6 +2,8 @@ import type { ActiveExercise, WorkoutSession } from '../../types';
 import type {
   TechniqueId,
   TechniqueLog,
+  TechniqueMiniSetLog,
+  TechniqueMiniSetPlan,
   TechniquePlan,
   TechniqueRepTarget,
   TechniqueSetLog,
@@ -11,6 +13,7 @@ import type {
 } from './types';
 import { createInitialTechniqueLog } from './model';
 import { TECHNIQUE_IDS } from './profileRules';
+import { normalizeExerciseGroups } from './grouping';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -70,6 +73,20 @@ function normalizeSetPlan(value: unknown, index: number): TechniqueSetPlan | und
   };
 }
 
+function sameMiniSetPlan(a: TechniqueMiniSetPlan, b: TechniqueMiniSetPlan): boolean {
+  return a.id === b.id && a.index === b.index && a.reps === b.reps && a.restSec === b.restSec;
+}
+
+function normalizeMiniSetPlan(value: unknown, index: number): TechniqueMiniSetPlan | undefined {
+  if (!isRecord(value)) return undefined;
+  return {
+    id: typeof value.id === 'string' && value.id ? value.id : `mini_set_${index + 1}`,
+    index,
+    reps: repsOr(value.reps, 3),
+    restSec: Math.max(0, Math.round(numberOr(value.restSec, 15))),
+  };
+}
+
 /** Normaliza apenas dados de técnica; sem técnica, devolve undefined. */
 export function normalizeTechniquePlan(value: unknown): TechniquePlan | undefined {
   if (!isRecord(value) || !isTechniqueId(value.type)) return undefined;
@@ -89,7 +106,19 @@ export function normalizeTechniquePlan(value: unknown): TechniquePlan | undefine
     );
     if (setPlans.length > 0) plan.setPlans = setPlans;
   }
+  if (typeof source.baseWeight === 'number' && Number.isFinite(source.baseWeight)) {
+    plan.baseWeight = Math.max(0, source.baseWeight);
+  }
   if (source.targetReps === 'max' || typeof source.targetReps === 'number') plan.targetReps = repsOr(source.targetReps, 1);
+  if (typeof source.pauseSec === 'number' && Number.isFinite(source.pauseSec)) {
+    plan.pauseSec = Math.max(0, Math.round(source.pauseSec));
+  }
+  if (Array.isArray(value.miniSets)) {
+    const miniSets = value.miniSets.map((mini, index) => normalizeMiniSetPlan(mini, index)).filter(
+      (mini): mini is TechniqueMiniSetPlan => Boolean(mini),
+    );
+    if (miniSets.length > 0) plan.miniSets = miniSets;
+  }
   if (typeof source.tempo === 'string' && source.tempo) plan.tempo = source.tempo;
   if (typeof source.holdSec === 'number' && Number.isFinite(source.holdSec)) plan.holdSec = Math.max(0, source.holdSec);
   if (typeof source.partialReps === 'number' && Number.isFinite(source.partialReps)) plan.partialReps = Math.max(0, Math.round(source.partialReps));
@@ -98,6 +127,7 @@ export function normalizeTechniquePlan(value: unknown): TechniquePlan | undefine
 
   const sourceStages = Array.isArray(value.stages) ? value.stages : undefined;
   const sourceSets = Array.isArray(value.setPlans) ? value.setPlans : undefined;
+  const sourceMiniSets = Array.isArray(value.miniSets) ? value.miniSets : undefined;
   const stagesSame = sourceStages === undefined
     ? plan.stages === undefined
     : plan.stages?.length === sourceStages.length
@@ -106,9 +136,13 @@ export function normalizeTechniquePlan(value: unknown): TechniquePlan | undefine
     ? plan.setPlans === undefined
     : plan.setPlans?.length === sourceSets.length
       && plan.setPlans.every((set, index) => sameSetPlan(set, sourceSets[index] as TechniqueSetPlan));
-  const scalarKeys: (keyof TechniquePlan)[] = ['id', 'label', 'targetReps', 'tempo', 'holdSec', 'partialReps', 'partialRange', 'notes'];
+  const miniSetsSame = sourceMiniSets === undefined
+    ? plan.miniSets === undefined
+    : plan.miniSets?.length === sourceMiniSets.length
+      && plan.miniSets.every((mini, index) => sameMiniSetPlan(mini, sourceMiniSets[index] as TechniqueMiniSetPlan));
+  const scalarKeys: (keyof TechniquePlan)[] = ['id', 'label', 'baseWeight', 'targetReps', 'pauseSec', 'tempo', 'holdSec', 'partialReps', 'partialRange', 'notes'];
   const scalarsSame = scalarKeys.every((key) => plan[key] === source[key]);
-  return stagesSame && setsSame && scalarsSame ? value as unknown as TechniquePlan : plan;
+  return stagesSame && setsSame && miniSetsSame && scalarsSame ? value as unknown as TechniquePlan : plan;
 }
 
 function sameStageLog(a: TechniqueStageLog, b: TechniqueStageLog): boolean {
@@ -156,14 +190,37 @@ function normalizeTechniqueSetLog(value: unknown, index: number, fallback?: Tech
   return normalized;
 }
 
+function sameMiniSetLog(a: TechniqueMiniSetLog, b: TechniqueMiniSetLog): boolean {
+  return a.id === b.id && a.index === b.index && a.reps === b.reps
+    && a.restSec === b.restSec && a.completed === b.completed && a.failed === b.failed && a.updatedAt === b.updatedAt;
+}
+
+function normalizeMiniSetLog(value: unknown, index: number, fallback?: TechniqueMiniSetPlan): TechniqueMiniSetLog | undefined {
+  if (!isRecord(value) && !fallback) return undefined;
+  const source = isRecord(value) ? value : {};
+  const normalized: TechniqueMiniSetLog = {
+    id: typeof source.id === 'string' && source.id ? source.id : fallback?.id ?? `mini_set_${index + 1}`,
+    index,
+    reps: Math.max(0, Math.round(numberOr(source.reps, fallback?.reps === 'max' ? 0 : fallback?.reps ?? 0))),
+    restSec: Math.max(0, Math.round(numberOr(source.restSec, fallback?.restSec ?? 15))),
+    completed: source.completed === true,
+  };
+  if (source.failed === true) normalized.failed = true;
+  if (typeof source.updatedAt === 'number' && Number.isFinite(source.updatedAt)) normalized.updatedAt = source.updatedAt;
+  return normalized;
+}
+
 export function normalizeTechniqueLog(value: unknown, plan?: TechniquePlan): TechniqueLog | undefined {
-  if (!isRecord(value) && !plan) return undefined;
+  if (!isRecord(value)) {
+    return plan ? createInitialTechniqueLog(plan) : undefined;
+  }
   const source = isRecord(value) ? value : {};
   const type = isTechniqueId(source.type) ? source.type : plan?.type;
   if (!type) return undefined;
   const normalized: TechniqueLog = { type };
   const sourceStages = Array.isArray(source.stages) ? source.stages : undefined;
   const sourceSets = Array.isArray(source.sets) ? source.sets : undefined;
+  const sourceMiniSets = Array.isArray(source.miniSets) ? source.miniSets : undefined;
   if (sourceStages || plan?.stages) {
     normalized.stages = (sourceStages ?? []).map((stage, index) => normalizeStageLog(stage, index, plan?.stages?.[index])).filter(
       (stage): stage is TechniqueStageLog => Boolean(stage),
@@ -175,6 +232,14 @@ export function normalizeTechniqueLog(value: unknown, plan?: TechniquePlan): Tec
       (set): set is TechniqueSetLog => Boolean(set),
     );
     if (!sourceSets && plan?.setPlans) normalized.sets = plan.setPlans.map((set, index) => normalizeTechniqueSetLog(undefined, index, set) as TechniqueSetLog);
+  }
+  if (sourceMiniSets || plan?.miniSets) {
+    normalized.miniSets = (sourceMiniSets ?? []).map((mini, index) => normalizeMiniSetLog(mini, index, plan?.miniSets?.[index])).filter(
+      (mini): mini is TechniqueMiniSetLog => Boolean(mini),
+    );
+    if (!sourceMiniSets && plan?.miniSets) {
+      normalized.miniSets = plan.miniSets.map((mini, index) => normalizeMiniSetLog(undefined, index, mini) as TechniqueMiniSetLog);
+    }
   }
   if (typeof source.notes === 'string' && source.notes) normalized.notes = source.notes;
   if (typeof source.updatedAt === 'number' && Number.isFinite(source.updatedAt)) normalized.updatedAt = source.updatedAt;
@@ -188,8 +253,12 @@ export function normalizeTechniqueLog(value: unknown, plan?: TechniquePlan): Tec
     ? normalized.sets?.length === sourceSets.length
       && normalized.sets.every((set, index) => sameTechniqueSetLog(set, sourceSets[index] as TechniqueSetLog))
     : !normalized.sets;
+  const miniSetsSame = Array.isArray(sourceMiniSets)
+    ? normalized.miniSets?.length === sourceMiniSets.length
+      && normalized.miniSets.every((mini, index) => sameMiniSetLog(mini, sourceMiniSets[index] as TechniqueMiniSetLog))
+    : !normalized.miniSets;
   const scalarSame = original.type === normalized.type && original.notes === normalized.notes && original.updatedAt === normalized.updatedAt;
-  return value && stagesSame && setsSame && scalarSame ? value as TechniqueLog : normalized;
+  return stagesSame && setsSame && miniSetsSame && scalarSame ? value as unknown as TechniqueLog : normalized;
 }
 
 export function migrateTechniqueExercise(exercise: ActiveExercise): ActiveExercise {
@@ -210,7 +279,8 @@ export function migrateTechniqueExercise(exercise: ActiveExercise): ActiveExerci
 }
 
 export function migrateTechniqueSession(session: WorkoutSession): WorkoutSession {
-  const exercises = session.exercises.map(migrateTechniqueExercise);
+  const grouped = normalizeExerciseGroups(session.exercises);
+  const exercises = grouped.map(migrateTechniqueExercise);
   return exercises.every((exercise, index) => exercise === session.exercises[index])
     ? session
     : { ...session, exercises };

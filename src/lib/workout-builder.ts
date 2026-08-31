@@ -40,6 +40,7 @@ import {
   resolveWorkoutDayName,
 } from './workout-day-naming';
 import { buildDayFocusFilterResult } from './workout-picker';
+import { normalizeExerciseGroups } from '../domain/techniques/grouping';
 
 /** Teto defensivo de dias por programa; não é uma recomendação de treino. */
 export const MAX_PROGRAM_DAYS = 7;
@@ -258,7 +259,7 @@ export function removeSlotFromDay(
   dayId: string,
   index: number,
 ): WorkoutProgramBuilderDraft {
-  return updateDaySlots(draft, dayId, (slots) => slots.filter((_, i) => i !== index));
+  return updateDaySlots(draft, dayId, (slots) => normalizeExerciseGroups(slots.filter((_, i) => i !== index)));
 }
 
 export function duplicateSlotInDay(
@@ -269,7 +270,12 @@ export function duplicateSlotInDay(
   return updateDaySlots(draft, dayId, (slots) => {
     if (index < 0 || index >= slots.length) return slots;
     const copy = [...slots];
-    copy.splice(index + 1, 0, ...cloneSlots([slots[index]]));
+    const [duplicated] = cloneSlots([slots[index]]);
+    delete duplicated.groupId;
+    delete duplicated.groupOrder;
+    delete duplicated.groupRestSec;
+    delete duplicated.groupType;
+    copy.splice(index + 1, 0, duplicated);
     return copy;
   });
 }

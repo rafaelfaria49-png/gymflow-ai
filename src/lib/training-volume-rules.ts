@@ -129,6 +129,7 @@ export const DURATION_RULES = Object.freeze({
     differentEquipment: 60,
     sameBarbellOrPlates: 45,
     barbellOrPlates: 75,
+    intraGroup: 30,
     genericExtra: 15,
   }),
   setupSecondsByCategory: Object.freeze({

@@ -51,8 +51,10 @@ import {
   serializeDraftSignature,
   toggleDayMuscleGroup,
   updateDayInDraft,
+  updateDaySlots,
   updateSlotInDay,
 } from '../lib/workout-builder';
+import { createExerciseGroup, normalizeExerciseGroups, ungroupExerciseSlots } from '../domain/techniques/grouping';
 import {
   createEmptyWorkoutDraftFromFrequency,
   createWorkoutDraftFromTemplate,
@@ -620,6 +622,7 @@ export const WorkoutBuilder = () => {
       </div>
 
       <WorkoutDaysEditor
+        key={`${selectedDay.id}-${selectedDay.slots.length}`}
         day={selectedDay}
         exercises={exercises}
         estimate={selectedEstimate}
@@ -651,6 +654,23 @@ export const WorkoutBuilder = () => {
         onOpenPicker={() => setPickerOpen(true)}
         onOpenSuggestion={() => setSuggestionOpen(true)}
         onSlotChange={(index, fields) => setDraft(updateSlotInDay(draft, selectedDay.id, index, fields))}
+        onGroupCreate={(indices, groupType, groupRestSec) => {
+          setDraft((current) => updateDaySlots(current, selectedDay.id, (slots) => normalizeExerciseGroups(
+            createExerciseGroup(
+              slots,
+              indices,
+              { groupId: createBuilderId('group'), groupType, groupRestSec },
+            ),
+          )));
+          toast.success('Grupo criado. A pausa será aplicada somente ao fim de cada rodada.');
+        }}
+        onGroupRemove={(groupIds) => {
+          setDraft((current) => updateDaySlots(current, selectedDay.id, (slots) => groupIds.reduce(
+            (nextSlots, groupId) => ungroupExerciseSlots(nextSlots, groupId),
+            slots,
+          )));
+          toast.info('Grupo desfeito; os exercícios continuam no dia.');
+        }}
         techniqueLevel={user?.level ?? draft.level}
         techniqueUnlocks={user?.techniqueUnlocks ?? []}
         onTechniqueUnlock={unlockTechnique}

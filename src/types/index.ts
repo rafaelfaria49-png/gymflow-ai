@@ -97,8 +97,11 @@ export type {
 
 export type {
   TechniqueGate,
+  ExerciseGroupType,
   TechniqueId,
   TechniqueLog,
+  TechniqueMiniSetLog,
+  TechniqueMiniSetPlan,
   TechniqueMetrics,
   TechniquePlan,
   TechniqueRepTarget,
@@ -110,6 +113,7 @@ export type {
   TechniqueType,
   TechniqueValidationIssue,
   TechniqueValidationResult,
+  WorkoutGroupType,
 } from '../domain/techniques/types';
 
 export interface WeeklyWorkoutDay {
@@ -139,6 +143,11 @@ export interface ExerciseSlot {
   incrementKg: number;
   /** GOAL-26: técnica especial atribuída ao slot; ausente = série convencional. */
   technique?: import('../domain/techniques/types').TechniquePlan;
+  /** GOAL-27: agrupamento alternado; todos os campos são opcionais para legados. */
+  groupId?: string;
+  groupOrder?: number;
+  groupRestSec?: number;
+  groupType?: import('../domain/techniques/types').ExerciseGroupType;
 }
 
 export interface TechniqueFrame {
@@ -261,6 +270,8 @@ export interface WorkoutSet {
   rpe?: number;
   /** GOAL-26: materialização opcional de pyramid/back_off sem alterar séries legadas. */
   setPlan?: import('../domain/techniques/types').TechniqueSetPlan;
+  /** GOAL-27: rodada 1-based da entrada dentro de um grupo alternado. */
+  groupRound?: number;
 }
 
 export interface ActiveExercise {
@@ -293,6 +304,11 @@ export interface ActiveExercise {
   techniquePlan?: import('../domain/techniques/types').TechniquePlan;
   /** GOAL-26: execução por stages/sets especiais, editável antes e depois da sessão. */
   techniqueLog?: import('../domain/techniques/types').TechniqueLog;
+  /** GOAL-27: snapshot do grupo copiado do slot; ausente em sessões legadas. */
+  groupId?: string;
+  groupOrder?: number;
+  groupRestSec?: number;
+  groupType?: import('../domain/techniques/types').ExerciseGroupType;
 }
 
 export interface WorkoutSession {

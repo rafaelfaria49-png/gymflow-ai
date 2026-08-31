@@ -1,6 +1,6 @@
 import type { TrainingExperienceLevel } from '../../types/training-profile';
 
-/** Técnicas especiais suportadas no GOAL-26. Superset/rest-pause não fazem parte do contrato. */
+/** Técnicas especiais suportadas pelo plano de treino e pelo registro ativo. */
 export type TechniqueId =
   | 'drop_set'
   | 'pyramid'
@@ -8,10 +8,18 @@ export type TechniqueId =
   | 'to_failure'
   | 'tempo'
   | 'iso_hold'
-  | 'partials';
+  | 'partials'
+  | 'rest_pause'
+  | 'cluster';
 
 /** Alias semântico usado por componentes que exibem o seletor de técnica. */
 export type TechniqueType = TechniqueId;
+
+/** Agrupamentos de exercícios executados em rodadas alternadas. */
+export type ExerciseGroupType = 'bi_set' | 'superset' | 'tri_set' | 'giant_set';
+
+/** Alias usado por integrações que tratam o grupo como uma variante de set. */
+export type WorkoutGroupType = ExerciseGroupType;
 
 export type TechniqueRepTarget = number | 'max';
 
@@ -39,6 +47,24 @@ export interface TechniqueSetPlan {
   restSec: number;
 }
 
+/** Mini-série de rest-pause: a carga pertence à série base; aqui entram só reps. */
+export interface TechniqueMiniSetPlan {
+  id: string;
+  index: number;
+  reps: TechniqueRepTarget;
+  restSec: number;
+}
+
+export interface TechniqueMiniSetLog {
+  id: string;
+  index: number;
+  reps: number;
+  restSec: number;
+  completed: boolean;
+  failed?: boolean;
+  updatedAt?: number;
+}
+
 /** Plano atribuído a um slot do builder e copiado para a sessão ativa. */
 export interface TechniquePlan {
   type: TechniqueId;
@@ -48,7 +74,12 @@ export interface TechniquePlan {
   stages?: TechniqueStagePlan[];
   /** Obrigatório na prática para pyramid/back_off; opcional para planos legados. */
   setPlans?: TechniqueSetPlan[];
+  /** Carga da série base usada por rest-pause; os mini-sets registram somente reps. */
+  baseWeight?: number;
   targetReps?: TechniqueRepTarget;
+  /** Pausa curta entre mini-sets de rest-pause ou blocos de cluster. */
+  pauseSec?: number;
+  miniSets?: TechniqueMiniSetPlan[];
   tempo?: string;
   holdSec?: number;
   partialReps?: number;
@@ -85,6 +116,7 @@ export interface TechniqueLog {
   type: TechniqueId;
   stages?: TechniqueStageLog[];
   sets?: TechniqueSetLog[];
+  miniSets?: TechniqueMiniSetLog[];
   notes?: string;
   updatedAt?: number;
 }

@@ -12,5 +12,10 @@ describe('profileRules — gating educativo de técnicas', () => {
     expect(getTechniqueGate('beginner', 'drop_set', ['drop_set']).educationRequired).toBe(true);
     expect(normalizeTechniqueUnlocks(['drop_set', 'drop_set', 'invalid', null])).toEqual(['drop_set']);
   });
-});
 
+  it('libera rest-pause no intermediário e mantém cluster avançado', () => {
+    expect(getTechniqueGate('intermediate', 'rest_pause').visible).toBe(true);
+    expect(getTechniqueGate('intermediate', 'cluster').visible).toBe(false);
+    expect(getTechniqueGate('advanced', 'cluster').visible).toBe(true);
+  });
+});

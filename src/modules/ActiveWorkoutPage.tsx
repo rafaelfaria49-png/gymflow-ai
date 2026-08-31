@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { TechniqueSequencePlayer } from '../components/TechniqueSequencePlayer';
 import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, ChevronUp, ChevronDown, Flag, X, Plus, Trash2, Search, Info, Pencil } from 'lucide-react';
@@ -21,6 +21,7 @@ import {
 import { rankCrowdedGymSubstitutes } from '../lib/workout-session-mutations';
 import { aggregateActiveExerciseVolume, aggregateWorkoutVolume } from '../domain/techniques/aggregator';
 import { TechniquePanel } from '../domain/techniques/TechniquePanel';
+import { getGroupForEntry, nextWorkoutFocusIndex } from '../domain/techniques/grouping';
 
 export const ActiveWorkoutPage = () => {
   const {
@@ -70,6 +71,26 @@ export const ActiveWorkoutPage = () => {
   const [addSearch, setAddSearch] = useState('');
   const [compactProposal, setCompactProposal] = useState<CompactWorkoutProposal | null>(null);
   const [quickMinutes, setQuickMinutes] = useState(30);
+  const [lastCompletedSet, setLastCompletedSet] = useState<{ sessionId: string; exerciseIndex: number; setIndex: number } | null>(null);
+  const lastScrolledCompletion = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!lastCompletedSet || !activeWorkout || lastCompletedSet.sessionId !== activeWorkout.id) return;
+    const completedSet = activeWorkout.exercises[lastCompletedSet.exerciseIndex]?.sets[lastCompletedSet.setIndex];
+    if (!completedSet?.completed) return;
+    const completionKey = `${activeWorkout.id}:${lastCompletedSet.exerciseIndex}:${lastCompletedSet.setIndex}`;
+    if (lastScrolledCompletion.current === completionKey) return;
+    lastScrolledCompletion.current = completionKey;
+    const nextIndex = nextWorkoutFocusIndex(
+      activeWorkout.exercises,
+      lastCompletedSet.exerciseIndex,
+      lastCompletedSet.setIndex,
+    );
+    if (nextIndex !== undefined && nextIndex !== lastCompletedSet.exerciseIndex) {
+      document.getElementById(`exercise-card-${activeWorkout.exercises[nextIndex]?.id}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [activeWorkout, lastCompletedSet]);
 
   if (!activeWorkout) {
     return (
@@ -90,13 +111,17 @@ export const ActiveWorkoutPage = () => {
     );
   }
 
+  const activeLastCompletedSet = lastCompletedSet?.sessionId === activeWorkout.id
+    ? lastCompletedSet
+    : null;
+
   // Calcular estatísticas para o modal de resumo e painel ativo
   const volumeSummary = aggregateWorkoutVolume(activeWorkout.exercises);
   const totalVolume = volumeSummary.totalVolume;
   const completedSetsCount = volumeSummary.effectiveSets;
 
   const totalSetsCount = activeWorkout.exercises.reduce((acc, ex) => {
-    if (ex.techniquePlan?.type === 'drop_set') return acc + 1;
+    if (ex.techniquePlan?.type === 'drop_set' || ex.techniquePlan?.type === 'rest_pause' || ex.techniquePlan?.type === 'cluster') return acc + 1;
     if (ex.techniqueLog?.sets?.length) return acc + ex.techniqueLog.sets.length;
     return acc + ex.sets.length;
   }, 0);
@@ -114,7 +139,12 @@ export const ActiveWorkoutPage = () => {
   }, 0);
   const xpEarned = completedSetsCount * 10;
 
-  const nextExercise = activeWorkout.exercises.find((ex) => deriveExerciseEntryStatus(ex) !== 'performed') || null;
+  const nextFocusIndex = activeLastCompletedSet
+    ? nextWorkoutFocusIndex(activeWorkout.exercises, activeLastCompletedSet.exerciseIndex, activeLastCompletedSet.setIndex)
+    : nextWorkoutFocusIndex(activeWorkout.exercises);
+  const nextExercise = nextFocusIndex !== undefined
+    ? activeWorkout.exercises[nextFocusIndex] ?? null
+    : null;
   const nextExerciseName = nextExercise ? nextExercise.name : 'Nenhum (Finalize o Treino!)';
 
   const muscleGroupsWorked = Array.from(new Set(activeWorkout.exercises.map(ex => {
@@ -305,16 +335,18 @@ export const ActiveWorkoutPage = () => {
   };
 
   const handleContinue = () => {
-    for (const ex of activeWorkout.exercises) {
-      const incompleteSet = ex.sets.find((s) => !s.completed);
-      if (incompleteSet) {
-        const row = document.getElementById(`set-row-${incompleteSet.id}`);
-        row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        // O campo de carga é o primeiro input da linha (NumericInput = type="text").
-        const weightInput = row?.querySelector('input') as HTMLInputElement | null;
-        weightInput?.focus();
-        return;
-      }
+    const focusIndex = activeLastCompletedSet
+      ? nextWorkoutFocusIndex(activeWorkout.exercises, activeLastCompletedSet.exerciseIndex, activeLastCompletedSet.setIndex)
+      : nextWorkoutFocusIndex(activeWorkout.exercises);
+    const focusExercise = focusIndex === undefined ? undefined : activeWorkout.exercises[focusIndex];
+    const incompleteSet = focusExercise?.sets.find((s) => !s.completed);
+    if (incompleteSet) {
+      const row = document.getElementById(`set-row-${incompleteSet.id}`);
+      row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // O campo de carga é o primeiro input da linha (NumericInput = type="text").
+      const weightInput = row?.querySelector('input') as HTMLInputElement | null;
+      weightInput?.focus();
+      return;
     }
     openFinishModal();
   };
@@ -529,14 +561,32 @@ export const ActiveWorkoutPage = () => {
           const liveEntryStatus = deriveExerciseEntryStatus(ex);
           // GOAL-24: após a troca, o card mostra "Substitui <original> • <motivo>".
           const swapView = ex.entryOrigin === 'swapped' ? buildSwapView(ex) : null;
+          const group = getGroupForEntry(activeWorkout.exercises, exIdx);
+          const groupRounds = group ? Math.max(1, group.roundCount) : 0;
+          const completedGroupRounds = group
+            ? Math.min(...group.memberIndices.map((memberIndex) => {
+                const memberSets = activeWorkout.exercises[memberIndex]?.sets ?? [];
+                let completed = 0;
+                while (memberSets[completed]?.completed) completed += 1;
+                return completed;
+              }))
+            : 0;
+          const currentGroupRound = group
+            ? Math.min(groupRounds, Math.max(1, completedGroupRounds + 1))
+            : 0;
           return (
-          <div key={ex.id} className="glass p-5 rounded-3xl border border-white/5 space-y-4">
+          <div id={`exercise-card-${ex.id}`} key={ex.id} className="glass p-5 rounded-3xl border border-white/5 space-y-4">
             {/* TÍTULO DO EXERCÍCIO */}
             <div className="flex justify-between items-start border-b border-white/5 pb-3">
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
                   <span className="text-gym-accent">#{exIdx + 1}</span>
                   <span className="truncate">{ex.name}</span>
+                  {group && (
+                    <span className="inline-flex items-center rounded-full border border-gym-accent/25 bg-gym-accent/10 px-2 py-1 text-[8px] font-black uppercase tracking-wide text-gym-accent">
+                      {group.label} · rodada {currentGroupRound}/{groupRounds}
+                    </span>
+                  )}
                   {/* GOAL-23B: origem da entrada — destacada só quando não planejada. */}
                   {(ex.entryOrigin === 'added' || ex.entryOrigin === 'swapped') && (
                     <ExerciseOriginBadge exercise={ex} />
@@ -715,7 +765,16 @@ export const ActiveWorkoutPage = () => {
                       layout), visual de 24px (GOAL-11) */}
                   <div className="col-span-1 flex justify-center">
                     <button
-                      onClick={() => completeWorkoutSet(exIdx, setIdx)}
+                      onClick={() => {
+                        const wasCompleted = set.completed;
+                        completeWorkoutSet(exIdx, setIdx);
+                        if (wasCompleted) {
+                          lastScrolledCompletion.current = null;
+                          setLastCompletedSet(null);
+                        } else {
+                          setLastCompletedSet({ sessionId: activeWorkout.id, exerciseIndex: exIdx, setIndex: setIdx });
+                        }
+                      }}
                       aria-label={set.completed ? `Desmarcar série ${setIdx + 1}` : `Concluir série ${setIdx + 1}`}
                       className="w-11 h-11 -m-2.5 flex items-center justify-center group/check"
                     >

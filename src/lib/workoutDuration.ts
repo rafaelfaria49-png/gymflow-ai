@@ -22,6 +22,7 @@ import { getMuscleGroupDefinition, resolveLegacyMuscleGroup } from './training-t
 import { DURATION_RULES, lowestConfidence } from './training-volume-rules';
 import { resolveTrainingGoalContext } from './training-volume';
 import { analyzeWorkoutTimeFit } from './workout-time-fit';
+import { getExerciseGroups } from '../domain/techniques/grouping';
 
 /** Contrato legado consumido hoje pelo Construtor, Planejador e cards. */
 export interface WorkoutDurationEstimate {
@@ -132,7 +133,12 @@ function setupSecondsFor(context: EquipmentContext, exercise: Exercise | undefin
   return setup;
 }
 
-function transitionSecondsBetween(current: EquipmentContext, next: EquipmentContext): number {
+function transitionSecondsBetween(
+  current: EquipmentContext,
+  next: EquipmentContext,
+  intraGroup = false,
+): number {
+  if (intraGroup) return DURATION_RULES.transitionSeconds.intraGroup;
   const currentIds = new Set(current.equipmentIds);
   const hasSharedEquipment = next.equipmentIds.some((id) => currentIds.has(id));
   let seconds: number;
@@ -322,21 +328,35 @@ export function estimateWorkoutDurationDetailed(
 
   const exerciseById = new Map(allExercises.map((exercise) => [exercise.id, exercise]));
   const equipmentContexts = slots.map((slot) => resolveEquipmentContext(exerciseById.get(slot.exerciseId)));
+  const groups = new Map(getExerciseGroups(slots).map((group) => [group.id, group]));
   const breakdownByExercise: ExerciseDurationEstimate[] = slots.map((slot, index) => {
     const exercise = exerciseById.get(slot.exerciseId);
     const equipment = equipmentContexts[index];
     const work = estimateWork(slot, exercise);
     const rest = restPerSet(slot, exercise, options);
     const series = Number.isFinite(slot?.series) ? Math.max(0, slot.series) : 0;
-    const restSeconds = Math.max(0, series - 1) * rest.seconds;
+    const group = slot.groupId ? groups.get(slot.groupId) : undefined;
+    const isLastGroupMember = Boolean(group && group.memberIndices[group.memberIndices.length - 1] === index);
+    const restSeconds = group
+      ? isLastGroupMember
+        ? Math.max(0, group.roundCount - 1) * group.restSec
+        : 0
+      : Math.max(0, series - 1) * rest.seconds;
     const setupSeconds = Number.isFinite(options.setupSecondsOverride)
       ? Math.max(0, options.setupSecondsOverride as number)
       : setupSecondsFor(equipment, exercise);
+    const nextSlot = slots[index + 1];
+    const intraGroup = Boolean(
+      nextSlot?.groupId
+      && slot.groupId
+      && nextSlot.groupId === slot.groupId,
+    );
+    const transitionRounds = intraGroup ? Math.max(1, group?.roundCount ?? series) : 1;
     const transitionSeconds = index >= slots.length - 1
       ? 0
       : Number.isFinite(options.transitionSecondsOverride)
         ? Math.max(0, options.transitionSecondsOverride as number)
-        : transitionSecondsBetween(equipment, equipmentContexts[index + 1]);
+        : transitionSecondsBetween(equipment, equipmentContexts[index + 1], intraGroup) * transitionRounds;
     const totalSeconds = work.targetSeconds + restSeconds + setupSeconds + transitionSeconds;
     const lowerBoundSeconds = work.lowerSeconds
       + restSeconds * 0.9
@@ -358,7 +378,15 @@ export function estimateWorkoutDurationDetailed(
       upperBoundSeconds: Math.round(upperBoundSeconds),
       equipmentIds: equipment.equipmentIds,
       confidence: lowestConfidence(work.confidence, rest.confidence, equipment.confidence),
-      assumptions: unique([...work.assumptions, ...(rest.assumption ? [rest.assumption] : [])]),
+      assumptions: unique([
+        ...work.assumptions,
+        ...(group
+          ? [
+              `Grupo ${group.label}: descanso de ${group.restSec} s somente ao fim de cada rodada.`,
+              `Transição intra-grupo estimada em ${DURATION_RULES.transitionSeconds.intraGroup} s por cartão e rodada.`,
+            ]
+          : rest.assumption ? [rest.assumption] : []),
+      ]),
       warnings: unique([...work.warnings, ...equipment.warnings]),
     };
   });

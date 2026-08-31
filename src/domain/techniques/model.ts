@@ -2,6 +2,8 @@ import type { Exercise } from '../../types';
 import type {
   TechniqueId,
   TechniqueLog,
+  TechniqueMiniSetLog,
+  TechniqueMiniSetPlan,
   TechniquePlan,
   TechniqueRepTarget,
   TechniqueSetLog,
@@ -55,6 +57,23 @@ export interface BackOffPlanInput {
   backOffPercent?: number;
   backOffReps?: number;
   backOffSets?: number;
+  restSec?: number;
+}
+
+export interface RestPausePlanInput {
+  baseWeight: number;
+  baseReps: number;
+  miniSetCount?: number;
+  miniSetReps?: number | readonly number[];
+  pauseSec?: number;
+}
+
+export interface ClusterPlanInput {
+  baseWeight: number;
+  clusterReps?: readonly number[];
+  clusterCount?: number;
+  repsPerCluster?: number;
+  pauseSec?: number;
   restSec?: number;
 }
 
@@ -162,6 +181,65 @@ export function createBackOffPlan(input: BackOffPlanInput): TechniquePlan {
   return { type: 'back_off', label: TECHNIQUE_LABELS.back_off, setPlans };
 }
 
+function clampShortPause(value: number | undefined, fallback: number): number {
+  return Math.min(20, Math.max(15, Math.round(value ?? fallback)));
+}
+
+export function createRestPauseMiniSets(input: RestPausePlanInput): TechniqueMiniSetPlan[] {
+  const inferredCount = Array.isArray(input.miniSetReps) ? input.miniSetReps.length : 3;
+  const count = Math.min(6, Math.max(1, Math.round(input.miniSetCount ?? inferredCount)));
+  const pauseSec = clampShortPause(input.pauseSec, 15);
+  const reps = Array.isArray(input.miniSetReps)
+    ? input.miniSetReps
+    : Array.from({ length: count }, () => input.miniSetReps ?? 3);
+  return Array.from({ length: count }, (_, index) => ({
+    id: `rest_pause_mini_${index + 1}`,
+    index,
+    reps: normalizeTechniqueRepTarget(reps[index] ?? 3, 3),
+    restSec: index === count - 1 ? 0 : pauseSec,
+  }));
+}
+
+export function createRestPausePlan(input: RestPausePlanInput): TechniquePlan {
+  const baseWeight = finitePositive(input.baseWeight, 1);
+  const baseReps = Math.max(1, Math.round(finitePositive(input.baseReps, 8)));
+  const pauseSec = clampShortPause(input.pauseSec, 15);
+  return {
+    type: 'rest_pause',
+    label: TECHNIQUE_LABELS.rest_pause,
+    baseWeight: roundWeight(baseWeight),
+    targetReps: baseReps,
+    pauseSec,
+    miniSets: createRestPauseMiniSets({ ...input, pauseSec }),
+    notes: 'A série base usa carga; mini-séries registram somente repetições.',
+  };
+}
+
+export function createClusterPlan(input: ClusterPlanInput): TechniquePlan {
+  const baseWeight = finitePositive(input.baseWeight, 1);
+  const clusterReps = input.clusterReps && input.clusterReps.length > 0
+    ? [...input.clusterReps]
+    : Array.from({ length: Math.min(6, Math.max(2, Math.round(input.clusterCount ?? 3))) }, () => (
+      Math.max(1, Math.round(input.repsPerCluster ?? 3))
+    ));
+  const pauseSec = Math.max(5, Math.round(input.pauseSec ?? 15));
+  const restSec = Math.max(0, Math.round(input.restSec ?? 120));
+  return {
+    type: 'cluster',
+    label: TECHNIQUE_LABELS.cluster,
+    stages: clusterReps.map((reps, index) => ({
+      id: `cluster_stage_${index + 1}`,
+      index,
+      weight: roundWeight(baseWeight),
+      reps: normalizeTechniqueRepTarget(reps, 3),
+      pauseSec: index === clusterReps.length - 1 ? 0 : pauseSec,
+      restSec: index === clusterReps.length - 1 ? restSec : pauseSec,
+      toFailure: false,
+    })),
+    notes: 'Blocos da mesma série com pausa curta; nível avançado.',
+  };
+}
+
 export function materializeTechniqueSetPlans(
   plan: TechniquePlan,
   baseWeight: number,
@@ -192,6 +270,22 @@ export function createInitialTechniqueLog(plan: TechniquePlan): TechniqueLog {
     reps: set.reps === 'max' ? 0 : set.reps,
     completed: false,
   }));
+  const restPauseBase = plan.type === 'rest_pause'
+    ? [{
+        id: 'rest_pause_base',
+        index: 0,
+        weight: plan.baseWeight ?? 0,
+        reps: plan.targetReps === 'max' ? 0 : plan.targetReps ?? 0,
+        completed: false,
+      } satisfies TechniqueSetLog]
+    : undefined;
+  const miniSets = plan.miniSets?.map((mini): TechniqueMiniSetLog => ({
+    id: mini.id,
+    index: mini.index,
+    reps: mini.reps === 'max' ? 0 : mini.reps,
+    restSec: mini.restSec,
+    completed: false,
+  }));
   const genericSets = !stages && !sets && plan.type !== 'drop_set'
     ? [{
         id: 'technique_set_1',
@@ -204,7 +298,8 @@ export function createInitialTechniqueLog(plan: TechniquePlan): TechniqueLog {
   return {
     type: plan.type,
     ...(stages ? { stages } : {}),
-    ...(sets || genericSets ? { sets: sets ?? genericSets } : {}),
+    ...(restPauseBase || sets || genericSets ? { sets: restPauseBase ?? sets ?? genericSets } : {}),
+    ...(miniSets ? { miniSets } : {}),
   };
 }
 
@@ -238,6 +333,67 @@ export function recordTechniqueSet(
       : set),
     updatedAt,
   };
+}
+
+export function recordTechniqueMiniSet(
+  log: TechniqueLog,
+  index: number,
+  patch: Partial<Omit<TechniqueMiniSetLog, 'id' | 'index'>>,
+  updatedAt = Date.now(),
+): TechniqueLog {
+  if (!log.miniSets?.[index]) return log;
+  return {
+    ...log,
+    miniSets: log.miniSets.map((mini, miniIndex) => miniIndex === index
+      ? { ...mini, ...patch, updatedAt }
+      : mini),
+    updatedAt,
+  };
+}
+
+export interface TechniqueRestTransition {
+  seconds: number;
+  reason: 'rest-pause-mini-set' | 'cluster-block';
+}
+
+/**
+ * Retorna a pausa automática disparada por uma conclusão técnica. A função só
+ * dispara na transição incompleto → completo e nunca cria descanso depois do
+ * último mini-set/bloco.
+ */
+export function resolveTechniqueRestAfterChange(
+  previous: TechniqueLog | undefined,
+  next: TechniqueLog,
+  plan: TechniquePlan | undefined,
+): TechniqueRestTransition | null {
+  if (next.type === 'rest_pause') {
+    const previousBaseCompleted = previous?.sets?.[0]?.completed === true;
+    const nextBaseCompleted = next.sets?.[0]?.completed === true;
+    if (!previousBaseCompleted && nextBaseCompleted) {
+      const nextMini = next.miniSets?.find((mini) => !mini.completed);
+      const seconds = nextMini?.restSec ?? plan?.pauseSec ?? 15;
+      return seconds > 0 ? { seconds, reason: 'rest-pause-mini-set' } : null;
+    }
+    const nextMiniIndex = next.miniSets?.findIndex((mini) => mini.completed && !previous?.miniSets?.[mini.index]?.completed) ?? -1;
+    if (nextMiniIndex >= 0) {
+      const nextMini = next.miniSets?.slice(nextMiniIndex + 1).find((mini) => !mini.completed);
+      const seconds = nextMini
+        ? next.miniSets?.[nextMini.index - 1]?.restSec ?? plan?.pauseSec ?? 15
+        : 0;
+      return seconds > 0 ? { seconds, reason: 'rest-pause-mini-set' } : null;
+    }
+  }
+
+  if (next.type === 'cluster') {
+    const newlyCompletedIndex = next.stages?.findIndex((stage) => (
+      stage.completed && previous?.stages?.[stage.index]?.completed !== true
+    )) ?? -1;
+    if (newlyCompletedIndex >= 0 && newlyCompletedIndex < (next.stages?.length ?? 0) - 1) {
+      const seconds = next.stages?.[newlyCompletedIndex].restSec ?? plan?.pauseSec ?? 15;
+      return seconds > 0 ? { seconds, reason: 'cluster-block' } : null;
+    }
+  }
+  return null;
 }
 
 function isTechniqueId(value: unknown): value is TechniqueId {
@@ -293,6 +449,34 @@ export function validateTechniquePlan(
   }
   if (type === 'pyramid' || type === 'back_off') {
     if (!plan.setPlans || plan.setPlans.length < 2) errors.push(issue('materialized-set-plans-required', `${gate.label} precisa de séries materializadas.`, 'setPlans'));
+  }
+  if (type === 'rest_pause') {
+    if (!plan.miniSets || plan.miniSets.length < 1) {
+      errors.push(issue('rest-pause-mini-sets-required', 'Rest-pause precisa de pelo menos uma mini-série.', 'miniSets'));
+    }
+    if (plan.targetReps !== 'max' && (!Number.isFinite(plan.targetReps) || (plan.targetReps ?? 0) <= 0)) {
+      errors.push(issue('rest-pause-base-reps-required', 'Informe as repetições da série base.', 'targetReps'));
+    }
+    if (!Number.isFinite(plan.baseWeight) || (plan.baseWeight ?? 0) < 0) {
+      errors.push(issue('rest-pause-base-weight-required', 'Informe uma carga base válida.', 'baseWeight'));
+    }
+    if (!Number.isFinite(plan.pauseSec) || (plan.pauseSec ?? 0) < 15 || (plan.pauseSec ?? 0) > 20) {
+      errors.push(issue('rest-pause-pause-range', 'A pausa do rest-pause deve ficar entre 15 e 20 segundos.', 'pauseSec'));
+    }
+    plan.miniSets?.forEach((mini, index) => {
+      if (mini.restSec !== 0 && (mini.restSec < 15 || mini.restSec > 20)) {
+        errors.push(issue('rest-pause-mini-pause-range', 'A pausa entre mini-séries deve ficar entre 15 e 20 segundos.', `miniSets[${index}].restSec`));
+      }
+    });
+  }
+  if (type === 'cluster') {
+    if (!plan.stages || plan.stages.length < 2) {
+      errors.push(issue('cluster-stages-required', 'Cluster precisa de pelo menos dois blocos de repetições.', 'stages'));
+    }
+    plan.stages?.forEach((stage, index) => {
+      if (!Number.isFinite(stage.weight) || stage.weight < 0) errors.push(issue('invalid-cluster-weight', 'A carga do bloco deve ser zero ou positiva.', `stages[${index}].weight`));
+      if (stage.reps !== 'max' && (!Number.isFinite(stage.reps) || stage.reps <= 0)) errors.push(issue('invalid-cluster-reps', 'As repetições do bloco devem ser positivas.', `stages[${index}].reps`));
+    });
   }
   if (type === 'tempo' && (!plan.tempo || !/^\d+(?:-\d+){1,3}$/.test(plan.tempo))) {
     errors.push(issue('tempo-required', 'Informe o tempo no formato 3-1-1-0.', 'tempo'));

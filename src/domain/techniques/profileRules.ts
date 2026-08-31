@@ -9,6 +9,8 @@ export const TECHNIQUE_IDS: readonly TechniqueId[] = Object.freeze([
   'tempo',
   'iso_hold',
   'partials',
+  'rest_pause',
+  'cluster',
 ]);
 
 export const TECHNIQUE_LABELS: Readonly<Record<TechniqueId, string>> = Object.freeze({
@@ -19,6 +21,8 @@ export const TECHNIQUE_LABELS: Readonly<Record<TechniqueId, string>> = Object.fr
   tempo: 'Tempo',
   iso_hold: 'Iso hold',
   partials: 'Parciais',
+  rest_pause: 'Rest-pause',
+  cluster: 'Cluster',
 });
 
 export const TECHNIQUE_EDUCATION: Readonly<Record<TechniqueId, string>> = Object.freeze({
@@ -29,6 +33,8 @@ export const TECHNIQUE_EDUCATION: Readonly<Record<TechniqueId, string>> = Object
   tempo: 'O tempo controla a cadência. Use carga menor para manter a execução.',
   iso_hold: 'Sustente a posição indicada sem compensar com outra articulação.',
   partials: 'Use amplitude parcial apenas no trecho planejado e sem dor articular.',
+  rest_pause: 'Faça a série base, descanse 15–20 s e registre mini-séries apenas em repetições.',
+  cluster: 'Divida uma série pesada em pequenos blocos com pausas curtas; esta técnica exige experiência.',
 });
 
 /**
@@ -38,7 +44,7 @@ export const TECHNIQUE_EDUCATION: Readonly<Record<TechniqueId, string>> = Object
  */
 export const DEFAULT_TECHNIQUES_BY_LEVEL: Readonly<Record<TrainingExperienceLevel, readonly TechniqueId[]>> = Object.freeze({
   beginner: Object.freeze([] as TechniqueId[]),
-  intermediate: Object.freeze(['pyramid', 'back_off', 'tempo', 'iso_hold', 'partials'] as TechniqueId[]),
+  intermediate: Object.freeze(['pyramid', 'back_off', 'tempo', 'iso_hold', 'partials', 'rest_pause'] as TechniqueId[]),
   advanced: Object.freeze([...TECHNIQUE_IDS] as TechniqueId[]),
   athlete: Object.freeze([...TECHNIQUE_IDS] as TechniqueId[]),
 });

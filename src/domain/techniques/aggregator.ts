@@ -1,7 +1,7 @@
 import type { ActiveExercise, WorkoutSet } from '../../types';
 import type { TechniqueId, TechniqueLog, TechniqueMetrics } from './types';
 
-/** Pesos transparentes da tabela TECH §5. O drop set é uma série efetiva. */
+/** Pesos transparentes da tabela TECH §5. Drop/rest-pause/cluster são uma série efetiva. */
 export const TECHNIQUE_AGGREGATION_RULES: Readonly<Record<TechniqueId, {
   stageFatigue: number;
   failureFatigue: number;
@@ -14,6 +14,8 @@ export const TECHNIQUE_AGGREGATION_RULES: Readonly<Record<TechniqueId, {
   tempo: Object.freeze({ stageFatigue: 0.1, failureFatigue: 0, baseFatigue: 1 }),
   iso_hold: Object.freeze({ stageFatigue: 0.15, failureFatigue: 0, baseFatigue: 1 }),
   partials: Object.freeze({ stageFatigue: 0.05, failureFatigue: 0, baseFatigue: 1 }),
+  rest_pause: Object.freeze({ stageFatigue: 0.2, failureFatigue: 0.25, baseFatigue: 1 }),
+  cluster: Object.freeze({ stageFatigue: 0.15, failureFatigue: 0.1, baseFatigue: 1 }),
 });
 
 function roundMetric(value: number): number {
@@ -42,10 +44,20 @@ function completedTechniqueSetVolume(log: TechniqueLog): number {
   ), 0);
 }
 
+function completedMiniSetVolume(log: TechniqueLog): number {
+  const baseWeight = log.sets?.find((set) => Number.isFinite(set.weight))?.weight ?? 0;
+  return (log.miniSets ?? []).reduce((total, mini) => (
+    total + (mini.completed && Number.isFinite(mini.reps)
+      ? Math.max(0, baseWeight) * Math.max(0, mini.reps)
+      : 0)
+  ), 0);
+}
+
 function hasCompletedTechniqueEntry(log: TechniqueLog): boolean {
   return Boolean(
     log.stages?.some((stage) => stage.completed)
-    || log.sets?.some((set) => set.completed),
+    || log.sets?.some((set) => set.completed)
+    || log.miniSets?.some((mini) => mini.completed),
   );
 }
 
@@ -67,6 +79,8 @@ export function aggregateTechniqueLog(log: TechniqueLog): TechniqueMetrics {
     case 'tempo':
     case 'iso_hold':
     case 'partials':
+    case 'rest_pause':
+    case 'cluster':
       effectiveSets = hasCompleted ? 1 : 0;
       break;
     case 'pyramid':
@@ -75,13 +89,15 @@ export function aggregateTechniqueLog(log: TechniqueLog): TechniqueMetrics {
       break;
   }
 
-  const tonnage = log.type === 'drop_set'
+  const tonnage = log.type === 'drop_set' || log.type === 'cluster'
     ? completedStageVolume(log)
-    : completedTechniqueSetVolume(log);
+    : log.type === 'rest_pause'
+      ? completedTechniqueSetVolume(log) + completedMiniSetVolume(log)
+      : completedTechniqueSetVolume(log);
   const fatigueIndex = effectiveSets === 0
     ? 0
     : rules.baseFatigue
-      + Math.max(0, completedStages - 1) * rules.stageFatigue
+      + Math.max(0, completedStages + (log.miniSets?.filter((mini) => mini.completed).length ?? 0) - 1) * rules.stageFatigue
       + (failedStages + failedSets) * rules.failureFatigue;
 
   return {

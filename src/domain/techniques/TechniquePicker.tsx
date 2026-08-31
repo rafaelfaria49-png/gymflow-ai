@@ -7,8 +7,10 @@ import type { TrainingExperienceLevel } from '../../types/training-profile';
 import type { TechniqueId, TechniquePlan } from './types';
 import {
   createBackOffPlan,
+  createClusterPlan,
   createDropSetPlan,
   createPyramidPlan,
+  createRestPausePlan,
 } from './model';
 import {
   getTechniqueGate,
@@ -45,6 +47,10 @@ function planForType(type: TechniqueId, slot: ExerciseSlot): TechniquePlan {
       return { type, label: TECHNIQUE_LABELS[type], targetReps: baseReps, holdSec: 20 };
     case 'partials':
       return { type, label: TECHNIQUE_LABELS[type], targetReps: baseReps, partialReps: 4, partialRange: 'top' };
+    case 'rest_pause':
+      return createRestPausePlan({ baseWeight: 10, baseReps });
+    case 'cluster':
+      return createClusterPlan({ baseWeight: 10, repsPerCluster: Math.max(2, Math.min(4, baseReps)), clusterCount: 3 });
   }
 }
 
@@ -81,7 +87,7 @@ export const TechniquePicker = ({
           <button type="button" onClick={() => setEducationOpen(false)} aria-label="Fechar orientação" className="text-gym-text-muted hover:text-white"><X className="h-3.5 w-3.5" /></button>
         </div>
         <div className="grid grid-cols-2 gap-1.5">
-          {(['tempo', 'iso_hold', 'partials', 'pyramid', 'back_off', 'drop_set', 'to_failure'] as TechniqueId[]).map((type) => (
+          {(['tempo', 'iso_hold', 'partials', 'pyramid', 'back_off', 'rest_pause', 'drop_set', 'to_failure', 'cluster'] as TechniqueId[]).map((type) => (
             <button
               key={type}
               type="button"

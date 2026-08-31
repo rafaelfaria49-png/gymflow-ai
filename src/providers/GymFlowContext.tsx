@@ -107,8 +107,17 @@ import {
 } from '../lib/workout-session-domain';
 import { normalizeSessionState } from '../lib/workout-session-migration';
 import { aggregateWorkoutVolume } from '../domain/techniques/aggregator';
-import { createInitialTechniqueLog, materializeTechniqueSetPlans } from '../domain/techniques/model';
+import {
+  createInitialTechniqueLog,
+  materializeTechniqueSetPlans,
+  recordTechniqueSet,
+  resolveTechniqueRestAfterChange,
+} from '../domain/techniques/model';
 import { normalizeTechniqueUnlocks } from '../domain/techniques/profileRules';
+import {
+  resolveGroupRestAfterSet,
+  normalizeExerciseGroups,
+} from '../domain/techniques/grouping';
 import { useToast } from '../components/ui/Toast';
 import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
 import {
@@ -117,6 +126,35 @@ import {
 } from '../domain/gymProfile';
 
 export const STORAGE_KEY = 'gymflow:state:v1';
+
+/** O rest-pause usa a primeira linha normal como série base. Mantê-la também
+ * no TechniqueLog faz o volume, a pausa e a reidratação usarem a mesma carga e
+ * as mesmas reps que o usuário editou na tabela principal. */
+function syncRestPauseBaseSet(
+  exercise: ActiveExercise,
+  set: WorkoutSet | undefined,
+  setIndex: number,
+): ActiveExercise {
+  if (setIndex !== 0 || !set || exercise.techniquePlan?.type !== 'rest_pause') return exercise;
+  const log = exercise.techniqueLog ?? createInitialTechniqueLog(exercise.techniquePlan);
+  const base = log.sets?.[0];
+  if (!base) return exercise;
+  if (
+    base.weight === set.weight
+    && base.reps === set.reps
+    && base.completed === set.completed
+    && base.rpe === set.rpe
+  ) return exercise;
+  return {
+    ...exercise,
+    techniqueLog: recordTechniqueSet(log, 0, {
+      weight: set.weight,
+      reps: set.reps,
+      completed: set.completed,
+      rpe: set.rpe,
+    }),
+  };
+}
 
 // Estado persistido em localStorage (somente dados de longa duração — nada de UI).
 interface PersistedState {
@@ -1492,8 +1530,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           : [];
         const techniquePlan = materializedSetPlans.length > 0 && slot.technique
           ? { ...slot.technique, setPlans: materializedSetPlans }
-          : slot.technique;
-        const setCount = materializedSetPlans.length > 0 ? materializedSetPlans.length : slot.series;
+          : slot.technique?.type === 'rest_pause'
+            ? { ...slot.technique, baseWeight: prefillWeight }
+            : slot.technique;
+        const setCount = materializedSetPlans.length > 0
+          ? materializedSetPlans.length
+          : techniquePlan?.type === 'rest_pause' || techniquePlan?.type === 'cluster'
+            ? 1
+            : slot.series;
         const sets: WorkoutSet[] = Array.from({ length: setCount }, (_, sIdx) => {
           const setPlan = materializedSetPlans[sIdx];
           const plannedReps = setPlan?.reps === 'max' || setPlan?.reps === undefined
@@ -1508,6 +1552,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           lastWeight: lastW ?? undefined,
           rpe: slot.targetRPE,
           ...(setPlan ? { setPlan } : {}),
+          ...(slot.groupId ? { groupRound: sIdx + 1 } : {}),
         };
         });
 
@@ -1525,6 +1570,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           ...(techniquePlan ? {
             techniquePlan,
             techniqueLog: createInitialTechniqueLog(techniquePlan),
+          } : {}),
+          ...(slot.groupId ? {
+            groupId: slot.groupId,
+            ...(slot.groupOrder !== undefined ? { groupOrder: slot.groupOrder } : {}),
+            ...(slot.groupRestSec !== undefined ? { groupRestSec: slot.groupRestSec } : {}),
+            ...(slot.groupType ? { groupType: slot.groupType } : {}),
           } : {}),
         };
       });
@@ -1625,7 +1676,16 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       if (!changed) return prev;
       const exercises = prev.exercises.map((ex, i) =>
         i === exerciseIndex
-          ? { ...ex, sets: ex.sets.map((s, j) => (j === setIndex ? { ...s, ...fields } : s)) }
+          ? (() => {
+              const nextSet = ex.sets[setIndex]
+                ? { ...ex.sets[setIndex], ...fields }
+                : undefined;
+              const nextExercise = {
+                ...ex,
+                sets: ex.sets.map((s, j) => (j === setIndex ? { ...s, ...fields } : s)),
+              };
+              return syncRestPauseBaseSet(nextExercise, nextSet, setIndex);
+            })()
           : ex
       );
       return { ...prev, exercises };
@@ -1706,7 +1766,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     setActiveWorkout((prev) => {
       // Mantém pelo menos 1 exercício no treino ativo.
       if (!prev || prev.exercises.length <= 1 || !prev.exercises[exerciseIndex]) return prev;
-      return { ...prev, exercises: prev.exercises.filter((_, i) => i !== exerciseIndex) };
+      return {
+        ...prev,
+        exercises: normalizeExerciseGroups(prev.exercises.filter((_, i) => i !== exerciseIndex)),
+      };
     });
   };
 
@@ -1717,6 +1780,11 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateActiveExerciseTechniqueLog = (exerciseIndex: number, log: TechniqueLog | undefined) => {
+    const currentWorkout = activeWorkoutRef.current;
+    const currentExercise = currentWorkout?.exercises[exerciseIndex];
+    const techniqueRest = log && currentExercise
+      ? resolveTechniqueRestAfterChange(currentExercise.techniqueLog, log, currentExercise.techniquePlan)
+      : null;
     setActiveWorkout((prev) => {
       if (!prev || !prev.exercises[exerciseIndex]) return prev;
       const exercises = prev.exercises.map((exercise, index) => {
@@ -1730,6 +1798,11 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       });
       return { ...prev, exercises };
     });
+    if (techniqueRest && currentExercise) {
+      setRestTimerEndAt(Date.now() + techniqueRest.seconds * 1000);
+      setRestTimerTotalSeconds(techniqueRest.seconds);
+      setRestTimerLabel(`${currentExercise.name} • ${techniqueRest.reason === 'cluster-block' ? 'bloco' : 'mini-série'}`);
+    }
   };
 
   const completeWorkoutSet = (exerciseIndex: number, setIndex: number) => {
@@ -1737,11 +1810,40 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     if (!currentWorkout) return;
     const transition = toggleWorkoutSetCompletion(currentWorkout, exerciseIndex, setIndex);
     if (!transition.changed) return;
+    const toggledExercise = transition.workout.exercises[exerciseIndex];
+    const nextWorkout = toggledExercise
+      ? {
+          ...transition.workout,
+          exercises: transition.workout.exercises.map((exercise, index) => (
+            index === exerciseIndex
+              ? syncRestPauseBaseSet(exercise, toggledExercise.sets[setIndex], setIndex)
+              : exercise
+          )),
+        }
+      : transition.workout;
+    const techniqueRest = transition.completed && transition.targetExercise?.techniquePlan
+      ? resolveTechniqueRestAfterChange(
+          transition.targetExercise.techniqueLog,
+          nextWorkout.exercises[exerciseIndex]?.techniqueLog
+            ?? createInitialTechniqueLog(transition.targetExercise.techniquePlan),
+          transition.targetExercise.techniquePlan,
+        )
+      : null;
     setActiveWorkout((prev) => {
       if (!prev) return prev;
-      return prev === currentWorkout
-        ? transition.workout
-        : toggleWorkoutSetCompletion(prev, exerciseIndex, setIndex).workout;
+      if (prev === currentWorkout) return nextWorkout;
+      const latestTransition = toggleWorkoutSetCompletion(prev, exerciseIndex, setIndex);
+      const latestExercise = latestTransition.workout.exercises[exerciseIndex];
+      return latestExercise
+        ? {
+            ...latestTransition.workout,
+            exercises: latestTransition.workout.exercises.map((exercise, index) => (
+              index === exerciseIndex
+                ? syncRestPauseBaseSet(exercise, latestExercise.sets[setIndex], setIndex)
+                : exercise
+            )),
+          }
+        : latestTransition.workout;
     });
 
     if (transition.completed) {
@@ -1753,16 +1855,29 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
       // Timer de descanso automático (GOAL-06): não inicia se essa era a última
       // série pendente do treino inteiro (nada para descansar antes de).
+      if (techniqueRest && transition.targetExercise) {
+        setRestTimerEndAt(Date.now() + techniqueRest.seconds * 1000);
+        setRestTimerTotalSeconds(techniqueRest.seconds);
+        setRestTimerLabel(`${transition.targetExercise.name} • ${techniqueRest.reason === 'cluster-block' ? 'bloco' : 'rest-pause'}`);
+        return;
+      }
       if (!transition.isLastRemainingSet && transition.targetExercise) {
         const targetExercise = transition.targetExercise;
         const meta = exercises.find((e) => e.id === targetExercise.exerciseId);
+        const groupRest = resolveGroupRestAfterSet(transition.workout, exerciseIndex, setIndex);
+        // GOAL-27: em grupo alternado o foco segue direto para o próximo
+        // exercício da rodada; um único timer só aparece depois que a rodada
+        // inteira terminou.
+        if (groupRest.mode === 'intra-group') return;
         // GOAL-07: o restSec do ExerciseSlot tem prioridade sobre o restSec do
         // exercício e sobre o padrão do usuário. restSec 0 (ex.: cardio) = sem timer.
-        const seconds = targetExercise.restSec ?? meta?.restSec ?? user?.restTimerDefaultSeconds ?? 90;
+        const seconds = groupRest.mode === 'group-round'
+          ? groupRest.seconds
+          : targetExercise.restSec ?? meta?.restSec ?? user?.restTimerDefaultSeconds ?? 90;
         if (seconds > 0) {
           setRestTimerEndAt(Date.now() + seconds * 1000);
           setRestTimerTotalSeconds(seconds);
-          setRestTimerLabel(targetExercise.name);
+          setRestTimerLabel(groupRest.mode === 'group-round' ? `Fim da rodada • ${targetExercise.name}` : targetExercise.name);
         }
       }
     }
@@ -1838,9 +1953,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const toggleCrowdedGymMode = () => setCrowdedGymMode(!Boolean(activeWorkoutRef.current?.crowdedGymMode));
 
   const moveExerciseInActiveWorkout = (fromIndex: number, toIndex: number) => {
-    setActiveWorkout((prev) => (
-      prev ? reorderWorkoutExercises(prev, fromIndex, toIndex) : prev
-    ));
+    setActiveWorkout((prev) => {
+      if (!prev) return prev;
+      const reordered = reorderWorkoutExercises(prev, fromIndex, toIndex);
+      if (reordered === prev) return prev;
+      return { ...reordered, exercises: normalizeExerciseGroups(reordered.exercises) };
+    });
   };
 
   const applyCompactWorkout = (proposal: CompactWorkoutProposal) => {

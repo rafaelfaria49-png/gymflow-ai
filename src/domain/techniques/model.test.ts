@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createBackOffPlan,
+  createClusterPlan,
   createFounderDropSetPlan,
   createInitialTechniqueLog,
   createPyramidPlan,
@@ -43,5 +44,13 @@ describe('técnicas especiais — modelo e validação', () => {
     expect(validateTechniquePlan(plan, 'intermediate').valid).toBe(false);
     expect(validateTechniquePlan(plan, 'advanced').valid).toBe(true);
   });
-});
 
+  it('materializa cluster em blocos da mesma série e o mantém avançado', () => {
+    const plan = createClusterPlan({ baseWeight: 80, clusterReps: [3, 3, 2], pauseSec: 18 });
+    expect(plan.stages?.map((stage) => stage.weight)).toEqual([80, 80, 80]);
+    expect(plan.stages?.map((stage) => stage.reps)).toEqual([3, 3, 2]);
+    expect(plan.stages?.map((stage) => stage.pauseSec)).toEqual([18, 18, 0]);
+    expect(validateTechniquePlan(plan, 'intermediate').valid).toBe(false);
+    expect(validateTechniquePlan(plan, 'advanced').valid).toBe(true);
+  });
+});

@@ -39,9 +39,29 @@ describe('migration — técnicas opcionais', () => {
   });
 
   it('descarta payload de técnica desconhecida sem afetar o exercício', () => {
-    expect(normalizeTechniquePlan({ type: 'rest_pause' })).toBeUndefined();
+    expect(normalizeTechniquePlan({
+      type: 'rest_pause',
+      baseWeight: 30,
+      targetReps: 8,
+      pauseSec: 15,
+      miniSets: [{ id: 'mini-1', index: 0, reps: 3, restSec: 15 }],
+    })).toMatchObject({ type: 'rest_pause', baseWeight: 30, pauseSec: 15 });
     expect(normalizeTechniqueLog({ type: 'superset' })).toBeUndefined();
     expect(normalizeTechniquePlan(createFounderDropSetPlan())).toBeDefined();
   });
-});
 
+  it('normaliza metadados de grupo legados sem criar grupo em sessão sem perfil', () => {
+    const source = legacyTechniqueSession();
+    source.exercises = [
+      { ...source.exercises[0], id: 'ex-a', groupId: 'legacy-group' },
+      { ...source.exercises[0], id: 'ex-b', groupId: 'legacy-group' },
+    ];
+    const migrated = migrateTechniqueSession(source);
+
+    expect(migrated.exercises).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'ex-a', groupId: 'legacy-group', groupOrder: 0, groupType: 'superset', groupRestSec: 90 }),
+      expect.objectContaining({ id: 'ex-b', groupId: 'legacy-group', groupOrder: 1, groupType: 'superset', groupRestSec: 90 }),
+    ]));
+    expect(migrateTechniqueSession(migrated)).toBe(migrated);
+  });
+});

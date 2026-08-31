@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowDown,
@@ -10,6 +10,8 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  Link2,
+  Unlink2,
   Wand2,
 } from 'lucide-react';
 import type { Exercise, ExerciseSlot, ProgressionType, VolumeProfile } from '../../types';
@@ -17,7 +19,14 @@ import type { MuscleGroupId } from '../../types/training-taxonomy';
 import type { DetailedWorkoutDurationEstimate } from '../../types/training-volume';
 import type { WorkoutDayBuilderDraft } from '../../types/workout-builder';
 import type { TrainingExperienceLevel } from '../../types/training-profile';
-import type { TechniqueId } from '../../domain/techniques/types';
+import type { ExerciseGroupType, TechniqueId } from '../../domain/techniques/types';
+import {
+  EXERCISE_GROUP_LABELS,
+  groupLabel,
+  getExerciseGroups,
+  groupTypeForSize,
+  validateExerciseGroup,
+} from '../../domain/techniques/grouping';
 import {
   getGymProfileExerciseAvailability,
   type GymProfileAvailability,
@@ -66,6 +75,8 @@ interface WorkoutDaysEditorProps {
   onOpenPicker: () => void;
   onOpenSuggestion: () => void;
   onSlotChange: (index: number, fields: Partial<ExerciseSlot>) => void;
+  onGroupCreate: (indices: number[], groupType: ExerciseGroupType, groupRestSec: number) => void;
+  onGroupRemove: (groupIds: string[]) => void;
   techniqueLevel: TrainingExperienceLevel;
   techniqueUnlocks: readonly TechniqueId[];
   onTechniqueUnlock: (technique: TechniqueId) => void;
@@ -100,6 +111,8 @@ export const WorkoutDaysEditor = ({
   onOpenPicker,
   onOpenSuggestion,
   onSlotChange,
+  onGroupCreate,
+  onGroupRemove,
   techniqueLevel,
   techniqueUnlocks,
   onTechniqueUnlock,
@@ -107,6 +120,9 @@ export const WorkoutDaysEditor = ({
   onSlotDuplicate,
   onSlotRemove,
 }: WorkoutDaysEditorProps) => {
+  const [selectedSlotIndices, setSelectedSlotIndices] = useState<number[]>([]);
+  const [groupType, setGroupType] = useState<ExerciseGroupType>('superset');
+  const [groupRestSec, setGroupRestSec] = useState(90);
   const [displayState, setDisplayState] = useState(() => ({
     dayId: day.id,
     canonicalMinutes: day.targetMinutes,
@@ -116,6 +132,34 @@ export const WorkoutDaysEditor = ({
     && displayState.canonicalMinutes === day.targetMinutes
     ? displayState.minutes
     : day.targetMinutes;
+
+  const groups = useMemo(() => getExerciseGroups(day.slots), [day.slots]);
+  const selectedGroupIds = useMemo(() => [...new Set(
+    selectedSlotIndices
+      .map((index) => day.slots[index]?.groupId)
+      .filter((groupId): groupId is string => Boolean(groupId)),
+  )], [day.slots, selectedSlotIndices]);
+  const groupValidation = useMemo(() => selectedSlotIndices.length > 0
+    ? validateExerciseGroup(day.slots, exercises, selectedSlotIndices, groupType)
+    : null, [day.slots, exercises, selectedSlotIndices, groupType]);
+
+  const toggleSlotSelection = (index: number) => {
+    setSelectedSlotIndices((current) => current.includes(index)
+      ? current.filter((item) => item !== index)
+      : [...current, index].sort((left, right) => left - right));
+  };
+
+  const handleCreateGroup = () => {
+    if (selectedSlotIndices.length < 2) return;
+    onGroupCreate(selectedSlotIndices, groupType, Math.max(0, Math.round(groupRestSec)));
+    setSelectedSlotIndices([]);
+  };
+
+  const handleRemoveGroups = () => {
+    if (selectedGroupIds.length === 0) return;
+    onGroupRemove(selectedGroupIds);
+    setSelectedSlotIndices([]);
+  };
   const setDisplayMinutes = (minutes: number, canonicalMinutes = day.targetMinutes) => {
     setDisplayState({ dayId: day.id, canonicalMinutes, minutes });
   };
@@ -280,6 +324,73 @@ export const WorkoutDaysEditor = ({
         <Sparkles className="w-4 h-4" /> Sugerir exercícios para este dia
       </button>
 
+      {day.slots.length > 0 && (
+        <section className="rounded-2xl border border-gym-accent/20 bg-gym-accent/[0.03] p-3 space-y-2.5" aria-label="Agrupamento de exercícios">
+          <div className="flex items-start gap-2">
+            <Link2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-gym-accent" />
+            <div className="min-w-0">
+              <h5 className="text-[10px] font-black uppercase tracking-widest text-gym-accent">Rodadas alternadas</h5>
+              <p className="mt-1 text-[10px] leading-relaxed text-gym-text-muted">
+                Selecione cartões abaixo para alternar exercícios. O descanso do grupo entra só no fim da rodada; entre cartões são 30s de transição.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <label className="min-w-0 flex-1">
+              <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-gym-text-muted">Tipo</span>
+              <select
+                value={groupType}
+                onChange={(event) => setGroupType(event.target.value as ExerciseGroupType)}
+                className="w-full min-h-[40px] rounded-lg border border-white/10 bg-gym-dark px-2 text-[10px] font-bold text-white outline-none focus:border-gym-accent"
+                aria-label="Tipo do grupo de exercícios"
+              >
+                {(Object.keys(EXERCISE_GROUP_LABELS) as ExerciseGroupType[]).map((type) => (
+                  <option key={type} value={type}>{EXERCISE_GROUP_LABELS[type]}</option>
+                ))}
+              </select>
+            </label>
+            <label className="w-full sm:w-32">
+              <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-gym-text-muted">Descanso (s)</span>
+              <input
+                type="number"
+                min={0}
+                max={600}
+                value={groupRestSec}
+                onChange={(event) => setGroupRestSec(Number(event.target.value) || 0)}
+                className="w-full min-h-[40px] rounded-lg border border-white/10 bg-gym-dark px-2 text-center text-xs font-mono text-white outline-none focus:border-gym-accent"
+                aria-label="Descanso do grupo em segundos"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={handleCreateGroup}
+              disabled={selectedSlotIndices.length < 2}
+              className="min-h-[40px] rounded-lg bg-gym-accent px-3 text-[10px] font-black uppercase tracking-wide text-gym-dark disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              Agrupar {selectedSlotIndices.length > 0 ? `(${selectedSlotIndices.length})` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={handleRemoveGroups}
+              disabled={selectedGroupIds.length === 0}
+              className="min-h-[40px] rounded-lg border border-white/10 bg-white/5 px-3 text-[10px] font-black uppercase tracking-wide text-gym-text-muted hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              <Unlink2 className="mr-1 inline h-3.5 w-3.5" /> Desfazer
+            </button>
+          </div>
+          {groupValidation?.warnings.map((warning) => (
+            <p key={warning.code} className="text-[9px] leading-relaxed text-amber-300">
+              <AlertTriangle className="mr-1 inline h-3 w-3" /> {warning.message} O aviso é informativo.
+            </p>
+          ))}
+          {groups.length > 0 && (
+            <p className="text-[9px] text-gym-text-muted">
+              {groups.length} grupo(s) configurado(s). Selecione um cartão agrupado para desfazê-lo.
+            </p>
+          )}
+        </section>
+      )}
+
       {day.slots.length === 0 ? (
         <div className="bg-white/5 p-8 text-center rounded-2xl border border-dashed border-white/10 space-y-3 flex flex-col items-center">
           <Dumbbell className="w-8 h-8 text-gym-text-muted opacity-40" />
@@ -309,7 +420,25 @@ export const WorkoutDaysEditor = ({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="text-[10px] text-gym-accent font-bold">#{index + 1}</span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <label className="inline-flex min-h-[32px] items-center gap-1.5 text-[9px] font-bold text-gym-text-muted">
+                        <input
+                          type="checkbox"
+                          checked={selectedSlotIndices.includes(index)}
+                          onChange={() => toggleSlotSelection(index)}
+                          className="h-4 w-4 accent-gym-accent"
+                          aria-label={`Selecionar ${exercise?.name ?? slot.exerciseId} para grupo`}
+                        />
+                        <span>Selecionar</span>
+                      </label>
+                      <span className="text-[10px] text-gym-accent font-bold">#{index + 1}</span>
+                      {slot.groupId && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-gym-accent/25 bg-gym-accent/10 px-2 py-1 text-[8px] font-black uppercase tracking-wide text-gym-accent">
+                          <Link2 className="h-3 w-3" />
+                          {groupLabel(slot.groupType ?? groupTypeForSize(groups.find((group) => group.id === slot.groupId)?.memberIndices.length ?? 2))} · ordem {slot.groupOrder !== undefined ? slot.groupOrder + 1 : index + 1}
+                        </span>
+                      )}
+                    </div>
                     <h5 className="text-xs font-bold text-white truncate">
                       {exercise?.name ?? 'Exercício desconhecido'}
                     </h5>

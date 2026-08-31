@@ -193,4 +193,18 @@ describe('estimativa detalhada', () => {
     estimateWorkoutDurationDetailed(slots, exercises);
     expect(JSON.stringify({ slots, exercises })).toBe(before);
   });
+
+  it('conta transição intra-grupo por rodada e descanso apenas no fim da rodada', () => {
+    const groupedSlots = [
+      slot({ exerciseId: 'a', series: 3, restSec: 120, groupId: 'group-ab', groupOrder: 0, groupRestSec: 75, groupType: 'superset' }),
+      slot({ exerciseId: 'b', series: 3, restSec: 120, groupId: 'group-ab', groupOrder: 1, groupRestSec: 75, groupType: 'superset' }),
+    ];
+    const groupedExercises = [exercise({ id: 'a' }), exercise({ id: 'b' })];
+    const result = estimateWorkoutDurationDetailed(groupedSlots, groupedExercises);
+
+    expect(result.breakdownByExercise.map((item) => item.restSeconds)).toEqual([0, 2 * 75]);
+    expect(result.transitionSeconds).toBe(3 * 30);
+    expect(result.assumptions.join(' ')).toContain('somente ao fim de cada rodada');
+    expect(result.assumptions.join(' ')).toContain('30 s por cartão e rodada');
+  });
 });

@@ -7,6 +7,7 @@ import type { TrainingExperienceLevel } from '../../types/training-profile';
 import type {
   TechniqueId,
   TechniqueLog,
+  TechniqueMiniSetLog,
   TechniquePlan,
   TechniqueSetLog,
   TechniqueStageLog,
@@ -14,6 +15,7 @@ import type {
 import {
   createInitialTechniqueLog,
   getTechniqueSafetyWarnings,
+  recordTechniqueMiniSet,
   recordTechniqueSet,
   recordTechniqueStage,
 } from './model';
@@ -64,18 +66,22 @@ function TechniqueInput({
 function StageRow({
   stage,
   index,
+  stageLabel = 'Estágio',
+  autoTimer = false,
   onChange,
   onTimer,
 }: {
   stage: TechniqueStageLog;
   index: number;
+  stageLabel?: string;
+  autoTimer?: boolean;
   onChange: (patch: Partial<Omit<TechniqueStageLog, 'id' | 'index'>>) => void;
   onTimer: (seconds: number) => void;
 }) {
   return (
     <div className={`rounded-xl border p-2.5 space-y-2 ${stage.completed ? 'border-gym-accent/30 bg-gym-accent/5' : 'border-white/10 bg-white/[0.03]'}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-black uppercase tracking-wider text-white">Estágio {index + 1}</span>
+        <span className="text-[10px] font-black uppercase tracking-wider text-white">{stageLabel} {index + 1}</span>
         <span className="text-[9px] text-gym-text-muted">{stage.restSec > 0 ? `${stage.restSec}s até o próximo` : 'série principal'}</span>
       </div>
       <div className="flex items-end gap-2">
@@ -83,7 +89,11 @@ function StageRow({
         <TechniqueInput value={stage.reps} label={`Repetições do estágio ${index + 1}`} onChange={(reps) => onChange({ reps })} />
         <button
           type="button"
-          onClick={() => onChange({ completed: !stage.completed })}
+          onClick={() => {
+            const completed = !stage.completed;
+            onChange({ completed });
+            if (completed && autoTimer && stage.restSec > 0) onTimer(stage.restSec);
+          }}
           className={`min-h-[40px] min-w-[40px] rounded-lg border flex items-center justify-center ${stage.completed ? 'border-gym-accent bg-gym-accent text-gym-dark' : 'border-white/15 bg-white/5 text-transparent hover:border-gym-accent'}`}
           aria-label={stage.completed ? `Desmarcar estágio ${index + 1}` : `Concluir estágio ${index + 1}`}
         >
@@ -108,6 +118,56 @@ function StageRow({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+function MiniSetRow({
+  mini,
+  index,
+  baseCompleted,
+  onChange,
+  onTimer,
+}: {
+  mini: TechniqueMiniSetLog;
+  index: number;
+  baseCompleted: boolean;
+  onChange: (patch: Partial<Omit<TechniqueMiniSetLog, 'id' | 'index'>>) => void;
+  onTimer: (seconds: number) => void;
+}) {
+  return (
+    <div className={`flex items-center gap-2 rounded-xl border p-2 ${mini.completed ? 'border-gym-accent/30 bg-gym-accent/5' : 'border-white/10 bg-white/[0.03]'}`}>
+      <span className="w-16 text-[9px] font-black uppercase tracking-wide text-gym-text-muted">Mini {index + 1}</span>
+      <TechniqueInput
+        value={mini.reps}
+        label={`Repetições da mini-série ${index + 1}`}
+        onChange={(reps) => onChange({ reps })}
+      />
+      <span className="whitespace-nowrap text-[9px] text-gym-text-muted">{mini.restSec > 0 ? `${mini.restSec}s` : 'fim'}</span>
+      {mini.restSec > 0 && (
+        <button
+          type="button"
+          disabled={!baseCompleted}
+          onClick={() => onTimer(mini.restSec)}
+          className="min-h-[40px] rounded-lg border border-white/10 bg-white/5 px-2 text-[9px] font-black uppercase tracking-wide text-gym-text-muted hover:text-gym-accent disabled:cursor-not-allowed disabled:opacity-35"
+          aria-label={`Iniciar pausa de ${mini.restSec} segundos da mini-série ${index + 1}`}
+        >
+          <Clock3 className="mr-1 inline h-3 w-3" />
+        </button>
+      )}
+      <button
+        type="button"
+        disabled={!baseCompleted}
+        onClick={() => {
+          const completed = !mini.completed;
+          onChange({ completed });
+          if (completed && mini.restSec > 0) onTimer(mini.restSec);
+        }}
+        className={`min-h-[40px] min-w-[40px] rounded-lg border flex items-center justify-center ${mini.completed ? 'border-gym-accent bg-gym-accent text-gym-dark' : 'border-white/15 bg-white/5 text-transparent hover:border-gym-accent'} disabled:cursor-not-allowed disabled:opacity-35`}
+        aria-label={mini.completed ? `Desmarcar mini-série ${index + 1}` : `Concluir mini-série ${index + 1}`}
+      >
+        <Check className="h-4 w-4 stroke-[3px]" />
+      </button>
     </div>
   );
 }
@@ -220,18 +280,48 @@ export const TechniquePanel = ({
         </div>
       ))}
 
-      {plan.type === 'drop_set' && hydratedLog.stages && (
+      {(plan.type === 'drop_set' || plan.type === 'cluster') && hydratedLog.stages && (
         <div className="space-y-2">
           {hydratedLog.stages.map((stage, index) => (
-            <StageRow key={stage.id} stage={stage} index={index} onChange={(patch) => updateStage(index, patch)} onTimer={setTimer} />
+            <StageRow
+              key={stage.id}
+              stage={stage}
+              index={index}
+              stageLabel={plan.type === 'cluster' ? 'Bloco' : 'Estágio'}
+              autoTimer={plan.type === 'cluster'}
+              onChange={(patch) => updateStage(index, patch)}
+              onTimer={setTimer}
+            />
           ))}
         </div>
       )}
 
-      {plan.type !== 'drop_set' && hydratedLog.sets && (
+      {plan.type !== 'drop_set' && plan.type !== 'rest_pause' && hydratedLog.sets && (
         <div className="space-y-2">
           {hydratedLog.sets.map((set, index) => (
             <SetRow key={set.id} set={set} index={index} onChange={(patch) => updateSet(index, patch)} failureAction={plan.type === 'to_failure'} />
+          ))}
+        </div>
+      )}
+
+      {plan.type === 'rest_pause' && hydratedLog.miniSets && (
+        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[9px] font-black uppercase tracking-wider text-gym-text-muted">Mini-séries · só reps</span>
+            <span className="text-[9px] text-gym-text-muted">Pausa automática de 15–20s</span>
+          </div>
+          {hydratedLog.sets?.[0] && !hydratedLog.sets[0].completed && (
+            <p className="text-[9px] leading-relaxed text-amber-300">Conclua a série base na tabela acima para liberar as mini-séries.</p>
+          )}
+          {hydratedLog.miniSets.map((mini, index) => (
+            <MiniSetRow
+              key={mini.id}
+              mini={mini}
+              index={index}
+              baseCompleted={hydratedLog.sets?.[0]?.completed === true}
+              onChange={(patch) => onChange(recordTechniqueMiniSet(hydratedLog, index, patch))}
+              onTimer={setTimer}
+            />
           ))}
         </div>
       )}

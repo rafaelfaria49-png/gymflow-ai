@@ -91,6 +91,12 @@ export function buildSessionPlan(source: SessionPlanSource): SessionPlan {
         repRange: slot.repRange,
         targetRPE: slot.targetRPE,
         restSec: slot.restSec,
+        ...(slot.groupId ? {
+          groupId: slot.groupId,
+          ...(slot.groupOrder !== undefined ? { groupOrder: slot.groupOrder } : {}),
+          ...(slot.groupRestSec !== undefined ? { groupRestSec: slot.groupRestSec } : {}),
+          ...(slot.groupType ? { groupType: slot.groupType } : {}),
+        } : {}),
       })),
       ...definedOrigin(source),
     };
@@ -130,7 +136,16 @@ function applyPlannedOrigin(
     entryOrigin: 'planned',
     entryStatus: 'planned',
     ...(entry
-      ? { plannedSlotIndex: entry.plannedSlotIndex, plannedExerciseId: entry.exerciseId }
+      ? {
+          plannedSlotIndex: entry.plannedSlotIndex,
+          plannedExerciseId: entry.exerciseId,
+          ...(entry.groupId ? {
+            groupId: entry.groupId,
+            ...(entry.groupOrder !== undefined ? { groupOrder: entry.groupOrder } : {}),
+            ...(entry.groupRestSec !== undefined ? { groupRestSec: entry.groupRestSec } : {}),
+            ...(entry.groupType ? { groupType: entry.groupType } : {}),
+          } : {}),
+        }
       : {}),
   };
 }
@@ -284,10 +299,22 @@ export function deriveExerciseEntryStatus(exercise: ActiveExercise): WorkoutExer
 
 function techniqueWorkCounts(log: TechniqueLog | undefined): { total: number; completed: number } | null {
   if (!log) return null;
-  if (log.type === 'drop_set' || log.type === 'to_failure' || log.type === 'tempo' || log.type === 'iso_hold' || log.type === 'partials') {
+  if (
+    log.type === 'drop_set'
+    || log.type === 'to_failure'
+    || log.type === 'tempo'
+    || log.type === 'iso_hold'
+    || log.type === 'partials'
+    || log.type === 'rest_pause'
+    || log.type === 'cluster'
+  ) {
     return {
       total: 1,
-      completed: log.stages?.some((stage) => stage.completed) || log.sets?.some((set) => set.completed) ? 1 : 0,
+      completed: log.stages?.some((stage) => stage.completed)
+        || log.sets?.some((set) => set.completed)
+        || log.miniSets?.some((mini) => mini.completed)
+        ? 1
+        : 0,
     };
   }
   const sets = log.sets ?? [];
