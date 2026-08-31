@@ -6,6 +6,7 @@ import {
   type PersistedState,
   type StorageEnvelope,
 } from './storage-types';
+import { isGymProfileState } from '../domain/gymProfile';
 
 const ARRAY_FIELDS: (keyof PersistedState)[] = [
   'weeklyPlan',
@@ -52,6 +53,7 @@ export function validatePersistedStateShape(value: unknown): value is PersistedS
     return false;
   }
   if ('nutrition' in value && !isRecord(value.nutrition)) return false;
+  if ('gymProfile' in value && value.gymProfile !== null && !isGymProfileState(value.gymProfile)) return false;
 
   return true;
 }

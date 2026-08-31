@@ -9,6 +9,7 @@ import type { TrainingExperienceLevel } from '../types/training-profile';
 import type { WorkoutProgramBuilderDraft } from '../types/workout-builder';
 import { useToast } from '../components/ui/Toast';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useGymProfileAvailability } from '../hooks/useGymProfileAvailability';
 import { estimateWorkoutDurationDetailed } from '../lib/workoutDuration';
 import {
   analyzeVolumeProfileFit,
@@ -148,8 +149,10 @@ export const WorkoutBuilder = () => {
     weeklyPlan,
     assignDayToWeekday,
     setWorkoutsTab,
+    gymProfile,
   } = useGymFlow();
   const toast = useToast();
+  const equipmentAvailability = useGymProfileAvailability(gymProfile);
 
   // Resolvido UMA vez (lazy state): o Construtor passa a ser dono do draft, e
   // mudanças em customPrograms não podem atropelar a edição em andamento.
@@ -349,11 +352,13 @@ export const WorkoutBuilder = () => {
       returnToTraining: user?.returnToTraining ?? null,
       existingSlots: selectedDay.slots,
       catalog: exercises,
-      availableEquipment: user?.equipments,
+      // Sem GymProfile, o contrato legado continua usando UserProfile.equipments.
+      availableEquipment: equipmentAvailability ? undefined : user?.equipments,
+      equipmentAvailability,
       restrictions: user?.restrictions,
       defaultRestSeconds: user?.restTimerDefaultSeconds,
     });
-  }, [suggestionOpen, selectedDay, draft.level, user, exercises]);
+  }, [suggestionOpen, selectedDay, draft.level, user, exercises, equipmentAvailability]);
 
   const handleApplySuggestion = () => {
     if (!suggestionPreview || suggestionPreview.additions.length === 0) {
@@ -620,6 +625,7 @@ export const WorkoutBuilder = () => {
         recommendation={selectedRecommendation}
         profileFit={selectedProfileFit}
         timeFit={selectedTimeFit}
+        equipmentAvailability={equipmentAvailability}
         recommendedExerciseRange={selectedTimeFit.recommendedExerciseRange}
         canMoveLeft={selectedIndex > 0}
         canMoveRight={selectedIndex < draft.days.length - 1}

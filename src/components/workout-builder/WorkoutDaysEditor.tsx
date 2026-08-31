@@ -16,6 +16,10 @@ import type { Exercise, ExerciseSlot, ProgressionType, VolumeProfile } from '../
 import type { MuscleGroupId } from '../../types/training-taxonomy';
 import type { DetailedWorkoutDurationEstimate } from '../../types/training-volume';
 import type { WorkoutDayBuilderDraft } from '../../types/workout-builder';
+import {
+  getGymProfileExerciseAvailability,
+  type GymProfileAvailability,
+} from '../../domain/gymProfile';
 import { NumericInput } from '../ui/NumericInput';
 import { VOLUME_PROFILES } from '../../lib/volumeProfiles';
 import type {
@@ -41,6 +45,7 @@ interface WorkoutDaysEditorProps {
   recommendation: RecommendedVolumeProfileResult;
   profileFit: VolumeProfileFitAnalysis;
   timeFit: WorkoutTimeFitAnalysis;
+  equipmentAvailability: GymProfileAvailability | null;
   recommendedExerciseRange: RecommendedExerciseRange;
   canMoveLeft: boolean;
   canMoveRight: boolean;
@@ -71,6 +76,7 @@ export const WorkoutDaysEditor = ({
   recommendation,
   profileFit,
   timeFit,
+  equipmentAvailability,
   recommendedExerciseRange,
   canMoveLeft,
   canMoveRight,
@@ -284,6 +290,9 @@ export const WorkoutDaysEditor = ({
           {day.slots.map((slot, index) => {
             const exercise = exercises.find((item) => item.id === slot.exerciseId);
             const alsoIn = otherDaysWithExercise(slot.exerciseId);
+            const equipmentState = exercise && equipmentAvailability
+              ? getGymProfileExerciseAvailability(exercise, equipmentAvailability)
+              : null;
             return (
               <div
                 key={`${day.id}_${index}_${slot.exerciseId}`}
@@ -301,6 +310,24 @@ export const WorkoutDaysEditor = ({
                         <span className="text-gym-text-muted"> • também no {alsoIn.join(', ')}</span>
                       )}
                     </p>
+                    {equipmentState?.status === 'unavailable' && (
+                      <span
+                        role="status"
+                        className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md border border-gym-rose/30 bg-gym-rose/10 px-1.5 py-1 text-[9px] font-bold leading-tight text-rose-300"
+                      >
+                        <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                        Equipamento indisponível no perfil ativo
+                      </span>
+                    )}
+                    {equipmentState?.status === 'crowded' && (
+                      <span
+                        role="status"
+                        className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md border border-amber-400/30 bg-amber-400/10 px-1.5 py-1 text-[9px] font-bold leading-tight text-amber-300"
+                      >
+                        <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                        Equipamento lotado — sugestão penalizada
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button

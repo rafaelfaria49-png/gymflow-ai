@@ -11,6 +11,7 @@ import { TrainingProfileSelector } from '../components/TrainingProfileSelector';
 import { TrainingProfileSummary } from '../components/TrainingProfileSummary';
 import { validateTrainingProfile } from '../lib/training-profile';
 import type { TrainingProfileFields } from '../types/training-profile';
+import { GymProfileSettings } from '../domain/gymProfile/GymProfileSettings';
 import {
   Scale,
   Ruler,
@@ -36,7 +37,9 @@ export const EvolutionDashboard = () => {
     measurementsHistory,
     addMeasurementLog,
     workoutHistory,
-    setActiveView
+    setActiveView,
+    gymProfile,
+    setGymProfile,
   } = useGymFlow();
   const toast = useToast();
 
@@ -441,6 +444,8 @@ export const EvolutionDashboard = () => {
             </button>
           </div>
         )}
+
+        <GymProfileSettings value={gymProfile} onChange={setGymProfile} />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
           {/* GÊNERO E PREFERÊNCIAS */}

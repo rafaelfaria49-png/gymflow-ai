@@ -19,7 +19,13 @@ export function mergePersistedState(
   saved: Partial<PersistedState>,
 ): PersistedState {
   // Presença da propriedade, e não length, decide o valor. Assim [] é dado legítimo.
-  return { ...defaults, ...saved };
+  const hasGymProfile = Object.prototype.hasOwnProperty.call(saved, 'gymProfile');
+  return {
+    ...defaults,
+    ...saved,
+    // GOAL-32: dados v1/v2 anteriores não criam uma academia silenciosamente.
+    gymProfile: hasGymProfile ? saved.gymProfile ?? null : defaults.gymProfile ?? null,
+  };
 }
 
 export function buildLegacyState(
@@ -33,6 +39,7 @@ export function buildLegacyState(
   return mergePersistedState(defaults, {
     user: legacyUser as unknown as PersistedState['user'],
     weeklyPlan: weeklyPlan as PersistedState['weeklyPlan'],
+    gymProfile: null,
   });
 }
 

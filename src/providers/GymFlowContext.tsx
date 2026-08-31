@@ -101,6 +101,10 @@ import {
 import { normalizeSessionState } from '../lib/workout-session-migration';
 import { useToast } from '../components/ui/Toast';
 import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
+import {
+  readPersistedGymProfile,
+  type GymProfileState,
+} from '../domain/gymProfile';
 
 export const STORAGE_KEY = 'gymflow:state:v1';
 
@@ -125,6 +129,8 @@ interface PersistedState {
   challenges: Challenge[];
   favoriteExercises: string[];
   recentlyViewedVideoIds: string[];
+  // Ausente em envelopes anteriores; a migração/hidratação expõe null ao domínio.
+  gymProfile?: GymProfileState | null;
 }
 
 export type AppView =
@@ -190,6 +196,10 @@ interface GymFlowContextType {
   logout: () => void;
   updateUserPremium: (status: 'free' | 'pro' | 'elite') => void;
   updateUserProfile: (profile: Partial<UserProfile>) => void;
+
+  // GymProfile (GOAL-32): null preserva o comportamento legado até a pessoa configurar.
+  gymProfile: GymProfileState | null;
+  setGymProfile: (state: GymProfileState | null) => void;
 
   // Exercises & Programs
   exercises: Exercise[];
@@ -461,6 +471,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const activeViewRef = useRef<AppView>('landing');
   const viewNavigationGuardRef = useRef(createViewNavigationGuard<AppView>());
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [gymProfile, setGymProfileState] = useState<GymProfileState | null>(null);
+  const gymProfileRef = useRef<GymProfileState | null>(null);
+  const setGymProfile = (state: GymProfileState | null) => {
+    gymProfileRef.current = state;
+    setGymProfileState(() => state);
+  };
 
   // Lists
   const [exercises, setExercises] = useState<Exercise[]>(MOCK_EXERCISES);
@@ -751,6 +767,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     challenges,
     favoriteExercises,
     recentlyViewedVideoIds,
+    gymProfile,
   };
   const persistedStateRef = useRef<PersistedState>(persistedState);
   const initialPersistedStateRef = useRef<PersistedState>(persistedState);
@@ -842,6 +859,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       activeWorkout: activeWorkoutRef.current,
       activeWorkoutStartedAt: activeWorkoutStartedAtRef.current,
       workoutHistory: workoutHistoryRef.current,
+      gymProfile: gymProfileRef.current,
       user: renderedState.user
         ? { ...renderedState.user, weeklyPlan: weeklyPlanRef.current }
         : null,
@@ -1075,6 +1093,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         storageBlockedRef.current = false;
         lastWriteErrorRef.current = null;
         setUser(saved.user);
+        setGymProfile(readPersistedGymProfile(saved));
         setWeeklyPlan(saved.weeklyPlan);
         setCustomPrograms(saved.customPrograms);
         const normalizedSession = normalizeSessionState({
@@ -1186,6 +1205,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     challenges,
     favoriteExercises,
     recentlyViewedVideoIds,
+    gymProfile,
   ]);
 
   // Flush síncrono reduz a janela de perda ao ocultar/fechar a página ou WebView.
@@ -2673,6 +2693,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         logout,
         updateUserPremium,
         updateUserProfile,
+        gymProfile,
+        setGymProfile,
 
         exercises,
         programs: allPrograms,
