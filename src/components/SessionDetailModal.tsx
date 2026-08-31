@@ -13,6 +13,9 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import type { ActiveExercise, WorkoutSession, WorkoutSet } from '../types';
+import type { TechniqueStageLog } from '../domain/techniques/types';
+import { rehydrateTechniqueLog } from '../domain/techniques/migration';
+import { TECHNIQUE_LABELS } from '../domain/techniques/profileRules';
 import {
   buildSessionSummary,
   buildSwapView,
@@ -67,6 +70,50 @@ function SetRow({ set, index }: { set: WorkoutSet; index: number }) {
           </span>
         )}
       </span>
+    </div>
+  );
+}
+
+function TechniqueHistory({ exercise }: { exercise: ActiveExercise }) {
+  const plan = exercise.techniquePlan;
+  const log = plan
+    ? rehydrateTechniqueLog(plan, exercise.techniqueLog)
+    : exercise.techniqueLog;
+  if (!log) return null;
+  const stages = log.stages ?? [];
+  const sets = log.sets ?? [];
+  return (
+    <div className="rounded-xl border border-gym-accent/15 bg-gym-accent/[0.03] p-2.5 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[9px] font-black uppercase tracking-wider text-gym-accent">{TECHNIQUE_LABELS[log.type]} · registro técnico</span>
+        <span className="text-[9px] text-gym-text-muted">stages reidratáveis</span>
+      </div>
+      {stages.length > 0 && (
+        <div className="space-y-1.5">
+          {stages.map((stage: TechniqueStageLog, index) => (
+            <div key={stage.id} className="grid grid-cols-12 items-center gap-1 rounded-lg border border-white/5 bg-white/[0.03] px-2 py-1.5 text-[10px]">
+              <span className="col-span-2 font-bold text-gym-accent">#{index + 1}</span>
+              <span className="col-span-3 font-mono text-white">{stage.weight} kg</span>
+              <span className="col-span-3 font-mono text-white">{stage.reps} reps</span>
+              <span className="col-span-2 text-gym-text-muted">{stage.pauseSec}s pausa</span>
+              <span className={`col-span-2 text-right font-bold ${stage.failed ? 'text-rose-300' : stage.completed ? 'text-gym-emerald' : 'text-gym-text-muted'}`}>
+                {stage.failed ? 'Falhou' : stage.completed ? 'OK' : '—'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {sets.length > 0 && (
+        <div className="space-y-1.5">
+          {sets.map((set) => (
+            <div key={set.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-2 py-1.5 text-[10px]">
+              <span className="font-bold text-gym-accent">Série {set.index + 1}</span>
+              <span className="font-mono text-white">{set.weight} kg × {set.reps}</span>
+              <span className={set.completed ? 'font-bold text-gym-emerald' : 'text-gym-text-muted'}>{set.completed ? 'OK' : '—'}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -153,6 +200,8 @@ function ExerciseBlock({ exercise, index }: { exercise: ActiveExercise; index: n
           Este exercício não possui séries registradas.
         </p>
       )}
+
+      <TechniqueHistory exercise={exercise} />
 
       {exercise.notes && exercise.notes.trim().length > 0 && (
         <div className="bg-white/5 border border-white/5 rounded-xl p-2.5 flex items-start gap-2">
@@ -267,6 +316,14 @@ export const SessionDetailModal = ({ session, onClose }: SessionDetailModalProps
               </p>
             </div>
           </div>
+
+          {session.techniqueMetrics && session.techniqueMetrics.techniqueCount > 0 && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-gym-accent/15 bg-gym-accent/[0.03] px-3 py-2 text-[10px]">
+              <span className="font-bold text-gym-accent">Técnicas: {session.techniqueMetrics.techniqueCount}</span>
+              <span className="text-gym-text-muted">Séries efetivas: <strong className="text-white">{session.techniqueMetrics.effectiveSets}</strong></span>
+              <span className="text-gym-text-muted">Fadiga: <strong className="text-white">{session.techniqueMetrics.fatigueIndex}</strong></span>
+            </div>
+          )}
 
           {/* PRs */}
           {prs.length > 0 && (

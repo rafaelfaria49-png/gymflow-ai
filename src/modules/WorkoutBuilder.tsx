@@ -150,6 +150,7 @@ export const WorkoutBuilder = () => {
     assignDayToWeekday,
     setWorkoutsTab,
     gymProfile,
+    unlockTechnique,
   } = useGymFlow();
   const toast = useToast();
   const equipmentAvailability = useGymProfileAvailability(gymProfile);
@@ -650,6 +651,9 @@ export const WorkoutBuilder = () => {
         onOpenPicker={() => setPickerOpen(true)}
         onOpenSuggestion={() => setSuggestionOpen(true)}
         onSlotChange={(index, fields) => setDraft(updateSlotInDay(draft, selectedDay.id, index, fields))}
+        techniqueLevel={user?.level ?? draft.level}
+        techniqueUnlocks={user?.techniqueUnlocks ?? []}
+        onTechniqueUnlock={unlockTechnique}
         onSlotMove={(index, direction) => setDraft(moveSlotInDay(draft, selectedDay.id, index, direction))}
         onSlotDuplicate={(index) => setDraft(duplicateSlotInDay(draft, selectedDay.id, index))}
         onSlotRemove={(index) => setDraft(removeSlotFromDay(draft, selectedDay.id, index))}

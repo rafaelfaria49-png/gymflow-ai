@@ -19,6 +19,8 @@ import {
   type CompactWorkoutProposal,
 } from '../domain/compactEngine';
 import { rankCrowdedGymSubstitutes } from '../lib/workout-session-mutations';
+import { aggregateActiveExerciseVolume, aggregateWorkoutVolume } from '../domain/techniques/aggregator';
+import { TechniquePanel } from '../domain/techniques/TechniquePanel';
 
 export const ActiveWorkoutPage = () => {
   const {
@@ -28,6 +30,7 @@ export const ActiveWorkoutPage = () => {
     updateWorkoutSet,
     updateExerciseNotes,
     completeWorkoutSet,
+    updateActiveExerciseTechniqueLog,
     addSetToActiveExercise,
     removeSetFromActiveExercise,
     addExerciseToActiveWorkout,
@@ -43,6 +46,7 @@ export const ActiveWorkoutPage = () => {
     applyCompactWorkout,
     openWorkoutBuilder,
     openGlobalPlayer,
+    unlockTechnique,
     // Timer de descanso (GOAL-06) — estado vive no GymFlowContext para sobreviver a
     // refresh e continuar contando mesmo se o usuário sair desta tela.
     restSecondsRemaining,
@@ -87,22 +91,20 @@ export const ActiveWorkoutPage = () => {
   }
 
   // Calcular estatísticas para o modal de resumo e painel ativo
-  const totalVolume = activeWorkout.exercises.reduce((acc, ex) => {
-    return acc + ex.sets.filter(s => s.completed).reduce((sAcc, s) => sAcc + (s.reps * s.weight), 0);
-  }, 0);
-
-  const completedSetsCount = activeWorkout.exercises.reduce((acc, ex) => {
-    return acc + ex.sets.filter((s) => s.completed).length;
-  }, 0);
+  const volumeSummary = aggregateWorkoutVolume(activeWorkout.exercises);
+  const totalVolume = volumeSummary.totalVolume;
+  const completedSetsCount = volumeSummary.effectiveSets;
 
   const totalSetsCount = activeWorkout.exercises.reduce((acc, ex) => {
+    if (ex.techniquePlan?.type === 'drop_set') return acc + 1;
+    if (ex.techniqueLog?.sets?.length) return acc + ex.techniqueLog.sets.length;
     return acc + ex.sets.length;
   }, 0);
 
   // Estimativa honesta: kcal calculado por série concluída (nunca por tempo decorrido),
   // para não mostrar gasto calórico com 0 séries feitas. Ver docs/DECISOES.md.
   const estimatedCalories = activeWorkout.exercises.reduce((acc, ex) => {
-    const completedSets = ex.sets.filter((s) => s.completed).length;
+    const completedSets = aggregateActiveExerciseVolume(ex).effectiveSets;
     if (completedSets === 0) return acc;
     const meta = exercises.find((e) => e.id === ex.exerciseId);
     const muscleGroup = meta?.muscleGroup || ex.muscleGroup;
@@ -112,9 +114,7 @@ export const ActiveWorkoutPage = () => {
   }, 0);
   const xpEarned = completedSetsCount * 10;
 
-  const nextExercise = activeWorkout.exercises.find((ex) => {
-    return !ex.sets.every(s => s.completed);
-  }) || null;
+  const nextExercise = activeWorkout.exercises.find((ex) => deriveExerciseEntryStatus(ex) !== 'performed') || null;
   const nextExerciseName = nextExercise ? nextExercise.name : 'Nenhum (Finalize o Treino!)';
 
   const muscleGroupsWorked = Array.from(new Set(activeWorkout.exercises.map(ex => {
@@ -733,6 +733,18 @@ export const ActiveWorkoutPage = () => {
                 </div>
               ))}
             </div>
+
+            {ex.techniquePlan && (
+              <TechniquePanel
+                plan={ex.techniquePlan}
+                log={ex.techniqueLog}
+                exercise={exercises.find((item) => item.id === ex.exerciseId)}
+                level={user?.level ?? 'beginner'}
+                manualUnlocks={user?.techniqueUnlocks ?? []}
+                onChange={(log) => updateActiveExerciseTechniqueLog(exIdx, log)}
+                onUnlock={unlockTechnique}
+              />
+            )}
 
             {/* ANOTAÇÕES DO EXERCÍCIO */}
             <div className="mt-2.5 bg-white/5 border border-white/5 rounded-2xl p-3">

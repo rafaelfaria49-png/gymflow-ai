@@ -17,7 +17,9 @@ import {
   TechniqueTrail,
   ProgramDay,
   WorkoutBuilderDraft,
-  WorkoutSwapReasonCode
+  WorkoutSwapReasonCode,
+  TechniqueId,
+  TechniqueLog,
 } from '../types';
 import {
   MOCK_EXERCISES,
@@ -104,6 +106,9 @@ import {
   type SessionPlanSource,
 } from '../lib/workout-session-domain';
 import { normalizeSessionState } from '../lib/workout-session-migration';
+import { aggregateWorkoutVolume } from '../domain/techniques/aggregator';
+import { createInitialTechniqueLog, materializeTechniqueSetPlans } from '../domain/techniques/model';
+import { normalizeTechniqueUnlocks } from '../domain/techniques/profileRules';
 import { useToast } from '../components/ui/Toast';
 import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
 import {
@@ -201,6 +206,7 @@ interface GymFlowContextType {
   logout: () => void;
   updateUserPremium: (status: 'free' | 'pro' | 'elite') => void;
   updateUserProfile: (profile: Partial<UserProfile>) => void;
+  unlockTechnique: (technique: TechniqueId) => void;
 
   // GymProfile (GOAL-32): null preserva o comportamento legado até a pessoa configurar.
   gymProfile: GymProfileState | null;
@@ -241,6 +247,7 @@ interface GymFlowContextType {
   updateWorkoutSet: (exerciseIndex: number, setIndex: number, fields: Partial<WorkoutSet>) => void;
   updateExerciseNotes: (exerciseIndex: number, notes: string) => void;
   completeWorkoutSet: (exerciseIndex: number, setIndex: number) => void;
+  updateActiveExerciseTechniqueLog: (exerciseIndex: number, log: TechniqueLog | undefined) => void;
   // GOAL-15: edições do Treino Ativo (imutáveis → persistem e sobrevivem a refresh)
   addSetToActiveExercise: (exerciseIndex: number) => void;
   removeSetFromActiveExercise: (exerciseIndex: number) => void;
@@ -1378,6 +1385,16 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     addXp(50, 'Configurações de perfil salvas!');
   };
 
+  const unlockTechnique = (technique: TechniqueId) => {
+    if (!user) return;
+    setUser((prev) => {
+      if (!prev) return null;
+      const techniqueUnlocks = normalizeTechniqueUnlocks([...(prev.techniqueUnlocks ?? []), technique]);
+      return { ...prev, techniqueUnlocks };
+    });
+    toast.info('Técnica liberada com orientação educativa. Use carga conservadora e priorize a execução.');
+  };
+
   // GOAL-08: histórico real de um exercício (sessões concluídas, mais recente
   // primeiro — ordem natural do workoutHistory persistido no GOAL-01).
   const exerciseHistoryFor = (exerciseId: string): ExerciseSessionHistory[] =>
@@ -1470,16 +1487,29 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         const lastW = lastRecordedWeight(history);
         const targetReps = suggestion.repsAlvo ?? slot.repRange[0];
         const prefillWeight = suggestion.pesoKg ?? lastW ?? 10;
-
-        const sets: WorkoutSet[] = Array.from({ length: slot.series }, (_, sIdx) => ({
+        const materializedSetPlans = slot.technique
+          ? materializeTechniqueSetPlans(slot.technique, prefillWeight, targetReps)
+          : [];
+        const techniquePlan = materializedSetPlans.length > 0 && slot.technique
+          ? { ...slot.technique, setPlans: materializedSetPlans }
+          : slot.technique;
+        const setCount = materializedSetPlans.length > 0 ? materializedSetPlans.length : slot.series;
+        const sets: WorkoutSet[] = Array.from({ length: setCount }, (_, sIdx) => {
+          const setPlan = materializedSetPlans[sIdx];
+          const plannedReps = setPlan?.reps === 'max' || setPlan?.reps === undefined
+            ? targetReps
+            : setPlan.reps;
+          return {
           id: `set_${idx}_${sIdx}`,
-          reps: targetReps,
-          weight: prefillWeight,
+          reps: plannedReps,
+          weight: setPlan?.weight ?? prefillWeight,
           completed: false,
           suggestedWeight: suggestion.pesoKg ?? undefined,
           lastWeight: lastW ?? undefined,
-          rpe: slot.targetRPE
-        }));
+          rpe: slot.targetRPE,
+          ...(setPlan ? { setPlan } : {}),
+        };
+        });
 
         return {
           id: `active_ex_${idx}_${Date.now()}`,
@@ -1491,7 +1521,11 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           repRange: slot.repRange,
           targetRPE: slot.targetRPE,
           restSec: slot.restSec,
-          progressionNote: suggestion.motivo
+          progressionNote: suggestion.motivo,
+          ...(techniquePlan ? {
+            techniquePlan,
+            techniqueLog: createInitialTechniqueLog(techniquePlan),
+          } : {}),
         };
       });
     } else if (resolution.status === 'legacy-program') {
@@ -1682,6 +1716,22 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     ));
   };
 
+  const updateActiveExerciseTechniqueLog = (exerciseIndex: number, log: TechniqueLog | undefined) => {
+    setActiveWorkout((prev) => {
+      if (!prev || !prev.exercises[exerciseIndex]) return prev;
+      const exercises = prev.exercises.map((exercise, index) => {
+        if (index !== exerciseIndex) return exercise;
+        if (!log) {
+          const next = { ...exercise };
+          delete next.techniqueLog;
+          return next;
+        }
+        return { ...exercise, techniqueLog: log };
+      });
+      return { ...prev, exercises };
+    });
+  };
+
   const completeWorkoutSet = (exerciseIndex: number, setIndex: number) => {
     const currentWorkout = activeWorkoutRef.current;
     if (!currentWorkout) return;
@@ -1855,14 +1905,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     const minutes = Math.ceil(workoutDuration / 60);
     const kcalPerMinute = rpe >= 8 ? 8.5 : rpe >= 5 ? 6.5 : 4.5;
     const caloriesBurned = Math.round(minutes * kcalPerMinute);
-    const completedSetsCount = workoutToFinish.exercises.reduce((acc, ex) => (
-      acc + ex.sets.filter((set) => set.completed).length
-    ), 0);
-    const totalVolume = workoutToFinish.exercises.reduce((acc, ex) => (
-      acc + ex.sets
-        .filter((set) => set.completed)
-        .reduce((setVolume, set) => setVolume + set.reps * set.weight, 0)
-    ), 0);
+    const volumeSummary = aggregateWorkoutVolume(workoutToFinish.exercises);
+    const completedSetsCount = volumeSummary.effectiveSets;
+    const totalVolume = volumeSummary.totalVolume;
     const finalXp = 100 + completedSetsCount * 5 + (totalVolume > 5000 ? 50 : 0);
 
     // PRs e conquistas são apenas calculados aqui. Nenhum efeito de sucesso ocorre
@@ -1897,6 +1942,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       totalVolume,
       prsDetected,
       xpEarned: finalXp,
+      techniqueMetrics: volumeSummary,
     });
 
     const clearFinishedWorkout = () => {
@@ -2756,6 +2802,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         logout,
         updateUserPremium,
         updateUserProfile,
+        unlockTechnique,
         gymProfile,
         setGymProfile,
 
@@ -2785,6 +2832,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         updateWorkoutSet,
         updateExerciseNotes,
         completeWorkoutSet,
+        updateActiveExerciseTechniqueLog,
         addSetToActiveExercise,
         removeSetFromActiveExercise,
         addExerciseToActiveWorkout,

@@ -16,6 +16,8 @@ import type { Exercise, ExerciseSlot, ProgressionType, VolumeProfile } from '../
 import type { MuscleGroupId } from '../../types/training-taxonomy';
 import type { DetailedWorkoutDurationEstimate } from '../../types/training-volume';
 import type { WorkoutDayBuilderDraft } from '../../types/workout-builder';
+import type { TrainingExperienceLevel } from '../../types/training-profile';
+import type { TechniqueId } from '../../domain/techniques/types';
 import {
   getGymProfileExerciseAvailability,
   type GymProfileAvailability,
@@ -37,6 +39,7 @@ import {
 import { WorkoutDayActions } from './WorkoutDayActions';
 import { WorkoutDayFocusSelector } from './WorkoutDayFocusSelector';
 import { WorkoutDaySummary } from './WorkoutDaySummary';
+import { TechniquePicker } from '../../domain/techniques/TechniquePicker';
 
 interface WorkoutDaysEditorProps {
   day: WorkoutDayBuilderDraft;
@@ -63,6 +66,9 @@ interface WorkoutDaysEditorProps {
   onOpenPicker: () => void;
   onOpenSuggestion: () => void;
   onSlotChange: (index: number, fields: Partial<ExerciseSlot>) => void;
+  techniqueLevel: TrainingExperienceLevel;
+  techniqueUnlocks: readonly TechniqueId[];
+  onTechniqueUnlock: (technique: TechniqueId) => void;
   onSlotMove: (index: number, direction: -1 | 1) => void;
   onSlotDuplicate: (index: number) => void;
   onSlotRemove: (index: number) => void;
@@ -94,6 +100,9 @@ export const WorkoutDaysEditor = ({
   onOpenPicker,
   onOpenSuggestion,
   onSlotChange,
+  techniqueLevel,
+  techniqueUnlocks,
+  onTechniqueUnlock,
   onSlotMove,
   onSlotDuplicate,
   onSlotRemove,
@@ -436,6 +445,19 @@ export const WorkoutDaysEditor = ({
                       className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                     />
                   </label>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 space-y-1.5">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-gym-text-muted">Técnica especial (opcional)</span>
+                  <TechniquePicker
+                    slot={slot}
+                    exercise={exercise}
+                    level={techniqueLevel}
+                    manualUnlocks={techniqueUnlocks}
+                    value={slot.technique}
+                    onChange={(technique) => onSlotChange(index, { technique })}
+                    onUnlock={onTechniqueUnlock}
+                  />
                 </div>
               </div>
             );
