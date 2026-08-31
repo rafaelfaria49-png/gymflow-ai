@@ -433,6 +433,7 @@ function terminalSessionMatchesActive(
       prsDetected,
       status,
       totalVolume,
+      techniqueMetrics,
       xpEarned,
       ...stable
     } = session;
@@ -442,6 +443,7 @@ function terminalSessionMatchesActive(
     void prsDetected;
     void status;
     void totalVolume;
+    void techniqueMetrics;
     void xpEarned;
     return {
       ...stable,

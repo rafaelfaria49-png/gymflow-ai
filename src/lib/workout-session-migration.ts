@@ -14,6 +14,7 @@
 // `activeWorkoutStartedAt` é mantido intacto para compatibilidade.
 
 import type { WorkoutSession } from '../types';
+import { migrateTechniqueSession } from '../domain/techniques/migration';
 
 export interface NormalizableSessionState {
   activeWorkout: WorkoutSession | null;
@@ -26,19 +27,21 @@ function normalizeActiveWorkout(
   activeWorkoutStartedAt: number | null,
 ): WorkoutSession | null {
   if (!activeWorkout) return activeWorkout;
-  const needsStatus = activeWorkout.status === undefined;
-  const needsStartedAt = activeWorkout.startedAt === undefined && activeWorkoutStartedAt != null;
-  if (!needsStatus && !needsStartedAt) return activeWorkout;
+  const normalizedTechnique = migrateTechniqueSession(activeWorkout);
+  const needsStatus = normalizedTechnique.status === undefined;
+  const needsStartedAt = normalizedTechnique.startedAt === undefined && activeWorkoutStartedAt != null;
+  if (!needsStatus && !needsStartedAt) return normalizedTechnique;
   return {
-    ...activeWorkout,
+    ...normalizedTechnique,
     ...(needsStatus ? { status: 'active' as const } : {}),
     ...(needsStartedAt ? { startedAt: activeWorkoutStartedAt } : {}),
   };
 }
 
 function normalizeHistorySession(session: WorkoutSession): WorkoutSession {
-  if (session.status !== undefined) return session;
-  return { ...session, status: 'completed' as const };
+  const normalizedTechnique = migrateTechniqueSession(session);
+  if (normalizedTechnique.status !== undefined) return normalizedTechnique;
+  return { ...normalizedTechnique, status: 'completed' as const };
 }
 
 function normalizeHistory(history: WorkoutSession[]): WorkoutSession[] {

@@ -95,6 +95,23 @@ export type {
   WeeklyVolumeGuideline,
 } from './training-volume';
 
+export type {
+  TechniqueGate,
+  TechniqueId,
+  TechniqueLog,
+  TechniqueMetrics,
+  TechniquePlan,
+  TechniqueRepTarget,
+  TechniqueSetLog,
+  TechniqueSetPlan,
+  TechniqueSetRole,
+  TechniqueStageLog,
+  TechniqueStagePlan,
+  TechniqueType,
+  TechniqueValidationIssue,
+  TechniqueValidationResult,
+} from '../domain/techniques/types';
+
 export interface WeeklyWorkoutDay {
   dayName: string; // 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
   workoutName: string; // Ex: 'Quadríceps + Glúteo', 'Descanso'
@@ -120,6 +137,8 @@ export interface ExerciseSlot {
   restSec: number; // alimenta o timer de descanso (GOAL-06)
   progression: ProgressionType;
   incrementKg: number;
+  /** GOAL-26: técnica especial atribuída ao slot; ausente = série convencional. */
+  technique?: import('../domain/techniques/types').TechniquePlan;
 }
 
 export interface TechniqueFrame {
@@ -196,6 +215,8 @@ export interface UserProfile {
   trainingStatus?: TrainingContinuityStatus;
   returnToTraining?: ReturnToTrainingProfile;
   trainingExperienceYears?: number;
+  /** Técnicas liberadas manualmente após leitura do aviso educativo. */
+  techniqueUnlocks?: import('../domain/techniques/types').TechniqueId[];
 }
 
 export interface Exercise {
@@ -238,6 +259,8 @@ export interface WorkoutSet {
   suggestedWeight?: number;
   lastWeight?: number;
   rpe?: number;
+  /** GOAL-26: materialização opcional de pyramid/back_off sem alterar séries legadas. */
+  setPlan?: import('../domain/techniques/types').TechniqueSetPlan;
 }
 
 export interface ActiveExercise {
@@ -266,6 +289,10 @@ export interface ActiveExercise {
   swapReasonCode?: WorkoutSwapReasonCode; // motivo da última troca
   swapReasonNote?: string; // nota livre (obrigatória só p/ `other`; normalizada, ≤120 chars)
   swappedAt?: number; // epoch ms da última troca
+  /** GOAL-26: snapshot do plano atribuído no builder. */
+  techniquePlan?: import('../domain/techniques/types').TechniquePlan;
+  /** GOAL-26: execução por stages/sets especiais, editável antes e depois da sessão. */
+  techniqueLog?: import('../domain/techniques/types').TechniqueLog;
 }
 
 export interface WorkoutSession {
@@ -281,6 +308,8 @@ export interface WorkoutSession {
   plannedDuration?: number; // minutos previstos no plano no momento do início
   crowdedGymMode?: boolean; // modo operacional da sessão, persistido no snapshot
   totalVolume?: number; // total kg levantados (reps * weight)
+  /** Métricas calculadas pela tabela TECH §5; opcional em sessões antigas. */
+  techniqueMetrics?: import('../domain/techniques/types').TechniqueMetrics;
   prsDetected?: string[]; // lista de nomes de PRs batidos
   // Origem informativa do snapshot. Opcional para manter sessões livres/legadas válidas.
   sourceProgramId?: string;

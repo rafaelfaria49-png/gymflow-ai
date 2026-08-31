@@ -21,6 +21,7 @@ import type {
   WorkoutSessionStatus,
   WorkoutSwapReasonCode,
 } from '../types';
+import type { TechniqueLog, TechniqueMetrics } from '../domain/techniques/types';
 
 /** Situação de uma sessão já finalizada (nunca `active`). */
 export type FinalizedSessionStatus = Exclude<WorkoutSessionStatus, 'active'>;
@@ -266,12 +267,31 @@ export function markEntrySwapped(
  *   todas concluídas → performed; caso contrário → partial.
  */
 export function deriveExerciseEntryStatus(exercise: ActiveExercise): WorkoutExerciseEntryStatus {
+  const techniqueWork = techniqueWorkCounts(exercise.techniqueLog);
+  const hasCompletedStandardSet = exercise.sets.some((set) => set.completed);
+  if (techniqueWork && (techniqueWork.completed > 0 || !hasCompletedStandardSet)) {
+    if (techniqueWork.completed === 0) return 'skipped';
+    if (techniqueWork.completed >= techniqueWork.total) return 'performed';
+    return 'partial';
+  }
   const total = exercise.sets.length;
   if (total === 0) return 'planned';
   const completed = exercise.sets.filter((set) => set.completed).length;
   if (completed === 0) return 'skipped';
   if (completed === total) return 'performed';
   return 'partial';
+}
+
+function techniqueWorkCounts(log: TechniqueLog | undefined): { total: number; completed: number } | null {
+  if (!log) return null;
+  if (log.type === 'drop_set' || log.type === 'to_failure' || log.type === 'tempo' || log.type === 'iso_hold' || log.type === 'partials') {
+    return {
+      total: 1,
+      completed: log.stages?.some((stage) => stage.completed) || log.sets?.some((set) => set.completed) ? 1 : 0,
+    };
+  }
+  const sets = log.sets ?? [];
+  return { total: sets.length, completed: sets.filter((set) => set.completed).length };
 }
 
 /**
@@ -283,6 +303,13 @@ export function deriveSessionStatus(exercises: ActiveExercise[]): FinalizedSessi
   let total = 0;
   let completed = 0;
   for (const exercise of exercises) {
+    const techniqueWork = techniqueWorkCounts(exercise.techniqueLog);
+    const hasCompletedStandardSet = exercise.sets.some((set) => set.completed);
+    if (techniqueWork && (techniqueWork.completed > 0 || !hasCompletedStandardSet)) {
+      total += techniqueWork.total;
+      completed += techniqueWork.completed;
+      continue;
+    }
     for (const set of exercise.sets) {
       total += 1;
       if (set.completed) completed += 1;
@@ -311,6 +338,7 @@ export interface FinalizeSessionParams {
   totalVolume: number;
   prsDetected: string[];
   xpEarned: number;
+  techniqueMetrics?: TechniqueMetrics;
 }
 
 /**
@@ -328,6 +356,7 @@ export function finalizeSession(params: FinalizeSessionParams): SessionLog {
     xpEarned: params.xpEarned,
     totalVolume: params.totalVolume,
     prsDetected: params.prsDetected,
+    ...(params.techniqueMetrics ? { techniqueMetrics: params.techniqueMetrics } : {}),
     status: deriveSessionStatus(session.exercises),
     endedAt: params.endedAt,
   };
