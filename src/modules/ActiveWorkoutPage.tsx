@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { TechniqueSequencePlayer } from '../components/TechniqueSequencePlayer';
-import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, Flag, X, Plus, Trash2, Search, Info, Pencil } from 'lucide-react';
+import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, ChevronUp, ChevronDown, Flag, X, Plus, Trash2, Search, Info, Pencil } from 'lucide-react';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { NumericInput } from '../components/ui/NumericInput';
 import { matchesExerciseSearch } from '../lib/exerciseSearch';
@@ -13,7 +13,12 @@ import { useToast } from '../components/ui/Toast';
 import { ExerciseOriginBadge, ExerciseExecutionBadge, SessionStatusBadge } from '../components/ui/SessionBadges';
 import { deriveExerciseEntryStatus, MAX_SWAP_REASON_NOTE_LENGTH } from '../lib/workout-session-domain';
 import { buildSessionPreview, buildSwapView, SWAP_REASON_LABELS, SWAP_REASON_ORDER } from '../lib/workout-session-view';
-import type { WorkoutSwapReasonCode } from '../types';
+import type { Exercise, WorkoutSwapReasonCode } from '../types';
+import {
+  buildCompactWorkoutProposal,
+  type CompactWorkoutProposal,
+} from '../domain/compactEngine';
+import { rankCrowdedGymSubstitutes } from '../lib/workout-session-mutations';
 
 export const ActiveWorkoutPage = () => {
   const {
@@ -32,7 +37,10 @@ export const ActiveWorkoutPage = () => {
     cancelWorkout,
     exercises,
     programs,
-    adaptActiveWorkoutForCrowdedGym,
+    crowdedGymMode,
+    toggleCrowdedGymMode,
+    moveExerciseInActiveWorkout,
+    applyCompactWorkout,
     openWorkoutBuilder,
     openGlobalPlayer,
     // Timer de descanso (GOAL-06) — estado vive no GymFlowContext para sobreviver a
@@ -56,6 +64,8 @@ export const ActiveWorkoutPage = () => {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addSearch, setAddSearch] = useState('');
+  const [compactProposal, setCompactProposal] = useState<CompactWorkoutProposal | null>(null);
+  const [quickMinutes, setQuickMinutes] = useState(30);
 
   if (!activeWorkout) {
     return (
@@ -140,6 +150,33 @@ export const ActiveWorkoutPage = () => {
   // (ignora o `status: 'active'` armazenado) para mostrar o que a sessão vai se
   // tornar ao concluir: completed / partial / abandoned.
   const finishPreview = buildSessionPreview(activeWorkout);
+  const plannedMinutes = Math.max(1, Math.round(activeWorkout.plannedDuration ?? user?.duration ?? 45));
+  const defaultQuickMinutes = Math.max(1, Math.min(plannedMinutes - 1, Math.round(plannedMinutes * 0.7)));
+
+  const createCompactProposal = (targetMinutes: number) => buildCompactWorkoutProposal({
+    session: activeWorkout,
+    plannedMinutes,
+    targetMinutes,
+    catalog: exercises,
+  });
+
+  const openCompactProposal = () => {
+    const target = Math.max(1, Math.min(plannedMinutes - 1, defaultQuickMinutes));
+    setQuickMinutes(target);
+    setCompactProposal(createCompactProposal(target));
+  };
+
+  const refreshCompactProposal = () => {
+    setCompactProposal(createCompactProposal(quickMinutes));
+  };
+
+  const closeCompactProposal = () => setCompactProposal(null);
+
+  const confirmCompactProposal = () => {
+    if (!compactProposal?.requiresConfirmation) return;
+    applyCompactWorkout(compactProposal);
+    closeCompactProposal();
+  };
 
   const formatTime = (totalSeconds: number) => {
     const hrs = Math.floor(totalSeconds / 3600);
@@ -202,8 +239,15 @@ export const ActiveWorkoutPage = () => {
 
   // Filtrar substitutos recomendados baseado no mesmo grupo muscular
   const getSubstitutes = (exIndex: number) => {
-    const currentExGroup = activeWorkout.exercises[exIndex]?.muscleGroup;
-    return exercises.filter((e) => e.muscleGroup === currentExGroup && e.id !== activeWorkout.exercises[exIndex]?.exerciseId);
+    const activeExercise = activeWorkout.exercises[exIndex];
+    if (!activeExercise) return [];
+    const current: Pick<Exercise, 'id' | 'muscleGroup'> = exercises.find(
+      (exercise) => exercise.id === activeExercise.exerciseId,
+    ) ?? {
+      id: activeExercise.exerciseId,
+      muscleGroup: activeExercise.muscleGroup as Exercise['muscleGroup'],
+    };
+    return rankCrowdedGymSubstitutes(current, exercises, { crowdedGym: crowdedGymMode });
   };
 
   // ActionBar fixa (GOAL-04): estado da próxima série pendente.
@@ -297,14 +341,31 @@ export const ActiveWorkoutPage = () => {
             </span>
           </div>
 
-          {/* Academia Lotada button */}
+          {/* GOAL-25: modo operacional sem trocar exercícios silenciosamente. */}
           <button
-            onClick={() => adaptActiveWorkoutForCrowdedGym()}
-            className="bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent font-bold px-3 py-2 rounded-xl transition-all text-xs flex items-center gap-1.5"
-            title="Adaptar aparelhos para pesos livres devido à lotação"
+            type="button"
+            onClick={toggleCrowdedGymMode}
+            aria-pressed={crowdedGymMode}
+            className={`border font-bold px-3 py-2 rounded-xl transition-all text-xs flex items-center gap-1.5 ${
+              crowdedGymMode
+                ? 'bg-gym-accent/15 border-gym-accent/40 text-gym-accent'
+                : 'bg-white/5 hover:bg-gym-accent/15 border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent'
+            }`}
+            title="Priorizar pesos livres e cabos nas substituições"
           >
-            <Sparkles className="w-3.5 h-3.5 text-gym-accent animate-pulse" />
-            <span className="hidden sm:inline">Academia Lotada</span>
+            <Sparkles className={`w-3.5 h-3.5 ${crowdedGymMode ? 'animate-pulse' : 'text-gym-accent'}`} />
+            <span className="hidden sm:inline">Academia cheia</span>
+          </button>
+
+          {/* GOAL-25: primeira ação abre a proposta; nenhum corte acontece aqui. */}
+          <button
+            type="button"
+            onClick={openCompactProposal}
+            className="bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent font-bold px-3 py-2 rounded-xl transition-all text-xs flex items-center gap-1.5"
+            title="Montar uma versão compacta para o tempo de hoje"
+          >
+            <Zap className="w-3.5 h-3.5 text-gym-accent" />
+            <span className="hidden sm:inline">Treino rápido</span>
           </button>
 
           <button
@@ -323,6 +384,20 @@ export const ActiveWorkoutPage = () => {
             <p className="text-xs text-white font-semibold leading-relaxed">
               Ajustes feitos aqui valem para esta sessão e serão registrados no histórico. Para alterar os próximos treinos, edite o programa.
             </p>
+            {(crowdedGymMode || activeWorkout.variant === 'compact') && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {crowdedGymMode && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gym-accent/10 border border-gym-accent/20 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide text-gym-accent">
+                    <Sparkles className="w-3 h-3" /> Academia cheia ativa
+                  </span>
+                )}
+                {activeWorkout.variant === 'compact' && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gym-emerald/10 border border-gym-emerald/20 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide text-gym-emerald">
+                    <Zap className="w-3 h-3" /> Variante compacta
+                  </span>
+                )}
+              </div>
+            )}
             {activeWorkout.sourceProgramName && (
               <p className="text-[10px] text-gym-text-muted mt-1">
                 Origem: {activeWorkout.sourceProgramName}
@@ -494,7 +569,29 @@ export const ActiveWorkoutPage = () => {
               </div>
 
               {/* Ações */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap justify-end">
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => moveExerciseInActiveWorkout(exIdx, exIdx - 1)}
+                    disabled={exIdx === 0}
+                    className="min-h-[44px] w-10 text-gym-text-muted hover:text-gym-accent bg-white/5 hover:bg-gym-accent/10 border border-white/5 rounded-lg flex items-center justify-center transition-all active:scale-95 disabled:opacity-25 disabled:cursor-not-allowed"
+                    title="Mover exercício para cima"
+                    aria-label={`Mover ${ex.name} para cima`}
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveExerciseInActiveWorkout(exIdx, exIdx + 1)}
+                    disabled={exIdx === activeWorkout.exercises.length - 1}
+                    className="min-h-[44px] w-10 text-gym-text-muted hover:text-gym-accent bg-white/5 hover:bg-gym-accent/10 border border-white/5 rounded-lg flex items-center justify-center transition-all active:scale-95 disabled:opacity-25 disabled:cursor-not-allowed"
+                    title="Mover exercício para baixo"
+                    aria-label={`Mover ${ex.name} para baixo`}
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
                 <button
                   onClick={() => openSwapModal(exIdx)}
                   className="min-h-[44px] text-[10px] bg-white/5 hover:bg-white/10 border border-white/5 text-gym-text-muted hover:text-white px-3 rounded-lg flex items-center gap-1 transition-all active:scale-95"
@@ -775,6 +872,106 @@ export const ActiveWorkoutPage = () => {
         </div>
       </div>
 
+      {/* MODAL DE PROPOSTA DO TREINO RÁPIDO (GOAL-25): só aplica após confirmação. */}
+      {compactProposal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="compact-workout-title"
+            className="bg-gym-dark border border-gym-accent/25 rounded-3xl w-full max-w-md p-6 relative max-h-[85vh] overflow-y-auto shadow-2xl"
+          >
+            <button
+              type="button"
+              onClick={closeCompactProposal}
+              className="absolute top-4 right-4 text-gym-text-muted hover:text-white rounded-lg bg-white/5 tap-target flex items-center justify-center"
+              aria-label="Fechar proposta de treino rápido"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="pr-8">
+              <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest">Treino rápido</span>
+              <h2 id="compact-workout-title" className="text-lg font-black text-white mt-1">Ajustar para o tempo de hoje</h2>
+              <p className="text-xs text-gym-text-muted leading-relaxed mt-1">
+                O plano tem {compactProposal.sourceMinutes} min. Informe o tempo disponível; compostos ficam protegidos e os cortes aparecem antes da confirmação.
+              </p>
+            </div>
+
+            <div className="flex items-end gap-2 mt-5">
+              <label className="flex-1">
+                <span className="block text-[10px] font-extrabold text-gym-text-muted uppercase tracking-wider mb-1.5">
+                  Tenho hoje (min)
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={compactProposal.sourceMinutes}
+                  value={quickMinutes}
+                  onChange={(event) => setQuickMinutes(Math.max(1, Number(event.target.value) || 1))}
+                  className="w-full min-h-[44px] bg-gym-card border border-white/10 focus:border-gym-accent rounded-2xl px-3.5 text-sm text-white outline-none"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={refreshCompactProposal}
+                className="min-h-[44px] px-3.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-[10px] font-extrabold uppercase tracking-wide text-gym-accent"
+              >
+                Atualizar
+              </button>
+            </div>
+
+            <div className="mt-4 bg-white/5 border border-white/10 rounded-2xl p-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[10px] font-extrabold text-gym-text-muted uppercase tracking-wider">Prévia</span>
+                <span className={`text-[10px] font-black ${compactProposal.canReachTarget ? 'text-gym-emerald' : 'text-gym-amber'}`}>
+                  ~{compactProposal.estimatedMinutesAfter} min
+                </span>
+              </div>
+              {compactProposal.removedExercises.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  <p className="text-[10px] font-extrabold text-white uppercase tracking-wider">O que sai</p>
+                  {compactProposal.removedExercises.map((removed) => (
+                    <div key={removed.activeExerciseId} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="text-white truncate">{removed.name}</span>
+                      <span className="text-gym-amber font-mono text-[10px] flex-shrink-0">-{removed.estimatedMinutes} min</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gym-text-muted mt-2">
+                  {compactProposal.sourceMinutes <= compactProposal.targetMinutes
+                    ? 'Esse tempo não é menor que o plano; nada será removido.'
+                    : 'Nenhum isolador seguro para cortar. Os compostos continuam preservados.'}
+                </p>
+              )}
+            </div>
+
+            <p className="text-[10px] text-gym-text-muted leading-relaxed mt-3">
+              {compactProposal.rationale.join(' ')}
+            </p>
+
+            <div className="flex gap-3 mt-5">
+              <button
+                type="button"
+                onClick={closeCompactProposal}
+                className="flex-1 min-h-[44px] px-4 rounded-2xl text-xs font-extrabold bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all"
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                onClick={confirmCompactProposal}
+                disabled={!compactProposal.requiresConfirmation}
+                className="flex-1 min-h-[44px] px-4 rounded-2xl text-xs font-extrabold bg-gym-accent text-gym-dark hover:bg-gym-accent-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {compactProposal.requiresConfirmation ? 'Confirmar cortes' : 'Sem alterações'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL DE TROCA DE EXERCÍCIO */}
       {showSwapModal && swapIndex !== null && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -791,6 +988,12 @@ export const ActiveWorkoutPage = () => {
             <h2 className="text-base font-bold text-white mb-4">
               Substituir &quot;{activeWorkout.exercises[swapIndex]?.name}&quot;
             </h2>
+
+            {crowdedGymMode && (
+              <div className="mb-4 rounded-2xl border border-gym-accent/20 bg-gym-accent/5 p-3 text-[10px] font-semibold leading-relaxed text-gym-accent">
+                Academia cheia ativa: pesos livres e cabos aparecem primeiro nesta fila.
+              </div>
+            )}
 
             {/* GOAL-24: motivo da troca (obrigatório) */}
             <div className="mb-4">

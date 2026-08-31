@@ -16,6 +16,7 @@ import type {
   WorkoutExerciseEntryOrigin,
   WorkoutExerciseEntryStatus,
   WorkoutSessionStatus,
+  WorkoutSessionVariant,
   WorkoutSwapReasonCode,
 } from './workout-session';
 
@@ -71,6 +72,7 @@ export type {
   WorkoutExerciseEntryOrigin,
   WorkoutExerciseEntryStatus,
   WorkoutSessionStatus,
+  WorkoutSessionVariant,
   WorkoutSwapReasonCode,
 } from './workout-session';
 
@@ -274,6 +276,10 @@ export interface WorkoutSession {
   calories: number;
   exercises: ActiveExercise[];
   xpEarned: number;
+  // GOAL-25: metadados da sessão ativa. Opcionais para não alterar registros legados.
+  variant?: WorkoutSessionVariant;
+  plannedDuration?: number; // minutos previstos no plano no momento do início
+  crowdedGymMode?: boolean; // modo operacional da sessão, persistido no snapshot
   totalVolume?: number; // total kg levantados (reps * weight)
   prsDetected?: string[]; // lista de nomes de PRs batidos
   // Origem informativa do snapshot. Opcional para manter sessões livres/legadas válidas.

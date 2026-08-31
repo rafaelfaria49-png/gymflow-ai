@@ -87,10 +87,15 @@ import {
 } from '../lib/workout-session-origin';
 import {
   adaptWorkoutForCrowdedGym,
+  reorderWorkoutExercises,
   swapWorkoutExercise,
   toggleWorkoutSetCompletion,
   updateWorkoutExerciseNotes,
 } from '../lib/workout-session-mutations';
+import {
+  applyCompactWorkoutProposal,
+  type CompactWorkoutProposal,
+} from '../domain/compactEngine';
 import {
   buildSessionPlan,
   finalizeSession,
@@ -250,6 +255,11 @@ interface GymFlowContextType {
   cancelWorkout: () => void;
   workoutDuration: number;
   setWorkoutDuration: React.Dispatch<React.SetStateAction<number>>;
+  crowdedGymMode: boolean;
+  setCrowdedGymMode: (enabled: boolean) => void;
+  toggleCrowdedGymMode: () => void;
+  moveExerciseInActiveWorkout: (fromIndex: number, toIndex: number) => void;
+  applyCompactWorkout: (proposal: CompactWorkoutProposal) => void;
   adaptActiveWorkoutForCrowdedGym: () => void;
 
   // Timer de descanso (GOAL-06)
@@ -1392,6 +1402,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       WorkoutSession,
       'sourceProgramId' | 'sourceProgramDayId' | 'sourceProgramName' | 'sourceProgramDayName'
     >> = {};
+    let plannedDuration = Math.max(1, Math.round(user?.duration ?? 45));
     // GOAL-23A: origem do plano da sessão, montada na mesma ordem que activeExs.
     let planSource: SessionPlanSource | null = null;
 
@@ -1443,6 +1454,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       workoutName = customName
         || (resolution.program ? `${resolution.program.name} — ${programDay.name}` : programDay.name);
       sessionOrigin = resolution.origin ?? {};
+      plannedDuration = Number.isFinite(programDay.targetMinutes) && (programDay.targetMinutes ?? 0) > 0
+        ? Math.max(1, Math.round(programDay.targetMinutes as number))
+        : Math.max(1, estimateWorkoutDuration(programDay.slots).minutes || plannedDuration);
       planSource = { kind: 'program-day', name: workoutName, slots: programDay.slots, ...sessionOrigin };
       activeExs = programDay.slots.map((slot, idx) => {
         // Fallback seguro: exercício ausente vira "Exercício Desconhecido",
@@ -1554,6 +1568,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       name: workoutName,
       date: new Date().toISOString().split('T')[0],
       startedAt,
+      plannedDuration,
       exercises: activeExs,
     });
     setActiveWorkout(session);
@@ -1758,6 +1773,53 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     toast.success(`Substituição aplicada sem alterar o objetivo muscular do treino: ${currentExercise.name} -> ${newEx.name}.`);
   };
 
+  const crowdedGymMode = activeWorkout?.crowdedGymMode === true;
+
+  const setCrowdedGymMode = (enabled: boolean) => {
+    if (!activeWorkoutRef.current) return;
+    setActiveWorkout((prev) => (prev ? { ...prev, crowdedGymMode: enabled } : prev));
+    toast.info(
+      enabled
+        ? 'Academia cheia ativada: a fila de substituição prioriza pesos livres e cabos.'
+        : 'Modo Academia cheia desativado: a fila voltou ao ranking padrão.',
+    );
+  };
+
+  const toggleCrowdedGymMode = () => setCrowdedGymMode(!Boolean(activeWorkoutRef.current?.crowdedGymMode));
+
+  const moveExerciseInActiveWorkout = (fromIndex: number, toIndex: number) => {
+    setActiveWorkout((prev) => (
+      prev ? reorderWorkoutExercises(prev, fromIndex, toIndex) : prev
+    ));
+  };
+
+  const applyCompactWorkout = (proposal: CompactWorkoutProposal) => {
+    const currentWorkout = activeWorkoutRef.current;
+    if (!currentWorkout || currentWorkout.id !== proposal.sessionId) {
+      toast.error('A proposta de Treino rápido ficou desatualizada. Gere uma nova prévia.');
+      return;
+    }
+    const currentExerciseIds = currentWorkout.exercises.map((exercise) => exercise.id);
+    const sameSource = currentExerciseIds.length === proposal.sourceExerciseIds.length
+      && currentExerciseIds.every((id, index) => id === proposal.sourceExerciseIds[index]);
+    if (!sameSource) {
+      toast.error('A sessão mudou desde a prévia. Gere novamente o Treino rápido antes de aplicar.');
+      return;
+    }
+    const nextWorkout = applyCompactWorkoutProposal(currentWorkout, proposal);
+    if (nextWorkout === currentWorkout) return;
+    setActiveWorkout((prev) => (
+      prev && prev.id === currentWorkout.id
+        ? applyCompactWorkoutProposal(prev, proposal)
+        : prev
+    ));
+    toast.success(
+      proposal.removedExercises.length > 0
+        ? `Treino rápido aplicado: ${proposal.removedExercises.length} isolador(es) removido(s).`
+        : 'Treino rápido registrado para esta sessão.',
+    );
+  };
+
   const adaptActiveWorkoutForCrowdedGym = () => {
     const currentWorkout = activeWorkoutRef.current;
     if (!currentWorkout) return;
@@ -1766,14 +1828,15 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       setActiveWorkout((prev) => {
         if (!prev) return prev;
         return prev === currentWorkout
-          ? adaptation.workout
-          : adaptWorkoutForCrowdedGym(prev, exercises).workout;
+          ? { ...adaptation.workout, crowdedGymMode: true }
+          : { ...adaptWorkoutForCrowdedGym(prev, exercises).workout, crowdedGymMode: true };
       });
       addXp(100, 'Treino adaptado: Academia Cheia!');
       unlockAchievement('ach_17');
       toast.success(`Academia Lotada: Substituímos ${adaptation.replacementCount} exercícios em aparelhos por pesos livres (halteres/peso corporal) de mesma ativação muscular.`);
     } else {
-      toast.info('Seu treino já é composto por pesos livres ou não há aparelhos de trilhos mecânicos para adaptar.');
+      setActiveWorkout((prev) => (prev ? { ...prev, crowdedGymMode: true } : prev));
+      toast.info('Modo Academia cheia ativado. Seu treino já está livre ou não há uma troca automática segura.');
     }
   };
 
@@ -2731,6 +2794,11 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         cancelWorkout,
         workoutDuration,
         setWorkoutDuration,
+        crowdedGymMode,
+        setCrowdedGymMode,
+        toggleCrowdedGymMode,
+        moveExerciseInActiveWorkout,
+        applyCompactWorkout,
         adaptActiveWorkoutForCrowdedGym,
 
         restSecondsRemaining,

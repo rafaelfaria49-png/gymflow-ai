@@ -140,6 +140,8 @@ export interface StartActiveSessionParams {
   name: string;
   date: string;
   startedAt: number;
+  /** Tempo previsto do plano, em minutos, para o atalho Treino rápido. */
+  plannedDuration?: number;
   /** Exercícios já materializados pelo fluxo atual (com pré-preenchimento). */
   exercises: ActiveExercise[];
 }
@@ -162,6 +164,10 @@ export function startActiveSession(params: StartActiveSessionParams): ActiveSess
     calories: 0,
     exercises,
     xpEarned: 0,
+    variant: 'standard',
+    ...(params.plannedDuration !== undefined && Number.isFinite(params.plannedDuration)
+      ? { plannedDuration: Math.max(1, Math.round(params.plannedDuration)) }
+      : {}),
     status: 'active',
     startedAt: params.startedAt,
     ...(plan.sourceProgramId ? { sourceProgramId: plan.sourceProgramId } : {}),

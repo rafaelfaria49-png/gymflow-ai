@@ -23,6 +23,13 @@ import type { WorkoutSession } from './index';
 export type WorkoutSessionStatus = 'active' | 'completed' | 'partial' | 'abandoned';
 
 /**
+ * Variante efetivamente registrada no histórico.
+ * `compact` só é gravada depois de a pessoa confirmar a proposta de treino
+ * rápido; a ausência do campo continua válida para sessões legadas.
+ */
+export type WorkoutSessionVariant = 'standard' | 'compact';
+
+/**
  * Origem de uma entrada (exercício) dentro da sessão — de ONDE ela veio.
  * Independente do estado de execução.
  * - `planned` → veio do plano inicial (dia de programa, programa flat ou o

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Exercise, WorkoutSession, WorkoutSwapReasonCode } from '../types';
 import {
   adaptWorkoutForCrowdedGym,
+  rankCrowdedGymSubstitutes,
+  reorderWorkoutExercises,
   swapWorkoutExercise,
   toggleWorkoutSetCompletion,
   updateWorkoutExerciseNotes,
@@ -106,6 +108,31 @@ describe('mutações puras da sessão ativa', () => {
     const result = adaptWorkoutForCrowdedGym(workout, catalog);
     expect(result).toEqual({ workout, replacementCount: 0 });
     expect(result.workout).toBe(workout);
+  });
+
+  it('modo Academia cheia prioriza livres/cabos no ranking de substituição', () => {
+    const cable = makeExercise('cable-chest', 'Crossover na polia', 'chest', 'Polia Alta');
+    const machine = makeExercise('machine-chest-2', 'Supino articulado', 'chest', 'Máquina');
+    const ranked = rankCrowdedGymSubstitutes(catalog[0], [machine, cable], { crowdedGym: true });
+
+    expect(ranked.map((exercise) => exercise.id)).toEqual(['cable-chest', 'machine-chest-2']);
+  });
+
+  it('reordena a fila sem mutar a sessão nem os objetos de exercício', () => {
+    const workout = {
+      ...makeWorkout(),
+      exercises: [
+        makeWorkout().exercises[0],
+        { ...makeWorkout().exercises[0], id: 'active-2', exerciseId: 'dumbbell-chest', name: 'Supino halteres' },
+        { ...makeWorkout().exercises[0], id: 'active-3', exerciseId: 'cable-chest', name: 'Crossover' },
+      ],
+    };
+    const reordered = reorderWorkoutExercises(workout, 2, 0);
+
+    expect(reordered.exercises.map((exercise) => exercise.id)).toEqual(['active-3', 'active-1', 'active-2']);
+    expect(workout.exercises.map((exercise) => exercise.id)).toEqual(['active-1', 'active-2', 'active-3']);
+    expect(reordered.exercises[1]).toBe(workout.exercises[0]);
+    expect(reorderWorkoutExercises(workout, -1, 0)).toBe(workout);
   });
 
   it('alterna a série e identifica quando ela era a última pendente', () => {
