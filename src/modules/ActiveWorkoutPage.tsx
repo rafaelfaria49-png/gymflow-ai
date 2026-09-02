@@ -2,7 +2,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
-import { TechniqueSequencePlayer } from '../components/TechniqueSequencePlayer';
+import { ExerciseMediaUnifiedPlayer } from '../components/ExerciseMediaUnifiedPlayer';
+import { preloadNextExerciseMedia } from '../domain/media/preload';
 import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, ChevronUp, ChevronDown, Flag, X, Plus, Trash2, Search, Info, Pencil, Calculator, Flame, HelpCircle, Activity } from 'lucide-react';
 import { WhyThisWeightModal } from '../components/WhyThisWeightModal';
 import { PreWorkoutReadinessModal } from '../components/PreWorkoutReadinessModal';
@@ -256,6 +257,18 @@ export const ActiveWorkoutPage = () => {
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [activeWorkout, lastCompletedSet]);
+
+  // GOAL-34: Preload da mídia do próximo exercício da sessão
+  useEffect(() => {
+    if (!activeWorkout?.exercises || activeWorkout.exercises.length === 0) return;
+    const nextIdx = lastCompletedSet?.sessionId === activeWorkout.id
+      ? nextWorkoutFocusIndex(activeWorkout.exercises, lastCompletedSet.exerciseIndex, lastCompletedSet.setIndex)
+      : nextWorkoutFocusIndex(activeWorkout.exercises);
+    const nextEx = nextIdx !== undefined ? activeWorkout.exercises[nextIdx] : activeWorkout.exercises[0];
+    if (nextEx?.exerciseId) {
+      preloadNextExerciseMedia(nextEx.exerciseId);
+    }
+  }, [activeWorkout?.id, activeWorkout?.exercises, lastCompletedSet]);
 
   if (!activeWorkout) {
     return (
@@ -971,10 +984,9 @@ export const ActiveWorkoutPage = () => {
               </div>
             </div>
 
-            {/* DEMONSTRAÇÃO DO EXERCÍCIO — sequência visual provisória (GOAL-13);
-                fallback honesto quando ainda não houver imagens suficientes. */}
+            {/* DEMONSTRAÇÃO DO EXERCÍCIO — sequência visual e vídeo padrão v2 (GOAL-34) */}
             <div className="w-full rounded-2xl overflow-hidden border border-white/5 flex flex-col">
-              <TechniqueSequencePlayer
+              <ExerciseMediaUnifiedPlayer
                 exercise={exercises.find((e) => e.id === ex.exerciseId)}
                 name={ex.name}
                 compact

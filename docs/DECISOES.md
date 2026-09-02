@@ -1624,3 +1624,30 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
   razões fechadas; não carregam owner/operação/nonce/chave/timestamps/raws,
   digests, receipts, stack ou `cause`. Nenhuma UI, executor, política de
   retenção, seleção de geração, deleção ou Slice F foi iniciada.
+
+## GOAL-34 — Arquitetura de mídia e vídeos técnicos (2026-09-02)
+
+- **D11 (Identidade do Coach):** Coach oficial Kai selado via Character Bible.
+  Visual canônico: homem 28–35 anos, físico atlético natural (não bodybuilder),
+  camiseta cinza-chumbo, shorts/tênis pretos, postura impecável. Rosto e proporções
+  homologados para geração consistente via Soul Character / Character Reference.
+- **D12 (GymFlow Video Standard v2):** Formato padrão 9:16 vertical (720p teste /
+  1080p produção), 1 repetição completa em loop suave ~4.8s (aceleração 1.25x via
+  ffmpeg do vídeo base de 6s sem áudio), câmera fixa em 45° lateral ou frontal,
+  cenário clean de academia sem espelho, texto, marcas ou terceiros.
+- **D13 (Direitos e Licença Comercial):** Termos de direitos autorais e licença
+  comercial confirmados para IA generativa (`Higgsfield Commercial License v1 -
+  GymFlow Proprietary`). Todo `MediaAsset` registra obrigatoriamente o campo `license`.
+  QA gate rígido: assets em status `draft` ou sem licença válida NUNCA renderizam em
+  produção (bloqueio incondicional no domínio e fallback para frames/imagem).
+- **D14 (Distribuição Remota e Cache Offline):** Nenhum arquivo de vídeo binário entra
+  no bundle do APK (crescimento restrito a <5MB). Distribuição via CDN/URL remota
+  com manifest versionado (`MediaManifest`). Cache local isolado via Cache Storage API
+  no namespace `gymflow-media-v1` com suporte a "Baixar mídia do programa" e
+  higienização. Service worker atualizado para proteger `gymflow-media-*` de limpeza.
+- **Cadeia de Fallback em 3 Níveis:** 
+  Tier 1: Vídeo aprovado (remoto ou cacheado) ->
+  Tier 2: Sequência de frames técnicos (player existente) ->
+  Tier 3: Imagem estática / avatar placeholder com banner educativo honesto.
+  Garante 100% de tolerância a modo avião / offline sem quebra de interface.
+

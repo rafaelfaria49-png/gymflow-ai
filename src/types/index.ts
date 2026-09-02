@@ -19,6 +19,7 @@ import type {
   WorkoutSessionVariant,
   WorkoutSwapReasonCode,
 } from './workout-session';
+import type { ExerciseMedia } from '../domain/media/types';
 
 export type {
   EquipmentCategory,
@@ -124,6 +125,19 @@ export type {
   WarmupTarget,
   WarmupPlan,
 } from '../domain/warmupEngine';
+
+export type {
+  MediaAssetStatus,
+  MediaAsset,
+  ExerciseMedia,
+  MediaManifest,
+  MediaRenderTier,
+  MediaCacheStats,
+  ProgramMediaDownloadProgress,
+  ProgramMediaDownloadResult,
+  MediaTelemetryEvent,
+  ExerciseExecutionStat,
+} from '../domain/media/types';
 
 export interface WeeklyWorkoutDay {
   dayName: string; // 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
@@ -277,6 +291,8 @@ export interface Exercise {
   restrictions?: string[];
   /** GOAL-33: orientação prática humana para substituição inteligente no contexto da academia. */
   substitutionsHint?: string;
+  /** GOAL-34: metadados de mídia, vídeo padrão v2 e cadeia de fallback (LIBRARY §3). */
+  media?: ExerciseMedia;
 }
 
 export interface WorkoutSet {

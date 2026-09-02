@@ -3699,3 +3699,38 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
   TypeScript alterados sem diagnóstico; lint global preservou exatamente a
   baseline de **12 erros e 6 warnings** em arquivos preexistentes.
 - `package.json` e `package-lock.json` permaneceram inalterados.
+
+---
+
+## GOAL-34 — Vídeos técnicos e arquitetura de mídia (2026-09-02)
+
+- **Decisões D11–D14 seladas:**
+  - **D11:** Coach oficial Kai definido via Character Bible.
+  - **D12:** GymFlow Video Standard v2 (9:16 vertical, repetição completa loop ~4.8s pós ffmpeg 1.25x).
+  - **D13:** Direitos de uso comercial formalizados (`Higgsfield Commercial License v1 - GymFlow Proprietary`) com QA gate rígido (status `draft` nunca renderiza em produção).
+  - **D14:** Vídeos remotos distribuídos via CDN/manifest versionado + Cache Storage API isolado (`gymflow-media-v1`). Zero vídeos no bundle do APK (crescimento < 5MB).
+- **Modelo e Manifest:**
+  - `ExerciseMedia`, `MediaAsset` e `MediaManifest` definidos em `src/domain/media/types.ts`.
+  - Manifest versionado canônico (`src/domain/media/manifest.json` e `public/media-manifest.json`) com 25 vídeos aprovados servidos, além de assets `draft` e `retired` para teste de QA gate.
+  - `manifest.ts` suporta atualização dinâmica de versão sem release do app (`fetchRemoteManifest`).
+- **Cadeia de Fallback em 3 Níveis:**
+  - Tier 1: Vídeo aprovado (online ou em cache local).
+  - Tier 2: Sequência de frames técnicos.
+  - Tier 3: Imagem estática / avatar demo honesto.
+  - 100% tolerante a modo avião e offline.
+- **Cache Storage & Offline:**
+  - `mediaCache.ts` implementa download por programa do usuário e higienização.
+  - Service worker (`public/sw.js`) atualizado para preservar caches `gymflow-media-*`.
+  - Painel de gerenciamento "Mídia Offline" (`OfflineMediaModal.tsx`).
+- **Preload & Telemetria:**
+  - `preload.ts`: preload automático em background da mídia do próximo exercício da sessão.
+  - `telemetry.ts`: registro local de execuções de exercícios para priorização dos próximos lotes de produção (LIBRARY §4).
+- **Player Unificado:**
+  - `ExerciseMediaUnifiedPlayer.tsx` integrado em `ExerciseLibrary.tsx`, `ActiveWorkoutPage.tsx` e `GlobalVideoPlayer.tsx`.
+- **Validação e Testes:**
+  - Suíte de mídia com 7 arquivos e 26 testes aprovados (`vitest run src/domain/media/ scripts/media/`).
+  - Script oficial `npm run media:validate` aprovado (LIBRARY §2–5).
+  - `npx tsc --noEmit` aprovado com 0 erros.
+  - `npm run build:mobile` gerado com sucesso (export estático `out/`).
+  - Verificação de bundle confirma zero binários de vídeo no APK e crescimento estritamente < 5MB.
+
