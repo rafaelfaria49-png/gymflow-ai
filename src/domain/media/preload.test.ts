@@ -31,7 +31,10 @@ describe('Preload de Mídia do Próximo Exercício (GOAL-34)', () => {
             height: 480,
             version: 1,
             status: 'approved',
-            license: 'GymFlow Proprietary v1',
+            provenance: {
+              provider: 'gymflow_catalog',
+              termsOrLicenseRef: 'GymFlow Catalog Assets',
+            },
           },
           video: {
             id: 'vid_1',
@@ -39,9 +42,20 @@ describe('Preload de Mídia do Próximo Exercício (GOAL-34)', () => {
             bytes: 1600000,
             width: 720,
             height: 1280,
+            durationSeconds: 6,
+            repCount: 2,
+            fps: 24,
+            codec: 'h264',
             version: 1,
             status: 'approved',
-            license: 'Higgsfield Commercial License v1 - GymFlow Proprietary',
+            provenance: {
+              provider: 'higgsfield',
+              termsOrLicenseRef: 'Higgsfield Commercial Generation Terms',
+              approval: {
+                approvedBy: 'coach_lead_human',
+                approvedAt: '2026-09-02T18:00:00Z',
+              },
+            },
           },
         },
       },

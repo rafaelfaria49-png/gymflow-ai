@@ -117,7 +117,10 @@ describe('Gestor de Cache Storage de Mídia (GOAL-34 & D14)', () => {
             height: 480,
             version: 1,
             status: 'approved',
-            license: 'GymFlow Proprietary v1',
+            provenance: {
+              provider: 'gymflow_catalog',
+              termsOrLicenseRef: 'GymFlow Catalog Assets',
+            },
           },
           video: {
             id: 'vid_1',
@@ -125,9 +128,20 @@ describe('Gestor de Cache Storage de Mídia (GOAL-34 & D14)', () => {
             bytes: 1600000,
             width: 720,
             height: 1280,
+            durationSeconds: 6,
+            repCount: 2,
+            fps: 24,
+            codec: 'h264',
             version: 1,
             status: 'approved',
-            license: 'Higgsfield Commercial License v1 - GymFlow Proprietary',
+            provenance: {
+              provider: 'higgsfield',
+              termsOrLicenseRef: 'Higgsfield Commercial Generation Terms',
+              approval: {
+                approvedBy: 'coach_lead_human',
+                approvedAt: '2026-09-02T18:00:00Z',
+              },
+            },
           },
         },
         triceps_polia_corda: {
@@ -140,7 +154,10 @@ describe('Gestor de Cache Storage de Mídia (GOAL-34 & D14)', () => {
             height: 480,
             version: 1,
             status: 'approved',
-            license: 'GymFlow Proprietary v1',
+            provenance: {
+              provider: 'gymflow_catalog',
+              termsOrLicenseRef: 'GymFlow Catalog Assets',
+            },
           },
           video: {
             id: 'vid_2',
@@ -148,9 +165,20 @@ describe('Gestor de Cache Storage de Mídia (GOAL-34 & D14)', () => {
             bytes: 1500000,
             width: 720,
             height: 1280,
+            durationSeconds: 6,
+            repCount: 2,
+            fps: 24,
+            codec: 'h264',
             version: 1,
             status: 'approved',
-            license: 'Higgsfield Commercial License v1 - GymFlow Proprietary',
+            provenance: {
+              provider: 'higgsfield',
+              termsOrLicenseRef: 'Higgsfield Commercial Generation Terms',
+              approval: {
+                approvedBy: 'coach_lead_human',
+                approvedAt: '2026-09-02T18:00:00Z',
+              },
+            },
           },
         },
       },

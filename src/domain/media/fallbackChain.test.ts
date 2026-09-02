@@ -13,7 +13,14 @@ describe('Cadeia de Fallback e QA Gate (GOAL-34 & LIBRARY §2–4)', () => {
       height: 480,
       version: 1,
       status: 'approved',
-      license: 'GymFlow Proprietary v1',
+      provenance: {
+        provider: 'gymflow_catalog',
+        termsOrLicenseRef: 'GymFlow Catalog Assets',
+        approval: {
+          approvedBy: 'catalog_lead',
+          approvedAt: '2026-09-02T18:00:00Z',
+        },
+      },
     },
     frames: [
       {
@@ -24,7 +31,10 @@ describe('Cadeia de Fallback e QA Gate (GOAL-34 & LIBRARY §2–4)', () => {
         height: 480,
         version: 1,
         status: 'approved',
-        license: 'GymFlow Proprietary v1',
+        provenance: {
+          provider: 'gymflow_catalog',
+          termsOrLicenseRef: 'GymFlow Catalog Assets',
+        },
       },
       {
         id: 'frame_2',
@@ -34,7 +44,10 @@ describe('Cadeia de Fallback e QA Gate (GOAL-34 & LIBRARY §2–4)', () => {
         height: 480,
         version: 1,
         status: 'approved',
-        license: 'GymFlow Proprietary v1',
+        provenance: {
+          provider: 'gymflow_catalog',
+          termsOrLicenseRef: 'GymFlow Catalog Assets',
+        },
       },
     ],
     video: {
@@ -43,9 +56,20 @@ describe('Cadeia de Fallback e QA Gate (GOAL-34 & LIBRARY §2–4)', () => {
       bytes: 1640000,
       width: 720,
       height: 1280,
+      durationSeconds: 6,
+      repCount: 2,
+      fps: 24,
+      codec: 'h264',
       version: 1,
       status: 'approved',
-      license: 'Higgsfield Commercial License v1 - GymFlow Proprietary',
+      provenance: {
+        provider: 'higgsfield',
+        termsOrLicenseRef: 'Higgsfield Commercial Generation Terms',
+        approval: {
+          approvedBy: 'coach_lead_human',
+          approvedAt: '2026-09-02T19:00:00Z',
+        },
+      },
     },
   };
 

@@ -128,6 +128,8 @@ export type {
 
 export type {
   MediaAssetStatus,
+  MediaAssetApproval,
+  MediaAssetProvenance,
   MediaAsset,
   ExerciseMedia,
   MediaManifest,

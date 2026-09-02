@@ -33,14 +33,48 @@ export function resetToDefaultManifest(): void {
   activeManifest = DEFAULT_MANIFEST;
 }
 
+export interface MediaManifestValidationOptions {
+  /** Se verdadeiro, exige que o critério de conteúdo de >= 20 vídeos aprovados esteja satisfeito */
+  requireContentAcceptance?: boolean;
+}
+
+export interface MediaManifestValidationSummary {
+  valid: boolean;
+  errors: string[];
+  approvedVideoCount: number;
+  draftVideoCount: number;
+  retiredVideoCount: number;
+  contentAcceptance: {
+    target: number;
+    achieved: number;
+    status: 'fulfilled' | 'pending_human_production';
+    message: string;
+  };
+}
+
 /**
- * Validação profunda do manifest contra as regras do GOAL-34 e LIBRARY §2–4
+ * Validação profunda do manifest contra as regras do GOAL-34, LIBRARY §2–4 e Decisões D11–D14
  */
-export function validateMediaManifest(manifest: unknown): { valid: boolean; errors: string[] } {
+export function validateMediaManifest(
+  manifest: unknown,
+  options: MediaManifestValidationOptions = {}
+): MediaManifestValidationSummary {
   const errors: string[] = [];
 
   if (!manifest || typeof manifest !== 'object') {
-    return { valid: false, errors: ['Manifest deve ser um objeto válido'] };
+    return {
+      valid: false,
+      errors: ['Manifest deve ser um objeto válido'],
+      approvedVideoCount: 0,
+      draftVideoCount: 0,
+      retiredVideoCount: 0,
+      contentAcceptance: {
+        target: 20,
+        achieved: 0,
+        status: 'pending_human_production',
+        message: 'Manifest inválido',
+      },
+    };
   }
 
   const m = manifest as Partial<MediaManifest>;
@@ -59,10 +93,24 @@ export function validateMediaManifest(manifest: unknown): { valid: boolean; erro
 
   if (!m.assets || typeof m.assets !== 'object') {
     errors.push('Manifest deve possuir mapa de assets');
-    return { valid: false, errors };
+    return {
+      valid: false,
+      errors,
+      approvedVideoCount: 0,
+      draftVideoCount: 0,
+      retiredVideoCount: 0,
+      contentAcceptance: {
+        target: 20,
+        achieved: 0,
+        status: 'pending_human_production',
+        message: 'Manifest sem mapa de assets',
+      },
+    };
   }
 
   let approvedVideoCount = 0;
+  let draftVideoCount = 0;
+  let retiredVideoCount = 0;
 
   for (const [exerciseId, media] of Object.entries(m.assets)) {
     if (!media || typeof media !== 'object') {
@@ -84,6 +132,10 @@ export function validateMediaManifest(manifest: unknown): { valid: boolean; erro
       validateAsset(media.video, `${exerciseId}.video`, errors);
       if (media.video.status === 'approved') {
         approvedVideoCount++;
+      } else if (media.video.status === 'draft') {
+        draftVideoCount++;
+      } else if (media.video.status === 'retired') {
+        retiredVideoCount++;
       }
     }
 
@@ -94,13 +146,27 @@ export function validateMediaManifest(manifest: unknown): { valid: boolean; erro
     }
   }
 
-  if (approvedVideoCount < 20) {
-    errors.push(`Manifest deve possuir no mínimo 20 vídeos aprovados (encontrados: ${approvedVideoCount})`);
+  const contentFulfilled = approvedVideoCount >= 20;
+  const contentAcceptance = {
+    target: 20,
+    achieved: approvedVideoCount,
+    status: contentFulfilled ? ('fulfilled' as const) : ('pending_human_production' as const),
+    message: contentFulfilled
+      ? `LIBRARY §5 cumprido: ${approvedVideoCount} vídeos aprovados servidos.`
+      : `LIBRARY §5: Arquitetura suporta >= 20 vídeos aprovados, mas o aceite de conteúdo permanece pendente de produção humana (${approvedVideoCount}/20 vídeos aprovados atualmente).`,
+  };
+
+  if (options.requireContentAcceptance && !contentFulfilled) {
+    errors.push(`LIBRARY §5 violado: esperado no mínimo 20 vídeos aprovados, encontrados ${approvedVideoCount}`);
   }
 
   return {
     valid: errors.length === 0,
     errors,
+    approvedVideoCount,
+    draftVideoCount,
+    retiredVideoCount,
+    contentAcceptance,
   };
 }
 
@@ -126,9 +192,38 @@ function validateAsset(asset: MediaAsset, path: string, errors: string[]): void 
   if (!['draft', 'approved', 'retired'].includes(asset.status)) {
     errors.push(`${path}: status desconhecido '${asset.status}'`);
   }
-  // D13: licença comercial obrigatória
-  if (!asset.license || typeof asset.license !== 'string' || !asset.license.trim()) {
-    errors.push(`${path}: licença comercial (D13) obrigatória ausente`);
+
+  // D12: validação de proporção 9:16 e duração padrão 6s (excepcional 10s para cadências longas)
+  if (path.endsWith('.video')) {
+    const ratio = asset.width / asset.height;
+    if (ratio > 0.65) {
+      errors.push(`${path}: D12 violada: vídeo deve estar em 9:16 vertical (proporção atual: ${ratio.toFixed(2)})`);
+    }
+    if (asset.durationSeconds !== undefined && asset.durationSeconds !== 6 && asset.durationSeconds !== 10) {
+      errors.push(`${path}: D12 violada: duração padrão do vídeo é 6s (ou 10s excepcional para cadências longas), encontrada ${asset.durationSeconds}s`);
+    }
+  }
+
+  // D13: proveniência verificável
+  if (!asset.provenance && !asset.license) {
+    errors.push(`${path}: D13 violada: metadados de proveniência/licença ausentes`);
+  } else if (asset.provenance) {
+    if (!asset.provenance.provider || !asset.provenance.provider.trim()) {
+      errors.push(`${path}: D13 violada: provenance.provider é obrigatório`);
+    }
+    // Proíbe explicitamente licença inventada
+    if (asset.provenance.termsOrLicenseRef?.includes('Higgsfield Commercial License v1 - GymFlow Proprietary') ||
+        asset.license?.includes('Higgsfield Commercial License v1 - GymFlow Proprietary')) {
+      errors.push(`${path}: D13 violada: uso proibido de licença proprietária inventada ('Higgsfield Commercial License v1 - GymFlow Proprietary')`);
+    }
+  }
+
+  // D13 & QA Gate: status 'approved' em vídeo só é autorizado com evidência humana formal de aprovação
+  if (asset.status === 'approved' && path.endsWith('.video')) {
+    const approval = asset.provenance?.approval;
+    if (!approval?.approvedBy || !approval?.approvedAt) {
+      errors.push(`${path}: D13/QA Gate violado: vídeo com status 'approved' requer metadados de aprovação humana formal (approvedBy e approvedAt)`);
+    }
   }
 }
 

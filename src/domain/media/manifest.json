@@ -14,8 +14,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "frames": [
         {
@@ -26,8 +29,11 @@
           "height": 480,
           "version": 1,
           "status": "approved",
-          "license": "GymFlow Proprietary v1",
-          "contentType": "image/jpeg"
+          "contentType": "image/jpeg",
+          "provenance": {
+            "provider": "gymflow_catalog",
+            "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+          }
         },
         {
           "id": "frame_chest_supino_reto_2",
@@ -37,8 +43,11 @@
           "height": 480,
           "version": 1,
           "status": "approved",
-          "license": "GymFlow Proprietary v1",
-          "contentType": "image/jpeg"
+          "contentType": "image/jpeg",
+          "provenance": {
+            "provider": "gymflow_catalog",
+            "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+          }
         }
       ],
       "video": {
@@ -48,10 +57,20 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
+        "status": "draft",
         "checksum": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "contentType": "video/mp4"
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "chest_supino_haltere": {
@@ -64,8 +83,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_chest_supino_haltere_v1",
@@ -74,9 +96,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "chest_supino_inclinado_haltere": {
@@ -89,8 +121,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_chest_supino_inclinado_haltere_v1",
@@ -99,9 +134,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "chest_supino_inclinado_barra": {
@@ -114,8 +159,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_chest_supino_inclinado_barra_v1",
@@ -124,9 +172,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "chest_crucifixo_polia": {
@@ -139,8 +197,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_chest_crucifixo_polia_v1",
@@ -149,9 +210,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "chest_peck_deck": {
@@ -164,8 +235,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_chest_peck_deck_v1",
@@ -174,9 +248,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "chest_paralelas": {
@@ -189,8 +273,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_chest_paralelas_v1",
@@ -199,9 +286,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "back_barra_fixa": {
@@ -214,8 +311,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_back_barra_fixa_v1",
@@ -224,9 +324,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "back_puxada_pulley": {
@@ -239,8 +349,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_back_puxada_pulley_v1",
@@ -249,9 +362,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "back_remada_curvada": {
@@ -264,8 +387,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_back_remada_curvada_v1",
@@ -274,9 +400,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "back_remada_baixa": {
@@ -289,8 +425,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_back_remada_baixa_v1",
@@ -299,9 +438,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "shoulder_desenvolvimento_haltere": {
@@ -314,8 +463,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_shoulder_desenvolvimento_haltere_v1",
@@ -324,9 +476,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "shoulder_elevecao_lateral": {
@@ -339,8 +501,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_shoulder_elevecao_lateral_v1",
@@ -349,9 +514,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "shoulder_elevecao_posterior": {
@@ -364,8 +539,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_shoulder_elevecao_posterior_v1",
@@ -374,9 +552,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "biceps_rosca_direta": {
@@ -389,8 +577,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_biceps_rosca_direta_v1",
@@ -399,9 +590,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "biceps_rosca_martelo": {
@@ -414,8 +615,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_biceps_rosca_martelo_v1",
@@ -424,9 +628,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "triceps_polia_corda": {
@@ -439,8 +653,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_triceps_polia_corda_v1",
@@ -449,9 +666,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "triceps_testa": {
@@ -464,8 +691,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_triceps_testa_v1",
@@ -474,9 +704,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "legs_agachamento_barra": {
@@ -489,8 +729,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_legs_agachamento_barra_v1",
@@ -499,9 +742,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "legs_leg_press": {
@@ -514,8 +767,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_legs_leg_press_v1",
@@ -524,9 +780,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "legs_cadeira_extensora": {
@@ -539,8 +805,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_legs_cadeira_extensora_v1",
@@ -549,9 +818,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "legs_mesa_flexora": {
@@ -564,8 +843,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_legs_mesa_flexora_v1",
@@ -574,9 +856,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "legs_stiff": {
@@ -589,8 +881,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_legs_stiff_v1",
@@ -599,9 +894,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "glutes_elevacao_pelvica": {
@@ -614,8 +919,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_glutes_elevacao_pelvica_v1",
@@ -624,9 +932,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "abs_prancha_abdominal": {
@@ -639,8 +957,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_abs_prancha_abdominal_v1",
@@ -649,9 +970,19 @@
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "approved",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "legs_hack_squat": {
@@ -664,8 +995,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_legs_hack_squat_draft",
@@ -675,8 +1009,18 @@
         "height": 1280,
         "version": 1,
         "status": "draft",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "chest_supino_declinado": {
@@ -689,8 +1033,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_chest_supino_declinado_draft",
@@ -700,8 +1047,18 @@
         "height": 1280,
         "version": 1,
         "status": "draft",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     },
     "back_puxada_atras": {
@@ -714,8 +1071,11 @@
         "height": 480,
         "version": 1,
         "status": "approved",
-        "license": "GymFlow Proprietary v1",
-        "contentType": "image/jpeg"
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
       },
       "video": {
         "id": "vid_back_puxada_atras_retired",
@@ -725,8 +1085,18 @@
         "height": 1280,
         "version": 1,
         "status": "retired",
-        "license": "Higgsfield Commercial License v1 - GymFlow Proprietary",
-        "contentType": "video/mp4"
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
       }
     }
   }

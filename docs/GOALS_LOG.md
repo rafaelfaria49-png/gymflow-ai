@@ -3705,32 +3705,36 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
 ## GOAL-34 — Vídeos técnicos e arquitetura de mídia (2026-09-02)
 
 - **Decisões D11–D14 seladas:**
-  - **D11:** Coach oficial Kai definido via Character Bible.
-  - **D12:** GymFlow Video Standard v2 (9:16 vertical, repetição completa loop ~4.8s pós ffmpeg 1.25x).
-  - **D13:** Direitos de uso comercial formalizados (`Higgsfield Commercial License v1 - GymFlow Proprietary`) com QA gate rígido (status `draft` nunca renderiza em produção).
-  - **D14:** Vídeos remotos distribuídos via CDN/manifest versionado + Cache Storage API isolado (`gymflow-media-v1`). Zero vídeos no bundle do APK (crescimento < 5MB).
+  - **D11:** Coach oficial Kai definido via Character Bible e Soul Character Higgsfield.
+  - **D12:** GymFlow Video Standard v2 (9:16 vertical; 6s como duração padrão, normalmente 2 repetições completas em movimento natural, sem aceleração artificial e sem alterar biomecânica; 10s excepcional para cadências longas; normalizado para 1080x1920 / H.264 / 24 fps sem alterar duração/velocidade).
+  - **D13:** Registro de fatos verificáveis de proveniência (`provenance`: provider, model/workflow, generatedAt, termsOrLicenseRef e approval metadata). Nenhuma string proprietária inventada. Status `approved` restrito a assets que tenham passado comprovadamente por fluxo humano de aprovação. QA gate rígido: `draft` e `retired` nunca renderizam como vídeo aprovado em produção.
+  - **D14:** Distribuição remota via manifest versionado + Cache Storage API isolado (`gymflow-media-v1`). Zero vídeos binários no APK (<5MB).
 - **Modelo e Manifest:**
-  - `ExerciseMedia`, `MediaAsset` e `MediaManifest` definidos em `src/domain/media/types.ts`.
-  - Manifest versionado canônico (`src/domain/media/manifest.json` e `public/media-manifest.json`) com 25 vídeos aprovados servidos, além de assets `draft` e `retired` para teste de QA gate.
-  - `manifest.ts` suporta atualização dinâmica de versão sem release do app (`fetchRemoteManifest`).
+  - `ExerciseMedia`, `MediaAsset`, `MediaAssetProvenance` e `MediaManifest` em `src/domain/media/types.ts`.
+  - Manifest versionado (`src/domain/media/manifest.json` e `public/media-manifest.json`): 25 exercícios de catálogo estruturados com especificação técnica completa em status honesto `draft` (aguardando produção humana). Contagem real de MP4s aprovados: 0.
+  - `manifest.ts`: suporte a atualização dinâmica de versão sem release do app (`fetchRemoteManifest`) e validação transparente.
+- **Critério de Conteúdo LIBRARY §5 (≥20 vídeos aprovados):**
+  - O código e o validador suportam e validam integralmente o critério de ≥20 vídeos quando fornecido manifest com produção aprovada.
+  - Relatório honesto: arquitetura 100% pronta e testada, mas o aceite de conteúdo permanece pendente de produção humana (0/20 vídeos aprovados atualmente no repositório).
 - **Cadeia de Fallback em 3 Níveis:**
   - Tier 1: Vídeo aprovado (online ou em cache local).
-  - Tier 2: Sequência de frames técnicos.
+  - Tier 2: Sequência de frames técnicos (player provisório).
   - Tier 3: Imagem estática / avatar demo honesto.
-  - 100% tolerante a modo avião e offline.
+  - Como os vídeos estão em `draft`, a cadeia de fallback renderiza imediatamente os frames de catálogo (Tier 2) ou thumbnail (Tier 3) com 100% de estabilidade e tolerância a modo avião/offline.
 - **Cache Storage & Offline:**
-  - `mediaCache.ts` implementa download por programa do usuário e higienização.
-  - Service worker (`public/sw.js`) atualizado para preservar caches `gymflow-media-*`.
+  - `mediaCache.ts`: download sob demanda por programa do usuário e higienização.
+  - Service worker (`public/sw.js`): preserva caches `gymflow-media-*`.
   - Painel de gerenciamento "Mídia Offline" (`OfflineMediaModal.tsx`).
 - **Preload & Telemetria:**
-  - `preload.ts`: preload automático em background da mídia do próximo exercício da sessão.
-  - `telemetry.ts`: registro local de execuções de exercícios para priorização dos próximos lotes de produção (LIBRARY §4).
+  - `preload.ts`: preload automático da mídia do próximo exercício.
+  - `telemetry.ts`: registro local de execuções para priorizar lotes de produção (LIBRARY §4).
 - **Player Unificado:**
   - `ExerciseMediaUnifiedPlayer.tsx` integrado em `ExerciseLibrary.tsx`, `ActiveWorkoutPage.tsx` e `GlobalVideoPlayer.tsx`.
 - **Validação e Testes:**
-  - Suíte de mídia com 7 arquivos e 26 testes aprovados (`vitest run src/domain/media/ scripts/media/`).
-  - Script oficial `npm run media:validate` aprovado (LIBRARY §2–5).
+  - Suíte de mídia com 7 arquivos e 29 testes aprovados (`vitest run src/domain/media/ scripts/media/`).
+  - Script oficial `npm run media:validate` aprovado (5/5 testes).
   - `npx tsc --noEmit` aprovado com 0 erros.
   - `npm run build:mobile` gerado com sucesso (export estático `out/`).
-  - Verificação de bundle confirma zero binários de vídeo no APK e crescimento estritamente < 5MB.
+  - ESLint dos arquivos alterados: 0 erros e 0 warnings.
+  - Verificação de bundle confirma zero binários de vídeo no APK.
 

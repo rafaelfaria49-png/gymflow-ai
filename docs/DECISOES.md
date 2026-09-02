@@ -1632,14 +1632,21 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
   camiseta cinza-chumbo, shorts/tênis pretos, postura impecável. Rosto e proporções
   homologados para geração consistente via Soul Character / Character Reference.
 - **D12 (GymFlow Video Standard v2):** Formato padrão 9:16 vertical (720p teste /
-  1080p produção), 1 repetição completa em loop suave ~4.8s (aceleração 1.25x via
-  ffmpeg do vídeo base de 6s sem áudio), câmera fixa em 45° lateral ou frontal,
-  cenário clean de academia sem espelho, texto, marcas ou terceiros.
-- **D13 (Direitos e Licença Comercial):** Termos de direitos autorais e licença
-  comercial confirmados para IA generativa (`Higgsfield Commercial License v1 -
-  GymFlow Proprietary`). Todo `MediaAsset` registra obrigatoriamente o campo `license`.
-  QA gate rígido: assets em status `draft` ou sem licença válida NUNCA renderizam em
-  produção (bloqueio incondicional no domínio e fallback para frames/imagem).
+  1080p produção: 1080x1920 / H.264 / 24 fps sem alterar duração ou velocidade),
+  6 segundos como duração padrão com normalmente 2 repetições completas em movimento
+  natural (sem aceleração artificial, sem alterar biomecânica). 10 segundos pode ser
+  usado excepcionalmente quando 6s tornar o movimento acelerado (cadências longas).
+  Câmera fixa em 45° lateral ou frontal, cenário clean de academia sem espelho,
+  texto, marcas ou terceiros.
+- **D13 (Proveniência, Licença e Aprovação Humana):** Metadata modelada para registrar
+  fatos verificáveis do asset (provider, model/workflow quando conhecido, generatedAt,
+  terms/license reference ou versão aplicável, provenance e approval metadata). Não
+  utiliza strings jurídicas inventadas. O status `approved` é restrito a assets que
+  tenham passado pelo fluxo humano de aprovação do GymFlow; assets ainda não produzidos
+  permanecem `draft`. QA gate rígido: `draft` e `retired` nunca renderizam como vídeo
+  aprovado em produção (fallback transparente para frames/imagem/avatar honesto).
+  O aceite de conteúdo de ≥20 vídeos é suportado pelo código, reportando explicitamente
+  pendência de produção humana enquanto não houver 20 MP4s reais aprovados.
 - **D14 (Distribuição Remota e Cache Offline):** Nenhum arquivo de vídeo binário entra
   no bundle do APK (crescimento restrito a <5MB). Distribuição via CDN/URL remota
   com manifest versionado (`MediaManifest`). Cache local isolado via Cache Storage API
