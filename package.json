@@ -10,6 +10,7 @@
     "test": "vitest run",
     "library:validate": "vitest run scripts/library/validator.test.ts",
     "media:validate": "vitest run scripts/media/manifest-validator.test.ts",
+    "assets:generate": "node scripts/generate-native-assets.mjs",
     "build:mobile": "node scripts/build-mobile.mjs",
     "cap:sync": "node scripts/build-mobile.mjs && cap sync",
     "cap:sync:android": "node scripts/build-mobile.mjs && cap sync android",

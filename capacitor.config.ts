@@ -5,7 +5,7 @@ import { KeyboardResize } from '@capacitor/keyboard';
 // O WebView carrega os arquivos estáticos gerados por `npm run build:mobile` (pasta `out/`).
 const config: CapacitorConfig = {
   appId: 'com.gymflowai.app',
-  appName: 'GymFlow AI',
+  appName: 'GymFlow',
   webDir: 'out',
   android: {
     // Fundo escuro do WebView: evita o flash branco no boot e casa com o
