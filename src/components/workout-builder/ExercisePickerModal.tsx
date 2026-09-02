@@ -17,6 +17,7 @@ import {
   type WorkoutPickerTabId,
 } from '../../lib/workout-picker';
 import { ExercisePickerItem } from './ExercisePickerItem';
+import { useBackHandler } from '../../lib/back-navigation';
 
 interface ExercisePickerModalProps {
   isOpen: boolean;
@@ -317,6 +318,8 @@ const ExercisePickerContent = ({
 };
 
 export const ExercisePickerModal = ({ isOpen, ...props }: ExercisePickerModalProps) => {
+  useBackHandler(isOpen, props.onClose, 35);
+
   if (!isOpen) return null;
 
   return <ExercisePickerContent key={props.day.id} {...props} />;

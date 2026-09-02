@@ -20,6 +20,7 @@ import {
 } from '../domain/media/mediaCache';
 import { getTopExecutedExercises } from '../domain/media/telemetry';
 import { MediaCacheStats } from '../domain/media/types';
+import { useBackHandler } from '../lib/back-navigation';
 
 interface OfflineMediaModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ interface OfflineMediaModalProps {
 }
 
 export const OfflineMediaModal: React.FC<OfflineMediaModalProps> = ({ isOpen, onClose }) => {
+  useBackHandler(isOpen, onClose, 35);
   const { programs, user, exercises } = useGymFlow();
   const currentProgram =
     (user?.weeklyPlan?.[0]?.programId

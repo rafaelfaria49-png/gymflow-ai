@@ -16,6 +16,7 @@ import { getTechniqueVideoIdForExerciseId } from '../lib/exerciseTechniqueMap';
 import { defaultTargetMinutes } from '../lib/volumeProfiles';
 import { useToast } from '../components/ui/Toast';
 import { ExerciseOriginBadge, ExerciseExecutionBadge, SessionStatusBadge } from '../components/ui/SessionBadges';
+import { useBackHandler } from '../lib/back-navigation';
 import { deriveExerciseEntryStatus, MAX_SWAP_REASON_NOTE_LENGTH } from '../lib/workout-session-domain';
 import { buildSessionPreview, buildSwapView, SWAP_REASON_LABELS, SWAP_REASON_ORDER } from '../lib/workout-session-view';
 import type { ActiveExercise, Exercise, WorkoutSet, WorkoutSwapReasonCode } from '../types';
@@ -233,6 +234,16 @@ export const ActiveWorkoutPage = () => {
   const [whyThisWeightExercise, setWhyThisWeightExercise] = useState<ActiveExercise | null>(null);
   const [showReadinessModal, setShowReadinessModal] = useState(false);
   const lastScrolledCompletion = useRef<string | null>(null);
+
+  // Fechamento de modais no botão Voltar Android / ESC (ordem por prioridade)
+  useBackHandler(showCancelConfirm, () => setShowCancelConfirm(false), 50);
+  useBackHandler(showFinishModal, () => setShowFinishModal(false), 40);
+  useBackHandler(showSwapModal, () => closeSwapModal(), 40);
+  useBackHandler(showAddModal, () => setShowAddModal(false), 40);
+  useBackHandler(showReadinessModal, () => setShowReadinessModal(false), 40);
+  useBackHandler(whyThisWeightExercise !== null, () => setWhyThisWeightExercise(null), 40);
+  useBackHandler(plateCalculatorExerciseId !== null, () => setPlateCalculatorExerciseId(null), 40);
+  useBackHandler(compactProposal !== null, () => setCompactProposal(null), 40);
 
   useEffect(() => {
     if (activeWorkout && !activeWorkout.readiness && !activeWorkout.readinessSkipped) {

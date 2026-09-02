@@ -27,6 +27,7 @@ import {
   SessionStatusBadge,
 } from './ui/SessionBadges';
 import { useGymFlow } from '../providers/GymFlowContext';
+import { useBackHandler } from '../lib/back-navigation';
 import { compareWithPreviousSession } from '../domain/analytics/aggregators';
 import { SessionComparisonCard } from './analytics/SessionComparisonCard';
 
@@ -218,6 +219,8 @@ function ExerciseBlock({ exercise, index }: { exercise: ActiveExercise; index: n
 }
 
 export const SessionDetailModal = ({ session, onClose }: SessionDetailModalProps) => {
+  useBackHandler(session !== null, onClose, 35);
+
   useEffect(() => {
     if (!session) return;
     const handleKeyDown = (e: KeyboardEvent) => {

@@ -91,6 +91,10 @@ import {
   type ViewLeaveGuard,
 } from '../lib/view-navigation-guard';
 import {
+  globalBackActionRegistry,
+  type BackHandler,
+} from '../lib/back-navigation';
+import {
   resolveWorkoutStart,
   upsertWorkoutProgram,
   type WorkoutStartFailureReason,
@@ -266,6 +270,9 @@ interface GymFlowContextType {
   activeView: AppView;
   setActiveView: (view: AppView) => void;
   registerViewLeaveGuard: (guard: ViewLeaveGuard<AppView>) => () => void;
+  viewHistory: AppView[];
+  popViewHistory: () => void;
+  registerBackAction: (handler: BackHandler, priority?: number) => () => void;
   user: UserProfile | null;
   loginDemoUser: () => void;
   registerUser: (profile: Partial<UserProfile>) => void;
@@ -638,10 +645,30 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     activeWorkoutRef.current = next;
     setActiveWorkoutState(() => next);
   };
+  const [viewHistory, setViewHistory] = useState<AppView[]>([]);
+  const viewHistoryRef = useRef<AppView[]>([]);
+
   const commitActiveView = useCallback((view: AppView) => {
+    if (activeViewRef.current !== view) {
+      const prev = activeViewRef.current;
+      const nextHistory = [...viewHistoryRef.current.filter((v) => v !== view), prev].slice(-10);
+      viewHistoryRef.current = nextHistory;
+      setViewHistory(nextHistory);
+    }
     activeViewRef.current = view;
     setActiveViewState(view);
   }, []);
+
+  const popViewHistory = useCallback(() => {
+    const next = viewHistoryRef.current.slice(0, -1);
+    viewHistoryRef.current = next;
+    setViewHistory(next);
+  }, []);
+
+  const registerBackAction = useCallback((handler: BackHandler, priority?: number) => {
+    return globalBackActionRegistry.register(handler, priority);
+  }, []);
+
   const requestActiveView = useCallback((view: AppView, commit?: () => void) => (
     viewNavigationGuardRef.current.request(
       activeViewRef.current,
@@ -3190,6 +3217,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         activeView,
         setActiveView,
         registerViewLeaveGuard,
+        viewHistory,
+        popViewHistory,
+        registerBackAction,
         user,
         loginDemoUser,
         registerUser,

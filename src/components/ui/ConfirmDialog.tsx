@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { AlertTriangle, HelpCircle } from 'lucide-react';
+import { useBackHandler } from '../../lib/back-navigation';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -25,6 +26,8 @@ export const ConfirmDialog = ({
   onCancel,
 }: ConfirmDialogProps) => {
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
+
+  useBackHandler(isOpen, onCancel, 50);
 
   useEffect(() => {
     if (!isOpen) return;

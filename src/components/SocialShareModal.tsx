@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { X, Share2, Eye, EyeOff, Shield, Check } from 'lucide-react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { useToast } from './ui/Toast';
+import { useBackHandler } from '../lib/back-navigation';
 
 interface ShareData {
   type: 'workout' | 'pr' | 'streak' | 'achievement' | 'evolution';
@@ -33,6 +34,8 @@ export const SocialShareModal = ({ isOpen, onClose, shareData }: SocialShareModa
   });
   const [copiedLink, setCopiedLink] = useState(false);
   const [sharedPlatform, setSharedPlatform] = useState<string | null>(null);
+
+  useBackHandler(isOpen && !!shareData, onClose, 35);
 
   if (!isOpen || !shareData) return null;
 

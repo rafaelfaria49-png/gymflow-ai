@@ -7,6 +7,7 @@ import { Play, Check, ShieldAlert, Award, Clock, ArrowLeft, User, Flame, Maximiz
 import { TechniqueSequencePlayer } from './TechniqueSequencePlayer';
 import { ExerciseMediaUnifiedPlayer } from './ExerciseMediaUnifiedPlayer';
 import { getExerciseIdForTechniqueVideoId } from '../lib/exerciseTechniqueMap';
+import { useBackHandler } from '../lib/back-navigation';
 
 export const GlobalVideoPlayer = () => {
   const {
@@ -22,6 +23,9 @@ export const GlobalVideoPlayer = () => {
 
   const [isCinemaMode, setIsCinemaMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'guide' | 'related'>('guide');
+
+  // Fecha no botão Voltar Android / ESC
+  useBackHandler(globalPlayerOpen, closeGlobalPlayer, 30);
 
   // Find the selected video lesson
   const video = videos.find((v) => v.id === activeVideoLessonId);

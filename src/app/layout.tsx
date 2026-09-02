@@ -5,6 +5,8 @@ import { GymFlowProvider } from '../providers/GymFlowContext';
 import { ToastProvider } from '../components/ui/Toast';
 import { ServiceWorkerRegister } from '../components/ServiceWorkerRegister';
 
+import { NativeAppBridge } from '../components/NativeAppBridge';
+
 const outfit = Outfit({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700', '800'],
@@ -54,6 +56,7 @@ export default function RootLayout({
         <ServiceWorkerRegister />
         <ToastProvider>
           <GymFlowProvider>
+            <NativeAppBridge />
             {children}
           </GymFlowProvider>
         </ToastProvider>
