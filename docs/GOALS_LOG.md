@@ -3738,3 +3738,30 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
   - ESLint dos arquivos alterados: 0 erros e 0 warnings.
   - Verificação de bundle confirma zero binários de vídeo no APK.
 
+## GOAL-35 — Fundação do modo Personal (2026-09-02)
+
+- **Fase:** 7 · **Prio:** P3 · **Depende de:** Gate G4 (D16, D17 encerradas).
+- **Escopo e Natureza:** Exclusivamente documentação/ADRs e preparação neutra de domínio nos tipos, com zero código de backend, rede, auth, Supabase, billing ou chat.
+- **Arquivos Criados em `docs/personal/`:**
+  - `docs/personal/README.md`: Índice executivo, escopo da Fase 7 e integridade dos gates.
+  - `docs/personal/SYNC_READINESS_AUDIT.md`: Auditoria objetiva de prontidão para sincronização com base no checklist de `GYMFLOW_SAAS_ARCHITECTURE.md` §1 (estabilidade de IDs, timestamps, snapshots vs referências, storage versionado e lacunas para a Fase 8).
+  - `docs/personal/ADR-001-PAPEIS-E-PERMISSOES.md`: Matriz RBAC de 5 papéis e governança LGPD (Art. 11 — proteção estrita de dados sensíveis de saúde do aluno contra acesso não consentido de academias).
+  - `docs/personal/ADR-002-FLUXOS-ESSENCIAIS.md`: Fluxo ponta a ponta do Personal (convites, builder para aluno, cockpit de aderência) e do Aluno no app unificado GymFlow AI (Single-App Architecture).
+  - `docs/personal/ADR-003-ENTIDADES-E-ISOLAMENTO-RLS.md`: Especificação relacional das 7 entidades futuras do Supabase e isolamento multi-tenant via Row Level Security (RLS) com chave `org_id`.
+  - `docs/personal/ADR-004-MODELO-COMERCIAL-E-PRICING.md`: Análise comparativa profunda dos Modelos A, B e C, fundamentação fiscal da Decisão D16 (Modelo A com faixas do Modelo C) e propostas de pricing para validação comercial.
+  - `docs/personal/ADR-005-ACADEMIA-STUDIO-E-RISCOS.md`: Demarcação do escopo futuro Studio/Academia e matriz de mitigação dos 4 riscos críticos (R1 responsabilidade profissional CREF, R2 dados sensíveis LGPD, R3 foco de produto e R4 sobrecarga de suporte em tempo real).
+  - `docs/personal/FASE_8_ROADMAP_GOALS.md`: Decomposição sequencial dos GOALs da Fase 8 (GOAL-36 ao GOAL-43) espelhando `GYMFLOW_SAAS_ARCHITECTURE.md` §6.
+- **Único Ajuste em Código de Produto:**
+  - Inclusão da propriedade neutra e opcional `createdBy?: 'user' | 'coach' | 'system'` na interface `WorkoutProgram` em `src/types/index.ts`.
+  - Nenhuma outra alteração em código de produto. Nenhum campo antecipado no produto.
+- **Testes e Serialização:**
+  - Criado `src/lib/personal-sync-readiness.test.ts` com 4 testes cobrindo roundtrip JSON de `createdBy`, retrocompatibilidade com programas legados e persistência em envelopes de storage.
+  - `storage.test.ts` e `storage-boot-recovery.test.ts` verificados.
+- **Validação:**
+  - `npx vitest run src/lib/personal-sync-readiness.test.ts` (4/4 aprovados).
+  - `npx vitest run src/lib/storage.test.ts` (17/17 aprovados).
+  - `npx tsc --noEmit` (0 erros).
+  - `npm run build` (build web estático concluído com sucesso).
+  - `git diff --check` sem erros de formatação.
+  - Confirmação de zero mudança de comportamento e zero backend introduzido.
+

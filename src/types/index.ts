@@ -415,6 +415,8 @@ export interface WorkoutProgram {
   // GOAL-10.5: treino criado/editado pelo usuário no Construtor de Treino
   // (nunca um dos MOCK_PROGRAMS — editar um sugerido sempre gera um novo customProgram).
   isCustom?: boolean;
+  /** GOAL-35: neutralidade de autoria para modo Personal / SaaS; opcional para manter compatibilidade 100% legada. */
+  createdBy?: 'user' | 'coach' | 'system';
 }
 
 export interface VideoLesson {

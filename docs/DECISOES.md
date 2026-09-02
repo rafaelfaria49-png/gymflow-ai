@@ -1658,3 +1658,26 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
   Tier 3: Imagem estática / avatar placeholder com banner educativo honesto.
   Garante 100% de tolerância a modo avião / offline sem quebra de interface.
 
+## GOAL-35 — Fundação do modo Personal (2026-09-02)
+
+- **Gate G4 e Decisões Fundamentais Seladas:** D16 aprovada pelo Founder como Modelo A
+  (Personal assina SaaS puro e cobra seus alunos diretamente por fora) com faixas de
+  precificação do Modelo C (Starter até 10 alunos, Pro até 50 alunos, Studio multi-treinador);
+  D17 aprovada com Supabase como backend na nuvem da Fase 8, mantendo local-first inviolável.
+- **Isolamento de Escopo Estrito (Zero Backend na Fase 7):** Nenhuma dependência, cliente
+  Supabase, rota de rede, código de autenticação, sistema de cobrança ou chat foi adicionado
+  nesta fase.
+- **Preparação Neutra de Domínio:** Inclusão de `createdBy?: 'user' | 'coach' | 'system'`
+  em `WorkoutProgram` (`src/types/index.ts`), 100% opcional, com zero alteração comportamental
+  em runtime e validação por testes de serialização.
+- **Auditoria de Sincronização (SAAS §1):** Diagnóstico objetivo documentado em
+  `docs/personal/SYNC_READINESS_AUDIT.md`, mapeando estabilidade de IDs, risco de IDs
+  `Date.now()`, ausência de `createdAt`/`updatedAt` em entidades mutáveis, integridade de
+  snapshots de sessão imutáveis e versionamento do storage.
+- **ADRs Propostos (PERSONAL §1–4):** Entregues em `docs/personal/` (ADR-001 Papéis e LGPD,
+  ADR-002 Fluxos e App Único, ADR-003 Entidades e RLS, ADR-004 Modelo Comercial e Pricing,
+  ADR-005 Academia/Studio e Matriz de Riscos R1–R4). Valores em R$ marcados como propostas de
+  referência para validação comercial.
+- **Roadmap da Fase 8 (SAAS §6):** Decomposição formal dos futuros GOAL-36 ao GOAL-43
+  documentada em `docs/personal/FASE_8_ROADMAP_GOALS.md`.
+
