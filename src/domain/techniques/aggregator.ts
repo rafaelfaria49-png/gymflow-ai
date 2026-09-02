@@ -23,7 +23,7 @@ function roundMetric(value: number): number {
 }
 
 function completedSetVolume(set: WorkoutSet): number {
-  return set.completed && Number.isFinite(set.weight) && Number.isFinite(set.reps)
+  return !set.isWarmup && set.completed && Number.isFinite(set.weight) && Number.isFinite(set.reps)
     ? Math.max(0, set.weight) * Math.max(0, set.reps)
     : 0;
 }
@@ -117,7 +117,7 @@ export function aggregateActiveExerciseVolume(exercise: ActiveExercise): ActiveE
     const metrics = aggregateTechniqueLog(exercise.techniqueLog);
     return { ...metrics, totalVolume: metrics.tonnage };
   }
-  const completedSets = exercise.sets.filter((set) => set.completed);
+  const completedSets = exercise.sets.filter((set) => set.completed && !set.isWarmup);
   const totalVolume = completedSets.reduce((total, set) => total + completedSetVolume(set), 0);
   return {
     effectiveSets: completedSets.length,

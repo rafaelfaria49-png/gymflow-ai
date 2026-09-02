@@ -24,12 +24,21 @@ export interface GymProfileEquipment {
   unavailableUntil?: string;
 }
 
+export interface GymProfilePlateCalculator {
+  /** Peso da barra em kg; ausente = 20 kg. */
+  barWeightKg?: number;
+  /** Peso de cada anilha do par, em kg. Ex.: 1,25 representa 1,25 kg por lado. */
+  availablePairsKg?: number[];
+}
+
 export interface GymProfile {
   id: string;
   name: string;
   kind: GymProfileKind;
   isDefault: boolean;
   equipment: GymProfileEquipment[];
+  /** Configuração opcional usada pela calculadora de anilhas. */
+  plateCalculator?: GymProfilePlateCalculator;
 }
 
 /** Coleção persistida; `null` significa que o usuário ainda não configurou um perfil. */
@@ -116,6 +125,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function finitePositiveNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
 function isGymProfileKind(value: unknown): value is GymProfileKind {
   return typeof value === 'string' && GYM_PROFILE_KINDS.has(value as GymProfileKind);
 }
@@ -153,6 +166,16 @@ function cloneProfile(profile: GymProfile): GymProfile {
     kind: profile.kind,
     isDefault: profile.isDefault,
     equipment: profile.equipment.map(cloneEquipment),
+    ...(profile.plateCalculator ? {
+      plateCalculator: {
+        ...(profile.plateCalculator.barWeightKg !== undefined
+          ? { barWeightKg: profile.plateCalculator.barWeightKg }
+          : {}),
+        ...(profile.plateCalculator.availablePairsKg
+          ? { availablePairsKg: [...profile.plateCalculator.availablePairsKg] }
+          : {}),
+      },
+    } : {}),
   };
 }
 
@@ -286,6 +309,7 @@ export interface CreateGymProfileOptions {
   kind?: GymProfileKind;
   isDefault?: boolean;
   equipment?: readonly GymProfileEquipment[];
+  plateCalculator?: GymProfilePlateCalculator;
 }
 
 export function createGymProfile(options: CreateGymProfileOptions): GymProfile {
@@ -306,6 +330,20 @@ export function createGymProfile(options: CreateGymProfileOptions): GymProfile {
     equipment: EQUIPMENT_REGISTRY
       .map((definition) => equipmentById.get(definition.id))
       .filter((item): item is GymProfileEquipment => Boolean(item)),
+    ...(options.plateCalculator ? {
+      plateCalculator: {
+        ...(finitePositiveNumber(options.plateCalculator.barWeightKg)
+          ? { barWeightKg: options.plateCalculator.barWeightKg }
+          : {}),
+        ...(Array.isArray(options.plateCalculator.availablePairsKg)
+          ? {
+              availablePairsKg: [...new Set(options.plateCalculator.availablePairsKg
+                .filter(finitePositiveNumber)
+                .map((value) => Math.round(value * 100) / 100))],
+            }
+          : {}),
+      },
+    } : {}),
   };
 }
 
@@ -453,6 +491,23 @@ export function validateGymProfileState(value: unknown): GymProfileValidationRes
       if (!cleanProfileName(rawProfile.name)) errors.push({ code: 'profile-name-required', message: 'Nome do local ausente.', path: `${path}.name` });
       if (!isGymProfileKind(rawProfile.kind)) errors.push({ code: 'invalid-profile-kind', message: 'Tipo de local desconhecido.', path: `${path}.kind` });
       if (rawProfile.isDefault === true) defaults += 1;
+      if ('plateCalculator' in rawProfile && rawProfile.plateCalculator !== undefined) {
+        if (!isRecord(rawProfile.plateCalculator)) {
+          errors.push({ code: 'invalid-plate-calculator', message: 'Configuração da calculadora de anilhas inválida.', path: `${path}.plateCalculator` });
+        } else {
+          if ('barWeightKg' in rawProfile.plateCalculator
+            && rawProfile.plateCalculator.barWeightKg !== undefined
+            && !finitePositiveNumber(rawProfile.plateCalculator.barWeightKg)) {
+            errors.push({ code: 'invalid-bar-weight', message: 'O peso da barra precisa ser maior que zero.', path: `${path}.plateCalculator.barWeightKg` });
+          }
+          if ('availablePairsKg' in rawProfile.plateCalculator
+            && rawProfile.plateCalculator.availablePairsKg !== undefined
+            && (!Array.isArray(rawProfile.plateCalculator.availablePairsKg)
+              || rawProfile.plateCalculator.availablePairsKg.some((value) => !finitePositiveNumber(value)))) {
+            errors.push({ code: 'invalid-plate-pairs', message: 'Os pares de anilhas precisam conter pesos maiores que zero.', path: `${path}.plateCalculator.availablePairsKg` });
+          }
+        }
+      }
       if (!Array.isArray(rawProfile.equipment)) {
         errors.push({ code: 'equipment-required', message: 'Checklist de equipamentos inválido.', path: `${path}.equipment` });
         return;
@@ -502,6 +557,7 @@ export function normalizeGymProfileState(value: unknown): GymProfileState | null
     kind: profile.kind,
     isDefault: profile.isDefault,
     equipment: profile.equipment,
+    plateCalculator: profile.plateCalculator,
   }));
   const defaultId = profiles.find((profile) => profile.isDefault)?.id ?? profiles[0].id;
   const activeProfileId = profiles.some((profile) => profile.id === value.activeProfileId)

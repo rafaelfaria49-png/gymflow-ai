@@ -122,20 +122,35 @@ import { useToast } from '../components/ui/Toast';
 import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
 import {
   readPersistedGymProfile,
+  getActiveGymProfile,
   type GymProfileState,
 } from '../domain/gymProfile';
+import {
+  bestWorkingSetWeight,
+  buildWarmupPlan,
+  materializeWarmupSet,
+  resolveWarmupObjective,
+} from '../domain/warmupEngine';
+import { getPlateCalculatorConfig } from '../domain/plateCalculator';
 
 export const STORAGE_KEY = 'gymflow:state:v1';
 
-/** O rest-pause usa a primeira linha normal como série base. Mantê-la também
+/** O rest-pause usa a primeira série normal como série base. Mantê-la também
  * no TechniqueLog faz o volume, a pausa e a reidratação usarem a mesma carga e
- * as mesmas reps que o usuário editou na tabela principal. */
+ * as mesmas reps que o usuário editou na tabela principal. Aproximações ficam
+ * fora desse espelhamento. */
 function syncRestPauseBaseSet(
   exercise: ActiveExercise,
   set: WorkoutSet | undefined,
   setIndex: number,
 ): ActiveExercise {
-  if (setIndex !== 0 || !set || exercise.techniquePlan?.type !== 'rest_pause') return exercise;
+  const firstWorkingSetIndex = exercise.sets.findIndex((candidate) => !candidate.isWarmup);
+  if (
+    !set
+    || set.isWarmup
+    || setIndex !== firstWorkingSetIndex
+    || exercise.techniquePlan?.type !== 'rest_pause'
+  ) return exercise;
   const log = exercise.techniqueLog ?? createInitialTechniqueLog(exercise.techniquePlan);
   const base = log.sets?.[0];
   if (!base) return exercise;
@@ -1466,6 +1481,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     const program = programId
       ? [...programs, ...customProgramsRef.current].find((item) => item.id === programId)
       : undefined;
+    const warmupEnabled = program?.warmupEnabled === true;
+    const warmupObjective = resolveWarmupObjective(program?.objective ?? user?.goal);
+    const warmupPlateConfig = getPlateCalculatorConfig(getActiveGymProfile(gymProfileRef.current));
+    let warmupSettings: WorkoutSession['warmup'] | undefined;
     const daysResolution = resolveProgramDays(program);
     let safeExplicitDay = explicitDay;
     if (program && !safeExplicitDay && programDayId) {
@@ -1513,6 +1532,33 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         ? Math.max(1, Math.round(programDay.targetMinutes as number))
         : Math.max(1, estimateWorkoutDuration(programDay.slots).minutes || plannedDuration);
       planSource = { kind: 'program-day', name: workoutName, slots: programDay.slots, ...sessionOrigin };
+      const warmupExercises = programDay.slots.map((slot) => exercises.find((exercise) => exercise.id === slot.exerciseId) ?? {
+        id: slot.exerciseId,
+        name: 'Exercício Desconhecido',
+        muscleGroup: 'functional' as const,
+        secondaryMuscles: [],
+        secondaryMuscleGroupIds: [],
+        movementPatternIds: [],
+        mechanics: 'compound' as const,
+      });
+      const warmupPlan = warmupEnabled
+        ? buildWarmupPlan({
+            exercises: warmupExercises,
+            objective: warmupObjective,
+            plateConfig: warmupPlateConfig,
+            targetWeightForExercise: (_, index) => {
+              const slot = programDay.slots[index];
+              if (!slot) return undefined;
+              const history = exerciseHistoryFor(slot.exerciseId);
+              const suggestion = suggestNext(slot, history);
+              return suggestion.pesoKg ?? lastRecordedWeight(history) ?? 10;
+            },
+          })
+        : null;
+      warmupSettings = warmupPlan?.settings;
+      const warmupByExerciseIndex = new Map(
+        warmupPlan?.targets.map((target) => [target.exerciseIndex, target]) ?? [],
+      );
       activeExs = programDay.slots.map((slot, idx) => {
         // Fallback seguro: exercício ausente vira "Exercício Desconhecido",
         // sem crashar (mesmo padrão legado).
@@ -1538,6 +1584,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           : techniquePlan?.type === 'rest_pause' || techniquePlan?.type === 'cluster'
             ? 1
             : slot.series;
+        const approachWarmups = warmupByExerciseIndex.get(idx)?.sets ?? [];
+        const warmupSets: WorkoutSet[] = approachWarmups.map((warmup, warmupIndex) => (
+          materializeWarmupSet(warmup, `warmup_${idx}_${warmupIndex}`)
+        ));
         const sets: WorkoutSet[] = Array.from({ length: setCount }, (_, sIdx) => {
           const setPlan = materializedSetPlans[sIdx];
           const plannedReps = setPlan?.reps === 'max' || setPlan?.reps === undefined
@@ -1561,7 +1611,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           exerciseId: slot.exerciseId,
           name: ex?.name || 'Exercício Desconhecido',
           muscleGroup: ex?.muscleGroup || 'Corpo Todo',
-          sets,
+          sets: [...warmupSets, ...sets],
           notes: '',
           repRange: slot.repRange,
           targetRPE: slot.targetRPE,
@@ -1656,7 +1706,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       plannedDuration,
       exercises: activeExs,
     });
-    setActiveWorkout(session);
+    setActiveWorkout(warmupSettings ? { ...session, warmup: warmupSettings } : session);
     setActiveWorkoutStartedAt(startedAt);
     setWorkoutDuration(0);
     setActiveView('active-workout');
@@ -1821,6 +1871,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           )),
         }
       : transition.workout;
+    const toggledSet = nextWorkout.exercises[exerciseIndex]?.sets[setIndex];
+    const isWarmupSet = toggledSet?.isWarmup === true;
     const techniqueRest = transition.completed && transition.targetExercise?.techniquePlan
       ? resolveTechniqueRestAfterChange(
           transition.targetExercise.techniqueLog,
@@ -1846,7 +1898,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         : latestTransition.workout;
     });
 
-    if (transition.completed) {
+    if (transition.completed && !isWarmupSet) {
       // Feedback tátil curto ao concluir série (GOAL-11) — com guarda de suporte.
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate(10);
@@ -2033,9 +2085,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     const prsDetected: string[] = [];
     const prAchievementIds: string[] = [];
     workoutToFinish.exercises.forEach((exercise) => {
-      const bestSet = exercise.sets
-        .filter((set) => set.completed)
-        .reduce((best, set) => (set.weight > best ? set.weight : best), 0);
+      const bestSet = bestWorkingSetWeight(exercise.sets);
       if (bestSet >= 100 && exercise.exerciseId === 'chest_supino_reto') {
         prsDetected.push('Supino Reto 100kg');
         prAchievementIds.push('ach_2');

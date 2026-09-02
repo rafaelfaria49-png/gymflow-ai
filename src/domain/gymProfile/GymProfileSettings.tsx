@@ -8,6 +8,7 @@ import {
   MapPin,
   Plus,
   Search,
+  Scale,
   Star,
   Trash2,
   X,
@@ -36,6 +37,7 @@ import {
   type GymProfileState,
 } from './model';
 import { EQUIPMENT_REGISTRY, searchEquipment } from '../../lib/equipment-registry';
+import { DEFAULT_AVAILABLE_PLATE_PAIRS_KG, DEFAULT_BAR_WEIGHT_KG } from '../plateCalculator';
 
 interface GymProfileSettingsProps {
   value: GymProfileState | null;
@@ -109,6 +111,16 @@ export const GymProfileSettings = ({ value, onChange }: GymProfileSettingsProps)
       status,
       unavailableUntil,
     ));
+  };
+
+  const commitPlateCalculator = (patch: NonNullable<GymProfile['plateCalculator']>) => {
+    updateActiveProfile((profile) => ({
+      ...profile,
+      plateCalculator: {
+        ...profile.plateCalculator,
+        ...patch,
+      },
+    }));
   };
 
   const handleCreateFirstProfile = () => onChange(createDefaultGymProfileState());
@@ -296,6 +308,54 @@ export const GymProfileSettings = ({ value, onChange }: GymProfileSettingsProps)
         >
           Tudo disponível
         </button>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3.5" aria-labelledby="plate-calculator-settings-heading">
+        <div className="flex items-start gap-2">
+          <div className="rounded-lg bg-gym-accent/10 p-1.5 text-gym-accent" aria-hidden="true"><Scale className="h-4 w-4" /></div>
+          <div>
+            <h5 id="plate-calculator-settings-heading" className="text-[10px] font-black uppercase tracking-wide text-white">
+              Calculadora de anilhas
+            </h5>
+            <p className="mt-1 text-[9px] leading-relaxed text-gym-text-muted">
+              Personalize a barra e os pares existentes neste local. A calculadora arredonda cada carga para o que realmente dá para montar.
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[140px_1fr]">
+          <label className="block text-[9px] font-bold uppercase tracking-wide text-gym-text-muted">
+            Barra (kg)
+            <input
+              key={`${activeProfile.id}-bar-${activeProfile.plateCalculator?.barWeightKg ?? DEFAULT_BAR_WEIGHT_KG}`}
+              type="number"
+              min={1}
+              step="0.5"
+              defaultValue={activeProfile.plateCalculator?.barWeightKg ?? DEFAULT_BAR_WEIGHT_KG}
+              onBlur={(event) => {
+                const value = Number(event.target.value);
+                if (Number.isFinite(value) && value > 0) commitPlateCalculator({ barWeightKg: value });
+              }}
+              className="mt-1 min-h-[40px] w-full rounded-lg border border-white/10 bg-gym-dark px-2 text-xs text-white outline-none focus:border-gym-accent"
+              aria-label="Peso da barra em quilogramas"
+            />
+          </label>
+          <label className="block text-[9px] font-bold uppercase tracking-wide text-gym-text-muted">
+            Pares disponíveis (kg por lado)
+            <input
+              key={`${activeProfile.id}-pairs-${(activeProfile.plateCalculator?.availablePairsKg ?? DEFAULT_AVAILABLE_PLATE_PAIRS_KG).join('-')}`}
+              type="text"
+              defaultValue={(activeProfile.plateCalculator?.availablePairsKg ?? DEFAULT_AVAILABLE_PLATE_PAIRS_KG).join(', ')}
+              onBlur={(event) => {
+                const values = event.target.value.match(/\d+(?:[.,]\d+)?/g)?.map((value) => Number(value.replace(',', '.'))) ?? [];
+                const cleanValues = values
+                  .filter((value) => Number.isFinite(value) && value > 0);
+                if (cleanValues.length > 0) commitPlateCalculator({ availablePairsKg: [...new Set(cleanValues)] });
+              }}
+              className="mt-1 min-h-[40px] w-full rounded-lg border border-white/10 bg-gym-dark px-2 text-xs text-white outline-none focus:border-gym-accent"
+              aria-label="Pares de anilhas disponíveis em quilogramas por lado"
+            />
+          </label>
+        </div>
       </div>
 
       <div className="relative">

@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { TechniqueSequencePlayer } from '../components/TechniqueSequencePlayer';
-import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, ChevronUp, ChevronDown, Flag, X, Plus, Trash2, Search, Info, Pencil } from 'lucide-react';
+import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, ChevronUp, ChevronDown, Flag, X, Plus, Trash2, Search, Info, Pencil, Calculator, Flame } from 'lucide-react';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { NumericInput } from '../components/ui/NumericInput';
 import { matchesExerciseSearch } from '../lib/exerciseSearch';
@@ -13,7 +13,7 @@ import { useToast } from '../components/ui/Toast';
 import { ExerciseOriginBadge, ExerciseExecutionBadge, SessionStatusBadge } from '../components/ui/SessionBadges';
 import { deriveExerciseEntryStatus, MAX_SWAP_REASON_NOTE_LENGTH } from '../lib/workout-session-domain';
 import { buildSessionPreview, buildSwapView, SWAP_REASON_LABELS, SWAP_REASON_ORDER } from '../lib/workout-session-view';
-import type { Exercise, WorkoutSwapReasonCode } from '../types';
+import type { Exercise, WorkoutSet, WorkoutSwapReasonCode } from '../types';
 import {
   buildCompactWorkoutProposal,
   type CompactWorkoutProposal,
@@ -22,6 +22,117 @@ import { rankCrowdedGymSubstitutes } from '../lib/workout-session-mutations';
 import { aggregateActiveExerciseVolume, aggregateWorkoutVolume } from '../domain/techniques/aggregator';
 import { TechniquePanel } from '../domain/techniques/TechniquePanel';
 import { getGroupForEntry, nextWorkoutFocusIndex } from '../domain/techniques/grouping';
+import { getActiveGymProfile } from '../domain/gymProfile';
+import { calculatePlateLoad, getPlateCalculatorConfig, type PlateLoadout } from '../domain/plateCalculator';
+import { bestWorkingSetWeight } from '../domain/warmupEngine';
+
+function formatLoadKg(value: number): string {
+  return `${Number.isInteger(value) ? value : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '').replace('.', ',')} kg`;
+}
+
+interface ActiveWorkoutSetRowProps {
+  set: WorkoutSet;
+  displayIndex: number;
+  warmupIndex?: number;
+  onUpdate: (fields: Partial<WorkoutSet>) => void;
+  onToggle: () => void;
+}
+
+function ActiveWorkoutSetRow({
+  set,
+  displayIndex,
+  warmupIndex,
+  onUpdate,
+  onToggle,
+}: ActiveWorkoutSetRowProps) {
+  const label = set.isWarmup ? `A${(warmupIndex ?? 0) + 1}` : String(displayIndex + 1);
+  const setDescription = set.isWarmup ? `aproximação ${label}` : `série ${displayIndex + 1}`;
+  return (
+    <div
+      id={`set-row-${set.id}`}
+      className={`grid grid-cols-12 items-center text-center p-1 rounded-xl transition-all border gap-1 relative ${
+        set.completed
+          ? 'bg-gym-accent/5 border-gym-accent/20'
+          : set.isWarmup
+            ? 'bg-gym-amber/[0.04] border-gym-amber/15'
+            : 'bg-white/5 border-transparent'
+      }`}
+    >
+      <span className="col-span-2 text-xs text-white font-bold text-left pl-2 flex flex-col justify-center">
+        <span>{label}</span>
+        {set.isWarmup && (
+          <span className="text-[7px] text-gym-amber uppercase font-extrabold tracking-widest -mt-0.5">Aprox.</span>
+        )}
+      </span>
+
+      <div className="col-span-2 flex flex-col justify-center text-[9px] text-gym-text-muted leading-tight font-mono">
+        <span>{set.isWarmup ? '—' : set.lastWeight ? formatLoadKg(set.lastWeight) : '—'}</span>
+        <span className="text-gym-accent/80 font-bold">
+          {set.isWarmup ? formatLoadKg(set.weight) : set.suggestedWeight ? formatLoadKg(set.suggestedWeight) : '—'}
+        </span>
+      </div>
+
+      <div className="col-span-3 px-0.5">
+        <NumericInput
+          value={set.weight}
+          allowDecimal
+          min={0}
+          disabled={set.completed}
+          aria-label={`Carga da ${setDescription} (kg)`}
+          onValidChange={(value) => onUpdate({ weight: value })}
+          onCommit={(value) => onUpdate({ weight: value ?? 0 })}
+          className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
+        />
+      </div>
+
+      <div className="col-span-2 px-0.5">
+        <NumericInput
+          value={set.reps}
+          min={0}
+          disabled={set.completed}
+          aria-label={`Repetições da ${setDescription}`}
+          onValidChange={(value) => onUpdate({ reps: value })}
+          onCommit={(value) => onUpdate({ reps: value ?? 0 })}
+          className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
+        />
+      </div>
+
+      <div className="col-span-2 px-0.5">
+        <NumericInput
+          value={set.rpe ?? null}
+          min={1}
+          max={10}
+          emptyBehavior="null"
+          placeholder="8"
+          disabled={set.completed}
+          aria-label={`RPE da ${setDescription}`}
+          onValidChange={(value) => onUpdate({ rpe: value })}
+          onCommit={(value) => onUpdate({ rpe: value ?? undefined })}
+          className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
+        />
+      </div>
+
+      <div className="col-span-1 flex justify-center">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={set.completed ? `Desmarcar ${setDescription}` : `Concluir ${setDescription}`}
+          className="w-11 h-11 -m-2.5 flex items-center justify-center group/check"
+        >
+          <span
+            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all group-active/check:scale-90 ${
+              set.completed
+                ? 'bg-gym-accent text-gym-dark'
+                : 'bg-white/10 border border-white/15 text-transparent group-hover/check:border-gym-accent'
+            }`}
+          >
+            <Check className="w-3.5 h-3.5 stroke-[3px]" />
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export const ActiveWorkoutPage = () => {
   const {
@@ -41,6 +152,7 @@ export const ActiveWorkoutPage = () => {
     cancelWorkout,
     exercises,
     programs,
+    gymProfile,
     crowdedGymMode,
     toggleCrowdedGymMode,
     moveExerciseInActiveWorkout,
@@ -72,6 +184,8 @@ export const ActiveWorkoutPage = () => {
   const [compactProposal, setCompactProposal] = useState<CompactWorkoutProposal | null>(null);
   const [quickMinutes, setQuickMinutes] = useState(30);
   const [lastCompletedSet, setLastCompletedSet] = useState<{ sessionId: string; exerciseIndex: number; setIndex: number } | null>(null);
+  const [plateCalculatorExerciseId, setPlateCalculatorExerciseId] = useState<string | null>(null);
+  const [plateCalculatorTarget, setPlateCalculatorTarget] = useState(0);
   const lastScrolledCompletion = useRef<string | null>(null);
 
   useEffect(() => {
@@ -119,11 +233,16 @@ export const ActiveWorkoutPage = () => {
   const volumeSummary = aggregateWorkoutVolume(activeWorkout.exercises);
   const totalVolume = volumeSummary.totalVolume;
   const completedSetsCount = volumeSummary.effectiveSets;
+  const activeProfile = getActiveGymProfile(gymProfile);
+  const plateConfig = getPlateCalculatorConfig(activeProfile);
+  const plateLoadout: PlateLoadout | null = plateCalculatorExerciseId !== null
+    ? calculatePlateLoad(plateCalculatorTarget, plateConfig)
+    : null;
 
   const totalSetsCount = activeWorkout.exercises.reduce((acc, ex) => {
     if (ex.techniquePlan?.type === 'drop_set' || ex.techniquePlan?.type === 'rest_pause' || ex.techniquePlan?.type === 'cluster') return acc + 1;
     if (ex.techniqueLog?.sets?.length) return acc + ex.techniqueLog.sets.length;
-    return acc + ex.sets.length;
+    return acc + ex.sets.filter((set) => !set.isWarmup).length;
   }, 0);
 
   // Estimativa honesta: kcal calculado por série concluída (nunca por tempo decorrido),
@@ -160,7 +279,7 @@ export const ActiveWorkoutPage = () => {
   const getPrs = () => {
     const prs: string[] = [];
     activeWorkout.exercises.forEach(ex => {
-      const bestSet = ex.sets.filter(s => s.completed).reduce((best, s) => s.weight > best ? s.weight : best, 0);
+      const bestSet = bestWorkingSetWeight(ex.sets);
       if (bestSet >= 100 && ex.exerciseId.includes('supino')) {
         prs.push(`${ex.name}: PR de ${bestSet}kg!`);
       } else if (bestSet >= 140 && ex.exerciseId.includes('agachamento')) {
@@ -351,6 +470,11 @@ export const ActiveWorkoutPage = () => {
     openFinishModal();
   };
 
+  const openPlateCalculator = (exerciseId: string, targetWeight: number) => {
+    setPlateCalculatorExerciseId(exerciseId);
+    setPlateCalculatorTarget(Number.isFinite(targetWeight) ? Math.max(0, targetWeight) : 0);
+  };
+
   return (
     <div className="space-y-6 pb-active-workout lg:pb-6 max-w-3xl mx-auto">
       {/* HEADER FIXO DE TREINO */}
@@ -448,6 +572,32 @@ export const ActiveWorkoutPage = () => {
           </button>
         )}
       </div>
+
+      {activeWorkout.warmup?.enabled && (
+        <details open className="group rounded-2xl border border-gym-amber/20 bg-gym-amber/[0.04]">
+          <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-3 px-4 [&::-webkit-details-marker]:hidden">
+            <span className="flex min-w-0 items-center gap-2">
+              <Flame className="h-4 w-4 text-gym-amber" aria-hidden="true" />
+              <span>
+                <span className="block text-xs font-black text-white">Aquecimento geral</span>
+                <span className="mt-0.5 block text-[9px] text-gym-text-muted">Entrada opcional antes da primeira carga</span>
+              </span>
+            </span>
+            <span className="flex flex-shrink-0 items-center gap-2">
+              <span className="rounded-lg bg-gym-amber/10 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-gym-amber">
+                {activeWorkout.warmup.generalMinutes} min
+              </span>
+              <ChevronDown className="h-4 w-4 text-gym-text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+            </span>
+          </summary>
+          <div className="border-t border-gym-amber/15 px-4 py-3 text-[10px] leading-relaxed text-gym-text-muted">
+            Faça movimento leve e progressivo — por exemplo, bicicleta, esteira ou elíptico — até elevar a temperatura sem chegar à fadiga.
+            <span className="mt-2 block font-bold text-gym-amber">
+              Objetivo da sessão: {activeWorkout.warmup.objective === 'strength' ? 'força' : 'hipertrofia'} · As aproximações aparecem no primeiro composto de cada padrão.
+            </span>
+          </div>
+        </details>
+      )}
 
       {/* REST TIMER (GOAL-06) — versão desktop, sempre visível na página (não fixa).
           No mobile/tablet o mesmo estado é mostrado dentro da ActionBar fixa abaixo,
@@ -565,7 +715,8 @@ export const ActiveWorkoutPage = () => {
           const groupRounds = group ? Math.max(1, group.roundCount) : 0;
           const completedGroupRounds = group
             ? Math.min(...group.memberIndices.map((memberIndex) => {
-                const memberSets = activeWorkout.exercises[memberIndex]?.sets ?? [];
+                const memberSets = (activeWorkout.exercises[memberIndex]?.sets ?? [])
+                  .filter((set) => !set.isWarmup);
                 let completed = 0;
                 while (memberSets[completed]?.completed) completed += 1;
                 return completed;
@@ -574,6 +725,13 @@ export const ActiveWorkoutPage = () => {
           const currentGroupRound = group
             ? Math.min(groupRounds, Math.max(1, completedGroupRounds + 1))
             : 0;
+          const warmupRows = ex.sets
+            .map((set, setIdx) => ({ set, setIdx }))
+            .filter(({ set }) => set.isWarmup);
+          const workingRows = ex.sets
+            .map((set, setIdx) => ({ set, setIdx }))
+            .filter(({ set }) => !set.isWarmup);
+          const firstWorkingSet = workingRows[0]?.set ?? ex.sets[0];
           return (
           <div id={`exercise-card-${ex.id}`} key={ex.id} className="glass p-5 rounded-3xl border border-white/5 space-y-4">
             {/* TÍTULO DO EXERCÍCIO */}
@@ -620,6 +778,24 @@ export const ActiveWorkoutPage = () => {
 
               {/* Ações */}
               <div className="flex gap-2 flex-wrap justify-end">
+                {firstWorkingSet && (
+                  <button
+                    type="button"
+                    onClick={() => plateCalculatorExerciseId === ex.id
+                      ? setPlateCalculatorExerciseId(null)
+                      : openPlateCalculator(ex.id, firstWorkingSet.weight)}
+                    aria-pressed={plateCalculatorExerciseId === ex.id}
+                    className={`min-h-[44px] text-[10px] px-3 rounded-lg flex items-center gap-1 transition-all active:scale-95 border ${
+                      plateCalculatorExerciseId === ex.id
+                        ? 'bg-gym-accent/15 border-gym-accent/40 text-gym-accent'
+                        : 'bg-white/5 hover:bg-gym-accent/10 border-white/5 text-gym-text-muted hover:text-gym-accent'
+                    }`}
+                    title="Abrir calculadora de anilhas"
+                  >
+                    <Calculator className="w-3.5 h-3.5" />
+                    Anilhas
+                  </button>
+                )}
                 <div className="flex gap-1">
                   <button
                     type="button"
@@ -694,104 +870,104 @@ export const ActiveWorkoutPage = () => {
                 <span className="col-span-1">OK</span>
               </div>
 
-              {/* Rows */}
-              {ex.sets.map((set, setIdx) => (
-                <div
-                  key={set.id}
-                  id={`set-row-${set.id}`}
-                  className={`grid grid-cols-12 items-center text-center p-1 rounded-xl transition-all border gap-1 relative ${
-                    set.completed
-                      ? 'bg-gym-accent/5 border-gym-accent/20'
-                      : 'bg-white/5 border-transparent'
-                  }`}
-                >
-                  <span className="col-span-2 text-xs text-white font-bold text-left pl-2 flex flex-col justify-center">
-                    <span>{setIdx + 1}</span>
-                    {set.isWarmup && (
-                      <span className="text-[7px] text-gym-amber uppercase font-extrabold tracking-widest -mt-0.5">Aqc</span>
-                    )}
-                  </span>
-
-                  {/* Anterior (última sessão real) / Sugerido (motor de progressão) — GOAL-08 */}
-                  <div className="col-span-2 flex flex-col justify-center text-[9px] text-gym-text-muted leading-tight font-mono">
-                    <span>{set.lastWeight ? `${set.lastWeight} kg` : '—'}</span>
-                    <span className="text-gym-accent/80 font-bold">{set.suggestedWeight ? `${set.suggestedWeight} kg` : '—'}</span>
+              {warmupRows.length > 0 && (
+                <details open className="group rounded-xl border border-gym-amber/15 bg-gym-amber/[0.03]">
+                  <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 px-3 text-[10px] font-black uppercase tracking-wide text-gym-amber [&::-webkit-details-marker]:hidden">
+                    <span>Aproximação · {warmupRows.length} {warmupRows.length === 1 ? 'série' : 'séries'}</span>
+                    <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+                  </summary>
+                  <div className="space-y-2 border-t border-gym-amber/15 p-1.5">
+                    {warmupRows.map(({ set, setIdx }, warmupIndex) => (
+                      <ActiveWorkoutSetRow
+                        key={set.id}
+                        set={set}
+                        displayIndex={warmupIndex}
+                        warmupIndex={warmupIndex}
+                        onUpdate={(fields) => updateWorkoutSet(exIdx, setIdx, fields)}
+                        onToggle={() => {
+                          const wasCompleted = set.completed;
+                          completeWorkoutSet(exIdx, setIdx);
+                          if (wasCompleted) {
+                            lastScrolledCompletion.current = null;
+                            setLastCompletedSet(null);
+                          } else {
+                            setLastCompletedSet({ sessionId: activeWorkout.id, exerciseIndex: exIdx, setIndex: setIdx });
+                          }
+                        }}
+                      />
+                    ))}
                   </div>
+                </details>
+              )}
+              <div className="space-y-2">
+                {workingRows.map(({ set, setIdx }, workIndex) => (
+                  <ActiveWorkoutSetRow
+                    key={set.id}
+                    set={set}
+                    displayIndex={workIndex}
+                    onUpdate={(fields) => updateWorkoutSet(exIdx, setIdx, fields)}
+                    onToggle={() => {
+                      const wasCompleted = set.completed;
+                      completeWorkoutSet(exIdx, setIdx);
+                      if (wasCompleted) {
+                        lastScrolledCompletion.current = null;
+                        setLastCompletedSet(null);
+                      } else {
+                        setLastCompletedSet({ sessionId: activeWorkout.id, exerciseIndex: exIdx, setIndex: setIdx });
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
 
-                  {/* Carga — NumericInput (GOAL-15): apaga tudo e digita sem virar 0.20/080 */}
-                  <div className="col-span-3 px-0.5">
+            {plateCalculatorExerciseId === ex.id && plateLoadout && (
+              <div className="rounded-2xl border border-gym-accent/20 bg-gym-accent/[0.04] p-3.5" aria-label={`Calculadora de anilhas para ${ex.name}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-gym-accent">
+                      <Calculator className="h-3.5 w-3.5" aria-hidden="true" /> Calculadora de anilhas
+                    </span>
+                    <p className="mt-1 text-[9px] leading-relaxed text-gym-text-muted">
+                      Carga total com barra de {formatLoadKg(plateLoadout.barWeightKg)}. A montagem é igual nos dois lados.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPlateCalculatorExerciseId(null)}
+                    className="min-h-[36px] rounded-lg border border-white/10 px-2.5 text-[9px] font-bold text-gym-text-muted hover:text-white"
+                    aria-label="Fechar calculadora de anilhas"
+                  >
+                    Fechar
+                  </button>
+                </div>
+                <div className="mt-3 grid grid-cols-1 items-end gap-3 sm:grid-cols-[150px_1fr]">
+                  <label className="text-[9px] font-bold uppercase tracking-wide text-gym-text-muted">
+                    Carga alvo (kg)
                     <NumericInput
-                      value={set.weight}
+                      value={plateCalculatorTarget}
                       allowDecimal
                       min={0}
-                      disabled={set.completed}
-                      aria-label={`Carga da série ${setIdx + 1} (kg)`}
-                      onValidChange={(v) => updateWorkoutSet(exIdx, setIdx, { weight: v })}
-                      onCommit={(v) => updateWorkoutSet(exIdx, setIdx, { weight: v ?? 0 })}
-                      className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
+                      onValidChange={setPlateCalculatorTarget}
+                      onCommit={(value) => setPlateCalculatorTarget(value ?? 0)}
+                      className="mt-1 w-full min-h-[40px] bg-gym-dark/60 border border-white/10 text-white rounded-lg px-2 text-xs font-mono focus:border-gym-accent outline-none"
+                      aria-label="Carga alvo para calcular as anilhas"
                     />
-                  </div>
-
-                  {/* Reps */}
-                  <div className="col-span-2 px-0.5">
-                    <NumericInput
-                      value={set.reps}
-                      min={0}
-                      disabled={set.completed}
-                      aria-label={`Repetições da série ${setIdx + 1}`}
-                      onValidChange={(v) => updateWorkoutSet(exIdx, setIdx, { reps: v })}
-                      onCommit={(v) => updateWorkoutSet(exIdx, setIdx, { reps: v ?? 0 })}
-                      className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
-                    />
-                  </div>
-
-                  {/* RPE (opcional — vazio volta ao placeholder) */}
-                  <div className="col-span-2 px-0.5">
-                    <NumericInput
-                      value={set.rpe ?? null}
-                      min={1}
-                      max={10}
-                      emptyBehavior="null"
-                      placeholder="8"
-                      disabled={set.completed}
-                      aria-label={`RPE da série ${setIdx + 1}`}
-                      onValidChange={(v) => updateWorkoutSet(exIdx, setIdx, { rpe: v })}
-                      onCommit={(v) => updateWorkoutSet(exIdx, setIdx, { rpe: v ?? undefined })}
-                      className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
-                    />
-                  </div>
-
-                  {/* Checkbox — área clicável de 44px (margem negativa não desloca o
-                      layout), visual de 24px (GOAL-11) */}
-                  <div className="col-span-1 flex justify-center">
-                    <button
-                      onClick={() => {
-                        const wasCompleted = set.completed;
-                        completeWorkoutSet(exIdx, setIdx);
-                        if (wasCompleted) {
-                          lastScrolledCompletion.current = null;
-                          setLastCompletedSet(null);
-                        } else {
-                          setLastCompletedSet({ sessionId: activeWorkout.id, exerciseIndex: exIdx, setIndex: setIdx });
-                        }
-                      }}
-                      aria-label={set.completed ? `Desmarcar série ${setIdx + 1}` : `Concluir série ${setIdx + 1}`}
-                      className="w-11 h-11 -m-2.5 flex items-center justify-center group/check"
-                    >
-                      <span
-                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all group-active/check:scale-90 ${
-                          set.completed
-                            ? 'bg-gym-accent text-gym-dark'
-                            : 'bg-white/10 border border-white/15 text-transparent group-hover/check:border-gym-accent'
-                        }`}
-                      >
-                        <Check className="w-3.5 h-3.5 stroke-[3px]" />
-                      </span>
-                    </button>
+                  </label>
+                  <div className="rounded-xl border border-white/10 bg-gym-dark/40 px-3 py-2.5">
+                    <span className="block text-[9px] font-bold uppercase tracking-wide text-gym-text-muted">Montagem por lado</span>
+                    <span className="mt-1 block text-sm font-black text-white">
+                      {plateLoadout.platesPerSideKg.length > 0
+                        ? plateLoadout.platesPerSideKg.map(formatLoadKg).join(' + ')
+                        : 'Somente a barra'}
+                    </span>
+                    <span className="mt-1 block text-[9px] text-gym-accent">
+                      {formatLoadKg(plateLoadout.loadedWeightKg)} montados · {plateLoadout.exact ? 'carga exata' : `arredondado ${plateLoadout.differenceKg >= 0 ? '+' : ''}${plateLoadout.differenceKg} kg`}
+                    </span>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
 
             {ex.techniquePlan && (
               <TechniquePanel

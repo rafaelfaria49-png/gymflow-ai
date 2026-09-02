@@ -283,15 +283,16 @@ export function markEntrySwapped(
  */
 export function deriveExerciseEntryStatus(exercise: ActiveExercise): WorkoutExerciseEntryStatus {
   const techniqueWork = techniqueWorkCounts(exercise.techniqueLog);
-  const hasCompletedStandardSet = exercise.sets.some((set) => set.completed);
+  const workingSets = exercise.sets.filter((set) => !set.isWarmup);
+  const hasCompletedStandardSet = workingSets.some((set) => set.completed);
   if (techniqueWork && (techniqueWork.completed > 0 || !hasCompletedStandardSet)) {
     if (techniqueWork.completed === 0) return 'skipped';
     if (techniqueWork.completed >= techniqueWork.total) return 'performed';
     return 'partial';
   }
-  const total = exercise.sets.length;
+  const total = workingSets.length;
   if (total === 0) return 'planned';
-  const completed = exercise.sets.filter((set) => set.completed).length;
+  const completed = workingSets.filter((set) => set.completed).length;
   if (completed === 0) return 'skipped';
   if (completed === total) return 'performed';
   return 'partial';
@@ -331,13 +332,13 @@ export function deriveSessionStatus(exercises: ActiveExercise[]): FinalizedSessi
   let completed = 0;
   for (const exercise of exercises) {
     const techniqueWork = techniqueWorkCounts(exercise.techniqueLog);
-    const hasCompletedStandardSet = exercise.sets.some((set) => set.completed);
+    const hasCompletedStandardSet = exercise.sets.some((set) => !set.isWarmup && set.completed);
     if (techniqueWork && (techniqueWork.completed > 0 || !hasCompletedStandardSet)) {
       total += techniqueWork.total;
       completed += techniqueWork.completed;
       continue;
     }
-    for (const set of exercise.sets) {
+    for (const set of exercise.sets.filter((candidate) => !candidate.isWarmup)) {
       total += 1;
       if (set.completed) completed += 1;
     }

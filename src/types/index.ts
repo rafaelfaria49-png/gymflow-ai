@@ -116,6 +116,15 @@ export type {
   WorkoutGroupType,
 } from '../domain/techniques/types';
 
+export type {
+  WarmupObjective,
+  WarmupSessionSettings,
+  WarmupSetKind,
+  WarmupSetPrescription,
+  WarmupTarget,
+  WarmupPlan,
+} from '../domain/warmupEngine';
+
 export interface WeeklyWorkoutDay {
   dayName: string; // 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
   workoutName: string; // Ex: 'Quadríceps + Glúteo', 'Descanso'
@@ -265,6 +274,9 @@ export interface WorkoutSet {
   weight: number;
   completed: boolean;
   isWarmup?: boolean;
+  /** GOAL-28: aproximação não é uma série efetiva. */
+  warmupKind?: import('../domain/warmupEngine').WarmupSetKind;
+  warmupPercentage?: number;
   suggestedWeight?: number;
   lastWeight?: number;
   rpe?: number;
@@ -319,6 +331,8 @@ export interface WorkoutSession {
   calories: number;
   exercises: ActiveExercise[];
   xpEarned: number;
+  /** GOAL-28: snapshot do ritual opcional de aquecimento da sessão. */
+  warmup?: import('../domain/warmupEngine').WarmupSessionSettings;
   // GOAL-25: metadados da sessão ativa. Opcionais para não alterar registros legados.
   variant?: WorkoutSessionVariant;
   plannedDuration?: number; // minutos previstos no plano no momento do início
@@ -353,6 +367,8 @@ export interface WorkoutProgram {
   contraindications?: string[];
   // GOAL-07: estrutura real Programa → Semana → Dia → Slot
   repeatWeeks: boolean; // true = a(s) semana(s) se repetem até durationWeeks
+  /** GOAL-28: preferência do programa; ausente mantém sessões legadas inalteradas. */
+  warmupEnabled?: boolean;
   weeks: ProgramWeek[];
   // GOAL-10.5: treino criado/editado pelo usuário no Construtor de Treino
   // (nunca um dos MOCK_PROGRAMS — editar um sugerido sempre gera um novo customProgram).

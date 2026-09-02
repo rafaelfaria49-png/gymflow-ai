@@ -181,6 +181,7 @@ export function normalizeWorkoutProgramForBuilder(
     objective: program?.objective ?? DEFAULT_PROGRAM_OBJECTIVE,
     durationWeeks: Number.isFinite(program?.durationWeeks) ? program!.durationWeeks : 0,
     repeatWeeks: program?.repeatWeeks ?? true,
+    ...(program?.warmupEnabled === true ? { warmupEnabled: true } : {}),
     targetMinutes: programTargetMinutes,
     days,
   };
@@ -248,6 +249,7 @@ export function buildWorkoutProgramFromDraft(
     ...(existingProgram?.targetAudience ? { targetAudience: existingProgram.targetAudience } : {}),
     ...(existingProgram?.contraindications ? { contraindications: existingProgram.contraindications } : {}),
     repeatWeeks: draft.repeatWeeks,
+    ...(draft.warmupEnabled === true ? { warmupEnabled: true } : {}),
     weeks: [{ number: 1, days }],
     isCustom: true,
   };

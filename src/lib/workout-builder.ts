@@ -423,6 +423,7 @@ export function serializeDraftSignature(draft: WorkoutProgramBuilderDraft): stri
     objective: draft.objective.trim(),
     durationWeeks: draft.durationWeeks,
     repeatWeeks: draft.repeatWeeks,
+    warmupEnabled: draft.warmupEnabled === true,
     days: draft.days.map((day) => ({
       id: day.id,
       customName: day.customName?.trim() ?? '',

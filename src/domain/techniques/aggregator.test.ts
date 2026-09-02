@@ -45,5 +45,24 @@ describe('aggregator — volume e fadiga TECH §5', () => {
       techniqueCount: 1,
     });
   });
-});
 
+  it('ignora séries de aquecimento no volume efetivo e no tonnage', () => {
+    const exerciseWithWarmup: ActiveExercise = {
+      id: 'warmup-and-work',
+      exerciseId: 'chest_supino_reto',
+      name: 'Supino',
+      muscleGroup: 'chest',
+      sets: [
+        { id: 'warmup', reps: 5, weight: 100, completed: true, isWarmup: true },
+        { id: 'work', reps: 5, weight: 80, completed: true },
+      ],
+    };
+
+    expect(aggregateActiveExerciseVolume(exerciseWithWarmup)).toMatchObject({
+      effectiveSets: 1,
+      tonnage: 400,
+      totalVolume: 400,
+    });
+    expect(aggregateWorkoutVolume([exerciseWithWarmup]).effectiveSets).toBe(1);
+  });
+});

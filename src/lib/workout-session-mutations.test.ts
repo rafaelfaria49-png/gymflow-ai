@@ -149,6 +149,25 @@ describe('mutações puras da sessão ativa', () => {
     expect(reopened.isLastRemainingSet).toBe(false);
   });
 
+  it('não considera aproximações para decidir a última série pendente', () => {
+    const workout: WorkoutSession = {
+      ...makeWorkout(),
+      exercises: [{
+        ...makeWorkout().exercises[0],
+        sets: [
+          { id: 'warmup', reps: 5, weight: 40, completed: false, isWarmup: true },
+          { id: 'work', reps: 10, weight: 80, completed: false },
+        ],
+      }],
+    };
+
+    const warmupCompleted = toggleWorkoutSetCompletion(workout, 0, 0);
+    expect(warmupCompleted.isLastRemainingSet).toBe(false);
+
+    const workingCompleted = toggleWorkoutSetCompletion(warmupCompleted.workout, 0, 1);
+    expect(workingCompleted.isLastRemainingSet).toBe(true);
+  });
+
   it('não altera sessão para índices de série inválidos', () => {
     const workout = makeWorkout();
     const result = toggleWorkoutSetCompletion(workout, 0, 99);

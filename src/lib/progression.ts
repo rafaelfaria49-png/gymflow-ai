@@ -10,6 +10,7 @@ export interface HistorySet {
   reps?: number;
   weight?: number;
   completed?: boolean;
+  isWarmup?: boolean;
   rpe?: number;
 }
 
@@ -33,7 +34,7 @@ export function roundToHalfKg(value: number): number {
 // Séries válidas de uma sessão: concluídas e com reps numéricas.
 function completedSets(session: ExerciseSessionHistory | undefined): HistorySet[] {
   if (!session || !Array.isArray(session.sets)) return [];
-  return session.sets.filter((s) => s && s.completed === true && typeof s.reps === 'number' && !Number.isNaN(s.reps));
+  return session.sets.filter((s) => s && s.completed === true && !s.isWarmup && typeof s.reps === 'number' && !Number.isNaN(s.reps));
 }
 
 // Maior carga registrada (> 0) entre as séries concluídas da sessão, ou null.

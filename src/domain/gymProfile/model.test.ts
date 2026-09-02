@@ -10,6 +10,7 @@ import {
   getGymProfileEquipmentStatus,
   getGymProfileExerciseAvailability,
   migrateGymProfile,
+  normalizeGymProfileState,
   removeGymProfile,
   setActiveGymProfile,
   setDefaultGymProfile,
@@ -100,5 +101,23 @@ describe('GymProfile', () => {
   it('trata perfil ausente na migração como null, sem criar configuração silenciosa', () => {
     expect(migrateGymProfile(undefined)).toBeNull();
     expect(migrateGymProfile(null)).toBeNull();
+  });
+
+  it('preserva a configuração da calculadora por local', () => {
+    const profile = createGymProfile({
+      id: 'gym_profile_custom-plates',
+      name: 'Academia com anilhas fracionadas',
+      plateCalculator: { barWeightKg: 15, availablePairsKg: [1.25, 2.5, 2.5, -1] },
+    });
+    const state = normalizeGymProfileState({
+      schemaVersion: 1,
+      activeProfileId: profile.id,
+      profiles: [profile],
+    });
+
+    expect(state?.profiles[0].plateCalculator).toEqual({
+      barWeightKg: 15,
+      availablePairsKg: [1.25, 2.5],
+    });
   });
 });

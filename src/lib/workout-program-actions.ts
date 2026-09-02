@@ -92,6 +92,7 @@ function cloneProgramWithNewIds(
     ...(program.targetAudience ? { targetAudience: program.targetAudience } : {}),
     ...(program.contraindications ? { contraindications: [...program.contraindications] } : {}),
     repeatWeeks: program.repeatWeeks,
+    ...(program.warmupEnabled === true ? { warmupEnabled: true } : {}),
     weeks,
     isCustom: true,
   };

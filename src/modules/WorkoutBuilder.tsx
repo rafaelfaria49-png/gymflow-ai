@@ -578,6 +578,24 @@ export const WorkoutBuilder = () => {
         onObjectiveChange={(objective) => setDraft({ ...draft, objective })}
       />
 
+      <div className="glass rounded-2xl border border-gym-accent/15 bg-gym-accent/[0.03] p-4">
+        <label className="flex min-h-[44px] cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={draft.warmupEnabled === true}
+            onChange={(event) => setDraft((current) => ({ ...current, warmupEnabled: event.target.checked }))}
+            className="mt-0.5 h-5 w-5 flex-shrink-0 accent-gym-accent"
+            aria-describedby="builder-warmup-help"
+          />
+          <span>
+            <span className="block text-xs font-black text-white">Preparar antes das séries efetivas</span>
+            <span id="builder-warmup-help" className="mt-1 block text-[10px] leading-relaxed text-gym-text-muted">
+              Inclui 5–8 min de aquecimento geral e aproximações automáticas no primeiro composto de cada padrão. Nada disso entra no volume.
+            </span>
+          </span>
+        </label>
+      </div>
+
       {/* DIAS */}
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">

@@ -208,11 +208,15 @@ export function toggleWorkoutSetCompletion(
         }
       : exercise
   ));
-  const isLastRemainingSet = completed && workout.exercises.every((exercise, currentExerciseIndex) => (
-    exercise.sets.every((set, currentSetIndex) => (
-      (currentExerciseIndex === exerciseIndex && currentSetIndex === setIndex) || set.completed
-    ))
-  ));
+  const isLastRemainingSet = completed
+    && !targetSet.isWarmup
+    && workout.exercises.every((exercise, currentExerciseIndex) => (
+      exercise.sets.every((set, currentSetIndex) => (
+        set.isWarmup
+        || (currentExerciseIndex === exerciseIndex && currentSetIndex === setIndex)
+        || set.completed
+      ))
+    ));
 
   return {
     workout: { ...workout, exercises },
