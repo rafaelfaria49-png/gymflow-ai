@@ -235,6 +235,8 @@ export interface UserProfile {
   trainingExperienceYears?: number;
   /** Técnicas liberadas manualmente após leitura do aviso educativo. */
   techniqueUnlocks?: import('../domain/techniques/types').TechniqueId[];
+  /** GOAL-29: card educativo de RIR já visto; ausência mantém compatibilidade legada. */
+  rirOnboardingCompleted?: boolean;
 }
 
 export interface Exercise {
@@ -280,6 +282,8 @@ export interface WorkoutSet {
   suggestedWeight?: number;
   lastWeight?: number;
   rpe?: number;
+  /** GOAL-29: repetições em reserva; opcional e coletado em chips para intermediário+. */
+  rir?: number;
   /** GOAL-26: materialização opcional de pyramid/back_off sem alterar séries legadas. */
   setPlan?: import('../domain/techniques/types').TechniqueSetPlan;
   /** GOAL-27: rodada 1-based da entrada dentro de um grupo alternado. */

@@ -1759,6 +1759,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           weight: lastSet ? lastSet.weight : 0,
           completed: false,
           rpe: lastSet?.rpe,
+          rir: lastSet?.rir,
           suggestedWeight: lastSet?.suggestedWeight,
           lastWeight: lastSet?.lastWeight
         };

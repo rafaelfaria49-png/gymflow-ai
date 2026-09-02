@@ -171,7 +171,7 @@ function normalizeStageLog(value: unknown, index: number, fallback?: TechniqueSt
 
 function sameTechniqueSetLog(a: TechniqueSetLog, b: TechniqueSetLog): boolean {
   return a.id === b.id && a.index === b.index && a.weight === b.weight && a.reps === b.reps
-    && a.completed === b.completed && a.failed === b.failed && a.rpe === b.rpe && a.updatedAt === b.updatedAt;
+    && a.completed === b.completed && a.failed === b.failed && a.rpe === b.rpe && a.rir === b.rir && a.updatedAt === b.updatedAt;
 }
 
 function normalizeTechniqueSetLog(value: unknown, index: number, fallback?: TechniqueSetPlan): TechniqueSetLog | undefined {
@@ -186,6 +186,7 @@ function normalizeTechniqueSetLog(value: unknown, index: number, fallback?: Tech
     failed: source.failed === true,
   };
   if (typeof source.rpe === 'number' && Number.isFinite(source.rpe)) normalized.rpe = source.rpe;
+  if (typeof source.rir === 'number' && Number.isFinite(source.rir)) normalized.rir = Math.max(0, Math.min(5, Math.round(source.rir)));
   if (typeof source.updatedAt === 'number' && Number.isFinite(source.updatedAt)) normalized.updatedAt = source.updatedAt;
   return normalized;
 }

@@ -108,6 +108,8 @@ export interface TechniqueSetLog {
   completed: boolean;
   failed?: boolean;
   rpe?: number;
+  /** GOAL-29: RIR opcional para séries especiais que aceitam esforço registrado. */
+  rir?: number;
   updatedAt?: number;
 }
 

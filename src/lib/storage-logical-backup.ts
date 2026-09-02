@@ -317,6 +317,7 @@ const SAFE_PATH_SEGMENTS: ReadonlySet<string> = new Set([
   'suggestedWeight',
   'lastWeight',
   'rpe',
+  'rir',
   'email',
   'level',
   'goal',

@@ -25,6 +25,7 @@ import { getGroupForEntry, nextWorkoutFocusIndex } from '../domain/techniques/gr
 import { getActiveGymProfile } from '../domain/gymProfile';
 import { calculatePlateLoad, getPlateCalculatorConfig, type PlateLoadout } from '../domain/plateCalculator';
 import { bestWorkingSetWeight } from '../domain/warmupEngine';
+import { RirEducationCard } from '../components/RirEducationCard';
 
 function formatLoadKg(value: number): string {
   return `${Number.isInteger(value) ? value : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '').replace('.', ',')} kg`;
@@ -34,6 +35,7 @@ interface ActiveWorkoutSetRowProps {
   set: WorkoutSet;
   displayIndex: number;
   warmupIndex?: number;
+  showRir?: boolean;
   onUpdate: (fields: Partial<WorkoutSet>) => void;
   onToggle: () => void;
 }
@@ -42,6 +44,7 @@ function ActiveWorkoutSetRow({
   set,
   displayIndex,
   warmupIndex,
+  showRir = false,
   onUpdate,
   onToggle,
 }: ActiveWorkoutSetRowProps) {
@@ -130,6 +133,34 @@ function ActiveWorkoutSetRow({
           </span>
         </button>
       </div>
+
+      {showRir && !set.isWarmup && (
+        <div className="col-span-12 flex items-center gap-2 border-t border-white/5 px-2 pt-2 text-left">
+          <span className="shrink-0 text-[8px] font-black uppercase tracking-wider text-gym-text-muted" title="Repetições em reserva">
+            RIR
+          </span>
+          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-0.5">
+            {[0, 1, 2, 3, 4, 5].map((value) => (
+              <button
+                key={value}
+                type="button"
+                disabled={set.completed}
+                aria-pressed={set.rir === value}
+                aria-label={`RIR ${value}`}
+                onClick={() => onUpdate({ rir: set.rir === value ? undefined : value })}
+                className={`min-h-[32px] min-w-[32px] rounded-lg border px-2 text-[10px] font-black transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                  set.rir === value
+                    ? 'border-gym-accent bg-gym-accent text-gym-dark'
+                    : 'border-white/10 bg-white/5 text-gym-text-muted hover:border-gym-accent/40 hover:text-gym-accent'
+                }`}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+          <span className="hidden shrink-0 text-[8px] text-gym-text-muted sm:inline">opcional</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -140,6 +171,7 @@ export const ActiveWorkoutPage = () => {
     activeWorkout,
     workoutDuration,
     updateWorkoutSet,
+    updateUserProfile,
     updateExerciseNotes,
     completeWorkoutSet,
     updateActiveExerciseTechniqueLog,
@@ -573,6 +605,13 @@ export const ActiveWorkoutPage = () => {
         )}
       </div>
 
+      {user && user.level !== 'beginner' && user.rirOnboardingCompleted !== true && (
+        <RirEducationCard
+          compact
+          onComplete={() => updateUserProfile({ rirOnboardingCompleted: true })}
+        />
+      )}
+
       {activeWorkout.warmup?.enabled && (
         <details open className="group rounded-2xl border border-gym-amber/20 bg-gym-amber/[0.04]">
           <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-3 px-4 [&::-webkit-details-marker]:hidden">
@@ -883,6 +922,7 @@ export const ActiveWorkoutPage = () => {
                         set={set}
                         displayIndex={warmupIndex}
                         warmupIndex={warmupIndex}
+                        showRir={user?.level !== 'beginner'}
                         onUpdate={(fields) => updateWorkoutSet(exIdx, setIdx, fields)}
                         onToggle={() => {
                           const wasCompleted = set.completed;
@@ -905,6 +945,7 @@ export const ActiveWorkoutPage = () => {
                     key={set.id}
                     set={set}
                     displayIndex={workIndex}
+                    showRir={user?.level !== 'beginner'}
                     onUpdate={(fields) => updateWorkoutSet(exIdx, setIdx, fields)}
                     onToggle={() => {
                       const wasCompleted = set.completed;
