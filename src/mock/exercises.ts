@@ -3357,7 +3357,14 @@ const withCuration = (exercise: Exercise): Exercise => {
   };
 };
 
-export const MOCK_EXERCISES: Exercise[] = [...BASE_EXERCISES, ...EXPANSION_EXERCISES]
+import { LOTE_6_EXPANSION } from '../../scripts/library/curation-data/lote6';
+
+export const BASE_CATALOG_126: Exercise[] = [...BASE_EXERCISES, ...EXPANSION_EXERCISES];
+
+export const MOCK_EXERCISES: Exercise[] = [
+  ...BASE_CATALOG_126,
+  ...LOTE_6_EXPANSION
+]
   .map(withCuration)
   .map(withLocalImages)
   .map(withSearchTerms);
