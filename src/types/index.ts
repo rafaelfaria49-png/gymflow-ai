@@ -237,6 +237,11 @@ export interface UserProfile {
   techniqueUnlocks?: import('../domain/techniques/types').TechniqueId[];
   /** GOAL-29: card educativo de RIR já visto; ausência mantém compatibilidade legada. */
   rirOnboardingCompleted?: boolean;
+  /** GOAL-29: habilita o motor v2 sem alterar perfis legados por migração silenciosa. */
+  progressionV2?: boolean;
+  /** GOAL-29: ajustes aprendidos após overrides repetidos; opcionais para legados. */
+  progressionOverrides?: import('../domain/progressionEngine').ProgressionOverride[];
+  progressionParameterAdjustments?: import('../domain/progressionEngine').ProgressionParameterAdjustment[];
 }
 
 export interface Exercise {
@@ -303,6 +308,13 @@ export interface ActiveExercise {
   restSec?: number;
   // GOAL-08: motivo da sugestão do motor de progressão (texto explicativo honesto)
   progressionNote?: string;
+  /** GOAL-29: decisão estruturada para a tela "Por que esse peso?". */
+  progressionDecision?: import('../domain/progressionEngine').ProgressionDecision;
+  /** Comparativo de uma versão: motor legado × v2, quando a flag está ativa. */
+  progressionComparison?: {
+    legacy: import('../domain/progressionEngine').ProgressionDecision;
+    v2: import('../domain/progressionEngine').ProgressionDecision;
+  };
   // GOAL-23A: vínculo com o plano da sessão e separação origem × execução.
   // Todos opcionais — treinos livres/legados e o snapshot antigo continuam válidos.
   plannedSlotIndex?: number; // posição 0-based no SessionPlan (ExerciseSlot não tem id)

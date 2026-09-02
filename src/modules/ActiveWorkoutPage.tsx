@@ -3,7 +3,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { TechniqueSequencePlayer } from '../components/TechniqueSequencePlayer';
-import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, ChevronUp, ChevronDown, Flag, X, Plus, Trash2, Search, Info, Pencil, Calculator, Flame } from 'lucide-react';
+import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, ChevronUp, ChevronDown, Flag, X, Plus, Trash2, Search, Info, Pencil, Calculator, Flame, HelpCircle } from 'lucide-react';
+import { WhyThisWeightModal } from '../components/WhyThisWeightModal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { NumericInput } from '../components/ui/NumericInput';
 import { matchesExerciseSearch } from '../lib/exerciseSearch';
@@ -13,7 +14,7 @@ import { useToast } from '../components/ui/Toast';
 import { ExerciseOriginBadge, ExerciseExecutionBadge, SessionStatusBadge } from '../components/ui/SessionBadges';
 import { deriveExerciseEntryStatus, MAX_SWAP_REASON_NOTE_LENGTH } from '../lib/workout-session-domain';
 import { buildSessionPreview, buildSwapView, SWAP_REASON_LABELS, SWAP_REASON_ORDER } from '../lib/workout-session-view';
-import type { Exercise, WorkoutSet, WorkoutSwapReasonCode } from '../types';
+import type { ActiveExercise, Exercise, WorkoutSet, WorkoutSwapReasonCode } from '../types';
 import {
   buildCompactWorkoutProposal,
   type CompactWorkoutProposal,
@@ -199,7 +200,8 @@ export const ActiveWorkoutPage = () => {
     restTimerLabel,
     extendRestTimer,
     skipRestTimer,
-    setActiveView
+    setActiveView,
+    recordExerciseProgressionOverride,
   } = useGymFlow();
   const toast = useToast();
 
@@ -218,6 +220,7 @@ export const ActiveWorkoutPage = () => {
   const [lastCompletedSet, setLastCompletedSet] = useState<{ sessionId: string; exerciseIndex: number; setIndex: number } | null>(null);
   const [plateCalculatorExerciseId, setPlateCalculatorExerciseId] = useState<string | null>(null);
   const [plateCalculatorTarget, setPlateCalculatorTarget] = useState(0);
+  const [whyThisWeightExercise, setWhyThisWeightExercise] = useState<ActiveExercise | null>(null);
   const lastScrolledCompletion = useRef<string | null>(null);
 
   useEffect(() => {
@@ -800,11 +803,25 @@ export const ActiveWorkoutPage = () => {
                     ? `${ex.muscleGroup} • Meta: ${ex.repRange[0] === ex.repRange[1] ? ex.repRange[0] : `${ex.repRange[0]}-${ex.repRange[1]}`} reps • RPE ${ex.targetRPE ?? 8}${ex.restSec ? ` • Descanso ${ex.restSec}s` : ''}`
                     : ex.muscleGroup}
                 </span>
-                {/* GOAL-08: motivo honesto do motor determinístico de progressão */}
-                {ex.progressionNote && (
-                  <span className="block text-[9px] text-gym-accent/80 normal-case mt-0.5 leading-snug">
-                    Progressão recomendada: {ex.progressionNote}
-                  </span>
+                {/* GOAL-08 / GOAL-29: motivo honesto e tela "Por que esse peso?" */}
+                {(ex.progressionNote || ex.progressionDecision) && (
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    {ex.progressionNote && (
+                      <span className="text-[9px] text-gym-accent/80 normal-case leading-snug">
+                        Progressão recomendada: {ex.progressionNote}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setWhyThisWeightExercise(ex)}
+                      className="inline-flex items-center gap-1 rounded-md border border-gym-accent/30 bg-gym-accent/10 px-2 py-0.5 text-[9px] font-bold text-gym-accent hover:bg-gym-accent/20 transition-colors active:scale-95"
+                      title="Ver detalhes da recomendação de peso"
+                      aria-label={`Por que esse peso para ${ex.name}?`}
+                    >
+                      <HelpCircle className="w-3 h-3" aria-hidden="true" />
+                      Por que esse peso?
+                    </button>
+                  </div>
                 )}
                 {/* GOAL-24: substituição — planejado (original) → executado + motivo */}
                 {swapView && (
@@ -1431,6 +1448,34 @@ export const ActiveWorkoutPage = () => {
       )}
 
       {/* MODAL DE RESUMO / PERCEPÇÃO DE ESFORÇO */}
+      {whyThisWeightExercise && (
+        <WhyThisWeightModal
+          exercise={whyThisWeightExercise}
+          isOpen={Boolean(whyThisWeightExercise)}
+          onClose={() => setWhyThisWeightExercise(null)}
+          onApplyWeightToAllSets={(weightKg) => {
+            const exIdx = activeWorkout.exercises.findIndex((e) => e.id === whyThisWeightExercise.id);
+            if (exIdx >= 0) {
+              whyThisWeightExercise.sets.forEach((set, sIdx) => {
+                if (!set.isWarmup) {
+                  updateWorkoutSet(exIdx, sIdx, { weight: weightKg });
+                }
+              });
+              recordExerciseProgressionOverride(
+                whyThisWeightExercise.exerciseId,
+                whyThisWeightExercise.progressionDecision?.pesoKg ?? null,
+                weightKg,
+              );
+            }
+          }}
+          adjustmentInfo={
+            user?.progressionParameterAdjustments
+              ?.filter((a) => a.exerciseId === whyThisWeightExercise.exerciseId)
+              .at(-1)
+          }
+        />
+      )}
+
       {showFinishModal && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-gym-dark border border-white/10 rounded-3xl w-full max-w-md p-6 text-center space-y-5 shadow-2xl relative overflow-hidden">

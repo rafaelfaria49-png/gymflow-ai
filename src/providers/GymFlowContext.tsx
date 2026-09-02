@@ -66,7 +66,15 @@ import type {
   StorageHealth,
   StorageWriteResult,
 } from '../lib/storage-types';
-import { suggestNext, lastRecordedWeight, ExerciseSessionHistory } from '../lib/progression';
+import { lastRecordedWeight, ExerciseSessionHistory } from '../lib/progression';
+import {
+  progressionEngine,
+  recordProgressionOverride,
+  type ProgressionDecision,
+  type ProgressionProfile,
+  type ProgressionOverride,
+  type ProgressionParameterAdjustment,
+} from '../domain/progressionEngine';
 import {
   clearProgramFromWeeklyPlan,
   deriveCustomProgramFromSeed,
@@ -400,6 +408,12 @@ interface GymFlowContextType {
   restoreStorageBackup: () => StorageWriteResult<PersistedState>;
   startFreshStorage: () => StorageWriteResult<PersistedState>;
   downloadStorageRecovery: () => void;
+  // GOAL-29: registro de overrides e decisões do motor de progressão v2
+  recordExerciseProgressionOverride: (
+    exerciseId: string,
+    suggestedWeightKg: number | null,
+    actualWeightKg: number | null,
+  ) => void;
 }
 
 const GymFlowContext = createContext<GymFlowContextType | undefined>(undefined);
@@ -1353,7 +1367,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       premiumStatus: 'pro',
       points: 2450,
       weeklyPlan: defaultPlan,
-      connectedSocials: ['instagram']
+      connectedSocials: ['instagram'],
+      progressionV2: true,
+      progressionOverrides: [],
+      progressionParameterAdjustments: [],
     });
     setWeeklyPlan(defaultPlan);
     setActiveView('dashboard');
@@ -1394,7 +1411,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       premiumStatus: 'free',
       points: 0,
       weeklyPlan: defaultPlan,
-      connectedSocials: []
+      connectedSocials: [],
+      progressionV2: true,
+      progressionOverrides: [],
+      progressionParameterAdjustments: [],
     };
     setUser(newUser);
     setWeeklyPlan(defaultPlan);
@@ -1457,6 +1477,72 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         return match ? { date: sess.date, sets: match.sets ?? [] } : null;
       })
       .filter((s): s is ExerciseSessionHistory => s !== null);
+
+  const progressionProfile = (): ProgressionProfile => ({
+    level: user?.level,
+    goal: user?.goal,
+    trainingStatus: user?.trainingStatus,
+    returnToTraining: user?.returnToTraining,
+    progressionV2: user?.progressionV2 === true,
+  });
+
+  const progressionDecisionFor = (
+    slot: Parameters<typeof progressionEngine>[0]['slot'],
+    history: ExerciseSessionHistory[],
+  ): { selected: ProgressionDecision; legacy: ProgressionDecision; v2: ProgressionDecision } => {
+    const legacy = progressionEngine({ slot, history, mode: 'legacy' });
+    const latestAdjustment = user?.progressionParameterAdjustments
+      ?.filter((adjustment) => adjustment.exerciseId === slot.exerciseId)
+      .at(-1);
+    const v2 = progressionEngine({
+      slot,
+      history,
+      mode: 'v2',
+      profile: progressionProfile(),
+      ...(latestAdjustment ? { profileRules: { incrementKg: latestAdjustment.nextValueKg } } : {}),
+    });
+    return { selected: user?.progressionV2 === true ? v2 : legacy, legacy, v2 };
+  };
+
+  const recordExerciseProgressionOverride = (
+    exerciseId: string,
+    suggestedWeightKg: number | null,
+    actualWeightKg: number | null,
+  ) => {
+    if (!user) return;
+    const overrideItem: ProgressionOverride = {
+      exerciseId,
+      suggestedWeightKg,
+      actualWeightKg,
+      recordedAt: new Date().toISOString(),
+    };
+    const latestAdjustment = user.progressionParameterAdjustments
+      ?.filter((adj) => adj.exerciseId === exerciseId)
+      .at(-1);
+    const result = recordProgressionOverride(
+      user.progressionOverrides ?? [],
+      overrideItem,
+      latestAdjustment ? { incrementKg: latestAdjustment.nextValueKg } : {},
+    );
+    setUser((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        progressionOverrides: result.overrides,
+        ...(result.adjustment
+          ? {
+              progressionParameterAdjustments: [
+                ...(prev.progressionParameterAdjustments ?? []),
+                result.adjustment,
+              ],
+            }
+          : {}),
+      };
+    });
+    if (result.adjustment) {
+      toast.info(result.adjustment.reasonText);
+    }
+  };
 
   // Workout state management
   const startWorkout = (programId?: string, customName?: string, programDayId?: string, explicitDay?: ProgramDay) => {
@@ -1550,8 +1636,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
               const slot = programDay.slots[index];
               if (!slot) return undefined;
               const history = exerciseHistoryFor(slot.exerciseId);
-              const suggestion = suggestNext(slot, history);
-              return suggestion.pesoKg ?? lastRecordedWeight(history) ?? 10;
+              const decision = progressionDecisionFor(slot, history).selected;
+              return decision.pesoKg ?? lastRecordedWeight(history) ?? 10;
             },
           })
         : null;
@@ -1567,7 +1653,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         // GOAL-08: ANT = última sessão real; SUG = motor determinístico.
         // Pré-preenche carga/reps com a sugestão quando ela existe.
         const history = exerciseHistoryFor(slot.exerciseId);
-        const suggestion = suggestNext(slot, history);
+        const progression = progressionDecisionFor(slot, history);
+        const suggestion = progression.selected;
         const lastW = lastRecordedWeight(history);
         const targetReps = suggestion.repsAlvo ?? slot.repRange[0];
         const prefillWeight = suggestion.pesoKg ?? lastW ?? 10;
@@ -1616,7 +1703,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           repRange: slot.repRange,
           targetRPE: slot.targetRPE,
           restSec: slot.restSec,
-          progressionNote: suggestion.motivo,
+          progressionNote: suggestion.reasonText,
+          progressionDecision: suggestion,
+          ...(user?.progressionV2 === true ? {
+            progressionComparison: {
+              legacy: progression.legacy,
+              v2: progression.v2,
+            },
+          } : {}),
           ...(techniquePlan ? {
             techniquePlan,
             techniqueLog: createInitialTechniqueLog(techniquePlan),
@@ -2130,10 +2224,53 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
     };
 
+    // GOAL-29: registrar overrides e aplicar ajustes de parâmetros aprendidos
+    let updatedOverrides = [...(user?.progressionOverrides ?? [])];
+    let updatedAdjustments = [...(user?.progressionParameterAdjustments ?? [])];
+    const newAdjustments: ProgressionParameterAdjustment[] = [];
+
+    workoutToFinish.exercises.forEach((exercise) => {
+      const suggested = exercise.progressionDecision?.pesoKg ?? null;
+      const actual = bestWorkingSetWeight(exercise.sets);
+      if (suggested !== null && actual > 0 && Math.abs(actual - suggested) >= 0.25) {
+        const overrideItem: ProgressionOverride = {
+          exerciseId: exercise.exerciseId,
+          suggestedWeightKg: suggested,
+          actualWeightKg: actual,
+          recordedAt: new Date().toISOString(),
+        };
+        const currentExerciseAdjustment = updatedAdjustments
+          .filter((adj) => adj.exerciseId === exercise.exerciseId)
+          .at(-1);
+        const result = recordProgressionOverride(
+          updatedOverrides,
+          overrideItem,
+          currentExerciseAdjustment ? { incrementKg: currentExerciseAdjustment.nextValueKg } : {},
+        );
+        updatedOverrides = result.overrides;
+        if (result.adjustment) {
+          updatedAdjustments.push(result.adjustment);
+          newAdjustments.push(result.adjustment);
+        }
+      }
+    });
+
+    const currentState = currentPersistedState();
+    const stateForOutcome: PersistedState = user
+      ? {
+          ...currentState,
+          user: {
+            ...user,
+            progressionOverrides: updatedOverrides,
+            progressionParameterAdjustments: updatedAdjustments,
+          },
+        }
+      : currentState;
+
     // Resultado final e determinístico da conclusão, derivado por helper puro a
     // partir dos refs — sem depender de nenhum render intermediário.
     const outcome = deriveWorkoutCompletion({
-      state: currentPersistedState(),
+      state: stateForOutcome,
       finalSession,
       finalXp,
       caloriesBurned,
@@ -2147,6 +2284,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       postAuthorName: user.name,
       postImage: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600&auto=format&fit=crop',
     });
+
+    for (const adj of newAdjustments) {
+      toast.info(adj.reasonText);
+    }
 
     // Estados React e efeitos visuais saem do snapshot já persistido: memória e
     // core gravado não podem divergir.
@@ -3083,6 +3224,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         restoreStorageBackup,
         startFreshStorage,
         downloadStorageRecovery,
+        recordExerciseProgressionOverride,
       }}
     >
       {children}
