@@ -273,6 +273,10 @@ export interface Exercise {
   mechanics?: ExerciseMechanics;
   laterality?: ExerciseLaterality;
   bodyPosition?: ExerciseBodyPosition;
+  /** GOAL-33: restrições articulares, patológicas ou de amplitude (ex: condromalácia, lesão manguito). */
+  restrictions?: string[];
+  /** GOAL-33: orientação prática humana para substituição inteligente no contexto da academia. */
+  substitutionsHint?: string;
 }
 
 export interface WorkoutSet {

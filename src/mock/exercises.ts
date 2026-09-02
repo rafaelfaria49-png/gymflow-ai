@@ -3330,6 +3330,26 @@ const withSearchTerms = (exercise: Exercise): Exercise => {
   return { ...exercise, searchTerms: [...(exercise.searchTerms ?? []), ...extra] };
 };
 
+import { LOTE_1_CURATION } from '../../scripts/library/curation-data/lote1';
+
+const CURATION_MAP: Record<string, Partial<Exercise>> = {
+  ...LOTE_1_CURATION,
+};
+
+const withCuration = (exercise: Exercise): Exercise => {
+  const patch = CURATION_MAP[exercise.id];
+  if (!patch) return exercise;
+  return {
+    ...exercise,
+    ...patch,
+    searchTerms: [
+      ...(exercise.searchTerms ?? []),
+      ...(patch.searchTerms ?? [])
+    ]
+  };
+};
+
 export const MOCK_EXERCISES: Exercise[] = [...BASE_EXERCISES, ...EXPANSION_EXERCISES]
+  .map(withCuration)
   .map(withLocalImages)
   .map(withSearchTerms);
