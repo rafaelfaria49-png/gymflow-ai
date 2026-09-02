@@ -107,6 +107,11 @@ import {
   type CompactWorkoutProposal,
 } from '../domain/compactEngine';
 import {
+  applyMuscleLimitation,
+  applyVolumeReduction,
+  type ReadinessCheckIn,
+} from '../domain/readinessEngine';
+import {
   buildSessionPlan,
   finalizeSession,
   markEntrySwapped,
@@ -329,6 +334,13 @@ interface GymFlowContextType {
   moveExerciseInActiveWorkout: (fromIndex: number, toIndex: number) => void;
   applyCompactWorkout: (proposal: CompactWorkoutProposal) => void;
   adaptActiveWorkoutForCrowdedGym: () => void;
+  // GOAL-30: Readiness e adaptação diária pré-treino
+  recordReadinessCheckIn: (checkIn: ReadinessCheckIn) => void;
+  skipReadinessCheckIn: () => void;
+  dismissReadinessSuggestion: (suggestionId: string) => void;
+  reduceActiveWorkoutVolume: (setsToReduce?: number) => void;
+  limitActiveWorkoutMuscle: (muscleGroup: string) => void;
+  swapActiveWorkoutToProgramDay: (targetDayId: string) => void;
 
   // Timer de descanso (GOAL-06)
   restSecondsRemaining: number;
@@ -2155,6 +2167,78 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const recordReadinessCheckIn = (checkIn: ReadinessCheckIn) => {
+    setActiveWorkout((prev) => {
+      if (!prev) return prev;
+      let next = { ...prev, readiness: checkIn, readinessSkipped: false };
+      if (checkIn.progressionImpact === 'conservative') {
+        next = {
+          ...next,
+          exercises: next.exercises.map((ex) => {
+            if (!ex.progressionDecision || ex.progressionDecision.action !== 'progress') {
+              return ex;
+            }
+            const lastWeight = ex.progressionDecision.previousWeightKg ?? (ex.sets[0]?.weight ? ex.sets[0].weight : 10);
+            return {
+              ...ex,
+              progressionNote: `Readiness baixa no check-in diário: mantendo carga em ${lastWeight} kg para consolidação segura.`,
+              progressionDecision: {
+                ...ex.progressionDecision,
+                pesoKg: lastWeight,
+                action: 'hold',
+                reasonCode: 'readiness-conservative',
+                reasonText: `Readiness baixa no check-in diário: mantendo carga em ${lastWeight} kg para consolidação segura.`,
+                motivo: `Readiness baixa no check-in diário: mantendo carga em ${lastWeight} kg para consolidação segura.`,
+                changed: false,
+              },
+            };
+          }),
+        };
+      }
+      return next;
+    });
+  };
+
+  const skipReadinessCheckIn = () => {
+    setActiveWorkout((prev) => (prev ? { ...prev, readinessSkipped: true } : prev));
+  };
+
+  const dismissReadinessSuggestion = (suggestionId: string) => {
+    setActiveWorkout((prev) => {
+      if (!prev) return prev;
+      const existing = prev.readinessDismissedSuggestions ?? [];
+      if (existing.includes(suggestionId)) return prev;
+      return {
+        ...prev,
+        readinessDismissedSuggestions: [...existing, suggestionId],
+      };
+    });
+  };
+
+  const reduceActiveWorkoutVolume = (setsToReduce = 1) => {
+    setActiveWorkout((prev) => (prev ? applyVolumeReduction(prev, setsToReduce) : prev));
+    toast.success('Volume adaptado: 1 série reduzida por exercício.');
+  };
+
+  const limitActiveWorkoutMuscle = (muscleGroup: string) => {
+    setActiveWorkout((prev) => (prev ? applyMuscleLimitation(prev, muscleGroup) : prev));
+    toast.success(`Adaptação aplicada: séries de ${muscleGroup} reduzidas para manutenção.`);
+  };
+
+  const swapActiveWorkoutToProgramDay = (targetDayId: string) => {
+    const currentWorkout = activeWorkoutRef.current;
+    if (!currentWorkout || !currentWorkout.sourceProgramId) {
+      toast.error('Não foi possível identificar o programa de origem para troca de dia.');
+      return;
+    }
+    const programId = currentWorkout.sourceProgramId;
+    setActiveWorkout(null);
+    setActiveWorkoutStartedAt(null);
+    setWorkoutDuration(0);
+    startWorkout(programId, undefined, targetDayId);
+    toast.success('Dia de treino invertido com sucesso!');
+  };
+
   const finishWorkout = (rpe: number) => {
     if (finishWorkoutInProgressRef.current) return;
     if (
@@ -3158,6 +3242,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         moveExerciseInActiveWorkout,
         applyCompactWorkout,
         adaptActiveWorkoutForCrowdedGym,
+        recordReadinessCheckIn,
+        skipReadinessCheckIn,
+        dismissReadinessSuggestion,
+        reduceActiveWorkoutVolume,
+        limitActiveWorkoutMuscle,
+        swapActiveWorkoutToProgramDay,
 
         restSecondsRemaining,
         restTimerTotalSeconds,

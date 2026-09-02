@@ -542,3 +542,37 @@ describe('progressionEngine — Pureza Funcional e Contrato de Aceite', () => {
     expect(JSON.stringify(inputHistory)).toBe(historyCopy);
   });
 });
+
+describe('progressionEngine GOAL-30 — Modulação de Prontidão (Readiness)', () => {
+  it('segura a carga e consolida quando readinessImpact é conservative, mesmo atingindo o teto', () => {
+    const normal = progressionEngine({
+      slot: slot(),
+      history: [uniform(10, 40, { rir: 2 })],
+      readinessImpact: 'normal',
+    });
+    expect(normal.action).toBe('progress');
+    expect(normal.pesoKg).toBe(42.5);
+
+    const conservative = progressionEngine({
+      slot: slot(),
+      history: [uniform(10, 40, { rir: 2 })],
+      readinessImpact: 'conservative',
+    });
+    expect(conservative.action).toBe('hold');
+    expect(conservative.pesoKg).toBe(40);
+    expect(conservative.reasonCode).toBe('readiness-conservative');
+    expect(conservative.reasonText).toContain('Readiness baixa no check-in diário');
+  });
+
+  it('suporta motivo em en-US para modulação de readiness', () => {
+    const conservative = progressionEngine({
+      slot: slot(),
+      history: [uniform(10, 40, { rir: 2 })],
+      readinessImpact: 'conservative',
+      locale: 'en-US',
+    });
+    expect(conservative.reasonCode).toBe('readiness-conservative');
+    expect(conservative.reasonText).toContain('Low readiness in daily check-in');
+  });
+});
+

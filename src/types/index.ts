@@ -349,6 +349,10 @@ export interface WorkoutSession {
   xpEarned: number;
   /** GOAL-28: snapshot do ritual opcional de aquecimento da sessão. */
   warmup?: import('../domain/warmupEngine').WarmupSessionSettings;
+  /** GOAL-30: check-in de prontidão diária pré-treino (opcional e pulável). */
+  readiness?: import('../domain/readinessEngine').ReadinessCheckIn;
+  readinessSkipped?: boolean;
+  readinessDismissedSuggestions?: string[];
   // GOAL-25: metadados da sessão ativa. Opcionais para não alterar registros legados.
   variant?: WorkoutSessionVariant;
   plannedDuration?: number; // minutos previstos no plano no momento do início

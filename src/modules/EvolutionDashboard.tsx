@@ -25,8 +25,10 @@ import {
   Volume2,
   VolumeX,
   Dumbbell,
-  Play
+  Play,
+  Activity,
 } from 'lucide-react';
+import { calculateReadinessCorrelation } from '../domain/readinessEngine';
 
 export const EvolutionDashboard = () => {
   const {
@@ -68,6 +70,9 @@ export const EvolutionDashboard = () => {
 
   // GOAL-23B: sessão selecionada para o modal de detalhe.
   const [selectedSession, setSelectedSession] = useState<WorkoutSession | null>(null);
+
+  // GOAL-30: correlação simples de prontidão no histórico
+  const readinessCorrelation = calculateReadinessCorrelation(workoutHistory);
 
   const handleWeightSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -314,7 +319,24 @@ export const EvolutionDashboard = () => {
               <Calendar className="w-4 h-4 text-gym-emerald" />
               Últimas sessões de treino
             </h3>
-            <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
+              {/* GOAL-30: Correlação de prontidão e desempenho */}
+              {readinessCorrelation && (
+                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 flex items-start gap-2.5 mb-2">
+                  <div className="p-1.5 rounded-xl bg-gym-accent/15 text-gym-accent flex-shrink-0 mt-0.5">
+                    <Activity className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-white uppercase tracking-wider block">
+                      Prontidão & Performance
+                    </span>
+                    <p className="text-[11px] text-gym-text-muted mt-0.5 leading-relaxed">
+                      {readinessCorrelation.summary}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {workoutHistory.length === 0 ? (
                 <div className="text-center py-6 space-y-3 flex flex-col items-center">
                   <Dumbbell className="w-10 h-10 text-gym-text-muted opacity-40" />
@@ -350,8 +372,23 @@ export const EvolutionDashboard = () => {
                       <p className="text-[10px] text-gym-text-muted">
                         {sess.date} • {Math.ceil(sess.duration / 60)} min
                       </p>
-                      <div className="mt-1">
+                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                         <SessionStatusBadge session={sess} />
+                        {sess.readiness && (
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-1 ${
+                              sess.readiness.level === 'optimal'
+                                ? 'bg-gym-accent/15 border-gym-accent/30 text-gym-accent'
+                                : sess.readiness.level === 'moderate'
+                                  ? 'bg-gym-amber/15 border-gym-amber/30 text-gym-amber'
+                                  : 'bg-gym-coral/15 border-gym-coral/30 text-gym-coral'
+                            }`}
+                            title={`Check-in: ${sess.readiness.score} pts`}
+                          >
+                            <Activity className="w-2.5 h-2.5" />
+                            <span>{sess.readiness.score} pts</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                     <span className="text-[10px] bg-gym-accent/15 text-gym-accent font-mono font-bold px-2 py-1 rounded-lg flex-shrink-0 ml-2">

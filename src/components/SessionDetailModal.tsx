@@ -11,6 +11,7 @@ import {
   Check,
   StickyNote,
   RefreshCw,
+  Activity,
 } from 'lucide-react';
 import type { ActiveExercise, WorkoutSession, WorkoutSet } from '../types';
 import type { TechniqueStageLog } from '../domain/techniques/types';
@@ -294,6 +295,50 @@ export const SessionDetailModal = ({ session, onClose }: SessionDetailModalProps
               <p className="text-sm font-extrabold text-gym-emerald mt-0.5">+{session.xpEarned}</p>
             </div>
           </div>
+
+          {/* GOAL-30: Check-in de Prontidão da Sessão */}
+          {session.readiness && (
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-wider flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5" /> Prontidão Pré-Treino
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                    session.readiness.level === 'optimal'
+                      ? 'bg-gym-accent/15 border-gym-accent/30 text-gym-accent'
+                      : session.readiness.level === 'moderate'
+                        ? 'bg-gym-amber/15 border-gym-amber/30 text-gym-amber'
+                        : 'bg-gym-coral/15 border-gym-coral/30 text-gym-coral'
+                  }`}
+                >
+                  {session.readiness.score} pts • {session.readiness.level === 'optimal' ? 'Ótima' : session.readiness.level === 'moderate' ? 'Moderada' : 'Baixa'}
+                </span>
+              </div>
+              <div className="grid grid-cols-5 gap-1.5 text-center text-[10px]">
+                <div className="bg-black/20 p-1.5 rounded-lg">
+                  <span className="text-gym-text-muted block text-[9px]">Energia</span>
+                  <span className="font-bold text-white capitalize">{session.readiness.energy === 'low' ? 'Baixa' : session.readiness.energy === 'medium' ? 'Normal' : 'Alta'}</span>
+                </div>
+                <div className="bg-black/20 p-1.5 rounded-lg">
+                  <span className="text-gym-text-muted block text-[9px]">Sono</span>
+                  <span className="font-bold text-white capitalize">{session.readiness.sleep === 'poor' ? 'Ruim' : session.readiness.sleep === 'fair' ? 'Regular' : 'Ótimo'}</span>
+                </div>
+                <div className="bg-black/20 p-1.5 rounded-lg">
+                  <span className="text-gym-text-muted block text-[9px]">Dor</span>
+                  <span className="font-bold text-white capitalize">{session.readiness.soreness === 'none' ? 'Nenhuma' : session.readiness.soreness === 'mild' ? 'Leve' : 'Forte'}</span>
+                </div>
+                <div className="bg-black/20 p-1.5 rounded-lg">
+                  <span className="text-gym-text-muted block text-[9px]">Estresse</span>
+                  <span className="font-bold text-white capitalize">{session.readiness.stress === 'low' ? 'Baixo' : session.readiness.stress === 'medium' ? 'Médio' : 'Alto'}</span>
+                </div>
+                <div className="bg-black/20 p-1.5 rounded-lg">
+                  <span className="text-gym-text-muted block text-[9px]">Tempo</span>
+                  <span className="font-bold text-white capitalize">{session.readiness.timeAvailable === 'short' ? 'Curto' : session.readiness.timeAvailable === 'normal' ? 'Normal' : 'Livre'}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* RESUMO DE SÉRIES E EXERCÍCIOS */}
           <div className="grid grid-cols-2 gap-2 text-[11px]">

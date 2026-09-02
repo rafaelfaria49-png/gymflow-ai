@@ -3,8 +3,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { TechniqueSequencePlayer } from '../components/TechniqueSequencePlayer';
-import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, ChevronUp, ChevronDown, Flag, X, Plus, Trash2, Search, Info, Pencil, Calculator, Flame, HelpCircle } from 'lucide-react';
+import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, ChevronUp, ChevronDown, Flag, X, Plus, Trash2, Search, Info, Pencil, Calculator, Flame, HelpCircle, Activity } from 'lucide-react';
 import { WhyThisWeightModal } from '../components/WhyThisWeightModal';
+import { PreWorkoutReadinessModal } from '../components/PreWorkoutReadinessModal';
+import { getProgramDays } from '../lib/workout-program-days';
+import type { ReadinessAssessment, ReadinessSuggestion } from '../domain/readinessEngine';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { NumericInput } from '../components/ui/NumericInput';
 import { matchesExerciseSearch } from '../lib/exerciseSearch';
@@ -185,6 +188,12 @@ export const ActiveWorkoutPage = () => {
     cancelWorkout,
     exercises,
     programs,
+    recordReadinessCheckIn,
+    skipReadinessCheckIn,
+    dismissReadinessSuggestion,
+    reduceActiveWorkoutVolume,
+    limitActiveWorkoutMuscle,
+    swapActiveWorkoutToProgramDay,
     gymProfile,
     crowdedGymMode,
     toggleCrowdedGymMode,
@@ -221,7 +230,14 @@ export const ActiveWorkoutPage = () => {
   const [plateCalculatorExerciseId, setPlateCalculatorExerciseId] = useState<string | null>(null);
   const [plateCalculatorTarget, setPlateCalculatorTarget] = useState(0);
   const [whyThisWeightExercise, setWhyThisWeightExercise] = useState<ActiveExercise | null>(null);
+  const [showReadinessModal, setShowReadinessModal] = useState(false);
   const lastScrolledCompletion = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (activeWorkout && !activeWorkout.readiness && !activeWorkout.readinessSkipped) {
+      setShowReadinessModal(true);
+    }
+  }, [activeWorkout?.id, activeWorkout?.readiness, activeWorkout?.readinessSkipped]);
 
   useEffect(() => {
     if (!lastCompletedSet || !activeWorkout || lastCompletedSet.sessionId !== activeWorkout.id) return;
@@ -360,6 +376,49 @@ export const ActiveWorkoutPage = () => {
     if (!compactProposal?.requiresConfirmation) return;
     applyCompactWorkout(compactProposal);
     closeCompactProposal();
+  };
+
+  const sourceProgram = activeWorkout?.sourceProgramId
+    ? programs.find((p) => p.id === activeWorkout.sourceProgramId)
+    : undefined;
+  const availableProgramDays = sourceProgram
+    ? getProgramDays(sourceProgram).map((day) => ({
+        id: day.id,
+        name: day.name,
+        muscleGroups: day.muscleGroupIds,
+      }))
+    : undefined;
+
+  const handleApplyReadinessSuggestion = (suggestion: ReadinessSuggestion) => {
+    if (suggestion.type === 'compact' && suggestion.compactProposal) {
+      applyCompactWorkout(suggestion.compactProposal);
+    } else if (suggestion.type === 'compact' && suggestion.payload?.targetMinutes) {
+      const proposal = createCompactProposal(suggestion.payload.targetMinutes);
+      applyCompactWorkout(proposal);
+    } else if (suggestion.type === 'reduce-volume') {
+      reduceActiveWorkoutVolume(suggestion.payload?.setsToReduce ?? 1);
+    } else if (suggestion.type === 'swap-day' && suggestion.payload?.alternateDayId) {
+      swapActiveWorkoutToProgramDay(suggestion.payload.alternateDayId);
+    } else if (suggestion.type === 'limit-muscle' && suggestion.payload?.affectedMuscle) {
+      limitActiveWorkoutMuscle(suggestion.payload.affectedMuscle);
+    } else if (suggestion.type === 'mobility-warmup') {
+      toast.info('Foco em mobilidade e aquecimento ampliado ativo para este treino.');
+    }
+    setShowReadinessModal(false);
+  };
+
+  const handleCompleteReadiness = (assessment: ReadinessAssessment) => {
+    recordReadinessCheckIn(assessment.checkIn);
+    setShowReadinessModal(false);
+  };
+
+  const handleSkipReadiness = () => {
+    skipReadinessCheckIn();
+    setShowReadinessModal(false);
+  };
+
+  const handleDismissReadinessSuggestion = (suggestionId: string) => {
+    dismissReadinessSuggestion(suggestionId);
   };
 
   const formatTime = (totalSeconds: number) => {
@@ -557,6 +616,23 @@ export const ActiveWorkoutPage = () => {
           >
             <Zap className="w-3.5 h-3.5 text-gym-accent" />
             <span className="hidden sm:inline">Treino rápido</span>
+          </button>
+
+          {/* GOAL-30: check-in de prontidão diária pré-treino */}
+          <button
+            type="button"
+            onClick={() => setShowReadinessModal(true)}
+            className={`border font-bold px-3 py-2 rounded-xl transition-all text-xs flex items-center gap-1.5 ${
+              activeWorkout.readiness
+                ? 'bg-gym-accent/15 border-gym-accent/40 text-gym-accent'
+                : 'bg-white/5 hover:bg-gym-accent/15 border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent'
+            }`}
+            title="Check-in de prontidão diária"
+          >
+            <Activity className="w-3.5 h-3.5 text-gym-accent" />
+            <span className="hidden sm:inline">
+              {activeWorkout.readiness ? `${activeWorkout.readiness.score} pts` : 'Prontidão'}
+            </span>
           </button>
 
           <button
@@ -1609,6 +1685,18 @@ export const ActiveWorkoutPage = () => {
           </div>
         </div>
       )}
+      {/* GOAL-30: Modal de Check-in de Prontidão Diária */}
+      <PreWorkoutReadinessModal
+        isOpen={showReadinessModal}
+        session={activeWorkout}
+        catalog={exercises}
+        availableProgramDays={availableProgramDays}
+        dismissedSuggestionIds={activeWorkout.readinessDismissedSuggestions}
+        onComplete={handleCompleteReadiness}
+        onSkip={handleSkipReadiness}
+        onApplySuggestion={handleApplyReadinessSuggestion}
+        onDismissSuggestion={handleDismissReadinessSuggestion}
+      />
     </div>
   );
 };

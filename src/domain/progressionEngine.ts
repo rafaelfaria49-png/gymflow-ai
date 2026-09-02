@@ -39,7 +39,8 @@ export type ProgressionReasonCode =
   | 'plateau-back-off'
   | 'plateau-deload'
   | 'series-progress'
-  | 'series-hold';
+  | 'series-hold'
+  | 'readiness-conservative';
 
 export type ProgressionAction =
   | 'disabled'
@@ -130,6 +131,8 @@ export interface ProgressionEngineInput {
   currentWeightKg?: number | null;
   sessionsSinceReturn?: number;
   locale?: ProgressionLocale;
+  /** GOAL-30: modulação leve do motor derivada do check-in de prontidão diária. */
+  readinessImpact?: 'normal' | 'conservative';
 }
 
 export const DEFAULT_RETURN_RAMP_FACTORS: Required<ProgressionReturnRampFactors> = Object.freeze({
@@ -190,6 +193,7 @@ const REASON_MESSAGES: Readonly<Record<ProgressionLocale, Readonly<Record<Progre
     'plateau-deload': 'Platô persistente por {sessions} sessões — sugerir deload de {percent}% antes de retomar.',
     'series-progress': 'Série {set} fechou a faixa com margem — subir {increment} kg e voltar ao piso.',
     'series-hold': 'Série {set}: manter a carga e buscar {reps} reps antes de subir.',
+    'readiness-conservative': 'Readiness baixa no check-in diário: mantendo carga em {weight} kg para consolidação segura.',
   }),
   'en-US': Object.freeze({
     'progression-disabled': 'Automatic progression is disabled — stay inside the target rep range.',
@@ -206,6 +210,7 @@ const REASON_MESSAGES: Readonly<Record<ProgressionLocale, Readonly<Record<Progre
     'plateau-deload': 'Persistent plateau for {sessions} sessions — suggest a {percent}% deload before resuming.',
     'series-progress': 'Set {set} completed the range with margin — add {increment} kg and return to the floor.',
     'series-hold': 'Set {set}: keep the load and aim for {reps} reps before adding weight.',
+    'readiness-conservative': 'Low readiness in daily check-in: holding load at {weight} kg for safe consolidation.',
   }),
 });
 
@@ -596,6 +601,20 @@ function buildDecision(input: ProgressionEngineInput): ProgressionDecision {
   const allAtTop = repMax !== null && lastSets.every((set) => (set.reps as number) >= repMax);
   if (allAtTop && effort.ok) {
     if (lastWeight !== null) {
+      if (input.readinessImpact === 'conservative') {
+        return decisionBase(
+          lastWeight,
+          repMax,
+          'readiness-conservative',
+          'hold',
+          source,
+          lastWeight,
+          targetRPE,
+          targetRIR,
+          effort.source,
+          getProgressionReasonText('readiness-conservative', { weight: lastWeight }, locale),
+        );
+      }
       return decisionBase(
         roundToHalfKg(lastWeight + increment),
         repMin ?? repMax,
