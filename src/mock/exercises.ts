@@ -3334,12 +3334,14 @@ import { LOTE_1_CURATION } from '../../scripts/library/curation-data/lote1';
 import { LOTE_2_CURATION } from '../../scripts/library/curation-data/lote2';
 import { LOTE_3_CURATION } from '../../scripts/library/curation-data/lote3';
 import { LOTE_4_CURATION } from '../../scripts/library/curation-data/lote4';
+import { LOTE_5_CURATION } from '../../scripts/library/curation-data/lote5';
 
 const CURATION_MAP: Record<string, Partial<Exercise>> = {
   ...LOTE_1_CURATION,
   ...LOTE_2_CURATION,
   ...LOTE_3_CURATION,
   ...LOTE_4_CURATION,
+  ...LOTE_5_CURATION,
 };
 
 const withCuration = (exercise: Exercise): Exercise => {
