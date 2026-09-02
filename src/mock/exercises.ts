@@ -3349,7 +3349,14 @@ const withCuration = (exercise: Exercise): Exercise => {
   if (!patch) return exercise;
   return {
     ...exercise,
-    ...patch,
+    mechanics: patch.mechanics ?? exercise.mechanics,
+    laterality: patch.laterality ?? exercise.laterality,
+    bodyPosition: patch.bodyPosition ?? exercise.bodyPosition,
+    movementPatternIds: patch.movementPatternIds ?? exercise.movementPatternIds,
+    equipmentIds: patch.equipmentIds ?? exercise.equipmentIds,
+    restrictions: patch.restrictions ?? exercise.restrictions,
+    substitutionsHint: patch.substitutionsHint ?? exercise.substitutionsHint,
+    substitutions: patch.substitutions ?? exercise.substitutions,
     searchTerms: [
       ...(exercise.searchTerms ?? []),
       ...(patch.searchTerms ?? [])
@@ -3358,12 +3365,14 @@ const withCuration = (exercise: Exercise): Exercise => {
 };
 
 import { LOTE_6_EXPANSION } from '../../scripts/library/curation-data/lote6';
+import { LOTE_7_EXPANSION } from '../../scripts/library/curation-data/lote7';
 
 export const BASE_CATALOG_126: Exercise[] = [...BASE_EXERCISES, ...EXPANSION_EXERCISES];
 
 export const MOCK_EXERCISES: Exercise[] = [
   ...BASE_CATALOG_126,
-  ...LOTE_6_EXPANSION
+  ...LOTE_6_EXPANSION,
+  ...LOTE_7_EXPANSION
 ]
   .map(withCuration)
   .map(withLocalImages)

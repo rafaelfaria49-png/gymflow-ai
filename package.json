@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "library:validate": "vitest run scripts/library/validator.test.ts",
     "build:mobile": "node scripts/build-mobile.mjs",
     "cap:sync": "node scripts/build-mobile.mjs && cap sync android",
     "android:open": "cap open android",
