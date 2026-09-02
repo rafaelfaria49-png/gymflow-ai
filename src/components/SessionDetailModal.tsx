@@ -26,6 +26,9 @@ import {
   ExerciseExecutionBadge,
   SessionStatusBadge,
 } from './ui/SessionBadges';
+import { useGymFlow } from '../providers/GymFlowContext';
+import { compareWithPreviousSession } from '../domain/analytics/aggregators';
+import { SessionComparisonCard } from './analytics/SessionComparisonCard';
 
 interface SessionDetailModalProps {
   session: WorkoutSession | null;
@@ -229,11 +232,14 @@ export const SessionDetailModal = ({ session, onClose }: SessionDetailModalProps
     };
   }, [session, onClose]);
 
+  const { workoutHistory } = useGymFlow();
+
   if (!session) return null;
 
   const summary = buildSessionSummary(session);
   const hasVolume = session.totalVolume !== undefined;
   const prs = session.prsDetected ?? [];
+  const comparison = compareWithPreviousSession(session, workoutHistory);
 
   return (
     <div
@@ -402,6 +408,13 @@ export const SessionDetailModal = ({ session, onClose }: SessionDetailModalProps
               ))
             )}
           </div>
+
+          {/* GOAL-31: Comparativo com Sessão Anterior */}
+          {comparison.previousSession && (
+            <div className="pt-2">
+              <SessionComparisonCard comparison={comparison} />
+            </div>
+          )}
         </div>
 
         {/* FOOTER */}
