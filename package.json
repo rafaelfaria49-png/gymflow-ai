@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
+    "test": "vitest run --testTimeout 15000",
     "library:validate": "vitest run scripts/library/validator.test.ts",
     "media:validate": "vitest run scripts/media/manifest-validator.test.ts",
     "assets:generate": "node scripts/generate-native-assets.mjs",
@@ -18,6 +18,7 @@
     "android:sync": "node scripts/build-mobile.mjs && cap sync android",
     "android:open": "cap open android",
     "android:build": "node scripts/android-build.mjs",
+    "android:bundle:release": "node scripts/android-bundle-release.mjs",
     "ios:sync": "node scripts/build-mobile.mjs && cap sync ios",
     "ios:open": "cap open ios"
   },

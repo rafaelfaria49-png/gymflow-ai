@@ -1,0 +1,26 @@
+## ==============================================================================
+## GymFlow AI — Release Signing Configuration Template (GOAL-MOBILE-005)
+## ==============================================================================
+## INSTRUÇÕES DE USO:
+## 1. Copie este arquivo para "android/release-signing.properties" (já ignorado pelo git).
+## 2. Preencha os campos abaixo com os dados da sua Upload Key do Google Play.
+## 3. NUNCA comite o arquivo "release-signing.properties" ou sua chave ".jks / .keystore".
+##
+## ALTERNATIVA VIA VARIÁVEIS DE AMBIENTE (recomendado para CI/CD):
+##   GYMFLOW_RELEASE_STORE_FILE=/caminho/para/gymflow-upload-key.jks
+##   GYMFLOW_RELEASE_STORE_PASSWORD=senha_do_keystore
+##   GYMFLOW_RELEASE_KEY_ALIAS=gymflow-upload
+##   GYMFLOW_RELEASE_KEY_PASSWORD=senha_da_chave
+## ==============================================================================
+
+# Caminho relativo à pasta "android/" ou absoluto para o arquivo de keystore
+storeFile=gymflow-upload-key.jks
+
+# Senha de proteção do arquivo de keystore
+storePassword=SUA_SENHA_DO_KEYSTORE_AQUI
+
+# Nome/Alias da chave de upload dentro do keystore
+keyAlias=gymflow-upload
+
+# Senha específica da chave (muitas vezes idêntica à storePassword em PKCS12)
+keyPassword=SUA_SENHA_DA_CHAVE_AQUI

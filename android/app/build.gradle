@@ -1,5 +1,21 @@
 apply plugin: 'com.android.application'
 
+def releaseSigningConfigFile = rootProject.file('release-signing.properties')
+if (!releaseSigningConfigFile.exists()) {
+    releaseSigningConfigFile = file('release-signing.properties')
+}
+def releaseProperties = new Properties()
+if (releaseSigningConfigFile.exists()) {
+    releaseProperties.load(new FileInputStream(releaseSigningConfigFile))
+}
+
+def storeFilePath = System.getenv('GYMFLOW_RELEASE_STORE_FILE') ?: releaseProperties.getProperty('storeFile')
+def storePasswordValue = System.getenv('GYMFLOW_RELEASE_STORE_PASSWORD') ?: releaseProperties.getProperty('storePassword')
+def keyAliasValue = System.getenv('GYMFLOW_RELEASE_KEY_ALIAS') ?: releaseProperties.getProperty('keyAlias')
+def keyPasswordValue = System.getenv('GYMFLOW_RELEASE_KEY_PASSWORD') ?: releaseProperties.getProperty('keyPassword')
+
+def hasReleaseCredentials = storeFilePath && storePasswordValue && keyAliasValue && keyPasswordValue
+
 android {
     namespace "com.gymflowai.app"
     compileSdk rootProject.ext.compileSdkVersion
@@ -16,10 +32,27 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasReleaseCredentials) {
+                def resolvedStoreFile = file(storeFilePath)
+                if (!resolvedStoreFile.exists() && rootProject.file(storeFilePath).exists()) {
+                    resolvedStoreFile = rootProject.file(storeFilePath)
+                }
+                storeFile resolvedStoreFile
+                storePassword storePasswordValue
+                keyAlias keyAliasValue
+                keyPassword keyPasswordValue
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseCredentials) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
