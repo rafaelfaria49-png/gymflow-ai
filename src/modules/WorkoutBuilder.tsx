@@ -9,6 +9,7 @@ import type { TrainingExperienceLevel } from '../types/training-profile';
 import type { WorkoutProgramBuilderDraft } from '../types/workout-builder';
 import { useToast } from '../components/ui/Toast';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useGymProfileAvailability } from '../hooks/useGymProfileAvailability';
 import { estimateWorkoutDurationDetailed } from '../lib/workoutDuration';
 import {
   analyzeVolumeProfileFit,
@@ -50,8 +51,10 @@ import {
   serializeDraftSignature,
   toggleDayMuscleGroup,
   updateDayInDraft,
+  updateDaySlots,
   updateSlotInDay,
 } from '../lib/workout-builder';
+import { createExerciseGroup, normalizeExerciseGroups, ungroupExerciseSlots } from '../domain/techniques/grouping';
 import {
   createEmptyWorkoutDraftFromFrequency,
   createWorkoutDraftFromTemplate,
@@ -148,8 +151,11 @@ export const WorkoutBuilder = () => {
     weeklyPlan,
     assignDayToWeekday,
     setWorkoutsTab,
+    gymProfile,
+    unlockTechnique,
   } = useGymFlow();
   const toast = useToast();
+  const equipmentAvailability = useGymProfileAvailability(gymProfile);
 
   // Resolvido UMA vez (lazy state): o Construtor passa a ser dono do draft, e
   // mudanças em customPrograms não podem atropelar a edição em andamento.
@@ -349,11 +355,13 @@ export const WorkoutBuilder = () => {
       returnToTraining: user?.returnToTraining ?? null,
       existingSlots: selectedDay.slots,
       catalog: exercises,
-      availableEquipment: user?.equipments,
+      // Sem GymProfile, o contrato legado continua usando UserProfile.equipments.
+      availableEquipment: equipmentAvailability ? undefined : user?.equipments,
+      equipmentAvailability,
       restrictions: user?.restrictions,
       defaultRestSeconds: user?.restTimerDefaultSeconds,
     });
-  }, [suggestionOpen, selectedDay, draft.level, user, exercises]);
+  }, [suggestionOpen, selectedDay, draft.level, user, exercises, equipmentAvailability]);
 
   const handleApplySuggestion = () => {
     if (!suggestionPreview || suggestionPreview.additions.length === 0) {
@@ -570,6 +578,24 @@ export const WorkoutBuilder = () => {
         onObjectiveChange={(objective) => setDraft({ ...draft, objective })}
       />
 
+      <div className="glass rounded-2xl border border-gym-accent/15 bg-gym-accent/[0.03] p-4">
+        <label className="flex min-h-[44px] cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={draft.warmupEnabled === true}
+            onChange={(event) => setDraft((current) => ({ ...current, warmupEnabled: event.target.checked }))}
+            className="mt-0.5 h-5 w-5 flex-shrink-0 accent-gym-accent"
+            aria-describedby="builder-warmup-help"
+          />
+          <span>
+            <span className="block text-xs font-black text-white">Preparar antes das séries efetivas</span>
+            <span id="builder-warmup-help" className="mt-1 block text-[10px] leading-relaxed text-gym-text-muted">
+              Inclui 5–8 min de aquecimento geral e aproximações automáticas no primeiro composto de cada padrão. Nada disso entra no volume.
+            </span>
+          </span>
+        </label>
+      </div>
+
       {/* DIAS */}
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
@@ -614,12 +640,14 @@ export const WorkoutBuilder = () => {
       </div>
 
       <WorkoutDaysEditor
+        key={`${selectedDay.id}-${selectedDay.slots.length}`}
         day={selectedDay}
         exercises={exercises}
         estimate={selectedEstimate}
         recommendation={selectedRecommendation}
         profileFit={selectedProfileFit}
         timeFit={selectedTimeFit}
+        equipmentAvailability={equipmentAvailability}
         recommendedExerciseRange={selectedTimeFit.recommendedExerciseRange}
         canMoveLeft={selectedIndex > 0}
         canMoveRight={selectedIndex < draft.days.length - 1}
@@ -644,6 +672,26 @@ export const WorkoutBuilder = () => {
         onOpenPicker={() => setPickerOpen(true)}
         onOpenSuggestion={() => setSuggestionOpen(true)}
         onSlotChange={(index, fields) => setDraft(updateSlotInDay(draft, selectedDay.id, index, fields))}
+        onGroupCreate={(indices, groupType, groupRestSec) => {
+          setDraft((current) => updateDaySlots(current, selectedDay.id, (slots) => normalizeExerciseGroups(
+            createExerciseGroup(
+              slots,
+              indices,
+              { groupId: createBuilderId('group'), groupType, groupRestSec },
+            ),
+          )));
+          toast.success('Grupo criado. A pausa será aplicada somente ao fim de cada rodada.');
+        }}
+        onGroupRemove={(groupIds) => {
+          setDraft((current) => updateDaySlots(current, selectedDay.id, (slots) => groupIds.reduce(
+            (nextSlots, groupId) => ungroupExerciseSlots(nextSlots, groupId),
+            slots,
+          )));
+          toast.info('Grupo desfeito; os exercícios continuam no dia.');
+        }}
+        techniqueLevel={user?.level ?? draft.level}
+        techniqueUnlocks={user?.techniqueUnlocks ?? []}
+        onTechniqueUnlock={unlockTechnique}
         onSlotMove={(index, direction) => setDraft(moveSlotInDay(draft, selectedDay.id, index, direction))}
         onSlotDuplicate={(index) => setDraft(duplicateSlotInDay(draft, selectedDay.id, index))}
         onSlotRemove={(index) => setDraft(removeSlotFromDay(draft, selectedDay.id, index))}

@@ -36,6 +36,8 @@ export interface WorkoutProgramBuilderDraft {
   objective: string;
   durationWeeks: number;
   repeatWeeks: boolean;
+  /** GOAL-28: inclui aquecimento geral e aproximações automáticas na sessão. */
+  warmupEnabled?: boolean;
   targetMinutes: number;
   days: WorkoutDayBuilderDraft[];
 }

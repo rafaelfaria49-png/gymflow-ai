@@ -11,8 +11,12 @@ import {
   Check,
   StickyNote,
   RefreshCw,
+  Activity,
 } from 'lucide-react';
 import type { ActiveExercise, WorkoutSession, WorkoutSet } from '../types';
+import type { TechniqueStageLog } from '../domain/techniques/types';
+import { rehydrateTechniqueLog } from '../domain/techniques/migration';
+import { TECHNIQUE_LABELS } from '../domain/techniques/profileRules';
 import {
   buildSessionSummary,
   buildSwapView,
@@ -22,6 +26,10 @@ import {
   ExerciseExecutionBadge,
   SessionStatusBadge,
 } from './ui/SessionBadges';
+import { useGymFlow } from '../providers/GymFlowContext';
+import { useBackHandler } from '../lib/back-navigation';
+import { compareWithPreviousSession } from '../domain/analytics/aggregators';
+import { SessionComparisonCard } from './analytics/SessionComparisonCard';
 
 interface SessionDetailModalProps {
   session: WorkoutSession | null;
@@ -67,6 +75,50 @@ function SetRow({ set, index }: { set: WorkoutSet; index: number }) {
           </span>
         )}
       </span>
+    </div>
+  );
+}
+
+function TechniqueHistory({ exercise }: { exercise: ActiveExercise }) {
+  const plan = exercise.techniquePlan;
+  const log = plan
+    ? rehydrateTechniqueLog(plan, exercise.techniqueLog)
+    : exercise.techniqueLog;
+  if (!log) return null;
+  const stages = log.stages ?? [];
+  const sets = log.sets ?? [];
+  return (
+    <div className="rounded-xl border border-gym-accent/15 bg-gym-accent/[0.03] p-2.5 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[9px] font-black uppercase tracking-wider text-gym-accent">{TECHNIQUE_LABELS[log.type]} · registro técnico</span>
+        <span className="text-[9px] text-gym-text-muted">stages reidratáveis</span>
+      </div>
+      {stages.length > 0 && (
+        <div className="space-y-1.5">
+          {stages.map((stage: TechniqueStageLog, index) => (
+            <div key={stage.id} className="grid grid-cols-12 items-center gap-1 rounded-lg border border-white/5 bg-white/[0.03] px-2 py-1.5 text-[10px]">
+              <span className="col-span-2 font-bold text-gym-accent">#{index + 1}</span>
+              <span className="col-span-3 font-mono text-white">{stage.weight} kg</span>
+              <span className="col-span-3 font-mono text-white">{stage.reps} reps</span>
+              <span className="col-span-2 text-gym-text-muted">{stage.pauseSec}s pausa</span>
+              <span className={`col-span-2 text-right font-bold ${stage.failed ? 'text-rose-300' : stage.completed ? 'text-gym-emerald' : 'text-gym-text-muted'}`}>
+                {stage.failed ? 'Falhou' : stage.completed ? 'OK' : '—'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {sets.length > 0 && (
+        <div className="space-y-1.5">
+          {sets.map((set) => (
+            <div key={set.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-2 py-1.5 text-[10px]">
+              <span className="font-bold text-gym-accent">Série {set.index + 1}</span>
+              <span className="font-mono text-white">{set.weight} kg × {set.reps}</span>
+              <span className={set.completed ? 'font-bold text-gym-emerald' : 'text-gym-text-muted'}>{set.completed ? 'OK' : '—'}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -154,6 +206,8 @@ function ExerciseBlock({ exercise, index }: { exercise: ActiveExercise; index: n
         </p>
       )}
 
+      <TechniqueHistory exercise={exercise} />
+
       {exercise.notes && exercise.notes.trim().length > 0 && (
         <div className="bg-white/5 border border-white/5 rounded-xl p-2.5 flex items-start gap-2">
           <StickyNote className="w-3.5 h-3.5 text-gym-accent flex-shrink-0 mt-0.5" />
@@ -165,6 +219,8 @@ function ExerciseBlock({ exercise, index }: { exercise: ActiveExercise; index: n
 }
 
 export const SessionDetailModal = ({ session, onClose }: SessionDetailModalProps) => {
+  useBackHandler(session !== null, onClose, 35);
+
   useEffect(() => {
     if (!session) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -179,11 +235,14 @@ export const SessionDetailModal = ({ session, onClose }: SessionDetailModalProps
     };
   }, [session, onClose]);
 
+  const { workoutHistory } = useGymFlow();
+
   if (!session) return null;
 
   const summary = buildSessionSummary(session);
   const hasVolume = session.totalVolume !== undefined;
   const prs = session.prsDetected ?? [];
+  const comparison = compareWithPreviousSession(session, workoutHistory);
 
   return (
     <div
@@ -246,6 +305,50 @@ export const SessionDetailModal = ({ session, onClose }: SessionDetailModalProps
             </div>
           </div>
 
+          {/* GOAL-30: Check-in de Prontidão da Sessão */}
+          {session.readiness && (
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-wider flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5" /> Prontidão Pré-Treino
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                    session.readiness.level === 'optimal'
+                      ? 'bg-gym-accent/15 border-gym-accent/30 text-gym-accent'
+                      : session.readiness.level === 'moderate'
+                        ? 'bg-gym-amber/15 border-gym-amber/30 text-gym-amber'
+                        : 'bg-gym-coral/15 border-gym-coral/30 text-gym-coral'
+                  }`}
+                >
+                  {session.readiness.score} pts • {session.readiness.level === 'optimal' ? 'Ótima' : session.readiness.level === 'moderate' ? 'Moderada' : 'Baixa'}
+                </span>
+              </div>
+              <div className="grid grid-cols-5 gap-1.5 text-center text-[10px]">
+                <div className="bg-black/20 p-1.5 rounded-lg">
+                  <span className="text-gym-text-muted block text-[9px]">Energia</span>
+                  <span className="font-bold text-white capitalize">{session.readiness.energy === 'low' ? 'Baixa' : session.readiness.energy === 'medium' ? 'Normal' : 'Alta'}</span>
+                </div>
+                <div className="bg-black/20 p-1.5 rounded-lg">
+                  <span className="text-gym-text-muted block text-[9px]">Sono</span>
+                  <span className="font-bold text-white capitalize">{session.readiness.sleep === 'poor' ? 'Ruim' : session.readiness.sleep === 'fair' ? 'Regular' : 'Ótimo'}</span>
+                </div>
+                <div className="bg-black/20 p-1.5 rounded-lg">
+                  <span className="text-gym-text-muted block text-[9px]">Dor</span>
+                  <span className="font-bold text-white capitalize">{session.readiness.soreness === 'none' ? 'Nenhuma' : session.readiness.soreness === 'mild' ? 'Leve' : 'Forte'}</span>
+                </div>
+                <div className="bg-black/20 p-1.5 rounded-lg">
+                  <span className="text-gym-text-muted block text-[9px]">Estresse</span>
+                  <span className="font-bold text-white capitalize">{session.readiness.stress === 'low' ? 'Baixo' : session.readiness.stress === 'medium' ? 'Médio' : 'Alto'}</span>
+                </div>
+                <div className="bg-black/20 p-1.5 rounded-lg">
+                  <span className="text-gym-text-muted block text-[9px]">Tempo</span>
+                  <span className="font-bold text-white capitalize">{session.readiness.timeAvailable === 'short' ? 'Curto' : session.readiness.timeAvailable === 'normal' ? 'Normal' : 'Livre'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* RESUMO DE SÉRIES E EXERCÍCIOS */}
           <div className="grid grid-cols-2 gap-2 text-[11px]">
             <div className="bg-white/5 border border-white/5 rounded-xl p-2.5">
@@ -267,6 +370,14 @@ export const SessionDetailModal = ({ session, onClose }: SessionDetailModalProps
               </p>
             </div>
           </div>
+
+          {session.techniqueMetrics && session.techniqueMetrics.techniqueCount > 0 && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-gym-accent/15 bg-gym-accent/[0.03] px-3 py-2 text-[10px]">
+              <span className="font-bold text-gym-accent">Técnicas: {session.techniqueMetrics.techniqueCount}</span>
+              <span className="text-gym-text-muted">Séries efetivas: <strong className="text-white">{session.techniqueMetrics.effectiveSets}</strong></span>
+              <span className="text-gym-text-muted">Fadiga: <strong className="text-white">{session.techniqueMetrics.fatigueIndex}</strong></span>
+            </div>
+          )}
 
           {/* PRs */}
           {prs.length > 0 && (
@@ -300,6 +411,13 @@ export const SessionDetailModal = ({ session, onClose }: SessionDetailModalProps
               ))
             )}
           </div>
+
+          {/* GOAL-31: Comparativo com Sessão Anterior */}
+          {comparison.previousSession && (
+            <div className="pt-2">
+              <SessionComparisonCard comparison={comparison} />
+            </div>
+          )}
         </div>
 
         {/* FOOTER */}

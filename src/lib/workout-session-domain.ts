@@ -21,6 +21,7 @@ import type {
   WorkoutSessionStatus,
   WorkoutSwapReasonCode,
 } from '../types';
+import type { TechniqueLog, TechniqueMetrics } from '../domain/techniques/types';
 
 /** Situação de uma sessão já finalizada (nunca `active`). */
 export type FinalizedSessionStatus = Exclude<WorkoutSessionStatus, 'active'>;
@@ -90,6 +91,12 @@ export function buildSessionPlan(source: SessionPlanSource): SessionPlan {
         repRange: slot.repRange,
         targetRPE: slot.targetRPE,
         restSec: slot.restSec,
+        ...(slot.groupId ? {
+          groupId: slot.groupId,
+          ...(slot.groupOrder !== undefined ? { groupOrder: slot.groupOrder } : {}),
+          ...(slot.groupRestSec !== undefined ? { groupRestSec: slot.groupRestSec } : {}),
+          ...(slot.groupType ? { groupType: slot.groupType } : {}),
+        } : {}),
       })),
       ...definedOrigin(source),
     };
@@ -129,7 +136,16 @@ function applyPlannedOrigin(
     entryOrigin: 'planned',
     entryStatus: 'planned',
     ...(entry
-      ? { plannedSlotIndex: entry.plannedSlotIndex, plannedExerciseId: entry.exerciseId }
+      ? {
+          plannedSlotIndex: entry.plannedSlotIndex,
+          plannedExerciseId: entry.exerciseId,
+          ...(entry.groupId ? {
+            groupId: entry.groupId,
+            ...(entry.groupOrder !== undefined ? { groupOrder: entry.groupOrder } : {}),
+            ...(entry.groupRestSec !== undefined ? { groupRestSec: entry.groupRestSec } : {}),
+            ...(entry.groupType ? { groupType: entry.groupType } : {}),
+          } : {}),
+        }
       : {}),
   };
 }
@@ -140,6 +156,8 @@ export interface StartActiveSessionParams {
   name: string;
   date: string;
   startedAt: number;
+  /** Tempo previsto do plano, em minutos, para o atalho Treino rápido. */
+  plannedDuration?: number;
   /** Exercícios já materializados pelo fluxo atual (com pré-preenchimento). */
   exercises: ActiveExercise[];
 }
@@ -162,6 +180,10 @@ export function startActiveSession(params: StartActiveSessionParams): ActiveSess
     calories: 0,
     exercises,
     xpEarned: 0,
+    variant: 'standard',
+    ...(params.plannedDuration !== undefined && Number.isFinite(params.plannedDuration)
+      ? { plannedDuration: Math.max(1, Math.round(params.plannedDuration)) }
+      : {}),
     status: 'active',
     startedAt: params.startedAt,
     ...(plan.sourceProgramId ? { sourceProgramId: plan.sourceProgramId } : {}),
@@ -260,12 +282,44 @@ export function markEntrySwapped(
  *   todas concluídas → performed; caso contrário → partial.
  */
 export function deriveExerciseEntryStatus(exercise: ActiveExercise): WorkoutExerciseEntryStatus {
-  const total = exercise.sets.length;
+  const techniqueWork = techniqueWorkCounts(exercise.techniqueLog);
+  const workingSets = exercise.sets.filter((set) => !set.isWarmup);
+  const hasCompletedStandardSet = workingSets.some((set) => set.completed);
+  if (techniqueWork && (techniqueWork.completed > 0 || !hasCompletedStandardSet)) {
+    if (techniqueWork.completed === 0) return 'skipped';
+    if (techniqueWork.completed >= techniqueWork.total) return 'performed';
+    return 'partial';
+  }
+  const total = workingSets.length;
   if (total === 0) return 'planned';
-  const completed = exercise.sets.filter((set) => set.completed).length;
+  const completed = workingSets.filter((set) => set.completed).length;
   if (completed === 0) return 'skipped';
   if (completed === total) return 'performed';
   return 'partial';
+}
+
+function techniqueWorkCounts(log: TechniqueLog | undefined): { total: number; completed: number } | null {
+  if (!log) return null;
+  if (
+    log.type === 'drop_set'
+    || log.type === 'to_failure'
+    || log.type === 'tempo'
+    || log.type === 'iso_hold'
+    || log.type === 'partials'
+    || log.type === 'rest_pause'
+    || log.type === 'cluster'
+  ) {
+    return {
+      total: 1,
+      completed: log.stages?.some((stage) => stage.completed)
+        || log.sets?.some((set) => set.completed)
+        || log.miniSets?.some((mini) => mini.completed)
+        ? 1
+        : 0,
+    };
+  }
+  const sets = log.sets ?? [];
+  return { total: sets.length, completed: sets.filter((set) => set.completed).length };
 }
 
 /**
@@ -277,7 +331,14 @@ export function deriveSessionStatus(exercises: ActiveExercise[]): FinalizedSessi
   let total = 0;
   let completed = 0;
   for (const exercise of exercises) {
-    for (const set of exercise.sets) {
+    const techniqueWork = techniqueWorkCounts(exercise.techniqueLog);
+    const hasCompletedStandardSet = exercise.sets.some((set) => !set.isWarmup && set.completed);
+    if (techniqueWork && (techniqueWork.completed > 0 || !hasCompletedStandardSet)) {
+      total += techniqueWork.total;
+      completed += techniqueWork.completed;
+      continue;
+    }
+    for (const set of exercise.sets.filter((candidate) => !candidate.isWarmup)) {
       total += 1;
       if (set.completed) completed += 1;
     }
@@ -305,6 +366,7 @@ export interface FinalizeSessionParams {
   totalVolume: number;
   prsDetected: string[];
   xpEarned: number;
+  techniqueMetrics?: TechniqueMetrics;
 }
 
 /**
@@ -322,6 +384,7 @@ export function finalizeSession(params: FinalizeSessionParams): SessionLog {
     xpEarned: params.xpEarned,
     totalVolume: params.totalVolume,
     prsDetected: params.prsDetected,
+    ...(params.techniqueMetrics ? { techniqueMetrics: params.techniqueMetrics } : {}),
     status: deriveSessionStatus(session.exercises),
     endedAt: params.endedAt,
   };

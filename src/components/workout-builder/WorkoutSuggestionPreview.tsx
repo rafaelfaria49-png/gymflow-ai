@@ -143,6 +143,16 @@ export const WorkoutSuggestionPreview = ({
                           Classif. legada
                         </span>
                       )}
+                      {addition.equipmentStatus === 'crowded' && (
+                        <span className="text-[9px] font-bold uppercase bg-amber-400/10 text-amber-300 px-1.5 py-0.5 rounded-full">
+                          Equipamento lotado
+                        </span>
+                      )}
+                      {addition.equipmentStatus === 'unverified' && (
+                        <span className="text-[9px] font-bold uppercase bg-white/10 text-gym-text-muted px-1.5 py-0.5 rounded-full">
+                          Equipamento não confirmado
+                        </span>
+                      )}
                       <span className="text-[9px] text-gym-text-muted">
                         {addition.slot.series}× {addition.slot.repRange[0]}–{addition.slot.repRange[1]} reps · {addition.slot.restSec}s
                       </span>

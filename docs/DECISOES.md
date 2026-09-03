@@ -1905,3 +1905,59 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
   exclusão e etapa F não foram iniciados. O guarda estrutural prova que o
   componente e o AdminPanel não importam nenhuma função de escrita
   administrativa.
+## GOAL-34 — Arquitetura de mídia e vídeos técnicos (2026-09-02)
+
+- **D11 (Identidade do Coach):** Coach oficial Kai selado via Character Bible.
+  Visual canônico: homem 28–35 anos, físico atlético natural (não bodybuilder),
+  camiseta cinza-chumbo, shorts/tênis pretos, postura impecável. Rosto e proporções
+  homologados para geração consistente via Soul Character / Character Reference.
+- **D12 (GymFlow Video Standard v2):** Formato padrão 9:16 vertical (720p teste /
+  1080p produção: 1080x1920 / H.264 / 24 fps sem alterar duração ou velocidade),
+  6 segundos como duração padrão com normalmente 2 repetições completas em movimento
+  natural (sem aceleração artificial, sem alterar biomecânica). 10 segundos pode ser
+  usado excepcionalmente quando 6s tornar o movimento acelerado (cadências longas).
+  Câmera fixa em 45° lateral ou frontal, cenário clean de academia sem espelho,
+  texto, marcas ou terceiros.
+- **D13 (Proveniência, Licença e Aprovação Humana):** Metadata modelada para registrar
+  fatos verificáveis do asset (provider, model/workflow quando conhecido, generatedAt,
+  terms/license reference ou versão aplicável, provenance e approval metadata). Não
+  utiliza strings jurídicas inventadas. O status `approved` é restrito a assets que
+  tenham passado pelo fluxo humano de aprovação do GymFlow; assets ainda não produzidos
+  permanecem `draft`. QA gate rígido: `draft` e `retired` nunca renderizam como vídeo
+  aprovado em produção (fallback transparente para frames/imagem/avatar honesto).
+  O aceite de conteúdo de ≥20 vídeos é suportado pelo código, reportando explicitamente
+  pendência de produção humana enquanto não houver 20 MP4s reais aprovados.
+- **D14 (Distribuição Remota e Cache Offline):** Nenhum arquivo de vídeo binário entra
+  no bundle do APK (crescimento restrito a <5MB). Distribuição via CDN/URL remota
+  com manifest versionado (`MediaManifest`). Cache local isolado via Cache Storage API
+  no namespace `gymflow-media-v1` com suporte a "Baixar mídia do programa" e
+  higienização. Service worker atualizado para proteger `gymflow-media-*` de limpeza.
+- **Cadeia de Fallback em 3 Níveis:** 
+  Tier 1: Vídeo aprovado (remoto ou cacheado) ->
+  Tier 2: Sequência de frames técnicos (player existente) ->
+  Tier 3: Imagem estática / avatar placeholder com banner educativo honesto.
+  Garante 100% de tolerância a modo avião / offline sem quebra de interface.
+
+## GOAL-35 — Fundação do modo Personal (2026-09-02)
+
+- **Gate G4 e Decisões Fundamentais Seladas:** D16 aprovada pelo Founder como Modelo A
+  (Personal assina SaaS puro e cobra seus alunos diretamente por fora) com faixas de
+  precificação do Modelo C (Starter até 10 alunos, Pro até 50 alunos, Studio multi-treinador);
+  D17 aprovada com Supabase como backend na nuvem da Fase 8, mantendo local-first inviolável.
+- **Isolamento de Escopo Estrito (Zero Backend na Fase 7):** Nenhuma dependência, cliente
+  Supabase, rota de rede, código de autenticação, sistema de cobrança ou chat foi adicionado
+  nesta fase.
+- **Preparação Neutra de Domínio:** Inclusão de `createdBy?: 'user' | 'coach' | 'system'`
+  em `WorkoutProgram` (`src/types/index.ts`), 100% opcional, com zero alteração comportamental
+  em runtime e validação por testes de serialização.
+- **Auditoria de Sincronização (SAAS §1):** Diagnóstico objetivo documentado em
+  `docs/personal/SYNC_READINESS_AUDIT.md`, mapeando estabilidade de IDs, risco de IDs
+  `Date.now()`, ausência de `createdAt`/`updatedAt` em entidades mutáveis, integridade de
+  snapshots de sessão imutáveis e versionamento do storage.
+- **ADRs Propostos (PERSONAL §1–4):** Entregues em `docs/personal/` (ADR-001 Papéis e LGPD,
+  ADR-002 Fluxos e App Único, ADR-003 Entidades e RLS, ADR-004 Modelo Comercial e Pricing,
+  ADR-005 Academia/Studio e Matriz de Riscos R1–R4). Valores em R$ marcados como propostas de
+  referência para validação comercial.
+- **Roadmap da Fase 8 (SAAS §6):** Decomposição formal dos futuros GOAL-36 ao GOAL-43
+  documentada em `docs/personal/FASE_8_ROADMAP_GOALS.md`.
+

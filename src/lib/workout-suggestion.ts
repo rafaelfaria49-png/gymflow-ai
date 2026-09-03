@@ -26,6 +26,7 @@ import type {
 } from '../types/training-profile';
 import type { DetailedWorkoutDurationEstimate } from '../types/training-volume';
 import type { WorkoutProgramBuilderDraft } from '../types/workout-builder';
+import type { GymProfileAvailability } from '../domain/gymProfile';
 import { estimateWorkoutDurationDetailed } from './workoutDuration';
 import {
   analyzeWorkoutTimeFit,
@@ -69,6 +70,10 @@ export interface WorkoutSuggestionInput {
   catalog: readonly Exercise[];
   /** Equipamentos declarados no perfil (opcional). */
   availableEquipment?: readonly string[];
+  /** Disponibilidade resolvida do GymProfile ativo (opcional e aditiva ao contrato legado). */
+  equipmentAvailability?: GymProfileAvailability | null;
+  /** Alias explícito para integrações que chamam a origem pelo nome do domínio. */
+  gymProfileAvailability?: GymProfileAvailability | null;
   /** Restrições declaradas no perfil (opcional). */
   restrictions?: readonly string[];
   /** Descanso padrão do perfil (opcional) — mantém a estimativa coerente com o resumo do dia. */
@@ -84,6 +89,8 @@ export interface SuggestionAddition {
   mechanics: ExerciseMechanics;
   /** true quando o casamento com o foco dependeu de classificação legada. */
   legacyClassification: boolean;
+  /** Só aparece quando o perfil marcou o equipamento como lotado ou não confirmável. */
+  equipmentStatus?: 'crowded' | 'unverified';
 }
 
 export interface SuggestionDistributionEntry {
@@ -100,6 +107,7 @@ export type SuggestionWarningCode =
   | 'no-eligible-exercises'
   | 'legacy-classification'
   | 'equipment-unverified'
+  | 'equipment-crowded'
   | 'restrictions-unverified'
   | 'already-fits';
 
@@ -154,6 +162,9 @@ const LEVEL_ORDER: Readonly<Record<TrainingExperienceLevel, number>> = {
   athlete: 3,
 };
 
+/** A lotação não elimina a alternativa, mas a deixa atrás de uma opção disponível. */
+export const CROWDED_EQUIPMENT_PENALTY = 50;
+
 /** Mecânica curada quando existir; senão a mesma inferência honesta do estimador de duração. */
 function inferMechanics(exercise: Exercise): ExerciseMechanics {
   if (exercise.mechanics) return exercise.mechanics;
@@ -182,6 +193,7 @@ function rankScore(
   exerciseLevel: TrainingExperienceLevel,
   userLevel: TrainingExperienceLevel,
   legacy: boolean,
+  crowdedEquipment: boolean,
 ): number {
   const rules = WORKOUT_SUGGESTION_RULES.ranking;
   const diff = LEVEL_ORDER[exerciseLevel] - LEVEL_ORDER[userLevel];
@@ -190,16 +202,22 @@ function rankScore(
     : Math.abs(diff) * rules.levelDistancePenalty;
   return rules.mechanicsOrder[mechanics] * 100
     + levelPenalty
-    + (legacy ? rules.legacyClassificationPenalty : 0);
+    + (legacy ? rules.legacyClassificationPenalty : 0)
+    + (crowdedEquipment ? CROWDED_EQUIPMENT_PENALTY : 0);
 }
 
-function resolveExerciseEquipment(exercise: Exercise): { ids: EquipmentId[]; confident: boolean } {
+function resolveExerciseEquipment(
+  exercise: Exercise,
+  treatLegacyMapAsConfident = false,
+): { ids: EquipmentId[]; confident: boolean } {
   const canonical = Array.isArray(exercise.equipmentIds)
     ? exercise.equipmentIds.filter((id) => Boolean(getEquipmentDefinition(id)))
     : [];
   if (canonical.length > 0) return { ids: [...canonical], confident: true };
   const legacy = resolveLegacyEquipment(exercise.equipment ?? '');
-  const confident = legacy.resolution === 'exact' || legacy.resolution === 'alias';
+  const confident = legacy.resolution === 'exact'
+    || legacy.resolution === 'alias'
+    || (treatLegacyMapAsConfident && legacy.resolution === 'legacy-map');
   return { ids: [...legacy.equipmentIds], confident };
 }
 
@@ -224,13 +242,38 @@ function resolveAvailableEquipment(available: readonly string[]): Set<EquipmentI
 function equipmentEligibility(
   exercise: Exercise,
   availableSet: Set<EquipmentId> | null,
-): { allowed: boolean; unverified: boolean } {
-  if (!availableSet) return { allowed: true, unverified: false };
-  const { ids, confident } = resolveExerciseEquipment(exercise);
-  if (ids.length === 0) return { allowed: true, unverified: true };
-  if (ids.some((id) => availableSet.has(id))) return { allowed: true, unverified: false };
-  if (confident) return { allowed: false, unverified: false };
-  return { allowed: true, unverified: true };
+  crowdedSet: Set<EquipmentId>,
+  treatLegacyMapAsConfident: boolean,
+): { allowed: boolean; unverified: boolean; crowded: boolean } {
+  if (!availableSet) return { allowed: true, unverified: false, crowded: false };
+  const { ids, confident } = resolveExerciseEquipment(exercise, treatLegacyMapAsConfident);
+  if (ids.length === 0) return { allowed: true, unverified: true, crowded: false };
+  // Com um GymProfile, um exercício curado/mapeado explicitamente precisa de
+  // todos os equipamentos declarados. `crowded` continua elegível; qualquer
+  // requisito realmente indisponível elimina a opção. O caminho legado abaixo
+  // mantém a semântica histórica de aceitar qualquer ID disponível.
+  if (treatLegacyMapAsConfident && confident) {
+    if (ids.some((id) => !availableSet.has(id) && !crowdedSet.has(id))) {
+      return { allowed: false, unverified: false, crowded: false };
+    }
+    return {
+      allowed: true,
+      unverified: false,
+      crowded: ids.some((id) => crowdedSet.has(id)),
+    };
+  }
+  if (ids.some((id) => availableSet.has(id))) {
+    return {
+      allowed: true,
+      unverified: !confident,
+      crowded: false,
+    };
+  }
+  if (ids.some((id) => crowdedSet.has(id))) {
+    return { allowed: true, unverified: !confident, crowded: confident };
+  }
+  if (confident) return { allowed: false, unverified: false, crowded: false };
+  return { allowed: true, unverified: true, crowded: false };
 }
 
 interface Candidate {
@@ -240,6 +283,7 @@ interface Candidate {
   legacy: boolean;
   catalogIndex: number;
   unverifiedEquipment: boolean;
+  crowdedEquipment: boolean;
 }
 
 // ===== Preview determinístico =====
@@ -297,9 +341,15 @@ export function buildWorkoutSuggestionPreview(input: WorkoutSuggestionInput): Wo
   }
 
   // Candidatos por grupo (dedup contra o próprio dia: nunca sugere exercício já presente).
-  const availableSet = input.availableEquipment && input.availableEquipment.length > 0
-    ? resolveAvailableEquipment(input.availableEquipment)
-    : null;
+  const profileAvailability = input.equipmentAvailability ?? input.gymProfileAvailability ?? null;
+  const availableSet = profileAvailability
+    ? new Set<EquipmentId>(profileAvailability.availableEquipment)
+    : input.availableEquipment && input.availableEquipment.length > 0
+      ? resolveAvailableEquipment(input.availableEquipment)
+      : null;
+  const crowdedSet = profileAvailability
+    ? new Set<EquipmentId>(profileAvailability.crowdedEquipment)
+    : new Set<EquipmentId>();
   const inDayIds = new Set(existingSlots.map((slot) => slot.exerciseId));
   const candidatesByGroup = new Map<MuscleGroupId, Candidate[]>();
   for (const groupId of focusIds) {
@@ -308,7 +358,12 @@ export function buildWorkoutSuggestionPreview(input: WorkoutSuggestionInput): Wo
       if (inDayIds.has(exercise.id)) return;
       const match = matchesDayFocus(exercise, [groupId]);
       if (!match.matches) return;
-      const eligibility = equipmentEligibility(exercise, availableSet);
+      const eligibility = equipmentEligibility(
+        exercise,
+        availableSet,
+        crowdedSet,
+        Boolean(profileAvailability),
+      );
       if (!eligibility.allowed) return;
       list.push({
         exercise,
@@ -317,11 +372,12 @@ export function buildWorkoutSuggestionPreview(input: WorkoutSuggestionInput): Wo
         legacy: match.legacy,
         catalogIndex,
         unverifiedEquipment: eligibility.unverified,
+        crowdedEquipment: eligibility.crowded,
       });
     });
     list.sort((left, right) =>
-      rankScore(left.mechanics, left.exercise.level, input.level, left.legacy)
-        - rankScore(right.mechanics, right.exercise.level, input.level, right.legacy)
+      rankScore(left.mechanics, left.exercise.level, input.level, left.legacy, left.crowdedEquipment)
+        - rankScore(right.mechanics, right.exercise.level, input.level, right.legacy, right.crowdedEquipment)
       || left.catalogIndex - right.catalogIndex);
     candidatesByGroup.set(groupId, list);
   }
@@ -399,6 +455,11 @@ export function buildWorkoutSuggestionPreview(input: WorkoutSuggestionInput): Wo
     focusGroupId: candidate.focusGroupId,
     mechanics: candidate.mechanics,
     legacyClassification: candidate.legacy,
+    ...(candidate.crowdedEquipment
+      ? { equipmentStatus: 'crowded' as const }
+      : candidate.unverifiedEquipment
+        ? { equipmentStatus: 'unverified' as const }
+        : {}),
   }));
 
   const afterSlots = [...existingSlots, ...additions.map((addition) => addition.slot)];
@@ -427,6 +488,12 @@ export function buildWorkoutSuggestionPreview(input: WorkoutSuggestionInput): Wo
     warnings.push({
       code: 'equipment-unverified',
       message: 'Não foi possível confirmar no seu perfil o equipamento de alguns exercícios sugeridos.',
+    });
+  }
+  if (profileAvailability && orderedAdditions.some((candidate) => candidate.crowdedEquipment)) {
+    warnings.push({
+      code: 'equipment-crowded',
+      message: 'Alguns exercícios usam equipamento marcado como lotado; eles foram penalizados no ranking das sugestões.',
     });
   }
   if (input.restrictions && input.restrictions.length > 0 && additions.length > 0) {

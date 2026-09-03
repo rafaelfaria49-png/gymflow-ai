@@ -16,8 +16,10 @@ import type {
   WorkoutExerciseEntryOrigin,
   WorkoutExerciseEntryStatus,
   WorkoutSessionStatus,
+  WorkoutSessionVariant,
   WorkoutSwapReasonCode,
 } from './workout-session';
+import type { ExerciseMedia } from '../domain/media/types';
 
 export type {
   EquipmentCategory,
@@ -71,6 +73,7 @@ export type {
   WorkoutExerciseEntryOrigin,
   WorkoutExerciseEntryStatus,
   WorkoutSessionStatus,
+  WorkoutSessionVariant,
   WorkoutSwapReasonCode,
 } from './workout-session';
 
@@ -92,6 +95,51 @@ export type {
   VolumeConfidence,
   WeeklyVolumeGuideline,
 } from './training-volume';
+
+export type {
+  TechniqueGate,
+  ExerciseGroupType,
+  TechniqueId,
+  TechniqueLog,
+  TechniqueMiniSetLog,
+  TechniqueMiniSetPlan,
+  TechniqueMetrics,
+  TechniquePlan,
+  TechniqueRepTarget,
+  TechniqueSetLog,
+  TechniqueSetPlan,
+  TechniqueSetRole,
+  TechniqueStageLog,
+  TechniqueStagePlan,
+  TechniqueType,
+  TechniqueValidationIssue,
+  TechniqueValidationResult,
+  WorkoutGroupType,
+} from '../domain/techniques/types';
+
+export type {
+  WarmupObjective,
+  WarmupSessionSettings,
+  WarmupSetKind,
+  WarmupSetPrescription,
+  WarmupTarget,
+  WarmupPlan,
+} from '../domain/warmupEngine';
+
+export type {
+  MediaAssetStatus,
+  MediaAssetApproval,
+  MediaAssetProvenance,
+  MediaAsset,
+  ExerciseMedia,
+  MediaManifest,
+  MediaRenderTier,
+  MediaCacheStats,
+  ProgramMediaDownloadProgress,
+  ProgramMediaDownloadResult,
+  MediaTelemetryEvent,
+  ExerciseExecutionStat,
+} from '../domain/media/types';
 
 export interface WeeklyWorkoutDay {
   dayName: string; // 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
@@ -118,6 +166,13 @@ export interface ExerciseSlot {
   restSec: number; // alimenta o timer de descanso (GOAL-06)
   progression: ProgressionType;
   incrementKg: number;
+  /** GOAL-26: técnica especial atribuída ao slot; ausente = série convencional. */
+  technique?: import('../domain/techniques/types').TechniquePlan;
+  /** GOAL-27: agrupamento alternado; todos os campos são opcionais para legados. */
+  groupId?: string;
+  groupOrder?: number;
+  groupRestSec?: number;
+  groupType?: import('../domain/techniques/types').ExerciseGroupType;
 }
 
 export interface TechniqueFrame {
@@ -194,6 +249,15 @@ export interface UserProfile {
   trainingStatus?: TrainingContinuityStatus;
   returnToTraining?: ReturnToTrainingProfile;
   trainingExperienceYears?: number;
+  /** Técnicas liberadas manualmente após leitura do aviso educativo. */
+  techniqueUnlocks?: import('../domain/techniques/types').TechniqueId[];
+  /** GOAL-29: card educativo de RIR já visto; ausência mantém compatibilidade legada. */
+  rirOnboardingCompleted?: boolean;
+  /** GOAL-29: habilita o motor v2 sem alterar perfis legados por migração silenciosa. */
+  progressionV2?: boolean;
+  /** GOAL-29: ajustes aprendidos após overrides repetidos; opcionais para legados. */
+  progressionOverrides?: import('../domain/progressionEngine').ProgressionOverride[];
+  progressionParameterAdjustments?: import('../domain/progressionEngine').ProgressionParameterAdjustment[];
 }
 
 export interface Exercise {
@@ -225,6 +289,12 @@ export interface Exercise {
   mechanics?: ExerciseMechanics;
   laterality?: ExerciseLaterality;
   bodyPosition?: ExerciseBodyPosition;
+  /** GOAL-33: restrições articulares, patológicas ou de amplitude (ex: condromalácia, lesão manguito). */
+  restrictions?: string[];
+  /** GOAL-33: orientação prática humana para substituição inteligente no contexto da academia. */
+  substitutionsHint?: string;
+  /** GOAL-34: metadados de mídia, vídeo padrão v2 e cadeia de fallback (LIBRARY §3). */
+  media?: ExerciseMedia;
 }
 
 export interface WorkoutSet {
@@ -233,9 +303,18 @@ export interface WorkoutSet {
   weight: number;
   completed: boolean;
   isWarmup?: boolean;
+  /** GOAL-28: aproximação não é uma série efetiva. */
+  warmupKind?: import('../domain/warmupEngine').WarmupSetKind;
+  warmupPercentage?: number;
   suggestedWeight?: number;
   lastWeight?: number;
   rpe?: number;
+  /** GOAL-29: repetições em reserva; opcional e coletado em chips para intermediário+. */
+  rir?: number;
+  /** GOAL-26: materialização opcional de pyramid/back_off sem alterar séries legadas. */
+  setPlan?: import('../domain/techniques/types').TechniqueSetPlan;
+  /** GOAL-27: rodada 1-based da entrada dentro de um grupo alternado. */
+  groupRound?: number;
 }
 
 export interface ActiveExercise {
@@ -251,6 +330,13 @@ export interface ActiveExercise {
   restSec?: number;
   // GOAL-08: motivo da sugestão do motor de progressão (texto explicativo honesto)
   progressionNote?: string;
+  /** GOAL-29: decisão estruturada para a tela "Por que esse peso?". */
+  progressionDecision?: import('../domain/progressionEngine').ProgressionDecision;
+  /** Comparativo de uma versão: motor legado × v2, quando a flag está ativa. */
+  progressionComparison?: {
+    legacy: import('../domain/progressionEngine').ProgressionDecision;
+    v2: import('../domain/progressionEngine').ProgressionDecision;
+  };
   // GOAL-23A: vínculo com o plano da sessão e separação origem × execução.
   // Todos opcionais — treinos livres/legados e o snapshot antigo continuam válidos.
   plannedSlotIndex?: number; // posição 0-based no SessionPlan (ExerciseSlot não tem id)
@@ -264,6 +350,15 @@ export interface ActiveExercise {
   swapReasonCode?: WorkoutSwapReasonCode; // motivo da última troca
   swapReasonNote?: string; // nota livre (obrigatória só p/ `other`; normalizada, ≤120 chars)
   swappedAt?: number; // epoch ms da última troca
+  /** GOAL-26: snapshot do plano atribuído no builder. */
+  techniquePlan?: import('../domain/techniques/types').TechniquePlan;
+  /** GOAL-26: execução por stages/sets especiais, editável antes e depois da sessão. */
+  techniqueLog?: import('../domain/techniques/types').TechniqueLog;
+  /** GOAL-27: snapshot do grupo copiado do slot; ausente em sessões legadas. */
+  groupId?: string;
+  groupOrder?: number;
+  groupRestSec?: number;
+  groupType?: import('../domain/techniques/types').ExerciseGroupType;
 }
 
 export interface WorkoutSession {
@@ -274,7 +369,19 @@ export interface WorkoutSession {
   calories: number;
   exercises: ActiveExercise[];
   xpEarned: number;
+  /** GOAL-28: snapshot do ritual opcional de aquecimento da sessão. */
+  warmup?: import('../domain/warmupEngine').WarmupSessionSettings;
+  /** GOAL-30: check-in de prontidão diária pré-treino (opcional e pulável). */
+  readiness?: import('../domain/readinessEngine').ReadinessCheckIn;
+  readinessSkipped?: boolean;
+  readinessDismissedSuggestions?: string[];
+  // GOAL-25: metadados da sessão ativa. Opcionais para não alterar registros legados.
+  variant?: WorkoutSessionVariant;
+  plannedDuration?: number; // minutos previstos no plano no momento do início
+  crowdedGymMode?: boolean; // modo operacional da sessão, persistido no snapshot
   totalVolume?: number; // total kg levantados (reps * weight)
+  /** Métricas calculadas pela tabela TECH §5; opcional em sessões antigas. */
+  techniqueMetrics?: import('../domain/techniques/types').TechniqueMetrics;
   prsDetected?: string[]; // lista de nomes de PRs batidos
   // Origem informativa do snapshot. Opcional para manter sessões livres/legadas válidas.
   sourceProgramId?: string;
@@ -302,10 +409,14 @@ export interface WorkoutProgram {
   contraindications?: string[];
   // GOAL-07: estrutura real Programa → Semana → Dia → Slot
   repeatWeeks: boolean; // true = a(s) semana(s) se repetem até durationWeeks
+  /** GOAL-28: preferência do programa; ausente mantém sessões legadas inalteradas. */
+  warmupEnabled?: boolean;
   weeks: ProgramWeek[];
   // GOAL-10.5: treino criado/editado pelo usuário no Construtor de Treino
   // (nunca um dos MOCK_PROGRAMS — editar um sugerido sempre gera um novo customProgram).
   isCustom?: boolean;
+  /** GOAL-35: neutralidade de autoria para modo Personal / SaaS; opcional para manter compatibilidade 100% legada. */
+  createdBy?: 'user' | 'coach' | 'system';
 }
 
 export interface VideoLesson {

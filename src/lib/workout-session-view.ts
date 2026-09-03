@@ -165,13 +165,13 @@ export function entryStatusStyle(exercise: ActiveExercise): BadgeStyle {
 
 /** Total de séries (concluídas + incompletas) de todos os exercícios. */
 export function countTotalSets(exercises: ActiveExercise[]): number {
-  return exercises.reduce((acc, ex) => acc + ex.sets.length, 0);
+  return exercises.reduce((acc, ex) => acc + ex.sets.filter((set) => !set.isWarmup).length, 0);
 }
 
 /** Séries concluídas de todos os exercícios. */
 export function countCompletedSets(exercises: ActiveExercise[]): number {
   return exercises.reduce(
-    (acc, ex) => acc + ex.sets.filter((s) => s.completed).length,
+    (acc, ex) => acc + ex.sets.filter((s) => s.completed && !s.isWarmup).length,
     0,
   );
 }

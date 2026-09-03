@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MOCK_EXERCISES } from '../mock/exercises';
+import { BASE_CATALOG_126, MOCK_EXERCISES } from '../mock/exercises';
 import { MOCK_PROGRAMS } from '../mock/programs';
 import type { EquipmentId } from '../types/training-taxonomy';
 import {
@@ -97,13 +97,13 @@ describe('registry canônico de equipamentos', () => {
 });
 
 describe('mapa explícito do catálogo legado', () => {
-  const rawValues = [...new Set(MOCK_EXERCISES.map((exercise) => exercise.equipment))];
+  const rawValues = [...new Set(BASE_CATALOG_126.map((exercise) => exercise.equipment))];
 
   it('produz a saída de auditoria reproduzível do GOAL-18A', () => {
     const audit = auditLegacyEquipment(rawValues);
     const registryReport = validateEquipmentRegistry();
     const output = {
-      exercises: MOCK_EXERCISES.length,
+      exercises: BASE_CATALOG_126.length,
       rawEquipmentValues: rawValues.length,
       canonicalEquipment: EQUIPMENT_REGISTRY.length,
       aliases: EQUIPMENT_REGISTRY.reduce((total, item) => total + item.aliases.length, 0),
@@ -124,8 +124,9 @@ describe('mapa explícito do catálogo legado', () => {
     expect(output.collisions).toEqual([]);
   });
 
-  it('preserva 126 exercícios e cobre os 72 valores raw', () => {
-    expect(MOCK_EXERCISES).toHaveLength(126);
+  it('preserva 126 exercícios e cobre os 72 valores raw do legado (e expande para >= 175 no GOAL-33)', () => {
+    expect(BASE_CATALOG_126).toHaveLength(126);
+    expect(MOCK_EXERCISES.length).toBeGreaterThanOrEqual(175);
     expect(rawValues).toHaveLength(72);
     expect(Object.keys(LEGACY_EQUIPMENT_MAP)).toHaveLength(72);
 

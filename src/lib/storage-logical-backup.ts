@@ -19,6 +19,7 @@ import {
   type PersistedState,
 } from './storage-types';
 import { isRecord, validatePersistedStateShape } from './storage-validation';
+import { isGymProfileState } from '../domain/gymProfile';
 
 // Formato externo LÓGICO v2 (GOAL-17B-002D-B, slice B) + corretivo 046.
 //
@@ -246,6 +247,15 @@ const REQUIRED_PAYLOAD_FIELDS: readonly (keyof PersistedState)[] = [
   'recentlyViewedVideoIds',
 ];
 
+const OPTIONAL_PAYLOAD_FIELDS: readonly (keyof PersistedState)[] = [
+  'gymProfile',
+];
+
+const CANONICAL_PAYLOAD_FIELDS: ReadonlySet<string> = new Set([
+  ...REQUIRED_PAYLOAD_FIELDS,
+  ...OPTIONAL_PAYLOAD_FIELDS,
+]);
+
 const PAYLOAD_ARRAY_FIELDS: readonly (keyof PersistedState)[] = [
   'weeklyPlan',
   'customPrograms',
@@ -272,6 +282,7 @@ const MEASUREMENT_NUMBER_FIELDS: readonly string[] = ['chest', 'waist', 'hips', 
 // Lista incompleta só deixa o caminho menos preciso; ela nunca vaza.
 const SAFE_PATH_SEGMENTS: ReadonlySet<string> = new Set([
   ...REQUIRED_PAYLOAD_FIELDS,
+  ...OPTIONAL_PAYLOAD_FIELDS,
   ...LOGICAL_BACKUP_ENVELOPE_FIELDS,
   ...FORBIDDEN_LOGICAL_PAYLOAD_FIELDS,
   ...DANGEROUS_KEYS,
@@ -317,6 +328,7 @@ const SAFE_PATH_SEGMENTS: ReadonlySet<string> = new Set([
   'suggestedWeight',
   'lastWeight',
   'rpe',
+  'rir',
   'email',
   'level',
   'goal',
@@ -730,8 +742,10 @@ export function validateLogicalBackupPayload(value: unknown): LogicalBackupPaylo
   if (Object.getOwnPropertySymbols(value).length > 0) {
     return invalidPayload('O payload declara uma propriedade simbólica na raiz.');
   }
-  if (Object.getOwnPropertyNames(value).length !== REQUIRED_PAYLOAD_FIELDS.length) {
-    return invalidPayload('O payload declara um campo raiz desconhecido.');
+  for (const prop of Object.getOwnPropertyNames(value)) {
+    if (!CANONICAL_PAYLOAD_FIELDS.has(prop)) {
+      return invalidPayload('O payload declara um campo raiz desconhecido.');
+    }
   }
 
   const tree = validateLogicalJsonTree(value, 'payload');
@@ -769,6 +783,9 @@ export function validateLogicalBackupPayload(value: unknown): LogicalBackupPaylo
   }
   if (!isRecord(payload.nutrition)) {
     return invalidPayload('O campo nutrition precisa ser um objeto.');
+  }
+  if (hasOwn(payload, 'gymProfile') && payload.gymProfile !== null && !isGymProfileState(payload.gymProfile)) {
+    return invalidPayload('O campo gymProfile precisa ser um GymProfileState válido ou null.');
   }
 
   for (const field of ['favoriteExercises', 'recentlyViewedVideoIds'] as const) {

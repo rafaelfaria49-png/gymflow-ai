@@ -12,6 +12,7 @@
 // src/lib/workout-session-domain.ts.
 
 import type { WorkoutSession } from './index';
+import type { ExerciseGroupType } from '../domain/techniques/types';
 
 /**
  * Situação de uma sessão.
@@ -21,6 +22,13 @@ import type { WorkoutSession } from './index';
  * - `abandoned` → nenhuma série concluída.
  */
 export type WorkoutSessionStatus = 'active' | 'completed' | 'partial' | 'abandoned';
+
+/**
+ * Variante efetivamente registrada no histórico.
+ * `compact` só é gravada depois de a pessoa confirmar a proposta de treino
+ * rápido; a ausência do campo continua válida para sessões legadas.
+ */
+export type WorkoutSessionVariant = 'standard' | 'compact';
 
 /**
  * Origem de uma entrada (exercício) dentro da sessão — de ONDE ela veio.
@@ -75,6 +83,10 @@ export interface SessionPlanEntry {
   repRange?: [number, number];
   targetRPE?: number;
   restSec?: number;
+  groupId?: string;
+  groupOrder?: number;
+  groupRestSec?: number;
+  groupType?: ExerciseGroupType;
 }
 
 /** Plano imutável derivado da origem escolhida no início do treino. */

@@ -7,6 +7,7 @@ import { TrainingProfileSelector } from '../components/TrainingProfileSelector';
 import { TrainingProfileSummary } from '../components/TrainingProfileSummary';
 import { validateTrainingProfile } from '../lib/training-profile';
 import type { TrainingProfileFields } from '../types/training-profile';
+import { RirEducationCard } from '../components/RirEducationCard';
 
 export const OnboardingFlow = () => {
   const { registerUser } = useGymFlow();
@@ -34,6 +35,7 @@ export const OnboardingFlow = () => {
   const [restrictions, setRestrictions] = useState<string[]>([]);
   const [muscleFocus, setMuscleFocus] = useState<string[]>(['Peito', 'Costas']);
   const [preference, setPreference] = useState('');
+  const [rirOnboardingCompleted, setRirOnboardingCompleted] = useState(false);
   const level = trainingProfile.level;
   const trainingProfileValid = validateTrainingProfile(trainingProfile).valid;
 
@@ -102,6 +104,7 @@ export const OnboardingFlow = () => {
       trainingStatus: trainingProfile.trainingStatus ?? 'active',
       returnToTraining: trainingProfile.returnToTraining,
       trainingExperienceYears: trainingProfile.trainingExperienceYears,
+      rirOnboardingCompleted: level === 'beginner' || rirOnboardingCompleted,
     });
   };
 
@@ -433,6 +436,17 @@ export const OnboardingFlow = () => {
           </div>
 
           <TrainingProfileSummary profile={{ ...trainingProfile, goal, frequency, duration }} />
+
+          {level !== 'beginner' && !rirOnboardingCompleted && (
+            <RirEducationCard onComplete={() => setRirOnboardingCompleted(true)} />
+          )}
+
+          {level !== 'beginner' && rirOnboardingCompleted && (
+            <div className="flex items-center gap-2 rounded-2xl border border-gym-emerald/20 bg-gym-emerald/5 p-3 text-left text-[10px] font-semibold text-gym-emerald">
+              <Award className="h-4 w-4 shrink-0" aria-hidden="true" />
+              RIR explicado. Você poderá registrar a margem depois de cada série efetiva.
+            </div>
+          )}
 
           {/* Card Resumo do Plano */}
           <div className="bg-gym-card border border-white/10 rounded-2xl p-5 text-left space-y-3">

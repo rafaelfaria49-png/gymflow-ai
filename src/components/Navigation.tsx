@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useGymFlow, AppView } from '../providers/GymFlowContext';
+import { useBackHandler } from '../lib/back-navigation';
 import {
   LayoutDashboard,
   Dumbbell,
@@ -163,6 +164,9 @@ const MORE_MENU_VIEWS: AppView[] = MORE_MENU_ITEMS.map((item) => item.view);
 export const BottomNavigation = () => {
   const { activeView, setActiveView, user, activeWorkout } = useGymFlow();
   const [showMoreSheet, setShowMoreSheet] = useState(false);
+
+  // Fecha o bottom sheet "Mais" no botão Voltar Android / ESC
+  useBackHandler(showMoreSheet, () => setShowMoreSheet(false), 20);
 
   if (!user) return null;
 

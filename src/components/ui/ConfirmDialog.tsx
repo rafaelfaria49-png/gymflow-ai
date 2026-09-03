@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, HelpCircle } from 'lucide-react';
 import { createKeyboardIntentBarrier } from './keyboard-intent-barrier';
+import { useBackHandler } from '../../lib/back-navigation';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ interface ConfirmDialogProps {
 }
 
 export const ConfirmDialog = (props: ConfirmDialogProps) => {
+  useBackHandler(props.isOpen, props.onCancel, 50);
   if (!props.isOpen) return null;
   return <OpenConfirmDialog {...props} />;
 };

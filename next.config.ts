@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 // GOAL-12 — Build alvo mobile (Capacitor).
 // `BUILD_TARGET=mobile` (script build:mobile) liga o export estático em `out/`,
@@ -16,6 +17,10 @@ const mobileConfig: NextConfig = {
 
 const nextConfig: NextConfig = {
   ...(isMobileBuild ? mobileConfig : {}),
+
+  turbopack: {
+    root: process.env.TURBOPACK_ROOT ? path.resolve(process.env.TURBOPACK_ROOT) : undefined,
+  },
 
   // Em desenvolvimento, o Next 16 bloqueia por padrão o acesso cross-origin
   // aos recursos do dev server (chunks JS / HMR). Ao abrir o app pelo IP da

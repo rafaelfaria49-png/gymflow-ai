@@ -3,10 +3,11 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { Exercise } from '../types';
-import { Search, X, ShieldAlert, Heart, Sparkles, ChevronRight, Clock, BookOpen } from 'lucide-react';
+import { Search, X, ShieldAlert, Heart, Sparkles, ChevronRight, Clock, BookOpen, Film } from 'lucide-react';
 import { matchesExerciseSearch } from '../lib/exerciseSearch';
 import { ExerciseMedia } from '../components/ExerciseMedia';
-import { TechniqueSequencePlayer } from '../components/TechniqueSequencePlayer';
+import { ExerciseMediaUnifiedPlayer } from '../components/ExerciseMediaUnifiedPlayer';
+import { OfflineMediaModal } from '../components/OfflineMediaModal';
 import { getExerciseIdForTechniqueVideoId, getTechniqueVideoIdForExerciseId } from '../lib/exerciseTechniqueMap';
 
 export const ExerciseLibrary = () => {
@@ -26,6 +27,7 @@ export const ExerciseLibrary = () => {
   const [selectedMuscle, setSelectedMuscle] = useState<string>('all');
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [currentLibraryTab, setCurrentLibraryTab] = useState<'all' | 'favorites' | 'recommended' | 'trends' | 'recent'>('all');
+  const [isOfflineModalOpen, setIsOfflineModalOpen] = useState(false);
 
   const musclesList = [
     { id: 'all', label: 'Todos' },
@@ -117,11 +119,21 @@ export const ExerciseLibrary = () => {
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
       {/* HEADER */}
-      <div>
-        <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight">Biblioteca de Exercícios</h1>
-        <p className="text-xs text-gym-text-muted mt-0.5 font-medium">
-          Dicionário de anatomia e técnica com {exercises.length} movimentos cadastrados.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight">Biblioteca de Exercícios</h1>
+          <p className="text-xs text-gym-text-muted mt-0.5 font-medium">
+            Dicionário de anatomia e técnica com {exercises.length} movimentos cadastrados.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsOfflineModalOpen(true)}
+          className="inline-flex items-center gap-2 self-start sm:self-auto rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-white hover:border-gym-accent/40 hover:text-gym-accent transition-all"
+        >
+          <Film className="w-3.5 h-3.5 text-gym-accent" />
+          <span>Mídia Offline</span>
+        </button>
       </div>
 
       {/* SYNERGY WARNING BANNER */}
@@ -351,7 +363,7 @@ export const ExerciseLibrary = () => {
               {/* ESQUERDA: sequência técnica e detalhes musculares */}
               <div className="space-y-4">
                 <div className="w-full rounded-2xl overflow-hidden border border-white/15 shadow-inner">
-                  <TechniqueSequencePlayer
+                  <ExerciseMediaUnifiedPlayer
                     exercise={selectedExercise}
                     emoji={selectedExercise.thumbnail.split(' ')[0]}
                     fit="contain"
@@ -469,6 +481,9 @@ export const ExerciseLibrary = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL DE MÍDIA OFFLINE */}
+      <OfflineMediaModal isOpen={isOfflineModalOpen} onClose={() => setIsOfflineModalOpen(false)} />
     </div>
   );
 };

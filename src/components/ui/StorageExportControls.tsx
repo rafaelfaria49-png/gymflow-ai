@@ -71,7 +71,7 @@ const PRIVACY_DESCRIPTION =
 
 export interface StorageExportControlsProps {
   storageMode: 'legacy-v1' | 'hybrid-v2' | 'blocked';
-  legacyExport: () => void;
+  legacyExport?: () => void | Promise<void>;
   legacyDisabled: boolean;
   exportLogicalBackupV2: () => Promise<PublicLogicalExportResult>;
 }
@@ -101,7 +101,7 @@ export function StorageExportControls({
 
   const handleExportClick = useCallback(() => {
     if (storageMode === 'legacy-v1') {
-      legacyExport();
+      void legacyExport?.();
       return;
     }
     if (storageMode === 'hybrid-v2') {
@@ -120,7 +120,7 @@ export function StorageExportControls({
     const promise = exportLogicalBackupV2();
     pendingPromiseRef.current = promise;
 
-    void promise.then((result) => {
+    void promise.then(async (result) => {
       pendingPromiseRef.current = null;
       if (!mountedRef.current) return;
       if (requestIdRef.current !== requestId) return;
@@ -144,11 +144,20 @@ export function StorageExportControls({
         return;
       }
 
-      downloadTextFile(result.content, result.filename);
-      setState({ phase: 'success', bytes: result.bytes });
-      toast.success(
-        `Backup exportado (${result.bytes.toLocaleString('pt-BR')} bytes).`,
-      );
+      try {
+        await downloadTextFile(result.content, result.filename);
+        if (!mountedRef.current || requestIdRef.current !== requestId) return;
+        setState({ phase: 'success', bytes: result.bytes });
+        toast.success(
+          `Backup exportado (${result.bytes.toLocaleString('pt-BR')} bytes).`,
+        );
+      } catch {
+        if (!mountedRef.current || requestIdRef.current !== requestId) return;
+        setState({
+          phase: 'error',
+          message: 'Não foi possível salvar ou compartilhar o arquivo de backup.',
+        });
+      }
     });
   }, [exportLogicalBackupV2, toast]);
 
@@ -156,16 +165,24 @@ export function StorageExportControls({
     resetToIdle();
   }, [resetToIdle]);
 
-  const handleLargeFileConfirm = useCallback(() => {
-    setState((prev) => {
-      if (prev.phase !== 'large-file-confirm') return prev;
-      downloadTextFile(prev.content, prev.filename);
+  const handleLargeFileConfirm = useCallback(async () => {
+    if (state.phase !== 'large-file-confirm') return;
+    const { content, filename, bytes } = state;
+    try {
+      await downloadTextFile(content, filename);
+      if (!mountedRef.current) return;
+      setState({ phase: 'success', bytes });
       toast.success(
-        `Backup exportado (${prev.bytes.toLocaleString('pt-BR')} bytes).`,
+        `Backup exportado (${bytes.toLocaleString('pt-BR')} bytes).`,
       );
-      return { phase: 'success', bytes: prev.bytes };
-    });
-  }, [toast]);
+    } catch {
+      if (!mountedRef.current) return;
+      setState({
+        phase: 'error',
+        message: 'Não foi possível salvar ou compartilhar o arquivo de backup.',
+      });
+    }
+  }, [state, toast]);
 
   const handleLargeFileCancel = useCallback(() => {
     resetToIdle();

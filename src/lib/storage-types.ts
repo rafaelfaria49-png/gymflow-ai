@@ -7,6 +7,7 @@ import type {
   WorkoutProgram,
   WorkoutSession,
 } from '../types';
+import type { GymProfileState } from '../domain/gymProfile';
 
 export const MONOLITHIC_STORAGE_VERSION = 1 as const;
 export const HYBRID_STORAGE_VERSION = 2 as const;
@@ -33,6 +34,8 @@ export interface PersistedState {
   challenges: Challenge[];
   favoriteExercises: string[];
   recentlyViewedVideoIds: string[];
+  /** GOAL-32: envelopes anteriores não possuem este campo; ausência vira null. */
+  gymProfile?: GymProfileState | null;
 }
 
 // Única fábrica do mundo lógico vazio. O reset hybrid-v2 — e qualquer
@@ -57,6 +60,7 @@ export function createEmptyPersistedState(): PersistedState {
     challenges: [],
     favoriteExercises: [],
     recentlyViewedVideoIds: [],
+    gymProfile: null,
   };
 }
 

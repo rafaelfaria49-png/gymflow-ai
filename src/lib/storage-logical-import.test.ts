@@ -1469,6 +1469,7 @@ describe('importação lógica v2 — idempotência e invariantes', () => {
     expect(sourceFilesImporting('storage-logical-import'))
       .toEqual([
         'src/lib/storage-administrative-recovery.ts',
+        'src/lib/storage-hybrid-enriched-roundtrip.test.ts',
         'src/lib/storage-logical-import.test.ts',
         'src/lib/storage-logical-restore-resolve.test.ts',
         'src/lib/storage-logical-restore.test.ts',
@@ -5106,6 +5107,7 @@ describe('recuperação da importação v2 — ausência de call site', () => {
       'src/components/ui/StorageBackupVerifier.import-guard.test.ts',
       'src/lib/storage-administrative-recovery.ts',
       'src/lib/storage-boot-recovery.test.ts',
+      'src/lib/storage-hybrid-enriched-roundtrip.test.ts',
       'src/lib/storage-logical-backup.test.ts',
       'src/lib/storage-logical-import.test.ts',
       'src/lib/storage-logical-restore-resolve.test.ts',

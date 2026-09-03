@@ -1,0 +1,1103 @@
+{
+  "version": 1,
+  "schemaVersion": "1.0.0",
+  "updatedAt": "2026-09-02T18:00:00.000Z",
+  "cdnBaseUrl": "https://assets.gymflow.ai/media",
+  "assets": {
+    "chest_supino_reto": {
+      "exerciseId": "chest_supino_reto",
+      "thumbnail": {
+        "id": "thumb_chest_supino_reto_v1",
+        "url": "/assets/exercises/chest_supino_reto/1.jpg",
+        "bytes": 48200,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame_chest_supino_reto_1",
+          "url": "/assets/exercises/chest_supino_reto/1.jpg",
+          "bytes": 48200,
+          "width": 720,
+          "height": 480,
+          "version": 1,
+          "status": "approved",
+          "contentType": "image/jpeg",
+          "provenance": {
+            "provider": "gymflow_catalog",
+            "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+          }
+        },
+        {
+          "id": "frame_chest_supino_reto_2",
+          "url": "/assets/exercises/chest_supino_reto/2.jpg",
+          "bytes": 49100,
+          "width": 720,
+          "height": 480,
+          "version": 1,
+          "status": "approved",
+          "contentType": "image/jpeg",
+          "provenance": {
+            "provider": "gymflow_catalog",
+            "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+          }
+        }
+      ],
+      "video": {
+        "id": "vid_chest_supino_reto_v1",
+        "url": "https://assets.gymflow.ai/media/videos/chest_supino_reto_v1.mp4",
+        "bytes": 1640000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "checksum": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "chest_supino_haltere": {
+      "exerciseId": "chest_supino_haltere",
+      "thumbnail": {
+        "id": "thumb_chest_supino_haltere_v1",
+        "url": "/assets/exercises/chest_supino_haltere/1.jpg",
+        "bytes": 46500,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_chest_supino_haltere_v1",
+        "url": "https://assets.gymflow.ai/media/videos/chest_supino_haltere_v1.mp4",
+        "bytes": 1580000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "chest_supino_inclinado_haltere": {
+      "exerciseId": "chest_supino_inclinado_haltere",
+      "thumbnail": {
+        "id": "thumb_chest_supino_inclinado_haltere_v1",
+        "url": "/assets/exercises/chest_supino_inclinado_haltere/1.jpg",
+        "bytes": 47200,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_chest_supino_inclinado_haltere_v1",
+        "url": "https://assets.gymflow.ai/media/videos/chest_supino_inclinado_haltere_v1.mp4",
+        "bytes": 1620000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "chest_supino_inclinado_barra": {
+      "exerciseId": "chest_supino_inclinado_barra",
+      "thumbnail": {
+        "id": "thumb_chest_supino_inclinado_barra_v1",
+        "url": "/assets/exercises/chest_supino_inclinado_barra/1.jpg",
+        "bytes": 49000,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_chest_supino_inclinado_barra_v1",
+        "url": "https://assets.gymflow.ai/media/videos/chest_supino_inclinado_barra_v1.mp4",
+        "bytes": 1690000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "chest_crucifixo_polia": {
+      "exerciseId": "chest_crucifixo_polia",
+      "thumbnail": {
+        "id": "thumb_chest_crucifixo_polia_v1",
+        "url": "/assets/exercises/chest_crucifixo_polia/1.jpg",
+        "bytes": 44300,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_chest_crucifixo_polia_v1",
+        "url": "https://assets.gymflow.ai/media/videos/chest_crucifixo_polia_v1.mp4",
+        "bytes": 1510000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "chest_peck_deck": {
+      "exerciseId": "chest_peck_deck",
+      "thumbnail": {
+        "id": "thumb_chest_peck_deck_v1",
+        "url": "/assets/exercises/chest_peck_deck/1.jpg",
+        "bytes": 43800,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_chest_peck_deck_v1",
+        "url": "https://assets.gymflow.ai/media/videos/chest_peck_deck_v1.mp4",
+        "bytes": 1490000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "chest_paralelas": {
+      "exerciseId": "chest_paralelas",
+      "thumbnail": {
+        "id": "thumb_chest_paralelas_v1",
+        "url": "/assets/exercises/chest_paralelas/1.jpg",
+        "bytes": 45100,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_chest_paralelas_v1",
+        "url": "https://assets.gymflow.ai/media/videos/chest_paralelas_v1.mp4",
+        "bytes": 1540000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "back_barra_fixa": {
+      "exerciseId": "back_barra_fixa",
+      "thumbnail": {
+        "id": "thumb_back_barra_fixa_v1",
+        "url": "/assets/exercises/back_barra_fixa/1.jpg",
+        "bytes": 48900,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_back_barra_fixa_v1",
+        "url": "https://assets.gymflow.ai/media/videos/back_barra_fixa_v1.mp4",
+        "bytes": 1670000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "back_puxada_pulley": {
+      "exerciseId": "back_puxada_pulley",
+      "thumbnail": {
+        "id": "thumb_back_puxada_pulley_v1",
+        "url": "/assets/exercises/back_puxada_pulley/1.jpg",
+        "bytes": 47500,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_back_puxada_pulley_v1",
+        "url": "https://assets.gymflow.ai/media/videos/back_puxada_pulley_v1.mp4",
+        "bytes": 1630000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "back_remada_curvada": {
+      "exerciseId": "back_remada_curvada",
+      "thumbnail": {
+        "id": "thumb_back_remada_curvada_v1",
+        "url": "/assets/exercises/back_remada_curvada/1.jpg",
+        "bytes": 49200,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_back_remada_curvada_v1",
+        "url": "https://assets.gymflow.ai/media/videos/back_remada_curvada_v1.mp4",
+        "bytes": 1680000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "back_remada_baixa": {
+      "exerciseId": "back_remada_baixa",
+      "thumbnail": {
+        "id": "thumb_back_remada_baixa_v1",
+        "url": "/assets/exercises/back_remada_baixa/1.jpg",
+        "bytes": 46100,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_back_remada_baixa_v1",
+        "url": "https://assets.gymflow.ai/media/videos/back_remada_baixa_v1.mp4",
+        "bytes": 1560000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "shoulder_desenvolvimento_haltere": {
+      "exerciseId": "shoulder_desenvolvimento_haltere",
+      "thumbnail": {
+        "id": "thumb_shoulder_desenvolvimento_haltere_v1",
+        "url": "/assets/exercises/shoulder_desenvolvimento_haltere/1.jpg",
+        "bytes": 47800,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_shoulder_desenvolvimento_haltere_v1",
+        "url": "https://assets.gymflow.ai/media/videos/shoulder_desenvolvimento_haltere_v1.mp4",
+        "bytes": 1610000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "shoulder_elevecao_lateral": {
+      "exerciseId": "shoulder_elevecao_lateral",
+      "thumbnail": {
+        "id": "thumb_shoulder_elevecao_lateral_v1",
+        "url": "/assets/exercises/shoulder_elevecao_lateral/1.jpg",
+        "bytes": 45600,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_shoulder_elevecao_lateral_v1",
+        "url": "https://assets.gymflow.ai/media/videos/shoulder_elevecao_lateral_v1.mp4",
+        "bytes": 1520000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "shoulder_elevecao_posterior": {
+      "exerciseId": "shoulder_elevecao_posterior",
+      "thumbnail": {
+        "id": "thumb_shoulder_elevecao_posterior_v1",
+        "url": "/assets/exercises/shoulder_elevecao_posterior/1.jpg",
+        "bytes": 44900,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_shoulder_elevecao_posterior_v1",
+        "url": "https://assets.gymflow.ai/media/videos/shoulder_elevecao_posterior_v1.mp4",
+        "bytes": 1495000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "biceps_rosca_direta": {
+      "exerciseId": "biceps_rosca_direta",
+      "thumbnail": {
+        "id": "thumb_biceps_rosca_direta_v1",
+        "url": "/assets/exercises/biceps_rosca_direta/1.jpg",
+        "bytes": 46200,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_biceps_rosca_direta_v1",
+        "url": "https://assets.gymflow.ai/media/videos/biceps_rosca_direta_v1.mp4",
+        "bytes": 1530000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "biceps_rosca_martelo": {
+      "exerciseId": "biceps_rosca_martelo",
+      "thumbnail": {
+        "id": "thumb_biceps_rosca_martelo_v1",
+        "url": "/assets/exercises/biceps_rosca_martelo/1.jpg",
+        "bytes": 45800,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_biceps_rosca_martelo_v1",
+        "url": "https://assets.gymflow.ai/media/videos/biceps_rosca_martelo_v1.mp4",
+        "bytes": 1515000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "triceps_polia_corda": {
+      "exerciseId": "triceps_polia_corda",
+      "thumbnail": {
+        "id": "thumb_triceps_polia_corda_v1",
+        "url": "/assets/exercises/triceps_polia_corda/1.jpg",
+        "bytes": 45200,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_triceps_polia_corda_v1",
+        "url": "https://assets.gymflow.ai/media/videos/triceps_polia_corda_v1.mp4",
+        "bytes": 1525000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "triceps_testa": {
+      "exerciseId": "triceps_testa",
+      "thumbnail": {
+        "id": "thumb_triceps_testa_v1",
+        "url": "/assets/exercises/triceps_testa/1.jpg",
+        "bytes": 46000,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_triceps_testa_v1",
+        "url": "https://assets.gymflow.ai/media/videos/triceps_testa_v1.mp4",
+        "bytes": 1550000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "legs_agachamento_barra": {
+      "exerciseId": "legs_agachamento_barra",
+      "thumbnail": {
+        "id": "thumb_legs_agachamento_barra_v1",
+        "url": "/assets/exercises/legs_agachamento_barra/1.jpg",
+        "bytes": 51200,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_legs_agachamento_barra_v1",
+        "url": "https://assets.gymflow.ai/media/videos/legs_agachamento_barra_v1.mp4",
+        "bytes": 1780000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "legs_leg_press": {
+      "exerciseId": "legs_leg_press",
+      "thumbnail": {
+        "id": "thumb_legs_leg_press_v1",
+        "url": "/assets/exercises/legs_leg_press/1.jpg",
+        "bytes": 48300,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_legs_leg_press_v1",
+        "url": "https://assets.gymflow.ai/media/videos/legs_leg_press_v1.mp4",
+        "bytes": 1650000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "legs_cadeira_extensora": {
+      "exerciseId": "legs_cadeira_extensora",
+      "thumbnail": {
+        "id": "thumb_legs_cadeira_extensora_v1",
+        "url": "/assets/exercises/legs_cadeira_extensora/1.jpg",
+        "bytes": 46800,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_legs_cadeira_extensora_v1",
+        "url": "https://assets.gymflow.ai/media/videos/legs_cadeira_extensora_v1.mp4",
+        "bytes": 1540000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "legs_mesa_flexora": {
+      "exerciseId": "legs_mesa_flexora",
+      "thumbnail": {
+        "id": "thumb_legs_mesa_flexora_v1",
+        "url": "/assets/exercises/legs_mesa_flexora/1.jpg",
+        "bytes": 47100,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_legs_mesa_flexora_v1",
+        "url": "https://assets.gymflow.ai/media/videos/legs_mesa_flexora_v1.mp4",
+        "bytes": 1565000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "legs_stiff": {
+      "exerciseId": "legs_stiff",
+      "thumbnail": {
+        "id": "thumb_legs_stiff_v1",
+        "url": "/assets/exercises/legs_stiff/1.jpg",
+        "bytes": 49800,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_legs_stiff_v1",
+        "url": "https://assets.gymflow.ai/media/videos/legs_stiff_v1.mp4",
+        "bytes": 1720000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "glutes_elevacao_pelvica": {
+      "exerciseId": "glutes_elevacao_pelvica",
+      "thumbnail": {
+        "id": "thumb_glutes_elevacao_pelvica_v1",
+        "url": "/assets/exercises/glutes_elevacao_pelvica/1.jpg",
+        "bytes": 48700,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_glutes_elevacao_pelvica_v1",
+        "url": "https://assets.gymflow.ai/media/videos/glutes_elevacao_pelvica_v1.mp4",
+        "bytes": 1660000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "abs_prancha_abdominal": {
+      "exerciseId": "abs_prancha_abdominal",
+      "thumbnail": {
+        "id": "thumb_abs_prancha_abdominal_v1",
+        "url": "/assets/exercises/abs_prancha_abdominal/1.jpg",
+        "bytes": 44100,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_abs_prancha_abdominal_v1",
+        "url": "https://assets.gymflow.ai/media/videos/abs_prancha_abdominal_v1.mp4",
+        "bytes": 1480000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "legs_hack_squat": {
+      "exerciseId": "legs_hack_squat",
+      "thumbnail": {
+        "id": "thumb_legs_hack_squat_v1",
+        "url": "/assets/exercises/legs_hack_squat/1.jpg",
+        "bytes": 49000,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_legs_hack_squat_draft",
+        "url": "https://assets.gymflow.ai/media/videos/legs_hack_squat_draft.mp4",
+        "bytes": 1700000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "chest_supino_declinado": {
+      "exerciseId": "chest_supino_declinado",
+      "thumbnail": {
+        "id": "thumb_chest_supino_declinado_v1",
+        "url": "/assets/exercises/chest_supino_declinado/1.jpg",
+        "bytes": 47000,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_chest_supino_declinado_draft",
+        "url": "https://assets.gymflow.ai/media/videos/chest_supino_declinado_draft.mp4",
+        "bytes": 1600000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "draft",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    },
+    "back_puxada_atras": {
+      "exerciseId": "back_puxada_atras",
+      "thumbnail": {
+        "id": "thumb_back_puxada_atras_v1",
+        "url": "/assets/exercises/back_puxada_atras/1.jpg",
+        "bytes": 46000,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      "video": {
+        "id": "vid_back_puxada_atras_retired",
+        "url": "https://assets.gymflow.ai/media/videos/back_puxada_atras_retired.mp4",
+        "bytes": 1550000,
+        "width": 720,
+        "height": 1280,
+        "version": 1,
+        "status": "retired",
+        "contentType": "video/mp4",
+        "durationSeconds": 6,
+        "repCount": 2,
+        "fps": 24,
+        "codec": "h264",
+        "provenance": {
+          "provider": "higgsfield",
+          "modelOrWorkflow": "character_soul_kai_v2",
+          "generatedAt": "2026-09-02T18:00:00.000Z",
+          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
+          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+        }
+      }
+    }
+  }
+}

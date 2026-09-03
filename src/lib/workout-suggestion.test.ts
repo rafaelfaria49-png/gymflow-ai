@@ -281,8 +281,10 @@ describe('workout suggestion — PART15', () => {
     const back = preview.distribution.find((entry) => entry.muscleGroupId === 'back')!;
     const biceps = preview.distribution.find((entry) => entry.muscleGroupId === 'biceps')!;
     expect(back.weight).toBeGreaterThan(biceps.weight);
-    // O catálogo real é legado → aviso honesto de classificação.
-    expect(preview.warnings.map((warning) => warning.code)).toContain('legacy-classification');
+    // Se adições utilizam classificação legada, emite aviso honesto de classificação.
+    if (preview.additions.some((addition) => addition.legacyClassification)) {
+      expect(preview.warnings.map((warning) => warning.code)).toContain('legacy-classification');
+    }
 
     const { draft, dayId } = seedDraftWithSlots([]);
     const applied = applySuggestionToDay(draft, dayId, preview);

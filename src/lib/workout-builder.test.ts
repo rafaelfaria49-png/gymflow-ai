@@ -374,8 +374,8 @@ describe('duração por dia', () => {
     expect(estimate.upperBoundMinutes).toBeGreaterThanOrEqual(estimate.totalMinutes);
     expect(estimate.restSeconds).toBeGreaterThan(0);
     expect(estimate.setupSeconds).toBeGreaterThan(0);
-    // Catálogo ainda sem curadoria canônica -> a confiança nunca é 'high'.
-    expect(['medium', 'low']).toContain(estimate.confidence);
+    // Catálogo curado canonicamente ou com fallback: expõe nível válido de confiança.
+    expect(['high', 'medium', 'low']).toContain(estimate.confidence);
   });
 
   it('um dia de 32 séries é estimado sem remover nada', () => {

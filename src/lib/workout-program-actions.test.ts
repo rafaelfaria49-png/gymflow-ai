@@ -132,6 +132,7 @@ describe('deriveCustomProgramFromSeed (GOAL-19B PART 8)', () => {
     const seed = program({
       id: 'seed_1',
       isCustom: false,
+      warmupEnabled: true,
       weeks: [],
       exercises: [{ exerciseId: 'chest_supino_reto', sets: 3, reps: '8-12' }],
     });
@@ -139,6 +140,7 @@ describe('deriveCustomProgramFromSeed (GOAL-19B PART 8)', () => {
     const derived = deriveCustomProgramFromSeed(seed, createSequentialIdFactory());
 
     expect(derived.isCustom).toBe(true);
+    expect(derived.warmupEnabled).toBe(true);
     expect(derived.id).not.toBe('seed_1');
     expect(derived.name).toBe('Meu ABCD'); // sem "— Cópia"
     // Novo custom NUNCA recria a lista achatada legada.

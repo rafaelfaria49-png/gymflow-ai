@@ -74,6 +74,11 @@ describe('migração legada segura', () => {
     expect(merged.achievements).toEqual([]);
   });
 
+  it('preenche GymProfile ausente com null sem criar um perfil', () => {
+    const merged = mergePersistedState(defaults, {});
+    expect(merged.gymProfile).toBeNull();
+  });
+
   it('recusa legado malformado sem apagar as chaves', () => {
     const storage = new MemoryStorage();
     storage.setItem(LEGACY_USER_KEY, '{invalid');

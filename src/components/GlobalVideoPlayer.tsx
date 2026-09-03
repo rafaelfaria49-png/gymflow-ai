@@ -5,7 +5,9 @@ import { useGymFlow } from '../providers/GymFlowContext';
 import { AvatarDemoPlaceholder } from './AvatarDemoPlaceholder';
 import { Play, Check, ShieldAlert, Award, Clock, ArrowLeft, User, Flame, Maximize2, Minimize2, X, Brain, Dumbbell, Sparkles } from 'lucide-react';
 import { TechniqueSequencePlayer } from './TechniqueSequencePlayer';
+import { ExerciseMediaUnifiedPlayer } from './ExerciseMediaUnifiedPlayer';
 import { getExerciseIdForTechniqueVideoId } from '../lib/exerciseTechniqueMap';
+import { useBackHandler } from '../lib/back-navigation';
 
 export const GlobalVideoPlayer = () => {
   const {
@@ -21,6 +23,9 @@ export const GlobalVideoPlayer = () => {
 
   const [isCinemaMode, setIsCinemaMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'guide' | 'related'>('guide');
+
+  // Fecha no botão Voltar Android / ESC
+  useBackHandler(globalPlayerOpen, closeGlobalPlayer, 30);
 
   // Find the selected video lesson
   const video = videos.find((v) => v.id === activeVideoLessonId);
@@ -125,7 +130,7 @@ export const GlobalVideoPlayer = () => {
             {/* DEMONSTRAÇÃO — sequência visual provisória quando há exercício associado. */}
             <div className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-inner">
               {relatedExercise ? (
-                <TechniqueSequencePlayer
+                <ExerciseMediaUnifiedPlayer
                   exercise={relatedExercise}
                   emoji={relatedExercise.thumbnail.split(' ')[0]}
                   fit="contain"

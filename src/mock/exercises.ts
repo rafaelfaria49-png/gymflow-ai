@@ -3330,6 +3330,50 @@ const withSearchTerms = (exercise: Exercise): Exercise => {
   return { ...exercise, searchTerms: [...(exercise.searchTerms ?? []), ...extra] };
 };
 
-export const MOCK_EXERCISES: Exercise[] = [...BASE_EXERCISES, ...EXPANSION_EXERCISES]
+import { LOTE_1_CURATION } from '../../scripts/library/curation-data/lote1';
+import { LOTE_2_CURATION } from '../../scripts/library/curation-data/lote2';
+import { LOTE_3_CURATION } from '../../scripts/library/curation-data/lote3';
+import { LOTE_4_CURATION } from '../../scripts/library/curation-data/lote4';
+import { LOTE_5_CURATION } from '../../scripts/library/curation-data/lote5';
+
+const CURATION_MAP: Record<string, Partial<Exercise>> = {
+  ...LOTE_1_CURATION,
+  ...LOTE_2_CURATION,
+  ...LOTE_3_CURATION,
+  ...LOTE_4_CURATION,
+  ...LOTE_5_CURATION,
+};
+
+const withCuration = (exercise: Exercise): Exercise => {
+  const patch = CURATION_MAP[exercise.id];
+  if (!patch) return exercise;
+  return {
+    ...exercise,
+    mechanics: patch.mechanics ?? exercise.mechanics,
+    laterality: patch.laterality ?? exercise.laterality,
+    bodyPosition: patch.bodyPosition ?? exercise.bodyPosition,
+    movementPatternIds: patch.movementPatternIds ?? exercise.movementPatternIds,
+    equipmentIds: patch.equipmentIds ?? exercise.equipmentIds,
+    restrictions: patch.restrictions ?? exercise.restrictions,
+    substitutionsHint: patch.substitutionsHint ?? exercise.substitutionsHint,
+    substitutions: patch.substitutions ?? exercise.substitutions,
+    searchTerms: [
+      ...(exercise.searchTerms ?? []),
+      ...(patch.searchTerms ?? [])
+    ]
+  };
+};
+
+import { LOTE_6_EXPANSION } from '../../scripts/library/curation-data/lote6';
+import { LOTE_7_EXPANSION } from '../../scripts/library/curation-data/lote7';
+
+export const BASE_CATALOG_126: Exercise[] = [...BASE_EXERCISES, ...EXPANSION_EXERCISES];
+
+export const MOCK_EXERCISES: Exercise[] = [
+  ...BASE_CATALOG_126,
+  ...LOTE_6_EXPANSION,
+  ...LOTE_7_EXPANSION
+]
+  .map(withCuration)
   .map(withLocalImages)
   .map(withSearchTerms);

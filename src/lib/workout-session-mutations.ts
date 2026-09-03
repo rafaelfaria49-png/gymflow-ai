@@ -1,4 +1,7 @@
 import type { ActiveExercise, Exercise, WorkoutSession } from '../types';
+import type { EquipmentCategory, EquipmentId } from '../types/training-taxonomy';
+import { getEquipmentDefinition } from './equipment-registry';
+import { resolveLegacyEquipment } from './equipment-legacy-map';
 
 export function updateWorkoutExerciseNotes(
   workout: WorkoutSession,
@@ -37,6 +40,96 @@ export function swapWorkoutExercise(
   };
 }
 
+export interface WorkoutSubstituteRankingOptions {
+  /** Quando ativo, livres/cabos recebem bônus de ranking para horários de pico. */
+  crowdedGym?: boolean;
+}
+
+export interface RankedWorkoutSubstitute {
+  exercise: Exercise;
+  index: number;
+  score: number;
+  preferredInCrowdedGym: boolean;
+  equipmentCategories: EquipmentCategory[];
+}
+
+function resolvedEquipmentIds(exercise: Exercise): EquipmentId[] {
+  const canonical = Array.isArray(exercise.equipmentIds)
+    ? exercise.equipmentIds.filter((id) => Boolean(getEquipmentDefinition(id)))
+    : [];
+  return canonical.length > 0 ? [...canonical] : [...resolveLegacyEquipment(exercise.equipment).equipmentIds];
+}
+
+function equipmentCategories(exercise: Exercise): EquipmentCategory[] {
+  return [...new Set(
+    resolvedEquipmentIds(exercise)
+      .map((id) => getEquipmentDefinition(id)?.category)
+      .filter((category): category is EquipmentCategory => Boolean(category)),
+  )];
+}
+
+/** Peso alto = melhor alternativa para uma academia em horário de pico. */
+export function crowdedGymEquipmentScore(exercise: Exercise): number {
+  const categories = equipmentCategories(exercise);
+  if (categories.includes('free_weight')) return 300;
+  if (categories.includes('cable')) return 250;
+  if (categories.includes('bodyweight')) return 200;
+
+  // Fallback para exercícios antigos cujo texto ainda não tem mapeamento.
+  const label = exercise.equipment.toLocaleLowerCase('pt-BR');
+  if (label.includes('halter') || label.includes('kettlebell') || label.includes('peso livre')) return 300;
+  if (label.includes('polia') || label.includes('cabo') || label.includes('pulley')) return 250;
+  if (label.includes('peso corporal') || label.includes('sem equipamento')) return 200;
+  return 0;
+}
+
+/**
+ * Ordena substitutos do mesmo grupo sem alterar o catálogo.
+ * Fora do modo cheio, a ordem original é mantida; no modo cheio, livres e
+ * cabos sobem com bônus explícito e empates continuam determinísticos.
+ */
+export function rankWorkoutSubstitutes(
+  current: Pick<Exercise, 'id' | 'muscleGroup'>,
+  catalog: readonly Exercise[],
+  options: WorkoutSubstituteRankingOptions = {},
+): Exercise[] {
+  const ranked: RankedWorkoutSubstitute[] = catalog
+    .map((exercise, index) => ({
+      exercise,
+      index,
+      score: options.crowdedGym ? crowdedGymEquipmentScore(exercise) : 0,
+      preferredInCrowdedGym: crowdedGymEquipmentScore(exercise) > 0,
+      equipmentCategories: equipmentCategories(exercise),
+    }))
+    .filter(({ exercise }) => exercise.muscleGroup === current.muscleGroup && exercise.id !== current.id);
+
+  return ranked
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map(({ exercise }) => exercise);
+}
+
+export const rankCrowdedGymSubstitutes = rankWorkoutSubstitutes;
+
+/** Move uma entrada da fila sem mutar a sessão nem alterar seus metadados. */
+export function reorderWorkoutExercises(
+  workout: WorkoutSession,
+  fromIndex: number,
+  toIndex: number,
+): WorkoutSession {
+  if (
+    fromIndex === toIndex
+    || fromIndex < 0
+    || toIndex < 0
+    || fromIndex >= workout.exercises.length
+    || toIndex >= workout.exercises.length
+  ) return workout;
+
+  const exercises = [...workout.exercises];
+  const [moved] = exercises.splice(fromIndex, 1);
+  exercises.splice(toIndex, 0, moved);
+  return { ...workout, exercises };
+}
+
 export interface CrowdedGymAdaptationResult {
   workout: WorkoutSession;
   replacementCount: number;
@@ -60,11 +153,8 @@ export function adaptWorkoutForCrowdedGym(
       return activeExercise;
     }
 
-    const replacement = exerciseCatalog.find((exercise) => (
-      exercise.muscleGroup === current.muscleGroup
-      && exercise.id !== current.id
-      && (exercise.equipment === 'Halteres' || exercise.equipment === 'Peso Corporal')
-    ));
+    const replacement = rankWorkoutSubstitutes(current, exerciseCatalog, { crowdedGym: true })
+      .find((exercise) => crowdedGymEquipmentScore(exercise) > 0);
     if (!replacement) return activeExercise;
 
     replacementCount += 1;
@@ -118,11 +208,15 @@ export function toggleWorkoutSetCompletion(
         }
       : exercise
   ));
-  const isLastRemainingSet = completed && workout.exercises.every((exercise, currentExerciseIndex) => (
-    exercise.sets.every((set, currentSetIndex) => (
-      (currentExerciseIndex === exerciseIndex && currentSetIndex === setIndex) || set.completed
-    ))
-  ));
+  const isLastRemainingSet = completed
+    && !targetSet.isWarmup
+    && workout.exercises.every((exercise, currentExerciseIndex) => (
+      exercise.sets.every((set, currentSetIndex) => (
+        set.isWarmup
+        || (currentExerciseIndex === exerciseIndex && currentSetIndex === setIndex)
+        || set.completed
+      ))
+    ));
 
   return {
     workout: { ...workout, exercises },

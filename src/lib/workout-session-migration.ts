@@ -13,7 +13,8 @@
 //
 // `activeWorkoutStartedAt` é mantido intacto para compatibilidade.
 
-import type { WorkoutSession } from '../types';
+import type { ActiveExercise, WorkoutSession, WorkoutSet } from '../types';
+import { migrateTechniqueSession } from '../domain/techniques/migration';
 
 export interface NormalizableSessionState {
   activeWorkout: WorkoutSession | null;
@@ -26,19 +27,52 @@ function normalizeActiveWorkout(
   activeWorkoutStartedAt: number | null,
 ): WorkoutSession | null {
   if (!activeWorkout) return activeWorkout;
-  const needsStatus = activeWorkout.status === undefined;
-  const needsStartedAt = activeWorkout.startedAt === undefined && activeWorkoutStartedAt != null;
-  if (!needsStatus && !needsStartedAt) return activeWorkout;
+  const normalizedRir = migrateRirSession(migrateTechniqueSession(activeWorkout));
+  const needsStatus = normalizedRir.status === undefined;
+  const needsStartedAt = normalizedRir.startedAt === undefined && activeWorkoutStartedAt != null;
+  if (!needsStatus && !needsStartedAt) return normalizedRir;
   return {
-    ...activeWorkout,
+    ...normalizedRir,
     ...(needsStatus ? { status: 'active' as const } : {}),
     ...(needsStartedAt ? { startedAt: activeWorkoutStartedAt } : {}),
   };
 }
 
 function normalizeHistorySession(session: WorkoutSession): WorkoutSession {
-  if (session.status !== undefined) return session;
-  return { ...session, status: 'completed' as const };
+  const normalizedRir = migrateRirSession(migrateTechniqueSession(session));
+  if (normalizedRir.status !== undefined) return normalizedRir;
+  return { ...normalizedRir, status: 'completed' as const };
+}
+
+/** Normaliza o RIR persistido sem inventar dado para sessões legadas. */
+export function normalizeRir(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.max(0, Math.min(5, Math.round(value)));
+}
+
+/** Migra apenas o campo RIR de uma série; mantém a referência quando nada mudou. */
+export function migrateWorkoutSetRir(set: WorkoutSet): WorkoutSet {
+  if (!Object.prototype.hasOwnProperty.call(set, 'rir')) return set;
+  const normalized = normalizeRir(set.rir);
+  if (normalized === set.rir) return set;
+  const next = { ...set };
+  if (normalized === undefined) delete next.rir;
+  else next.rir = normalized;
+  return next;
+}
+
+export function migrateRirExercise(exercise: ActiveExercise): ActiveExercise {
+  const sets = exercise.sets.map(migrateWorkoutSetRir);
+  return sets.every((set, index) => set === exercise.sets[index])
+    ? exercise
+    : { ...exercise, sets };
+}
+
+export function migrateRirSession(session: WorkoutSession): WorkoutSession {
+  const exercises = session.exercises.map(migrateRirExercise);
+  return exercises.every((exercise, index) => exercise === session.exercises[index])
+    ? session
+    : { ...session, exercises };
 }
 
 function normalizeHistory(history: WorkoutSession[]): WorkoutSession[] {

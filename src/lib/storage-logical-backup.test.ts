@@ -1691,6 +1691,7 @@ describe('backup lógico v2 — regressão do fluxo v1', () => {
       'src/components/ui/StorageBackupVerifier.guard.test.ts',
       'src/components/ui/StorageBackupVerifier.test.tsx',
       'src/components/ui/StorageBackupVerifier.tsx',
+      'src/lib/storage-hybrid-enriched-roundtrip.test.ts',
       'src/lib/storage-logical-backup.test.ts',
       'src/lib/storage-logical-import.test.ts',
       'src/lib/storage-logical-import.ts',
