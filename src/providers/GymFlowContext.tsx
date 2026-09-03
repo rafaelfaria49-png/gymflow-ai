@@ -3200,14 +3200,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       : rejectLegacyStorageOperation()
   );
 
-  const downloadStorageRecovery = () => {
+  const downloadStorageRecovery = async () => {
     const raw = storageHealth.issue?.raw;
     if (!raw) {
       toast.error('Não há conteúdo bruto disponível para exportar.');
       return;
     }
     const recovery = createRawRecoveryExport(raw);
-    downloadTextFile(recovery.content, recovery.filename);
+    await downloadTextFile(recovery.content, recovery.filename);
     toast.info(`Conteúdo original exportado (${recovery.bytes.toLocaleString('pt-BR')} bytes).`);
   };
 

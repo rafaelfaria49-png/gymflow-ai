@@ -83,17 +83,25 @@ export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProp
 
   // Verifica se o vídeo está em cache offline
   useEffect(() => {
+    let isSubscribed = true;
     if (resolvedMedia?.video?.url) {
-      const url = resolvedMedia.video.url;
-      isMediaCached(url).then((cached) => {
+      const videoAsset = resolvedMedia.video;
+      const url = videoAsset.url;
+      isMediaCached(videoAsset).then((cached) => {
+        if (!isSubscribed) return;
         if (cached) {
           setCachedUrls((prev) => new Set(prev).add(url));
-          getMediaPlayableUrl(url).then(setVideoPlayableUrl);
+          getMediaPlayableUrl(videoAsset).then((playableUrl) => {
+            if (isSubscribed) setVideoPlayableUrl(playableUrl);
+          });
         } else {
           setVideoPlayableUrl(url);
         }
       });
     }
+    return () => {
+      isSubscribed = false;
+    };
   }, [resolvedMedia]);
 
   // Resolução do tier de renderização ativo

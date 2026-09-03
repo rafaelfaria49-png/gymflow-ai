@@ -57,7 +57,7 @@ export const AdminPanel = () => {
     startFreshStorage();
   };
 
-  const handleExportLocalData = () => {
+  const handleExportLocalData = async () => {
     if (!legacyStorageOperationsAllowed) {
       toast.info('A exportação híbrida será reativada pelo GOAL-17B-002D.');
       return;
@@ -67,7 +67,7 @@ export const AdminPanel = () => {
       toast.error(result.error);
       return;
     }
-    downloadTextFile(result.content, result.filename);
+    await downloadTextFile(result.content, result.filename);
     toast.success(`Backup exportado (${result.bytes.toLocaleString('pt-BR')} bytes).`);
   };
 

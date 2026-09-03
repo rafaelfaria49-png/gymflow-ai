@@ -8,6 +8,10 @@ import {
   type StorageWriteResult,
 } from './storage-types';
 import { errorMessage, isRecord, validateEnvelope } from './storage-validation';
+import { isCapacitorNative } from './platform';
+import { exportNativeBackupFile } from './storage-native-export';
+
+export { exportNativeBackupFile };
 
 export const STORAGE_EXPORT_FORMAT_VERSION = 1 as const;
 export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
@@ -129,7 +133,16 @@ export function createRawRecoveryExport(raw: string, now = new Date()): {
   };
 }
 
-export function downloadTextFile(content: string, filename: string, mimeType = 'application/json'): void {
+export async function downloadTextFile(
+  content: string,
+  filename: string,
+  mimeType = 'application/json'
+): Promise<void> {
+  if (isCapacitorNative()) {
+    await exportNativeBackupFile(content, filename);
+    return;
+  }
+
   const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -139,5 +152,5 @@ export function downloadTextFile(content: string, filename: string, mimeType = '
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

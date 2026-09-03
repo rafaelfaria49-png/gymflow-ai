@@ -41,6 +41,14 @@ subprojects {
                 }
             }
         }
+        def kotlinExt = project.extensions.findByName('kotlin')
+        if (kotlinExt != null) {
+            kotlinExt.jvmToolchain(17)
+        }
+        def javaExt = project.extensions.findByName('java')
+        if (javaExt != null && javaExt.hasProperty('toolchain')) {
+            javaExt.toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+        }
     }
 }
 

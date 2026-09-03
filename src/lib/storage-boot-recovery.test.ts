@@ -890,7 +890,7 @@ function listFiles(root: string, extensions: string[]): string[] {
   const found: string[] = [];
   const walk = (directory: string): void => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+      if (entry.name === 'node_modules' || entry.name === 'build' || entry.name.startsWith('.')) continue;
       const full = join(directory, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (extensions.some((extension) => entry.name.endsWith(extension))) found.push(full);

@@ -1,163 +1,78 @@
 import { MediaAsset, MediaCacheStats, MediaManifest, ProgramMediaDownloadResult } from './types';
 import type { WorkoutProgram } from '../../types';
+import { getMediaStorageDriver, WEB_MEDIA_CACHE_NAME, isCacheStorageAvailable } from './storage';
 
-export const MEDIA_CACHE_NAME = 'gymflow-media-v1';
+export const MEDIA_CACHE_NAME = WEB_MEDIA_CACHE_NAME;
+
+export { isCacheStorageAvailable };
 
 /**
- * Verifica se a Cache Storage API está disponível no ambiente atual
+ * Verifica se um recurso de mídia está disponível em cache (web ou nativo)
  */
-export function isCacheStorageAvailable(): boolean {
-  return typeof window !== 'undefined' && typeof caches !== 'undefined';
+export async function isMediaCached(urlOrAsset: string | MediaAsset, manifest?: MediaManifest): Promise<boolean> {
+  const driver = getMediaStorageDriver();
+  return driver.isCached(urlOrAsset, manifest);
 }
 
 /**
- * Abre o cache isolado de mídia
+ * Salva um MediaAsset no armazenamento offline da plataforma ativa
  */
-async function openMediaCache(): Promise<Cache | null> {
-  if (!isCacheStorageAvailable()) return null;
-  try {
-    return await caches.open(MEDIA_CACHE_NAME);
-  } catch (err) {
-    console.warn('Erro ao abrir Cache Storage para mídia:', err);
-    return null;
-  }
+export async function cacheMediaAsset(asset: MediaAsset, manifest?: MediaManifest): Promise<boolean> {
+  const driver = getMediaStorageDriver();
+  return driver.cacheAsset(asset, manifest);
 }
 
 /**
- * Verifica se uma URL de mídia está em cache
+ * Obtém URL/URI local para um recurso em cache (ou o URL remoto original se não cacheado)
  */
-export async function isMediaCached(url: string): Promise<boolean> {
-  const cache = await openMediaCache();
-  if (!cache) return false;
-  try {
-    const match = await cache.match(url);
-    return match !== undefined;
-  } catch {
-    return false;
-  }
+export async function getMediaPlayableUrl(urlOrAsset: string | MediaAsset, manifest?: MediaManifest): Promise<string> {
+  const driver = getMediaStorageDriver();
+  return driver.getPlayableUrl(urlOrAsset, manifest);
 }
 
 /**
- * Salva um MediaAsset no Cache Storage
- */
-export async function cacheMediaAsset(asset: MediaAsset): Promise<boolean> {
-  if (!asset.url || asset.url.startsWith('bundle:')) return false;
-  const cache = await openMediaCache();
-  if (!cache) return false;
-
-  try {
-    // Busca o arquivo via fetch
-    const response = await fetch(asset.url, { mode: 'cors' });
-    if (!response.ok) {
-      console.warn(`Falha ao baixar asset para cache: ${asset.url} (${response.status})`);
-      return false;
-    }
-
-    await cache.put(asset.url, response);
-    return true;
-  } catch (err) {
-    console.warn(`Erro ao salvar asset no cache: ${asset.url}`, err);
-    return false;
-  }
-}
-
-/**
- * Obtém URL local para um recurso em cache (ou o URL remoto original se não cacheado)
- */
-export async function getMediaPlayableUrl(url: string): Promise<string> {
-  const cache = await openMediaCache();
-  if (!cache) return url;
-
-  try {
-    const response = await cache.match(url);
-    if (response) {
-      const blob = await response.blob();
-      return URL.createObjectURL(blob);
-    }
-  } catch {
-    // Retorna URL original
-  }
-  return url;
-}
-
-/**
- * Retorna a lista de todas as URLs atualmente salvas no cache de mídia
+ * Retorna a lista de todas as URLs ou arquivos atualmente salvos no cache de mídia
  */
 export async function listCachedMediaUrls(): Promise<string[]> {
-  const cache = await openMediaCache();
-  if (!cache) return [];
-
-  try {
-    const requests = await cache.keys();
-    return requests.map((req) => req.url);
-  } catch {
-    return [];
-  }
+  const driver = getMediaStorageDriver();
+  return driver.listCached();
 }
 
 /**
  * Retorna estatísticas de uso do cache de mídia
  */
 export async function getMediaCacheStats(): Promise<MediaCacheStats> {
-  const cache = await openMediaCache();
-  if (!cache) {
-    return { count: 0, totalBytes: 0, cacheName: MEDIA_CACHE_NAME };
-  }
-
-  try {
-    const requests = await cache.keys();
-    let totalBytes = 0;
-
-    for (const req of requests) {
-      const resp = await cache.match(req);
-      if (resp) {
-        const contentLength = resp.headers.get('content-length');
-        if (contentLength) {
-          totalBytes += parseInt(contentLength, 10) || 0;
-        } else {
-          // Se não houver header content-length, estima pelo blob
-          try {
-            const blob = await resp.clone().blob();
-            totalBytes += blob.size;
-          } catch {
-            totalBytes += 1500000; // estimativa padrão ~1.5MB por vídeo
-          }
-        }
-      }
-    }
-
-    return {
-      count: requests.length,
-      totalBytes,
-      cacheName: MEDIA_CACHE_NAME,
-    };
-  } catch {
-    return { count: 0, totalBytes: 0, cacheName: MEDIA_CACHE_NAME };
-  }
+  const driver = getMediaStorageDriver();
+  return driver.getStats();
 }
 
 /**
  * Limpa todo o cache de mídia
  */
 export async function clearMediaCache(): Promise<boolean> {
-  if (!isCacheStorageAvailable()) return false;
-  try {
-    return await caches.delete(MEDIA_CACHE_NAME);
-  } catch (err) {
-    console.warn('Erro ao limpar cache de mídia:', err);
-    return false;
-  }
+  const driver = getMediaStorageDriver();
+  return driver.clear();
 }
 
 /**
  * Baixa toda a mídia dos exercícios que pertencem a um programa de treino do usuário.
  * "Baixar mídia para offline" por programa (D14).
+ * Suporta Web/PWA (Cache Storage) e Android/iOS Capacitor (Filesystem + FileTransfer).
  */
 export async function downloadProgramMedia(
   program: WorkoutProgram,
   manifest: MediaManifest,
   onProgress?: (progress: { completed: number; total: number; currentExerciseId?: string }) => void
 ): Promise<ProgramMediaDownloadResult> {
+  const driver = getMediaStorageDriver();
+
+  // Invalida mídias obsoletas de versões anteriores antes de iniciar novos downloads
+  try {
+    await driver.pruneObsolete(manifest);
+  } catch {
+    // Prune é melhor-esforço; não impede o download
+  }
+
   // 1. Coleta todos os IDs únicos de exercícios no programa
   const exerciseIds = new Set<string>();
 
@@ -207,14 +122,14 @@ export async function downloadProgramMedia(
       currentExerciseId: asset.id,
     });
 
-    const isAlreadyCached = await isMediaCached(asset.url);
+    const isAlreadyCached = await driver.isCached(asset, manifest);
     if (isAlreadyCached) {
       downloaded++;
       totalBytes += asset.bytes;
       continue;
     }
 
-    const ok = await cacheMediaAsset(asset);
+    const ok = await driver.cacheAsset(asset, manifest);
     if (ok) {
       downloaded++;
       totalBytes += asset.bytes;
