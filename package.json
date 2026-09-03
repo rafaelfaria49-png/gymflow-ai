@@ -20,7 +20,8 @@
     "android:build": "node scripts/android-build.mjs",
     "android:bundle:release": "node scripts/android-bundle-release.mjs",
     "ios:sync": "node scripts/build-mobile.mjs && cap sync ios",
-    "ios:open": "cap open ios"
+    "ios:open": "cap open ios",
+    "ios:validate": "vitest run scripts/ios/ios-readiness.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.7",

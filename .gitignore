@@ -40,9 +40,17 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# mobile release keystores & signing credentials (GOAL-MOBILE-005)
+# mobile release keystores & signing credentials (GOAL-MOBILE-005 & GOAL-MOBILE-006)
 *.jks
 *.keystore
 *release-signing.properties
 *keystore.properties
 !*.properties.example
+
+# apple signing credentials & build artifacts
+*.p12
+*.cer
+*.mobileprovision
+*.provisionprofile
+*.p8
+*.ipa
