@@ -11,7 +11,7 @@ import type {
   WeeklyWorkoutDay,
   WorkoutSession,
 } from '../types';
-import { GymFlowProvider, STORAGE_KEY, useGymFlow } from './GymFlowContext';
+import { GymFlowProvider, STORAGE_KEY, useGymFlow, scheduleAppReload } from './GymFlowContext';
 
 const mockCommitLogicalStorageRestoreV2 = vi.fn();
 const mockResolveLogicalRestorePredecessorV2 = vi.fn();
@@ -584,5 +584,67 @@ describe('commitLogicalRestoreV2 — autosave tardio', () => {
     const result = await callRestore(handle);
     expect(result).toMatchObject({ ok: false, reason: 'proof-diverged', requiresReload: false });
     expect(reloadSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('scheduleAppReload — proteção de reload tardio após teardown', () => {
+  it('em ambiente browser válido, reload continua sendo solicitado após o delay de 600ms', () => {
+    vi.useFakeTimers();
+    try {
+      const reloadMock = vi.fn();
+      const mockWindow = {
+        setTimeout: globalThis.setTimeout.bind(globalThis),
+        clearTimeout: globalThis.clearTimeout.bind(globalThis),
+        location: { reload: reloadMock },
+      };
+      Object.defineProperty(globalThis, 'window', { value: mockWindow, configurable: true, writable: true });
+
+      scheduleAppReload(600);
+      expect(reloadMock).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(599);
+      expect(reloadMock).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1);
+      expect(reloadMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+      restoreBrowserGlobals();
+    }
+  });
+
+  it('callback tardio após desmontagem/ausência de window não lança ReferenceError', () => {
+    vi.useFakeTimers();
+    try {
+      const reloadMock = vi.fn();
+      const mockWindow = {
+        setTimeout: globalThis.setTimeout.bind(globalThis),
+        clearTimeout: globalThis.clearTimeout.bind(globalThis),
+        location: { reload: reloadMock },
+      };
+      Object.defineProperty(globalThis, 'window', { value: mockWindow, configurable: true, writable: true });
+
+      scheduleAppReload(600);
+
+      // Simula teardown imediato dos browser globals
+      Reflect.deleteProperty(globalThis, 'window');
+
+      // Avanço de tempo além dos 600ms não pode lançar exceção
+      expect(() => {
+        vi.advanceTimersByTime(700);
+      }).not.toThrow();
+
+      expect(reloadMock).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+      restoreBrowserGlobals();
+    }
+  });
+
+  it('quando window é indefinido no momento do agendamento, executa no-op seguro', () => {
+    Reflect.deleteProperty(globalThis, 'window');
+    expect(() => {
+      scheduleAppReload(600);
+    }).not.toThrow();
   });
 });

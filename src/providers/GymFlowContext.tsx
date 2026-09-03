@@ -656,6 +656,24 @@ function failReset(
   };
 }
 
+/**
+ * Agenda um reload controlado da aplicação após operações de storage que
+ * demandam reinicialização completa (restore, reset, import).
+ *
+ * Protege o callback assíncrono para que ele só acesse window quando o
+ * ambiente de execução ainda possuir window, prevenindo ReferenceError
+ * durante o teardown do ambiente de testes (Vitest/JSDOM).
+ */
+export function scheduleAppReload(delayMs = 600): void {
+  if (typeof window === 'undefined') return;
+  window.setTimeout(() => {
+    if (typeof window !== 'undefined' && typeof window.location?.reload === 'function') {
+      window.location.reload();
+    }
+  }, delayMs);
+}
+
+
 function previewFromCurrentCore(
   coreRaw: string,
   sessionCount: number,
@@ -3432,7 +3450,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
     setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
     toast.success(successMessage);
-    window.setTimeout(() => window.location.reload(), 600);
+    scheduleAppReload();
     return result as StorageWriteResult<PersistedState>;
   };
 
@@ -3647,7 +3665,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       if (result.ok) {
         // Sucesso settled: reload controlado uma única vez.
         toast.success('Backup importado com sucesso. Recarregando...');
-        window.setTimeout(() => window.location.reload(), 600);
+        scheduleAppReload();
         return { ok: true };
       }
 
@@ -3655,7 +3673,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       if (result.reason === 'recovery-required') {
         // Manter autosave bloqueado; orientar reload.
         toast.error(IMPORT_FAILURE_MESSAGES['recovery-required']);
-        window.setTimeout(() => window.location.reload(), 600);
+        scheduleAppReload();
         return {
           ok: false,
           reason: 'recovery-required',
@@ -3667,7 +3685,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       if (result.compensation === 'failed') {
         // Compensation failed: estado ambíguo, reload.
         toast.error(IMPORT_FAILURE_MESSAGES['compensation-failed']);
-        window.setTimeout(() => window.location.reload(), 600);
+        scheduleAppReload();
         return {
           ok: false,
           reason: 'compensation-failed',
@@ -3690,7 +3708,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     } catch {
       // Exceção inesperada: estado ambíguo, reload.
       toast.error(IMPORT_FAILURE_MESSAGES['recovery-required']);
-      window.setTimeout(() => window.location.reload(), 600);
+      scheduleAppReload();
       return {
         ok: false,
         reason: 'recovery-required',
@@ -3891,7 +3909,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
       if (result.ok) {
         toast.success(RESTORE_SUCCESS_MESSAGE);
-        window.setTimeout(() => window.location.reload(), 600);
+        scheduleAppReload();
         return {
           ok: true,
           requiresReload: true,
@@ -3901,7 +3919,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
       if (result.recoveryRequired || result.reason === 'recovery-required') {
         toast.error(RESTORE_FAILURE_MESSAGES['recovery-required']);
-        window.setTimeout(() => window.location.reload(), 600);
+        scheduleAppReload();
         return failRestore('recovery-required', true);
       }
 
@@ -3918,7 +3936,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       return failRestore(publicReason);
     } catch {
       toast.error(RESTORE_FAILURE_MESSAGES['recovery-required']);
-      window.setTimeout(() => window.location.reload(), 600);
+      scheduleAppReload();
       return failRestore('recovery-required', true);
     }
   }, [toast]);
@@ -4110,8 +4128,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
       if (result.ok) {
         toast.success(RESET_SUCCESS_MESSAGE);
-        const reload = window.location.reload.bind(window.location);
-        window.setTimeout(() => { reload(); }, 600);
+        scheduleAppReload();
         return {
           ok: true,
           requiresReload: true,
@@ -4121,8 +4138,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
       if (result.recoveryRequired || result.reason === 'recovery-required') {
         toast.error(RESET_FAILURE_MESSAGES['recovery-required']);
-        const reload = window.location.reload.bind(window.location);
-        window.setTimeout(() => { reload(); }, 600);
+        scheduleAppReload();
         return failReset('recovery-required', true);
       }
 
@@ -4141,8 +4157,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       return failReset(publicReason);
     } catch {
       toast.error(RESET_FAILURE_MESSAGES['recovery-required']);
-      const reload = window.location.reload.bind(window.location);
-      window.setTimeout(() => { reload(); }, 600);
+      scheduleAppReload();
       return failReset('recovery-required', true);
     }
   }, [toast]);
