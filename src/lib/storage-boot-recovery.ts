@@ -9,10 +9,21 @@ import {
   recoverLogicalStorageAdministrationV2,
 } from './storage-administrative-recovery';
 import type { StorageAdminOwnerTokenCoordinator } from './storage-admin-owner-token';
-import { parsePhysicalEnvelope } from './storage-hybrid';
-import type { StorageLike } from './storage-types';
-import { isRecord } from './storage-validation';
+import {
+  combineCoreWithHistory,
+  HYBRID_CORE_BACKUP_SUFFIX,
+  parsePhysicalEnvelope,
+  saveHybridCoreResult,
+  toPersistedCoreState,
+} from './storage-hybrid';
+import {
+  EMPTY_GENERATION_DIGEST,
+  verifyHistoryGeneration,
+} from './storage-history-integrity';
+import type { StorageLike, PersistedState, PersistedCoreState } from './storage-types';
+import { isRecord, parseEnvelope } from './storage-validation';
 import { recoverStorageRetirementJournal } from './storage-retirement-journal';
+import type { WorkoutSession } from '../types';
 
 // ---------------------------------------------------------------------------
 // GOAL-17B-002D-D1 — recuperação administrativa ANTES da hidratação
@@ -137,12 +148,187 @@ function readyForBlockedStorageClassification(): StorageBootRecoveryBlockedClass
   };
 }
 
-// Classificação FECHADA. O padrão é bloquear: qualquer forma não reconhecida cai
-// no `default`, nunca em "segue mesmo assim".
-function classifyInitialAdministrationUnavailable(
+async function attemptSafeBootReconciliation(
+  input: StorageBootRecoveryInput & {
+    runtime: StorageAdminRuntime;
+    raw: string;
+    core: PersistedCoreState;
+  },
+): Promise<StorageBootRecoveryOutcome | null> {
+  const { raw, core } = input;
+  const targetGenId = core.historyStorage?.generationId;
+  if (!targetGenId || typeof targetGenId !== 'string') return null;
+
+  let available = false;
+  try {
+    if (typeof input.adapter?.isAvailable === 'function') {
+      available = await input.adapter.isAvailable();
+    }
+  } catch {
+    return null;
+  }
+  if (!available) return null;
+
+  try {
+    await input.adapter.open();
+  } catch {
+    return null;
+  }
+
+  let adminSnapshot;
+  try {
+    adminSnapshot = await input.adapter.readStorageAdministrationSnapshot();
+  } catch {
+    return null;
+  }
+  if (
+    !adminSnapshot
+    || adminSnapshot.unsettledOperations.length > 0
+    || adminSnapshot.pendingCompletionReceipts.length > 0
+  ) {
+    return null;
+  }
+
+  let provenSessions: WorkoutSession[] | null = null;
+
+  // Candidato 1: a geração targetGenId existe fisicamente e passa na verificação integral
+  try {
+    const genSnapshot = await input.adapter.readHistoryGenerationSnapshot(targetGenId);
+    if (genSnapshot.present) {
+      const verification = await verifyHistoryGeneration(targetGenId, genSnapshot);
+      if (verification.status === 'verified') {
+        provenSessions = verification.sessions;
+      }
+    }
+  } catch {
+    // Continua
+  }
+
+  // Candidato 2: snapshot legado verificado em LEGACY_SNAPSHOTS_STORE
+  if (provenSessions === null) {
+    try {
+      const legacy = await input.adapter.readLegacySnapshot();
+      if (legacy?.verified) {
+        const parsedLegacy = parseEnvelope<PersistedState>(legacy.raw);
+        if (parsedLegacy.status === 'ok') {
+          provenSessions = parsedLegacy.envelope.data.workoutHistory ?? [];
+        }
+      }
+    } catch {
+      // Continua
+    }
+  }
+
+  // Candidato 3: manifest explícito de histórico vazio para targetGenId
+  if (provenSessions === null) {
+    try {
+      const manifest = await input.adapter.readGenerationManifest(targetGenId);
+      if (
+        manifest
+        && manifest.verified
+        && manifest.sessionCount === 0
+        && manifest.orderedDigest === EMPTY_GENERATION_DIGEST
+      ) {
+        provenSessions = [];
+      }
+    } catch {
+      // Continua
+    }
+  }
+
+  // Se nenhuma fonte puder ser comprovada, recusa recuperação automática (Regra 10: ausência física continua sendo ausência)
+  if (provenSessions === null) {
+    return null;
+  }
+
+  // Reconciliação (Regra 9): prepare -> verify -> activate -> reread -> confirm
+  try {
+    // 1. Preservar cópia física verificável do estado atual antes da mutação (Regra 11)
+    const backupKey = `${input.key}${HYBRID_CORE_BACKUP_SUFFIX}`;
+    input.storage.setItem(backupKey, raw);
+    if (input.storage.getItem(backupKey) !== raw) {
+      return null;
+    }
+
+    // Tentar ativação direta se a geração já estiver presente e com marker válido
+    let activeGenId = targetGenId;
+    let activatedDirectly = false;
+    const hasTarget = typeof input.adapter.hasHistoryGeneration === 'function'
+      ? await input.adapter.hasHistoryGeneration(targetGenId)
+      : false;
+
+    if (hasTarget) {
+      try {
+        await input.adapter.writeMetadata({ migrationGeneration: targetGenId });
+        await input.adapter.activateHistoryGeneration(targetGenId);
+        await input.adapter.writeMetadata({
+          migrationGeneration: null,
+          migrationStatus: 'completed',
+          migratedAt: new Date().toISOString(),
+          sourceStorageVersion: 2,
+        });
+        activatedDirectly = true;
+      } catch {
+        await input.adapter.writeMetadata({ migrationGeneration: null }).catch(() => undefined);
+        activatedDirectly = false;
+      }
+    }
+
+    if (!activatedDirectly) {
+      await input.adapter.writeMetadata({ migrationGeneration: null }).catch(() => undefined);
+      // Preparar nova geração com as sessões comprovadas
+      const newGenId = await input.adapter.prepareHistoryGeneration(provenSessions);
+      const newGenSnapshot = await input.adapter.readHistoryGenerationSnapshot(newGenId);
+      const newVerification = await verifyHistoryGeneration(newGenId, newGenSnapshot);
+      if (newVerification.status !== 'verified') {
+        return null;
+      }
+      await input.adapter.activateHistoryGeneration(newGenId);
+      await input.adapter.writeMetadata({
+        migrationGeneration: null,
+        migrationStatus: 'completed',
+        migratedAt: new Date().toISOString(),
+        sourceStorageVersion: 2,
+      });
+      activeGenId = newGenId;
+
+      // Atualizar localStorage core com readback confirmado
+      const updatedCore = toPersistedCoreState(
+        combineCoreWithHistory(core, provenSessions),
+        activeGenId,
+      );
+      const saveResult = saveHybridCoreResult(input.key, updatedCore, input.storage);
+      if (!saveResult.ok) {
+        return null;
+      }
+    }
+
+    // Reread e confirm
+    const finalMeta = await input.adapter.readMetadata();
+    if (
+      finalMeta.activeGeneration !== activeGenId
+      || finalMeta.migrationGeneration !== null
+      || finalMeta.migrationStatus !== 'completed'
+    ) {
+      return null;
+    }
+
+    const finalAdmin = await input.runtime.inspectStorageAdministration();
+    if (finalAdmin.state.status !== 'ready') {
+      return null;
+    }
+
+    return ready('ready-after-settled', false);
+  } catch {
+    return null;
+  }
+}
+
+async function classifyInitialAdministrationUnavailable(
   result: Record<string, unknown>,
-  input: Pick<StorageBootRecoveryInput, 'storage' | 'key'>,
-): StorageBootRecoveryOutcome {
+  input: StorageBootRecoveryInput,
+  runtime: StorageAdminRuntime,
+): Promise<StorageBootRecoveryOutcome> {
   const cleanupPending = result.cleanupPending === true;
   if (
     result.steps !== 0
@@ -165,6 +351,13 @@ function classifyInitialAdministrationUnavailable(
   const physical = parsePhysicalEnvelope(raw);
   if (physical.status === 'v1') return ready('ready-no-operation', false);
   if (physical.status === 'v2') {
+    const reconciled = await attemptSafeBootReconciliation({
+      ...input,
+      runtime,
+      raw,
+      core: physical.envelope.data,
+    });
+    if (reconciled) return reconciled;
     return blocked('blocked-storage-unavailable', false, 2);
   }
   if (physical.status === 'corrupt' && physical.physicalVersion === 2) {
@@ -279,7 +472,7 @@ export async function runStorageBootRecovery(
       && result.ok === false
       && result.reason === 'administration-unavailable'
     ) {
-      return classifyInitialAdministrationUnavailable(result, input);
+      return classifyInitialAdministrationUnavailable(result, input, runtime);
     }
     const classified = classifyStorageBootRecovery(result);
     if (classified.hydrationAllowed !== true) return classified;
