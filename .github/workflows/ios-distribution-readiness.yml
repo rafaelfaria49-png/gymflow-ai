@@ -1,0 +1,354 @@
+name: iOS Distribution Readiness Validation
+
+on:
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  archive-release:
+    name: Release Archive & Distribution Gate (macOS 26)
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Prepare Artifacts Directory
+        run: |
+          mkdir -p artifacts
+
+      - name: 1. Toolchain Diagnostics & Gate (Xcode 26+ / iphoneos SDK 26+)
+        run: |
+          echo "=== TOOLCHAIN DIAGNOSTICS ===" > artifacts/archive-toolchain-summary.txt
+          echo "Date: $(date -u)" >> artifacts/archive-toolchain-summary.txt
+          echo "--- macOS Version ---" >> artifacts/archive-toolchain-summary.txt
+          sw_vers | tee -a artifacts/archive-toolchain-summary.txt
+          echo "--- Architecture ---" >> artifacts/archive-toolchain-summary.txt
+          uname -m | tee -a artifacts/archive-toolchain-summary.txt
+          echo "--- Active Developer Directory ---" >> artifacts/archive-toolchain-summary.txt
+          xcode-select -p | tee -a artifacts/archive-toolchain-summary.txt
+
+          # Selecionar Xcode 26 se a versão padrão for inferior
+          INITIAL_XCODE_MAJOR=$(xcodebuild -version | head -n 1 | awk '{print $2}' | cut -d'.' -f1)
+          if [ "$INITIAL_XCODE_MAJOR" -lt 26 ]; then
+            echo "Aviso: Xcode padrão ($INITIAL_XCODE_MAJOR) < 26. Buscando Xcode 26 em /Applications..."
+            XCODE_26_PATH=$(find /Applications -maxdepth 1 -name "Xcode*26*.app" | head -n 1)
+            if [ -n "$XCODE_26_PATH" ]; then
+              echo "Alternando xcode-select para: $XCODE_26_PATH..."
+              sudo xcode-select -s "$XCODE_26_PATH/Contents/Developer"
+            fi
+          fi
+
+          echo "--- Effective Xcode Version ---" >> artifacts/archive-toolchain-summary.txt
+          xcodebuild -version | tee -a artifacts/archive-toolchain-summary.txt
+          echo "--- iPhoneOS SDK Version ---" >> artifacts/archive-toolchain-summary.txt
+          xcrun --sdk iphoneos --show-sdk-version | tee -a artifacts/archive-toolchain-summary.txt
+          echo "--- Node & Package Managers ---" >> artifacts/archive-toolchain-summary.txt
+          echo "Node: $(node --version)" | tee -a artifacts/archive-toolchain-summary.txt
+          echo "npm: $(npm --version)" | tee -a artifacts/archive-toolchain-summary.txt
+          echo "CocoaPods: $(pod --version)" | tee -a artifacts/archive-toolchain-summary.txt
+          echo "=== END TOOLCHAIN DIAGNOSTICS ===" >> artifacts/archive-toolchain-summary.txt
+
+          XCODE_VER=$(xcodebuild -version | head -n 1 | awk '{print $2}')
+          XCODE_MAJOR=$(echo "$XCODE_VER" | cut -d'.' -f1)
+          IPHONEOS_SDK_VER=$(xcrun --sdk iphoneos --show-sdk-version)
+          IPHONEOS_SDK_MAJOR=$(echo "$IPHONEOS_SDK_VER" | cut -d'.' -f1)
+
+          echo "XCODE_VERSION=$XCODE_VER" >> $GITHUB_ENV
+          echo "IPHONEOS_SDK_VERSION=$IPHONEOS_SDK_VER" >> $GITHUB_ENV
+
+          echo "=== TOOLCHAIN GATE CHECK ==="
+          echo "Xcode: $XCODE_VER (Major: $XCODE_MAJOR)"
+          echo "iPhoneOS SDK: $IPHONEOS_SDK_VER (Major: $IPHONEOS_SDK_MAJOR)"
+
+          if [ "$XCODE_MAJOR" -lt 26 ]; then
+            echo "GATE FAIL: Xcode major ($XCODE_MAJOR) < 26!"
+            exit 1
+          fi
+
+          if [ "$IPHONEOS_SDK_MAJOR" -lt 26 ]; then
+            echo "GATE FAIL: iphoneos SDK major ($IPHONEOS_SDK_MAJOR) < 26!"
+            exit 1
+          fi
+
+          echo "TOOLCHAIN GATE: PASS (Xcode $XCODE_VER, iOS SDK $IPHONEOS_SDK_VER)"
+
+      - name: 2. Install Dependencies
+        run: |
+          npm ci
+
+      - name: 3. Static Verification (TypeScript & iOS Readiness)
+        run: |
+          npm run ios:validate
+          npx tsc --noEmit
+
+      - name: 4. Build Mobile Frontend & Capacitor Sync
+        run: |
+          npm run build:mobile
+          npx cap sync ios
+          cd ios/App
+          pod install
+          cd ../..
+
+      - name: 5. Inspect Xcode Project & Release Configuration
+        run: |
+          echo "=== XCODEBUILD LIST ==="
+          xcodebuild -list -workspace ios/App/App.xcworkspace | tee artifacts/xcodebuild-list.txt
+
+          echo "=== RELEASE BUILD SETTINGS ==="
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -showBuildSettings > artifacts/release-build-settings.txt
+
+          BUNDLE_ID=$(grep ' PRODUCT_BUNDLE_IDENTIFIER =' artifacts/release-build-settings.txt | head -n 1 | awk '{print $3}')
+          MARKETING_VER=$(grep ' MARKETING_VERSION =' artifacts/release-build-settings.txt | head -n 1 | awk '{print $3}')
+          CURRENT_PROJ_VER=$(grep ' CURRENT_PROJECT_VERSION =' artifacts/release-build-settings.txt | head -n 1 | awk '{print $3}')
+          DEPLOY_TARGET=$(grep ' IPHONEOS_DEPLOYMENT_TARGET =' artifacts/release-build-settings.txt | head -n 1 | awk '{print $3}')
+
+          echo "PRODUCT_BUNDLE_IDENTIFIER: $BUNDLE_ID"
+          echo "MARKETING_VERSION: $MARKETING_VER"
+          echo "CURRENT_PROJECT_VERSION: $CURRENT_PROJ_VER"
+          echo "IPHONEOS_DEPLOYMENT_TARGET: $DEPLOY_TARGET"
+
+          echo "PRODUCT_BUNDLE_IDENTIFIER=$BUNDLE_ID" >> $GITHUB_ENV
+          echo "MARKETING_VERSION=$MARKETING_VER" >> $GITHUB_ENV
+          echo "CURRENT_PROJECT_VERSION=$CURRENT_PROJ_VER" >> $GITHUB_ENV
+          echo "IPHONEOS_DEPLOYMENT_TARGET=$DEPLOY_TARGET" >> $GITHUB_ENV
+
+          if [ "$BUNDLE_ID" != "com.gymflowai.app" ]; then
+            echo "ERRO: Bundle Identifier esperado 'com.gymflowai.app', obtido '$BUNDLE_ID'"
+            exit 1
+          fi
+
+          if [ -z "$MARKETING_VER" ] || [ -z "$CURRENT_PROJ_VER" ]; then
+            echo "ERRO: Versionamento não encontrado nas build settings de Release!"
+            exit 1
+          fi
+
+      - name: 6. Execute Release Archive (Unsigned)
+        run: |
+          set -o pipefail
+          echo "Executando xcodebuild archive para generic iOS device (Release)..."
+          xcodebuild -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath artifacts/GymFlow.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            archive | tee artifacts/xcodebuild-archive.log
+
+      - name: 7. Validate Archive Structure & Info.plist
+        run: |
+          ARCHIVE_PATH="artifacts/GymFlow.xcarchive"
+          APP_PATH="$ARCHIVE_PATH/Products/Applications/App.app"
+          ARCHIVE_INFO_PLIST="$ARCHIVE_PATH/Info.plist"
+
+          echo "Verificando existência do .xcarchive..."
+          if [ ! -d "$ARCHIVE_PATH" ]; then
+            echo "CRITÉRIO FALHOU: $ARCHIVE_PATH não existe!"
+            exit 1
+          fi
+
+          echo "Verificando Products/Applications/App.app..."
+          if [ ! -d "$APP_PATH" ]; then
+            echo "CRITÉRIO FALHOU: $APP_PATH não existe!"
+            exit 1
+          fi
+
+          echo "Verificando Info.plist do Archive..."
+          if [ ! -f "$ARCHIVE_INFO_PLIST" ]; then
+            echo "CRITÉRIO FALHOU: $ARCHIVE_INFO_PLIST não existe!"
+            exit 1
+          fi
+
+          echo "--- Conteúdo do Archive Info.plist ---"
+          plutil -p "$ARCHIVE_INFO_PLIST" | tee artifacts/archive-info-plist.txt
+
+          ARCHIVE_BUNDLE_ID=$(plutil -extract ApplicationProperties.CFBundleIdentifier raw "$ARCHIVE_INFO_PLIST" 2>/dev/null || echo "")
+          ARCHIVE_VERSION=$(plutil -extract ApplicationProperties.CFBundleShortVersionString raw "$ARCHIVE_INFO_PLIST" 2>/dev/null || echo "")
+          ARCHIVE_BUILD=$(plutil -extract ApplicationProperties.CFBundleVersion raw "$ARCHIVE_INFO_PLIST" 2>/dev/null || echo "")
+
+          echo "ARCHIVE_BUNDLE_ID=$ARCHIVE_BUNDLE_ID"
+          echo "ARCHIVE_VERSION=$ARCHIVE_VERSION"
+          echo "ARCHIVE_BUILD=$ARCHIVE_BUILD"
+
+          if [ "$ARCHIVE_BUNDLE_ID" != "com.gymflowai.app" ]; then
+            echo "CRITÉRIO FALHOU: Bundle ID no Archive ($ARCHIVE_BUNDLE_ID) != com.gymflowai.app"
+            exit 1
+          fi
+
+          if [ -z "$ARCHIVE_VERSION" ] || [ -z "$ARCHIVE_BUILD" ]; then
+            echo "CRITÉRIO FALHOU: Versão ou Build ausentes no Archive Info.plist"
+            exit 1
+          fi
+
+          echo "IOS_UNSIGNED_ARCHIVE=PASS" >> $GITHUB_ENV
+          echo "IOS_UNSIGNED_ARCHIVE: PASS"
+
+      - name: 8. Inspect App Bundle Inside Archive
+        run: |
+          APP_PATH="artifacts/GymFlow.xcarchive/Products/Applications/App.app"
+          APP_INFO_PLIST="$APP_PATH/Info.plist"
+
+          echo "--- Inspecionando App.app/Info.plist ---"
+          plutil -p "$APP_INFO_PLIST" > artifacts/app-info-plist.txt
+          head -n 25 artifacts/app-info-plist.txt
+
+          CF_BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw "$APP_INFO_PLIST")
+          CF_VERSION=$(plutil -extract CFBundleShortVersionString raw "$APP_INFO_PLIST")
+          CF_BUILD=$(plutil -extract CFBundleVersion raw "$APP_INFO_PLIST")
+
+          echo "CFBundleIdentifier: $CF_BUNDLE_ID"
+          echo "CFBundleShortVersionString: $CF_VERSION"
+          echo "CFBundleVersion: $CF_BUILD"
+
+          if [ "$CF_BUNDLE_ID" != "com.gymflowai.app" ]; then
+            echo "ERRO: CFBundleIdentifier ($CF_BUNDLE_ID) incorreto!"
+            exit 1
+          fi
+
+          echo "--- Inspecionando AppIcon ---"
+          find "$APP_PATH" -name "*AppIcon*" | tee artifacts/embedded-appicons.txt
+          if [ -f "$APP_PATH/Assets.car" ]; then
+            echo "Assets.car confirmado."
+          fi
+
+          echo "--- Inspecionando Frameworks Embutidos ---"
+          if [ -d "$APP_PATH/Frameworks" ]; then
+            ls -lh "$APP_PATH/Frameworks" | tee artifacts/embedded-frameworks.txt
+          else
+            echo "Nenhum diretório Frameworks isolado (estático ou sem dynamic frameworks)."
+          fi
+
+          echo "--- Inspecionando Web Assets do Capacitor ---"
+          find "$APP_PATH/public" -maxdepth 2 | head -n 30 | tee artifacts/embedded-public-assets.txt
+
+          echo "--- Listagem Completa de Arquivos no App.app ---"
+          find "$APP_PATH" > artifacts/app-bundle-filelist.txt
+          echo "Total de arquivos no App.app: $(wc -l < artifacts/app-bundle-filelist.txt)"
+
+      - name: 9. Verify Embedded Privacy Manifest
+        run: |
+          APP_PATH="artifacts/GymFlow.xcarchive/Products/Applications/App.app"
+          PRIVACY_PATH=$(find "$APP_PATH" -name "PrivacyInfo.xcprivacy" | head -n 1)
+
+          echo "Buscando PrivacyInfo.xcprivacy embutido no bundle..."
+          echo "Caminho encontrado: $PRIVACY_PATH"
+
+          if [ -z "$PRIVACY_PATH" ] || [ ! -f "$PRIVACY_PATH" ]; then
+            echo "ERRO: PrivacyInfo.xcprivacy NÃO está presente no App.app arquivado!"
+            exit 1
+          fi
+
+          echo "--- Conteúdo do Privacy Manifest do Produto Arquivado ---"
+          cat "$PRIVACY_PATH" | tee artifacts/archived-privacy-manifest.txt
+          echo "EVIDÊNCIA: Privacy Manifest confirmado em $PRIVACY_PATH"
+
+      - name: 10. Audit Binaries, Content and Security
+        run: |
+          ARCHIVE_PATH="artifacts/GymFlow.xcarchive"
+          APP_PATH="$ARCHIVE_PATH/Products/Applications/App.app"
+
+          echo "=== AUDITORIA DE CONTEÚDO E SEGURANÇA NO ARCHIVE ==="
+
+          # 1. Zero arquivos de vídeo de produção (MP4)
+          MP4_FILES=$(find "$APP_PATH" -type f -name "*.mp4" || true)
+          if [ -n "$MP4_FILES" ]; then
+            echo "ERRO DE AUDITORIA: Arquivos MP4 de produção encontrados dentro do bundle!"
+            echo "$MP4_FILES"
+            exit 1
+          fi
+          echo "Arquivos MP4 de produção embutidos: ZERO (OK)"
+
+          # 2. Zero segredos, chaves e certificados privados
+          SENSITIVE_FILES=$(find "$ARCHIVE_PATH" -type f \( \
+            -name "*.p12" -o \
+            -name "*.p8" -o \
+            -name "*.cer" -o \
+            -name "*.key" -o \
+            -name "*.mobileprovision" -o \
+            -name "*.provisionprofile" -o \
+            -name "*.ipa" \) || true)
+          if [ -n "$SENSITIVE_FILES" ]; then
+            echo "ERRO DE SEGURANÇA: Certificados ou chaves detectados dentro do Archive!"
+            echo "$SENSITIVE_FILES"
+            exit 1
+          fi
+          echo "Certificados, chaves ou perfis de assinatura privados no Archive: ZERO (OK)"
+
+          # 3. Nenhum arquivo de scratch ou temporário
+          SCRATCH_FILES=$(find "$APP_PATH" -type f \( -name "*scratch*" -o -name "*.tmp" \) || true)
+          if [ -n "$SCRATCH_FILES" ]; then
+            echo "AVISO: Arquivos scratch detectados no App.app: $SCRATCH_FILES"
+          fi
+
+          # 4. Cálculo de tamanhos
+          ARCHIVE_SIZE=$(du -sh "$ARCHIVE_PATH" | awk '{print $1}')
+          APP_SIZE=$(du -sh "$APP_PATH" | awk '{print $1}')
+
+          echo "Tamanho total do .xcarchive: $ARCHIVE_SIZE"
+          echo "Tamanho total do App.app: $APP_SIZE"
+
+          echo "ARCHIVE_SIZE=$ARCHIVE_SIZE" >> $GITHUB_ENV
+          echo "APP_SIZE=$APP_SIZE" >> $GITHUB_ENV
+
+          cat << EOF > artifacts/archive-audit-summary.txt
+          === AUDITORIA DO ARCHIVE RELEASE ===
+          Data: $(date -u)
+          Bundle Identifier: com.gymflowai.app
+          Tamanho do .xcarchive: $ARCHIVE_SIZE
+          Tamanho do App.app: $APP_SIZE
+          Arquivos MP4 de produção: 0
+          Chaves / Certificados privados: 0
+          Provisioning Profiles: 0
+          IPAs: 0
+          Privacy Manifest: PRESENTE ($PRIVACY_PATH)
+          Status de Segurança: APROVADO
+          EOF
+          cat artifacts/archive-audit-summary.txt
+
+      - name: 11. Generate Distribution Readiness Summary
+        run: |
+          cat << 'EOF' > artifacts/distribution-readiness-summary.md
+          # Resumo da Validação de Distribuição iOS (macOS 26 / Xcode 26)
+
+          - **Runner:** macos-26
+          - **Xcode Version:** ${{ env.XCODE_VERSION }}
+          - **iPhoneOS SDK:** ${{ env.IPHONEOS_SDK_VERSION }}
+          - **Configuração:** Release
+          - **Destino:** generic/platform=iOS
+          - **Workspace:** ios/App/App.xcworkspace
+          - **Scheme:** App
+          - **Bundle ID:** com.gymflowai.app
+          - **Marketing Version:** ${{ env.MARKETING_VERSION }}
+          - **Project Build Version:** ${{ env.CURRENT_PROJECT_VERSION }}
+          - **Deployment Target:** ${{ env.IPHONEOS_DEPLOYMENT_TARGET }}
+          - **Unsigned Archive:** PASS (`artifacts/GymFlow.xcarchive`)
+          - **App.app Presente:** PASS
+          - **Privacy Manifest Embutido:** PASS
+          - **Tamanho .xcarchive:** ${{ env.ARCHIVE_SIZE }}
+          - **Tamanho App.app:** ${{ env.APP_SIZE }}
+          - **Auditoria de Segurança:** PASS (0 MP4, 0 segredos, 0 certs)
+          EOF
+          cat artifacts/distribution-readiness-summary.md
+
+      - name: 12. Upload Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-distribution-readiness-artifacts
+          path: artifacts/
+          retention-days: 14
