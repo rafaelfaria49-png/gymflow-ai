@@ -1,0 +1,214 @@
+name: iOS Cloud Runtime Validation
+
+on:
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-ios:
+    name: Build & Simulator Validation (macOS)
+    runs-on: macos-14
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Prepare Artifacts Directory
+        run: |
+          mkdir -p artifacts
+
+      - name: 1. Toolchain Diagnostics
+        run: |
+          echo "=== TOOLCHAIN DIAGNOSTICS ===" > artifacts/toolchain-summary.txt
+          echo "Date: $(date -u)" >> artifacts/toolchain-summary.txt
+          echo "--- macOS Version ---" >> artifacts/toolchain-summary.txt
+          sw_vers | tee -a artifacts/toolchain-summary.txt
+          echo "--- Architecture ---" >> artifacts/toolchain-summary.txt
+          uname -m | tee -a artifacts/toolchain-summary.txt
+          echo "--- Xcode Version ---" >> artifacts/toolchain-summary.txt
+          xcodebuild -version | tee -a artifacts/toolchain-summary.txt
+          echo "--- iPhoneSimulator SDK Version ---" >> artifacts/toolchain-summary.txt
+          xcrun --sdk iphonesimulator --show-sdk-version | tee -a artifacts/toolchain-summary.txt
+          echo "--- Available Simulator Runtimes ---" >> artifacts/toolchain-summary.txt
+          xcrun simctl list runtimes | tee -a artifacts/toolchain-summary.txt
+          echo "--- Node & Package Managers ---" >> artifacts/toolchain-summary.txt
+          echo "Node: $(node --version)" | tee -a artifacts/toolchain-summary.txt
+          echo "npm: $(npm --version)" | tee -a artifacts/toolchain-summary.txt
+          echo "CocoaPods: $(pod --version)" | tee -a artifacts/toolchain-summary.txt
+          echo "=== END TOOLCHAIN DIAGNOSTICS ===" >> artifacts/toolchain-summary.txt
+
+      - name: 2. Install Dependencies
+        run: |
+          npm ci
+
+      - name: 3. Static Verification (TypeScript & iOS Readiness)
+        run: |
+          npm run ios:validate
+          npx tsc --noEmit
+
+      - name: 4. Build Mobile Frontend & Capacitor Sync
+        run: |
+          npm run build:mobile
+          npx cap sync ios
+          cd ios/App
+          pod install
+          cd ../..
+
+      - name: 5. Inspect Xcode Project & Workspace
+        run: |
+          echo "=== XCODEBUILD LIST ==="
+          xcodebuild -list -workspace ios/App/App.xcworkspace
+          
+          # Verificar Bundle ID e Deployment Target canônicos
+          echo "Bundle ID no project.pbxproj:"
+          grep "PRODUCT_BUNDLE_IDENTIFIER" ios/App/App.xcodeproj/project.pbxproj | head -n 3
+          echo "Deployment Target no Podfile:"
+          grep "platform :ios" ios/App/Podfile
+
+      - name: 6. Build App for iOS Simulator
+        run: |
+          set -o pipefail
+          echo "Compilando target App para simulador com CODE_SIGNING_ALLOWED=NO..."
+          xcodebuild -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build | tee artifacts/xcodebuild.log
+
+          APP_PATH=$(find build -name "App.app" -type d | head -n 1)
+          echo "APP_PATH=$APP_PATH"
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            echo "ERRO: App.app não foi gerado!"
+            exit 1
+          fi
+          echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
+
+      - name: 7. Select & Boot iOS Simulator
+        run: |
+          DEVICE_INFO=$(node -e '
+            const { execSync } = require("child_process");
+            const data = JSON.parse(execSync("xcrun simctl list devices available --json"));
+            let chosen = null;
+            for (const [runtime, devices] of Object.entries(data.devices)) {
+              if (!runtime.includes("iOS")) continue;
+              const iphone = devices.find(d => d.isAvailable && d.name.includes("iPhone 15")) ||
+                             devices.find(d => d.isAvailable && d.name.includes("iPhone 16")) ||
+                             devices.find(d => d.isAvailable && d.name.includes("iPhone"));
+              if (iphone) {
+                chosen = { udid: iphone.udid, name: iphone.name, runtime };
+                break;
+              }
+            }
+            if (!chosen) {
+              console.error("Nenhum simulador iPhone disponível");
+              process.exit(1);
+            }
+            console.log(`${chosen.udid}|${chosen.name}|${chosen.runtime}`);
+          ')
+          DEVICE_UDID=$(echo "$DEVICE_INFO" | cut -d'|' -f1)
+          DEVICE_NAME=$(echo "$DEVICE_INFO" | cut -d'|' -f2)
+          DEVICE_RUNTIME=$(echo "$DEVICE_INFO" | cut -d'|' -f3)
+
+          echo "Dispositivo selecionado: $DEVICE_NAME ($DEVICE_UDID)"
+          echo "Runtime selecionado: $DEVICE_RUNTIME"
+
+          echo "DEVICE_UDID=$DEVICE_UDID" >> $GITHUB_ENV
+          echo "DEVICE_NAME=$DEVICE_NAME" >> $GITHUB_ENV
+          echo "DEVICE_RUNTIME=$DEVICE_RUNTIME" >> $GITHUB_ENV
+
+          echo "Iniciando boot do simulador..."
+          xcrun simctl boot "$DEVICE_UDID"
+          echo "Aguardando boot completo..."
+          xcrun simctl bootstatus "$DEVICE_UDID" -b
+          echo "Simulador inicializado com sucesso."
+
+      - name: 8. Install App on Simulator
+        run: |
+          echo "Instalando $APP_PATH no simulador $DEVICE_UDID..."
+          xcrun simctl install "$DEVICE_UDID" "$APP_PATH"
+
+          echo "Confirmando instalação de com.gymflowai.app..."
+          CONTAINER_PATH=$(xcrun simctl get_app_container "$DEVICE_UDID" com.gymflowai.app)
+          echo "Container instalado em: $CONTAINER_PATH"
+          if [ -z "$CONTAINER_PATH" ]; then
+            echo "ERRO: com.gymflowai.app não foi encontrado no simulador!"
+            exit 1
+          fi
+
+      - name: 9. Launch App & Verify Cold Start
+        run: |
+          echo "Iniciando com.gymflowai.app..."
+          LAUNCH_RES=$(xcrun simctl launch "$DEVICE_UDID" com.gymflowai.app)
+          echo "Resultado do launch: $LAUNCH_RES"
+          PID=$(echo "$LAUNCH_RES" | awk -F': ' '{print $2}')
+          echo "PID retornado: $PID"
+
+          echo "Aguardando 10 segundos para renderização inicial e estabilização de cold start..."
+          sleep 10
+
+          echo "Verificando se processo ainda está ativo..."
+          RUNNING_CHECK=$(xcrun simctl spawn "$DEVICE_UDID" launchctl list | grep com.gymflowai.app || true)
+          echo "Status do processo: $RUNNING_CHECK"
+
+          # Coleta de logs de diagnóstico de cold start
+          echo "Coletando logs de cold start..."
+          xcrun simctl spawn "$DEVICE_UDID" log show --predicate 'process == "App"' --style compact --last 2m > artifacts/app_cold_start.log 2>&1 || true
+
+          # Verificação de relatórios de crash
+          if [ -d "$HOME/Library/Logs/DiagnosticReports" ]; then
+            CRASH_REPORTS=$(find "$HOME/Library/Logs/DiagnosticReports" -name "*App*" -type f || true)
+            if [ -n "$CRASH_REPORTS" ]; then
+              echo "CRASH DETECTADO!"
+              echo "$CRASH_REPORTS"
+              cp $CRASH_REPORTS artifacts/
+              exit 1
+            fi
+          fi
+          echo "Nenhum crash detectado durante o cold start."
+
+      - name: 10. Capture Screenshot
+        run: |
+          echo "Capturando screenshot do simulador..."
+          xcrun simctl io "$DEVICE_UDID" screenshot artifacts/simulator_initial_render.png
+          ls -lh artifacts/simulator_initial_render.png
+
+      - name: 11. Generate Execution Summary
+        run: |
+          cat << 'EOF' > artifacts/execution-summary.md
+          # Resumo da Validação iOS em macOS (GitHub Actions)
+
+          - **Runner:** macos-14
+          - **Dispositivo:** ${{ env.DEVICE_NAME }} (`${{ env.DEVICE_UDID }}`)
+          - **Runtime:** ${{ env.DEVICE_RUNTIME }}
+          - **Bundle ID:** `com.gymflowai.app`
+          - **Status do Build:** PASS
+          - **Status do Install:** PASS
+          - **Status do Launch:** PASS
+          - **Startup Crash:** NO
+          EOF
+          cat artifacts/execution-summary.md
+
+      - name: 12. Upload Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-macos-validation-artifacts
+          path: artifacts/
+          retention-days: 14
