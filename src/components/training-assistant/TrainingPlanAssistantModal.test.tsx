@@ -138,4 +138,24 @@ describe('TrainingPlanAssistantModal (GOAL-024)', () => {
     expect(savedProgram.isCustom).toBe(true);
     expect(savedProgram.weeks[0].days.length).toBeGreaterThanOrEqual(2);
   });
+
+  it('exibe aviso honesto e transparente sobre restrições do usuário', () => {
+    mockUseGymFlow.mockReturnValue({
+      ...baseContext,
+      user: {
+        ...baseContext.user,
+        restrictions: ['Ombro direito', 'Lombar'],
+      },
+    });
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <TrainingPlanAssistantModal isOpen={true} onClose={vi.fn()} />,
+      );
+    });
+
+    const text = collectText(renderer!.toJSON());
+    expect(text).toContain('Restrições informadas — revise os exercícios antes de aplicar (Ombro direito, Lombar).');
+  });
 });

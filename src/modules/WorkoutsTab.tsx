@@ -33,7 +33,7 @@ import {
   type ProgramSortKey,
 } from '../lib/workout-program-actions';
 import { WORKOUT_PROGRAM_TEMPLATES } from '../lib/workout-templates';
-import { findProfileRecommendations } from '../lib/training-plan-assistant';
+import { findProfileRecommendations, programMatchesTrainingGoal } from '../lib/training-plan-assistant';
 import { WorkoutProgramMenu, type WorkoutProgramMenuItem } from '../components/workout-builder/WorkoutProgramMenu';
 import { WorkoutProgramDeleteDialog } from '../components/workout-builder/WorkoutProgramDeleteDialog';
 import { TrainingPlanAssistantModal } from '../components/training-assistant/TrainingPlanAssistantModal';
@@ -181,8 +181,7 @@ export const WorkoutsTab = () => {
       if (selectedLevel !== 'all' && program.level !== selectedLevel) return false;
       if (selectedFrequency !== 'all' && program.frequencyDays !== Number(selectedFrequency)) return false;
       if (selectedGoal !== 'all') {
-        const text = `${program.objective} ${program.description} ${program.name}`.toLowerCase();
-        if (!text.includes(selectedGoal.toLowerCase())) return false;
+        if (!programMatchesTrainingGoal(program, selectedGoal)) return false;
       }
       return true;
     });
@@ -570,10 +569,10 @@ export const WorkoutsTab = () => {
                 className="bg-gym-card border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none min-h-[40px]"
               >
                 <option value="all">Todos os objetivos</option>
-                <option value="hipertrofia">Hipertrofia</option>
-                <option value="força">Força</option>
-                <option value="emagrec">Definição / Emagrecimento</option>
-                <option value="condicionamento">Condicionamento</option>
+                <option value="hypertrophy">Hipertrofia</option>
+                <option value="strength">Força</option>
+                <option value="slimming">Definição / Emagrecimento</option>
+                <option value="conditioning">Condicionamento</option>
               </select>
 
               {(selectedLevel !== 'all' || selectedFrequency !== 'all' || selectedGoal !== 'all' || query.trim() !== '') && (

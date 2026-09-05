@@ -7,7 +7,11 @@
 //     e restrições, gerando um WorkoutProgram canônico salvo em weeks[0].days.
 //
 // Regras inegociáveis:
-//  - Sem IA externa, sem chamadas de rede, sem Math.random (100% determinístico e testável).
+//  - Sem IA externa, sem chamadas de rede, sem heurísticas aleatórias não controladas.
+//  - Determinismo estrutural: as divisões, dias, nomes, rationale e seleção de exercícios
+//    são 100% determinísticos e testáveis para os mesmos inputs.
+//  - IDs de runtime únicos: para evitar colisões no banco/store local ao persistir ou salvar
+//    múltiplas propostas, IDs de programas e dias usam createBuilderId() e timestamps controlados.
 //  - 5 dias NUNCA gera repetição cíclica A/B/C/A/B.
 //  - Frequência 2 a 6 suportada de forma equilibrada.
 //  - Prioridades aumentam estímulo do grupo de forma controlada sem eliminar grupos principais.
@@ -172,12 +176,50 @@ function resolvePlanTargetMinutes(duration?: number): number {
   return 60;
 }
 
-// ===== Construtor de Divisão por Frequência =====
+// ===== Construtor de Divisão por Frequência e Validação =====
 
-interface RawDayDefinition {
+export interface RawDayDefinition {
   name: string;
   muscleGroupIds: MuscleGroupId[];
   rationale: string;
+}
+
+export type PriorityCategory = 'chest' | 'back' | 'legs' | 'shoulders' | 'arms' | 'none';
+
+export function classifyPriorityGroup(id?: MuscleGroupId): PriorityCategory {
+  if (!id) return 'none';
+  if (id === 'chest') return 'chest';
+  if (id === 'back') return 'back';
+  if (isLowerBody(id)) return 'legs';
+  if (id === 'shoulders') return 'shoulders';
+  if (id === 'biceps' || id === 'triceps' || id === 'forearms') return 'arms';
+  return 'none';
+}
+
+/**
+ * Helper puro de validação semanal de equilíbrio muscular.
+ * Garante que nenhum dos 5 grandes grupos funcionais (peito, costas, quadríceps,
+ * cadeia posterior: isquiotibiais/glúteos, e ombros) fique zerado na semana.
+ */
+export function validateWeeklySplitBalance(days: Array<{ muscleGroupIds: MuscleGroupId[] }>): {
+  valid: boolean;
+  missingGroups: MuscleGroupId[];
+} {
+  const allGroups = new Set(days.flatMap((d) => d.muscleGroupIds));
+  const missing: MuscleGroupId[] = [];
+
+  if (!allGroups.has('chest')) missing.push('chest');
+  if (!allGroups.has('back')) missing.push('back');
+  if (!allGroups.has('quadriceps')) missing.push('quadriceps');
+  if (!allGroups.has('hamstrings') && !allGroups.has('glutes')) {
+    missing.push('hamstrings');
+  }
+  if (!allGroups.has('shoulders')) missing.push('shoulders');
+
+  return {
+    valid: missing.length === 0,
+    missingGroups: missing,
+  };
 }
 
 function buildSplitDaysForFrequency(
@@ -185,44 +227,54 @@ function buildSplitDaysForFrequency(
   priorities: MuscleGroupId[],
   variant: number,
 ): RawDayDefinition[] {
-  const hasChest = priorities.includes('chest');
-  const hasBack = priorities.includes('back');
-  const hasLegs = priorities.some(isLowerBody);
-  const hasShoulders = priorities.includes('shoulders');
-  const hasArms = priorities.includes('biceps') || priorities.includes('triceps');
+  const p0 = classifyPriorityGroup(priorities[0]);
+  const p1 = classifyPriorityGroup(priorities[1]);
+  const p2 = classifyPriorityGroup(priorities[2]);
 
-  // ===== 2 DIAS =====
+  let days: RawDayDefinition[] = [];
+
+  // ===== 2 DIAS (Segunda e Quinta) =====
   if (freq === 2) {
-    if (hasChest) {
-      return [
+    if (p0 === 'chest') {
+      const dayBIds: MuscleGroupId[] = ['chest', 'hamstrings', 'glutes', 'triceps'];
+      if (p1 === 'back' || p2 === 'back') dayBIds.push('back');
+      if (p1 === 'shoulders' || p2 === 'shoulders') dayBIds.push('shoulders');
+      if (p1 === 'arms' || p2 === 'arms') dayBIds.push('biceps');
+      if (!dayBIds.includes('shoulders')) dayBIds.push('shoulders');
+
+      days = [
         {
           name: 'Corpo Inteiro A (Foco Peito)',
           muscleGroupIds: ['chest', 'back', 'quadriceps', 'core'],
-          rationale: 'Estímulo global com ênfase inicial em peitoral e grandes grupos.',
+          rationale: 'Estímulo global com ênfase primária em peitoral, dorsais e membros inferiores.',
         },
         {
-          name: 'Corpo Inteiro B (Peito Secundário)',
-          muscleGroupIds: ['chest', 'shoulders', 'hamstrings', 'glutes', 'triceps'],
-          rationale: 'Segundo estímulo de peito com estímulo posterior de pernas e ombros.',
+          name: p1 !== 'none' && priorities[1] ? `Corpo Inteiro B (Peito + ${muscleGroupShortLabel(priorities[1])})` : 'Corpo Inteiro B (Peito Secundário)',
+          muscleGroupIds: dayBIds,
+          rationale: 'Segundo estímulo de peito combinado com cadeia posterior, deltoides e braços.',
         },
       ];
-    }
-    if (hasBack) {
-      return [
+    } else if (p0 === 'back') {
+      const dayBIds: MuscleGroupId[] = ['back', 'hamstrings', 'glutes', 'core'];
+      if (p1 === 'chest' || p2 === 'chest') dayBIds.push('chest');
+      if (p1 === 'shoulders' || p2 === 'shoulders') dayBIds.push('shoulders');
+      if (p1 === 'arms' || p2 === 'arms') dayBIds.push('triceps');
+      if (!dayBIds.includes('shoulders')) dayBIds.push('shoulders');
+
+      days = [
         {
           name: 'Corpo Inteiro A (Foco Costas)',
           muscleGroupIds: ['back', 'chest', 'quadriceps', 'biceps'],
           rationale: 'Estímulo global com ênfase primária em dorsais e membros inferiores.',
         },
         {
-          name: 'Corpo Inteiro B (Costas Secundário)',
-          muscleGroupIds: ['back', 'hamstrings', 'glutes', 'shoulders', 'core'],
-          rationale: 'Segundo estímulo de costas com cadeia posterior e deltoides.',
+          name: p1 !== 'none' && priorities[1] ? `Corpo Inteiro B (Costas + ${muscleGroupShortLabel(priorities[1])})` : 'Corpo Inteiro B (Costas Secundário)',
+          muscleGroupIds: dayBIds,
+          rationale: 'Segundo estímulo de costas combinado com cadeia posterior e deltoides.',
         },
       ];
-    }
-    if (hasLegs) {
-      return [
+    } else if (p0 === 'legs') {
+      days = [
         {
           name: 'Inferior e Core (Foco Pernas)',
           muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'calves', 'core'],
@@ -234,10 +286,34 @@ function buildSplitDaysForFrequency(
           rationale: 'Trabalho completo de membros superiores com estímulo complementar de pernas.',
         },
       ];
-    }
-    // Sem prioridade explícita
-    if (variant % 2 === 1) {
-      return [
+    } else if (p0 === 'shoulders') {
+      days = [
+        {
+          name: 'Corpo Inteiro A (Foco Ombros)',
+          muscleGroupIds: ['shoulders', 'chest', 'back', 'quadriceps'],
+          rationale: 'Sessão global com foco proeminente em deltoides, peito e costas.',
+        },
+        {
+          name: 'Corpo Inteiro B (Ombros Secundário)',
+          muscleGroupIds: ['shoulders', 'hamstrings', 'glutes', 'biceps', 'triceps', 'core'],
+          rationale: 'Segundo estímulo de ombros com cadeia posterior e braços.',
+        },
+      ];
+    } else if (p0 === 'arms') {
+      days = [
+        {
+          name: 'Corpo Inteiro A (Foco Braços)',
+          muscleGroupIds: ['biceps', 'triceps', 'chest', 'quadriceps', 'core'],
+          rationale: 'Sessão global com volume dedicado para bíceps, tríceps e compostos de peito/pernas.',
+        },
+        {
+          name: 'Corpo Inteiro B (Braços Secundário)',
+          muscleGroupIds: ['biceps', 'triceps', 'back', 'hamstrings', 'glutes', 'shoulders'],
+          rationale: 'Segundo estímulo de braços associado a dorsais e cadeia posterior.',
+        },
+      ];
+    } else if (variant % 2 === 1) {
+      days = [
         {
           name: 'Superior',
           muscleGroupIds: ['chest', 'back', 'shoulders', 'biceps', 'triceps'],
@@ -249,25 +325,38 @@ function buildSplitDaysForFrequency(
           rationale: 'Cadeia anterior e posterior de pernas com estabilização de tronco.',
         },
       ];
+    } else {
+      days = [
+        {
+          name: 'Corpo Inteiro A',
+          muscleGroupIds: ['chest', 'back', 'quadriceps', 'core'],
+          rationale: 'Sessão equilibrada cobrindo empurrar, puxar e pernas anteriores.',
+        },
+        {
+          name: 'Corpo Inteiro B',
+          muscleGroupIds: ['shoulders', 'hamstrings', 'glutes', 'biceps', 'triceps', 'calves'],
+          rationale: 'Cadeia posterior, deltoides e braços completando a semana.',
+        },
+      ];
     }
-    return [
-      {
-        name: 'Corpo Inteiro A',
-        muscleGroupIds: ['chest', 'back', 'quadriceps', 'core'],
-        rationale: 'Sessão equilibrada cobrindo empurrar, puxar e pernas anteriores.',
-      },
-      {
-        name: 'Corpo Inteiro B',
-        muscleGroupIds: ['shoulders', 'hamstrings', 'glutes', 'biceps', 'triceps', 'calves'],
-        rationale: 'Cadeia posterior, deltoides e braços completando a semana.',
-      },
-    ];
   }
 
-  // ===== 3 DIAS =====
-  if (freq === 3) {
-    if (hasChest) {
-      return [
+  // ===== 3 DIAS (Segunda, Quarta, Sexta) =====
+  else if (freq === 3) {
+    if (p0 === 'chest') {
+      const day3Ids: MuscleGroupId[] = ['chest', 'shoulders', 'core'];
+      let day3Name = 'Peito e Ombros';
+      if (p1 === 'back') {
+        day3Ids.push('back');
+        day3Name = 'Tronco e Ombros (Peito e Costas)';
+      } else if (p1 === 'arms') {
+        day3Ids.push('biceps', 'triceps');
+        day3Name = 'Peito e Braços';
+      } else {
+        day3Ids.push('biceps');
+      }
+
+      days = [
         {
           name: 'Peito e Tríceps',
           muscleGroupIds: ['chest', 'triceps'],
@@ -276,17 +365,28 @@ function buildSplitDaysForFrequency(
         {
           name: 'Costas e Pernas',
           muscleGroupIds: ['back', 'quadriceps', 'hamstrings', 'glutes'],
-          rationale: 'Preserva equilíbrio corporal completo entre as duas sessões de peito.',
+          rationale: 'Preserva equilíbrio corporal completo e membros inferiores entre as sessões de peito.',
         },
         {
-          name: 'Peito e Ombros',
-          muscleGroupIds: ['chest', 'shoulders', 'biceps', 'core'],
-          rationale: 'Segundo estímulo de peito com deltoides e estabilização.',
+          name: day3Name,
+          muscleGroupIds: day3Ids,
+          rationale: 'Segundo estímulo de peito espaçado na semana combinado com deltoides e estabilização.',
         },
       ];
-    }
-    if (hasBack) {
-      return [
+    } else if (p0 === 'back') {
+      const day3Ids: MuscleGroupId[] = ['back', 'shoulders', 'core'];
+      let day3Name = 'Costas e Ombros';
+      if (p1 === 'chest') {
+        day3Ids.push('chest');
+        day3Name = 'Tronco e Ombros (Costas e Peito)';
+      } else if (p1 === 'arms') {
+        day3Ids.push('biceps', 'triceps');
+        day3Name = 'Costas e Braços';
+      } else {
+        day3Ids.push('triceps');
+      }
+
+      days = [
         {
           name: 'Costas e Bíceps',
           muscleGroupIds: ['back', 'biceps', 'traps'],
@@ -298,14 +398,13 @@ function buildSplitDaysForFrequency(
           rationale: 'Equilíbrio preservando empurrar e membros inferiores completos.',
         },
         {
-          name: 'Costas e Ombros',
-          muscleGroupIds: ['back', 'shoulders', 'triceps', 'core'],
-          rationale: 'Segundo estímulo de dorsais associado a deltoides.',
+          name: day3Name,
+          muscleGroupIds: day3Ids,
+          rationale: 'Segundo estímulo de dorsais associado a deltoides e tronco.',
         },
       ];
-    }
-    if (hasLegs) {
-      return [
+    } else if (p0 === 'legs') {
+      days = [
         {
           name: 'Pernas (Ênfase Quadríceps)',
           muscleGroupIds: ['quadriceps', 'glutes', 'calves'],
@@ -322,10 +421,44 @@ function buildSplitDaysForFrequency(
           rationale: 'Segundo estímulo de pernas com foco em isquiotibiais e glúteos.',
         },
       ];
-    }
-    // Sem prioridade
-    if (variant % 2 === 1) {
-      return [
+    } else if (p0 === 'shoulders') {
+      days = [
+        {
+          name: 'Peito e Ombros',
+          muscleGroupIds: ['chest', 'shoulders', 'triceps'],
+          rationale: 'Abertura com foco prioritário em deltoides e peitoral.',
+        },
+        {
+          name: 'Costas e Pernas',
+          muscleGroupIds: ['back', 'quadriceps', 'hamstrings', 'glutes'],
+          rationale: 'Membros inferiores e dorsais garantindo o balanço completo.',
+        },
+        {
+          name: 'Ombros e Braços',
+          muscleGroupIds: ['shoulders', 'biceps', 'triceps', 'core'],
+          rationale: 'Segundo estímulo de deltoides com trabalho isolado de braços.',
+        },
+      ];
+    } else if (p0 === 'arms') {
+      days = [
+        {
+          name: 'Peito e Bíceps',
+          muscleGroupIds: ['chest', 'biceps', 'core'],
+          rationale: 'Combinação permitindo bíceps descansados e peitoral.',
+        },
+        {
+          name: 'Costas e Tríceps',
+          muscleGroupIds: ['back', 'triceps', 'core'],
+          rationale: 'Dorsais com trabalho de tríceps.',
+        },
+        {
+          name: 'Pernas e Braços',
+          muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'biceps', 'triceps', 'shoulders'],
+          rationale: 'Membros inferiores associados a segundo estímulo dedicado de braços e deltoides.',
+        },
+      ];
+    } else if (variant % 2 === 1) {
+      days = [
         {
           name: 'Corpo Inteiro A',
           muscleGroupIds: ['quadriceps', 'chest', 'back', 'core'],
@@ -342,54 +475,103 @@ function buildSplitDaysForFrequency(
           rationale: 'Fechamento semanal consolidando os principais padrões motores.',
         },
       ];
+    } else {
+      days = [
+        {
+          name: 'Empurrar (Push)',
+          muscleGroupIds: ['chest', 'shoulders', 'triceps'],
+          rationale: 'Trabalho focado no padrão de empurrar horizontal e vertical.',
+        },
+        {
+          name: 'Puxar (Pull)',
+          muscleGroupIds: ['back', 'biceps', 'traps'],
+          rationale: 'Trabalho focado no padrão de puxada horizontal e vertical.',
+        },
+        {
+          name: 'Pernas (Legs)',
+          muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'calves', 'core'],
+          rationale: 'Membros inferiores completos com cadeia anterior, posterior e panturrilhas.',
+        },
+      ];
     }
-    return [
-      {
-        name: 'Empurrar (Push)',
-        muscleGroupIds: ['chest', 'shoulders', 'triceps'],
-        rationale: 'Trabalho focado no padrão de empurrar horizontal e vertical.',
-      },
-      {
-        name: 'Puxar (Pull)',
-        muscleGroupIds: ['back', 'biceps', 'traps'],
-        rationale: 'Trabalho focado no padrão de puxada horizontal e vertical.',
-      },
-      {
-        name: 'Pernas (Legs)',
-        muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'calves', 'core'],
-        rationale: 'Membros inferiores completos com cadeia anterior, posterior e panturrilhas.',
-      },
-    ];
   }
 
-  // ===== 4 DIAS =====
-  if (freq === 4) {
-    if (hasChest) {
-      return [
+  // ===== 4 DIAS (Segunda, Terça, Quinta, Sexta) =====
+  else if (freq === 4) {
+    if (p0 === 'chest') {
+      const day4Ids: MuscleGroupId[] = ['chest', 'shoulders', 'triceps'];
+      let day4Name = 'Superior (Peito Secundário)';
+      if (p1 === 'back') {
+        day4Ids.push('back');
+        day4Name = 'Superior (Peito e Costas)';
+      } else if (p1 === 'arms') {
+        day4Ids.push('biceps');
+        day4Name = 'Superior (Peito e Braços)';
+      } else if (p1 === 'shoulders') {
+        day4Name = 'Superior (Peito e Ombros)';
+      } else {
+        day4Ids.push('back');
+      }
+
+      days = [
         {
           name: 'Peito e Tríceps',
           muscleGroupIds: ['chest', 'triceps'],
           rationale: 'Sessão de abertura com volume concentrado no peitoral.',
         },
         {
-          name: 'Inferior A',
-          muscleGroupIds: ['quadriceps', 'calves', 'core'],
-          rationale: 'Membros inferiores preservando recuperação dos superiores.',
+          name: 'Membros Inferiores Completo',
+          muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'calves'],
+          rationale: 'Membros inferiores completos preservando a recuperação dos membros superiores.',
         },
         {
-          name: 'Costas e Ombros',
-          muscleGroupIds: ['back', 'shoulders', 'biceps'],
-          rationale: 'Trabalho de puxada e deltoides.',
+          name: 'Costas e Bíceps',
+          muscleGroupIds: ['back', 'biceps', 'core'],
+          rationale: 'Trabalho de puxada, dorsais e flexores de cotovelo sem sobrecarregar ombros na véspera.',
         },
         {
-          name: 'Superior (Peito Secundário)',
-          muscleGroupIds: ['chest', 'back', 'shoulders', 'triceps'],
-          rationale: 'Segundo estímulo de peito em sessão superior balanceada.',
+          name: day4Name,
+          muscleGroupIds: day4Ids,
+          rationale: 'Segundo estímulo de peito em sessão superior balanceada com deltoides e tronco.',
         },
       ];
-    }
-    if (hasLegs) {
-      return [
+    } else if (p0 === 'back') {
+      const day4Ids: MuscleGroupId[] = ['back', 'shoulders', 'biceps'];
+      let day4Name = 'Superior (Costas Secundário)';
+      if (p1 === 'chest') {
+        day4Ids.push('chest');
+        day4Name = 'Superior (Costas e Peito)';
+      } else if (p1 === 'arms') {
+        day4Ids.push('triceps');
+        day4Name = 'Costas e Braços';
+      } else {
+        day4Ids.push('chest');
+      }
+
+      days = [
+        {
+          name: 'Costas e Bíceps',
+          muscleGroupIds: ['back', 'biceps'],
+          rationale: 'Abertura semanal com foco prioritário em puxadas e largura dorsal.',
+        },
+        {
+          name: 'Membros Inferiores Completo',
+          muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'calves'],
+          rationale: 'Membros inferiores completos garantindo equilíbrio corporal.',
+        },
+        {
+          name: 'Peito e Tríceps',
+          muscleGroupIds: ['chest', 'triceps', 'core'],
+          rationale: 'Sessão de empurrar completa mantendo os membros superiores equilibrados.',
+        },
+        {
+          name: day4Name,
+          muscleGroupIds: day4Ids,
+          rationale: 'Segundo estímulo de costas com deltoides e membros superiores complementares.',
+        },
+      ];
+    } else if (p0 === 'legs') {
+      days = [
         {
           name: 'Inferior A (Quadríceps e Glúteos)',
           muscleGroupIds: ['quadriceps', 'glutes', 'calves'],
@@ -411,37 +593,82 @@ function buildSplitDaysForFrequency(
           rationale: 'Tronco completo com ênfase em puxadas e braços.',
         },
       ];
+    } else if (p0 === 'shoulders') {
+      days = [
+        {
+          name: 'Peito e Ombros',
+          muscleGroupIds: ['chest', 'shoulders', 'triceps'],
+          rationale: 'Abertura com ênfase primária em deltoides anterior/lateral e peitoral.',
+        },
+        {
+          name: 'Membros Inferiores Completo',
+          muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'calves'],
+          rationale: 'Membros inferiores completos equilibrados.',
+        },
+        {
+          name: 'Costas e Bíceps',
+          muscleGroupIds: ['back', 'biceps', 'core'],
+          rationale: 'Puxadas e estabilização de tronco.',
+        },
+        {
+          name: 'Ombros e Superior',
+          muscleGroupIds: ['shoulders', 'back', 'chest', 'biceps'],
+          rationale: 'Segundo estímulo de deltoides com trabalho complementar de tronco.',
+        },
+      ];
+    } else if (p0 === 'arms') {
+      days = [
+        {
+          name: 'Peito e Bíceps',
+          muscleGroupIds: ['chest', 'biceps', 'core'],
+          rationale: 'Abertura com foco prioritário em peito e flexores de cotovelo.',
+        },
+        {
+          name: 'Membros Inferiores Completo',
+          muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'calves'],
+          rationale: 'Membros inferiores completos.',
+        },
+        {
+          name: 'Costas e Tríceps',
+          muscleGroupIds: ['back', 'triceps', 'core'],
+          rationale: 'Dorsais com foco em tríceps.',
+        },
+        {
+          name: 'Braços e Ombros',
+          muscleGroupIds: ['biceps', 'triceps', 'shoulders', 'back'],
+          rationale: 'Segundo estímulo focado de braços e deltoides completando a semana.',
+        },
+      ];
+    } else {
+      days = [
+        {
+          name: 'Superior A',
+          muscleGroupIds: ['chest', 'back', 'shoulders', 'biceps', 'triceps'],
+          rationale: 'Membros superiores completos com ênfase em compostos.',
+        },
+        {
+          name: 'Inferior A',
+          muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'calves'],
+          rationale: 'Membros inferiores equilibrados entre anterior e posterior.',
+        },
+        {
+          name: 'Superior B',
+          muscleGroupIds: ['chest', 'back', 'shoulders', 'biceps', 'triceps'],
+          rationale: 'Segundo estímulo de superiores com variações complementares.',
+        },
+        {
+          name: 'Inferior B',
+          muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'core'],
+          rationale: 'Segundo estímulo de inferiores associado ao fortalecimento de core.',
+        },
+      ];
     }
-    // Sem prioridade / Padrão Upper/Lower
-    return [
-      {
-        name: 'Superior A',
-        muscleGroupIds: ['chest', 'back', 'shoulders', 'biceps', 'triceps'],
-        rationale: 'Membros superiores completos com ênfase em compostos.',
-      },
-      {
-        name: 'Inferior A',
-        muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'calves'],
-        rationale: 'Membros inferiores equilibrados entre anterior e posterior.',
-      },
-      {
-        name: 'Superior B',
-        muscleGroupIds: ['chest', 'back', 'shoulders', 'biceps', 'triceps'],
-        rationale: 'Segundo estímulo de superiores com variações complementares.',
-      },
-      {
-        name: 'Inferior B',
-        muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'core'],
-        rationale: 'Segundo estímulo de inferiores associado ao fortalecimento de core.',
-      },
-    ];
   }
 
   // ===== 5 DIAS (NUNCA VIRA A/B/C/A/B) =====
-  if (freq === 5) {
-    if (hasChest) {
-      // Exemplo canônico do objetivo: Peito prioritário com 2º estímulo sem excluir costas/pernas
-      return [
+  else if (freq === 5) {
+    if (p0 === 'chest') {
+      days = [
         {
           name: 'Peito e Tríceps',
           muscleGroupIds: ['chest', 'triceps'],
@@ -458,19 +685,18 @@ function buildSplitDaysForFrequency(
           rationale: 'Membros inferiores inteiros preservando o descanso dos membros superiores.',
         },
         {
-          name: 'Peito e Ombros',
+          name: p1 === 'shoulders' ? 'Peito e Ombros (Foco Deltoides)' : 'Peito e Ombros',
           muscleGroupIds: ['chest', 'shoulders'],
-          rationale: 'Segundo estímulo de peito espaçado por 72h, combinado com deltoides.',
+          rationale: 'Segundo estímulo de peito espaçado na semana, combinado com deltoides.',
         },
         {
-          name: 'Costas e Braços',
+          name: p1 === 'arms' ? 'Braços e Costas' : 'Costas e Braços',
           muscleGroupIds: ['back', 'biceps', 'triceps', 'core'],
           rationale: 'Fechamento semanal integrando costas, braços e core.',
         },
       ];
-    }
-    if (hasBack) {
-      return [
+    } else if (p0 === 'back') {
+      days = [
         {
           name: 'Costas e Bíceps',
           muscleGroupIds: ['back', 'biceps'],
@@ -492,14 +718,13 @@ function buildSplitDaysForFrequency(
           rationale: 'Segundo estímulo de costas focado em densidade, com deltoides.',
         },
         {
-          name: 'Braços e Core',
-          muscleGroupIds: ['biceps', 'triceps', 'core'],
+          name: p1 === 'chest' ? 'Peito e Braços' : p1 === 'arms' ? 'Braços Dedicados e Core' : 'Braços e Core',
+          muscleGroupIds: p1 === 'chest' ? ['chest', 'biceps', 'triceps', 'core'] : ['biceps', 'triceps', 'core'],
           rationale: 'Fechamento com volume específico para braços e estabilidade central.',
         },
       ];
-    }
-    if (hasLegs) {
-      return [
+    } else if (p0 === 'legs') {
+      days = [
         {
           name: 'Pernas (Foco Quadríceps)',
           muscleGroupIds: ['quadriceps', 'glutes', 'calves'],
@@ -526,9 +751,8 @@ function buildSplitDaysForFrequency(
           rationale: 'Fechamento semanal integrando deltoides, braços e abdômen.',
         },
       ];
-    }
-    if (hasShoulders) {
-      return [
+    } else if (p0 === 'shoulders') {
+      days = [
         {
           name: 'Peito e Ombros',
           muscleGroupIds: ['chest', 'shoulders'],
@@ -555,9 +779,8 @@ function buildSplitDaysForFrequency(
           rationale: 'Finalização equilibrada de braços e estabilização de tronco.',
         },
       ];
-    }
-    if (hasArms) {
-      return [
+    } else if (p0 === 'arms') {
+      days = [
         {
           name: 'Peito e Bíceps',
           muscleGroupIds: ['chest', 'biceps'],
@@ -584,11 +807,8 @@ function buildSplitDaysForFrequency(
           rationale: 'Segundo estímulo prioritário dedicado para flexores e extensores.',
         },
       ];
-    }
-
-    // Sem prioridade: Divisão 5 Dias clássica ou Upper/Lower/PPL
-    if (variant % 2 === 1) {
-      return [
+    } else if (variant % 2 === 1) {
+      days = [
         {
           name: 'Superior A',
           muscleGroupIds: ['chest', 'back', 'shoulders', 'biceps', 'triceps'],
@@ -615,117 +835,133 @@ function buildSplitDaysForFrequency(
           rationale: 'Segundo estímulo de pernas com fortalecimento central.',
         },
       ];
-    }
-
-    // Divisão 5 dias (Five Day Split do workout-templates)
-    return [
-      {
-        name: 'Peito',
-        muscleGroupIds: ['chest'],
-        rationale: 'Sessão dedicada de peitoral com ênfase em diferentes ângulos.',
-      },
-      {
-        name: 'Costas',
-        muscleGroupIds: ['back'],
-        rationale: 'Sessão dedicada de dorsais para largura e espessura.',
-      },
-      {
-        name: 'Pernas',
-        muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'calves'],
-        rationale: 'Treino completo de membros inferiores.',
-      },
-      {
-        name: 'Ombros e Core',
-        muscleGroupIds: ['shoulders', 'core'],
-        rationale: 'Deltoides completos e estabilização abdominal.',
-      },
-      {
-        name: 'Braços',
-        muscleGroupIds: ['biceps', 'triceps'],
-        rationale: 'Sessão focada em bíceps e tríceps em sinergia.',
-      },
-    ];
-  }
-
-  // ===== 6 DIAS =====
-  if (freq >= 6) {
-    if (hasChest) {
-      return [
+    } else {
+      days = [
         {
-          name: 'Empurrar A (Foco Peito)',
-          muscleGroupIds: ['chest', 'shoulders', 'triceps'],
-          rationale: 'Primeiro treino de empurrar com ênfase em supinos pesados.',
+          name: 'Peito',
+          muscleGroupIds: ['chest'],
+          rationale: 'Sessão dedicada de peitoral com ênfase em diferentes ângulos.',
         },
         {
-          name: 'Puxar A',
-          muscleGroupIds: ['back', 'biceps', 'traps'],
-          rationale: 'Puxadas completas e dorsais.',
+          name: 'Costas',
+          muscleGroupIds: ['back'],
+          rationale: 'Sessão dedicada de dorsais para largura e espessura.',
         },
         {
-          name: 'Pernas A',
-          muscleGroupIds: ['quadriceps', 'glutes', 'calves'],
-          rationale: 'Membros inferiores com dominância anterior.',
+          name: 'Pernas',
+          muscleGroupIds: ['quadriceps', 'hamstrings', 'glutes', 'calves'],
+          rationale: 'Treino completo de membros inferiores.',
         },
         {
-          name: 'Empurrar B (Foco Peito)',
-          muscleGroupIds: ['chest', 'shoulders', 'triceps'],
-          rationale: 'Segundo estímulo de peito com variações inclinadas e isolados.',
+          name: 'Ombros e Core',
+          muscleGroupIds: ['shoulders', 'core'],
+          rationale: 'Deltoides completos e estabilização abdominal.',
         },
         {
-          name: 'Puxar B',
-          muscleGroupIds: ['back', 'biceps'],
-          rationale: 'Segundo treino de puxada mantendo o balanço.',
-        },
-        {
-          name: 'Pernas B',
-          muscleGroupIds: ['hamstrings', 'glutes', 'calves', 'core'],
-          rationale: 'Segundo estímulo de membros inferiores.',
+          name: 'Braços',
+          muscleGroupIds: ['biceps', 'triceps'],
+          rationale: 'Sessão focada em bíceps e tríceps em sinergia.',
         },
       ];
     }
-    // Padrão PPL 6x (push-pull-legs-6)
-    return [
+  }
+
+  // ===== 6 DIAS (Segunda a Sábado) =====
+  else if (freq >= 6) {
+    const pushAName = p0 === 'chest' ? 'Empurrar A (Foco Peito)' : p0 === 'shoulders' ? 'Empurrar A (Foco Deltoides)' : 'Empurrar A';
+    const pullAName = p0 === 'back' || p1 === 'back' ? 'Puxar A (Foco Costas)' : p0 === 'arms' || p1 === 'arms' ? 'Puxar A (Foco Bíceps)' : 'Puxar A';
+    const legsAName = p0 === 'legs' ? 'Pernas A (Foco Quadríceps)' : 'Pernas A';
+    const pushBName = p0 === 'chest' ? 'Empurrar B (Foco Peito)' : p0 === 'shoulders' ? 'Empurrar B (Foco Deltoides)' : 'Empurrar B';
+    const pullBName = p0 === 'back' || p1 === 'back' ? 'Puxar B (Foco Costas)' : 'Puxar B';
+    const legsBName = p0 === 'legs' ? 'Pernas B (Foco Posterior/Glúteos)' : 'Pernas B';
+
+    days = [
       {
-        name: 'Empurrar A',
+        name: pushAName,
         muscleGroupIds: ['chest', 'shoulders', 'triceps'],
         rationale: 'Primeiro treino de empurrar da semana.',
       },
       {
-        name: 'Puxar A',
+        name: pullAName,
         muscleGroupIds: ['back', 'biceps', 'traps'],
         rationale: 'Primeiro treino de puxar da semana.',
       },
       {
-        name: 'Pernas A',
+        name: legsAName,
         muscleGroupIds: ['quadriceps', 'calves', 'core'],
         rationale: 'Membros inferiores com foco em quadríceps.',
       },
       {
-        name: 'Empurrar B',
+        name: pushBName,
         muscleGroupIds: ['chest', 'shoulders', 'triceps'],
-        rationale: 'Segundo treino de empurrar da semana.',
+        rationale: 'Segundo treino de empurrar da semana espaçado.',
       },
       {
-        name: 'Puxar B',
+        name: pullBName,
         muscleGroupIds: ['back', 'biceps'],
         rationale: 'Segundo treino de puxar da semana.',
       },
       {
-        name: 'Pernas B',
+        name: legsBName,
         muscleGroupIds: ['hamstrings', 'glutes', 'calves'],
         rationale: 'Membros inferiores com foco em posterior e glúteos.',
       },
     ];
+  } else {
+    days = [
+      {
+        name: 'Corpo Inteiro',
+        muscleGroupIds: ['chest', 'back', 'quadriceps', 'hamstrings', 'shoulders'],
+        rationale: 'Sessão geral.',
+      },
+    ];
   }
 
-  // Fallback seguro: 1 dia genérico (nunca deve ocorrer para freq 2..6)
-  return [
-    {
-      name: 'Corpo Inteiro',
-      muscleGroupIds: ['full_body'],
-      rationale: 'Sessão geral.',
-    },
-  ];
+  // Validação e garantia de cobertura semanal obrigatória
+  const balance = validateWeeklySplitBalance(days);
+  if (!balance.valid) {
+    for (const missing of balance.missingGroups) {
+      if (missing === 'hamstrings' || missing === 'glutes') {
+        const lowerDay = days.find((d) => d.muscleGroupIds.some(isLowerBody));
+        if (lowerDay) {
+          if (!lowerDay.muscleGroupIds.includes('hamstrings')) lowerDay.muscleGroupIds.push('hamstrings');
+          if (!lowerDay.muscleGroupIds.includes('glutes')) lowerDay.muscleGroupIds.push('glutes');
+        } else {
+          days[days.length - 1].muscleGroupIds.push('hamstrings', 'glutes');
+        }
+      } else if (missing === 'back') {
+        const pullDay = days.find((d) => d.muscleGroupIds.some(isUpperPull));
+        if (pullDay) {
+          if (!pullDay.muscleGroupIds.includes('back')) pullDay.muscleGroupIds.push('back');
+        } else {
+          days[0].muscleGroupIds.push('back');
+        }
+      } else if (missing === 'chest') {
+        const pushDay = days.find((d) => d.muscleGroupIds.some(isUpperPush));
+        if (pushDay) {
+          if (!pushDay.muscleGroupIds.includes('chest')) pushDay.muscleGroupIds.push('chest');
+        } else {
+          days[0].muscleGroupIds.push('chest');
+        }
+      } else if (missing === 'shoulders') {
+        const pushDay = days.find((d) => d.muscleGroupIds.includes('chest'));
+        if (pushDay && !pushDay.muscleGroupIds.includes('shoulders')) {
+          pushDay.muscleGroupIds.push('shoulders');
+        } else {
+          days[days.length - 1].muscleGroupIds.push('shoulders');
+        }
+      } else if (missing === 'quadriceps') {
+        const legDay = days.find((d) => d.muscleGroupIds.some(isLowerBody));
+        if (legDay) {
+          if (!legDay.muscleGroupIds.includes('quadriceps')) legDay.muscleGroupIds.push('quadriceps');
+        } else {
+          days[days.length - 1].muscleGroupIds.push('quadriceps');
+        }
+      }
+    }
+  }
+
+  return days;
 }
 
 // ===== Geração de Proposta de Divisão =====
@@ -734,9 +970,13 @@ export function generateTrainingSplitProposal(request: TrainingPlanRequest): Tra
   const frequency = Math.min(6, Math.max(2, Math.round(request.frequency || 4)));
   const targetMinutes = resolvePlanTargetMinutes(request.duration);
   const volumeProfile = resolvePlanVolumeProfile(request);
-  const priorityMuscleGroups = normalizeMuscleGroupIds(
-    (request.priorityMuscleGroups ?? []).slice(0, 3) as MuscleGroupId[],
-  );
+  const rawPriorities = (request.priorityMuscleGroups ?? []).slice(0, 3) as MuscleGroupId[];
+  const priorityMuscleGroups: MuscleGroupId[] = [];
+  for (const id of rawPriorities) {
+    if (typeof id === 'string' && !priorityMuscleGroups.includes(id)) {
+      priorityMuscleGroups.push(id);
+    }
+  }
   const variantIndex = Math.max(0, Math.floor(request.variantIndex ?? 0));
 
   const rawDays = buildSplitDaysForFrequency(frequency, priorityMuscleGroups, variantIndex);
@@ -843,6 +1083,14 @@ export function generateTrainingPlanProgram(
       goal: request.goal,
     });
 
+    const targetMinutes = proposedDay.targetMinutes;
+    if (targetMinutes >= 70 && estimate.totalMinutes < targetMinutes - 5) {
+      const durationWarning = `Duração alvo de ${targetMinutes} min (${proposedDay.name}): rotina estimada em ${estimate.totalMinutes} min. Considere adicionar exercícios complementares ou séries para preencher o tempo sem descanso excessivo.`;
+      if (!overallWarnings.includes(durationWarning)) {
+        overallWarnings.push(durationWarning);
+      }
+    }
+
     const mainGroups = Array.from(
       new Set(
         slots
@@ -891,6 +1139,131 @@ export function generateTrainingPlanProgram(
   };
 }
 
+// ===== Match de Objetivo para Programas Prontos e Recomendações =====
+
+/**
+ * Avalia se um WorkoutProgram corresponde a um objetivo de treino específico.
+ * Suporta chaves canônicas ('hypertrophy', 'strength', 'slimming', 'conditioning', 'athlete')
+ * e rótulos/expressões comuns em pt-BR ('hipertrofia', 'força', 'emagrecimento', 'definição', 'condicionamento').
+ *
+ * Evita falsos positivos onde palavras secundárias na descrição (ex: 'constrói força básica' em máquinas guiadas)
+ * sobrescreveriam o objetivo real de estabilização articular.
+ */
+export function programMatchesTrainingGoal(
+  program: WorkoutProgram,
+  goal?: string | null,
+): boolean {
+  if (!goal || goal === 'all' || goal.trim() === '') {
+    return true;
+  }
+
+  const normalizedGoal = goal.trim().toLowerCase();
+  const obj = (program.objective || '').toLowerCase();
+  const name = (program.name || '').toLowerCase();
+  const desc = (program.description || '').toLowerCase();
+  const fullText = `${obj} ${name} ${desc}`;
+
+  // 1. Hipertrofia
+  if (
+    normalizedGoal === 'hypertrophy'
+    || normalizedGoal === 'hipertrofia'
+    || normalizedGoal.startsWith('hyper')
+    || normalizedGoal.startsWith('hiper')
+  ) {
+    if (program.id === 'prog_adv_1' || program.id === 'prog_adv_2') {
+      return true;
+    }
+    return (
+      obj.includes('hipertrof')
+      || obj.includes('hypertroph')
+      || obj.includes('volume')
+      || name.includes('hipertrofia')
+      || desc.includes('fisiculturismo')
+      || desc.includes('bodybuilding')
+      || fullText.includes('ganho de massa')
+      || fullText.includes('densidade de fibra')
+      || fullText.includes('construção extrema de volume')
+    );
+  }
+
+  // 2. Força
+  if (
+    normalizedGoal === 'strength'
+    || normalizedGoal === 'força'
+    || normalizedGoal === 'forca'
+  ) {
+    // prog_beg_3 ("Aprendendo Máquinas Guiadas") possui "força básica" no texto explicativo,
+    // mas seu objetivo primordial é estabilização articular guiada.
+    if (program.id === 'prog_beg_3' || obj.includes('estabilização') || obj.includes('estabilizacao')) {
+      return false;
+    }
+    return (
+      obj.includes('força')
+      || obj.includes('forca')
+      || obj.includes('powerlifting')
+      || obj.includes('repetição máxima')
+      || obj.includes('repeticao maxima')
+      || obj.includes('aumento de carga')
+      || name.includes('força')
+      || name.includes('forca')
+      || name.includes('powerbuilding')
+      || name.includes('powerlifting')
+    );
+  }
+
+  // 3. Emagrecimento / Definição
+  if (
+    normalizedGoal === 'slimming'
+    || normalizedGoal === 'emagrecimento'
+    || normalizedGoal === 'emagrec'
+    || normalizedGoal === 'definição'
+    || normalizedGoal === 'definicao'
+    || normalizedGoal.startsWith('slim')
+  ) {
+    return (
+      fullText.includes('emagrec')
+      || fullText.includes('defini')
+      || fullText.includes('calórico')
+      || fullText.includes('calorico')
+      || fullText.includes('queima de gordura')
+    );
+  }
+
+  // 4. Condicionamento / Adaptação
+  if (
+    normalizedGoal === 'conditioning'
+    || normalizedGoal === 'condicionamento'
+    || normalizedGoal.startsWith('cond')
+  ) {
+    return (
+      fullText.includes('condicionamento')
+      || fullText.includes('adaptação')
+      || fullText.includes('adaptacao')
+      || fullText.includes('estabilização')
+      || fullText.includes('estabilizacao')
+      || fullText.includes('neurológica')
+      || fullText.includes('neurologica')
+    );
+  }
+
+  // 5. Atleta
+  if (
+    normalizedGoal === 'athlete'
+    || normalizedGoal === 'atleta'
+  ) {
+    return (
+      program.level === 'athlete'
+      || fullText.includes('atleta')
+      || fullText.includes('powerlifting')
+      || fullText.includes('competição')
+      || fullText.includes('competicao')
+    );
+  }
+
+  // Fallback genérico para texto livre
+  return fullText.includes(normalizedGoal);
+}
+
 // ===== Recomendações para a Seção "Para você" =====
 
 export interface ProfileRecommendation {
@@ -910,7 +1283,6 @@ export function findProfileRecommendations(
   const readyPrograms = programs.filter((p) => !p.isCustom);
   const scored: ProfileRecommendation[] = [];
 
-  const goalLower = (profile.goal || '').toLowerCase();
   const levelLower = (profile.level || '').toLowerCase();
   const freq = profile.frequency ?? 4;
 
@@ -924,19 +1296,8 @@ export function findProfileRecommendations(
       reasons.push(`nível ${prog.level}`);
     }
 
-    // Objetivo
-    const progObj = (prog.objective || '').toLowerCase();
-    const progDesc = (prog.description || '').toLowerCase();
-    const progName = (prog.name || '').toLowerCase();
-    const combined = `${progObj} ${progDesc} ${progName}`;
-
-    if (
-      (goalLower.includes('hyper') && combined.includes('hipertrofia'))
-      || (goalLower.includes('slim') && (combined.includes('emagrec') || combined.includes('defini')))
-      || (goalLower.includes('strength') && combined.includes('força'))
-      || (goalLower.includes('cond') && (combined.includes('condicionamento') || combined.includes('adaptação')))
-      || (goalLower.includes('ath') && combined.includes('atleta'))
-    ) {
+    // Objetivo via helper canônico
+    if (programMatchesTrainingGoal(prog, profile.goal)) {
       score += 4;
       reasons.push('combina com seu objetivo');
     }
@@ -959,3 +1320,4 @@ export function findProfileRecommendations(
   scored.sort((a, b) => b.matchScore - a.matchScore);
   return scored.slice(0, 3);
 }
+

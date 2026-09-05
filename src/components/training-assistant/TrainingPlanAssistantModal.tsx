@@ -387,7 +387,7 @@ export const TrainingPlanAssistantModal: React.FC<TrainingPlanAssistantModalProp
                   </span>
                   {user?.restrictions && user.restrictions.length > 0 && (
                     <span className="block text-gym-amber mt-1">
-                      Restrições consideradas: {user.restrictions.join(', ')}.
+                      Restrições informadas — revise os exercícios antes de aplicar ({user.restrictions.join(', ')}).
                     </span>
                   )}
                 </div>

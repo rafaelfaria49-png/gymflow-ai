@@ -154,4 +154,37 @@ describe('WorkoutsTab — Hub de Treinos (GOAL-024)', () => {
     expect(text).toContain('Meu Treino Personalizado ABC');
     expect(text).toContain('Personalizado');
   });
+
+  it('filtra programas prontos por objetivo usando chave canônica', () => {
+    mockUseGymFlow.mockReturnValue(baseContext);
+
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(<WorkoutsTab />);
+    });
+
+    // Clica em Programas prontos
+    const buttons = renderer!.root.findAllByType('button');
+    const readyBtn = buttons.find((b) => collectText(b).trim() === 'Programas prontos');
+    act(() => {
+      readyBtn!.props.onClick();
+    });
+
+    // Encontra o select de objetivo
+    const selects = renderer!.root.findAllByType('select');
+    const goalSelect = selects.find((s) => s.props['aria-label'] === 'Filtrar por objetivo');
+    expect(goalSelect).toBeDefined();
+
+    // Filtra por força
+    act(() => {
+      goalSelect!.props.onChange({ target: { value: 'strength' } });
+    });
+
+    const text = collectText(renderer!.toJSON());
+    // Deve conter programas de força
+    expect(text).toContain('Força Máxima de Powerlifting');
+    expect(text).toContain('Powerbuilding');
+    // Não deve conter máquinas guiadas
+    expect(text).not.toContain('Aprendendo Máquinas Guiadas');
+  });
 });
