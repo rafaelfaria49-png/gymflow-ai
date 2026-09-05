@@ -21,7 +21,7 @@ import {
   verifyHistoryGeneration,
 } from './storage-history-integrity';
 import { STORAGE_BACKUP_SUFFIX } from './storage';
-import type { StorageLike, PersistedState, PersistedCoreState } from './storage-types';
+import type { StorageLike, PersistedState, PersistedCoreState, StorageEnvelope } from './storage-types';
 import { isRecord, parseEnvelope } from './storage-validation';
 import { recoverStorageRetirementJournal } from './storage-retirement-journal';
 import { normalizeSessionState } from './workout-session-migration';
@@ -179,114 +179,166 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(canonicalizeValue(value));
 }
 
+export function verifyStableIdentityCompatibility(
+  backupUser: unknown,
+  coreUser: unknown,
+  backupData?: PersistedState,
+  coreData?: PersistedCoreState,
+): boolean {
+  if (isRecord(backupUser) && isRecord(coreUser)) {
+    const bId = typeof backupUser.id === 'string' && backupUser.id.trim().length > 0 ? backupUser.id.trim() : null;
+    const cId = typeof coreUser.id === 'string' && coreUser.id.trim().length > 0 ? coreUser.id.trim() : null;
+    if (bId !== null && cId !== null && bId !== cId) {
+      return false;
+    }
+
+    const bEmail = typeof backupUser.email === 'string' && backupUser.email.trim().length > 0
+      ? backupUser.email.trim().toLowerCase()
+      : null;
+    const cEmail = typeof coreUser.email === 'string' && coreUser.email.trim().length > 0
+      ? coreUser.email.trim().toLowerCase()
+      : null;
+    if (bEmail !== null && cEmail !== null && bEmail !== cEmail) {
+      return false;
+    }
+
+    const bName = typeof backupUser.name === 'string' && backupUser.name.trim().length > 0
+      ? backupUser.name.trim()
+      : null;
+    const cName = typeof coreUser.name === 'string' && coreUser.name.trim().length > 0
+      ? coreUser.name.trim()
+      : null;
+    if (bName !== null && cName !== null && bName !== cName) {
+      return false;
+    }
+
+    // Sinal positivo obrigatório: pelo menos um identificador de identidade de usuário
+    // presente em ambos deve coincidir positivamente.
+    const hasPositiveMatch = (bId !== null && cId !== null && bId === cId)
+      || (bEmail !== null && cEmail !== null && bEmail === cEmail)
+      || (bName !== null && cName !== null && bName === cName);
+
+    return hasPositiveMatch;
+  }
+
+  // Se um possui usuário identificado e o outro não, há quebra de continuidade de identidade
+  if ((backupUser !== null && backupUser !== undefined) !== (coreUser !== null && coreUser !== undefined)) {
+    return false;
+  }
+
+  // Ambos são anônimos / nulos (pré-onboarding). Avaliar âncoras estáveis secundárias de domínio
+  if (backupData && coreData) {
+    const bGymId = backupData.gymProfile?.activeProfileId;
+    const cGymId = coreData.gymProfile?.activeProfileId;
+    if (bGymId && cGymId && bGymId === cGymId) {
+      return true;
+    }
+    // Se ambos tiverem arrays vazios em domínios estruturais iniciais
+    if (
+      Array.isArray(backupData.weeklyPlan) && backupData.weeklyPlan.length === 0
+      && Array.isArray(coreData.weeklyPlan) && coreData.weeklyPlan.length === 0
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export interface VerifyV1PredecessorOptions {
+  backupSavedAt?: string;
+  coreSavedAt?: string;
+}
+
+function isStorageEnvelope<T>(val: unknown): val is StorageEnvelope<T> {
+  return isRecord(val)
+    && typeof (val as Record<string, unknown>).v === 'number'
+    && typeof (val as Record<string, unknown>).savedAt === 'string'
+    && 'data' in val;
+}
+
+export function verifyV1PredecessorOfV2(
+  backup: StorageEnvelope<PersistedState> | PersistedState,
+  core: StorageEnvelope<PersistedCoreState> | PersistedCoreState,
+  options?: VerifyV1PredecessorOptions,
+): boolean {
+  if (!isRecord(backup) || !isRecord(core)) return false;
+
+  const backupEnvelope = isStorageEnvelope<PersistedState>(backup) ? backup : null;
+  const coreEnvelope = isStorageEnvelope<PersistedCoreState>(core) ? core : null;
+
+  const backupData = backupEnvelope ? backupEnvelope.data : (backup as PersistedState);
+  const coreData = coreEnvelope ? coreEnvelope.data : (core as PersistedCoreState);
+
+  if (!isRecord(backupData) || !isRecord(coreData)) return false;
+
+  // 1. Versões estruturais de envelope
+  const backupV = backupEnvelope ? backupEnvelope.v : 1;
+  const coreV = coreEnvelope ? coreEnvelope.v : 2;
+  if (backupV !== 1 || coreV !== 2) return false;
+
+  // 2. Coerência temporal quando savedAt estiver disponível
+  const backupSavedAt = backupEnvelope ? backupEnvelope.savedAt : options?.backupSavedAt;
+  const coreSavedAt = coreEnvelope ? coreEnvelope.savedAt : options?.coreSavedAt;
+
+  if (backupSavedAt !== undefined || coreSavedAt !== undefined) {
+    if (typeof backupSavedAt !== 'string' || typeof coreSavedAt !== 'string') {
+      return false;
+    }
+    const bTs = Date.parse(backupSavedAt);
+    const cTs = Date.parse(coreSavedAt);
+    if (Number.isNaN(bTs) || Number.isNaN(cTs)) {
+      return false;
+    }
+    // O predecessor não pode ser posterior ao core do qual descende
+    if (bTs > cTs) {
+      return false;
+    }
+  }
+
+  // 3. historyStorage referenciado no core e ausente no backup
+  if (!isRecord(coreData.historyStorage)) return false;
+  if (coreData.historyStorage.backend !== 'indexeddb') return false;
+  if (coreData.historyStorage.schemaVersion !== 1) return false;
+  if (
+    typeof coreData.historyStorage.generationId !== 'string'
+    || coreData.historyStorage.generationId.trim().length === 0
+  ) {
+    return false;
+  }
+
+  if (
+    'historyStorage' in backupData
+    && backupData.historyStorage !== undefined
+    && backupData.historyStorage !== null
+  ) {
+    return false;
+  }
+
+  // 4. workoutHistory no backup deve ser array estruturado
+  if (!Array.isArray(backupData.workoutHistory)) return false;
+  const sessionsValid = backupData.workoutHistory.every(
+    (s) => isRecord(s)
+      && typeof s.id === 'string'
+      && s.id.trim().length > 0
+      && (s.date === undefined || typeof s.date === 'string')
+      && (s.name === undefined || typeof s.name === 'string'),
+  );
+  if (!sessionsValid) return false;
+
+  // 5. Prova positiva de mesma linhagem/identidade estável
+  if (!verifyStableIdentityCompatibility(backupData.user, coreData.user, backupData, coreData)) {
+    return false;
+  }
+
+  return true;
+}
+
 export function verifyBackupV1Lineage(
   backupData: PersistedState,
   core: PersistedCoreState,
 ): boolean {
-  if (!isRecord(backupData) || !isRecord(core)) return false;
-
-  // Normalização de sessão ativa (mesma transformação aplicada na migração v1 -> v2)
-  const normBackupActive = normalizeSessionState({
-    activeWorkout: backupData.activeWorkout ?? null,
-    activeWorkoutStartedAt: backupData.activeWorkoutStartedAt ?? null,
-    workoutHistory: [],
-  }).activeWorkout;
-
-  const normCoreActive = normalizeSessionState({
-    activeWorkout: core.activeWorkout ?? null,
-    activeWorkoutStartedAt: core.activeWorkoutStartedAt ?? null,
-    workoutHistory: [],
-  }).activeWorkout;
-
-  if (canonicalJson(normBackupActive ?? null) !== canonicalJson(normCoreActive ?? null)) {
-    return false;
-  }
-
-  // Domínios canônicos obrigatórios
-  if (canonicalJson(backupData.user ?? null) !== canonicalJson(core.user ?? null)) {
-    return false;
-  }
-  if (canonicalJson(backupData.weeklyPlan ?? []) !== canonicalJson(core.weeklyPlan ?? [])) {
-    return false;
-  }
-  if (canonicalJson(backupData.customPrograms ?? []) !== canonicalJson(core.customPrograms ?? [])) {
-    return false;
-  }
-  if (canonicalJson(backupData.gymProfile ?? null) !== canonicalJson(core.gymProfile ?? null)) {
-    return false;
-  }
-  if ((backupData.activeWorkoutStartedAt ?? null) !== (core.activeWorkoutStartedAt ?? null)) {
-    return false;
-  }
-  if ((backupData.restTimerEndAt ?? null) !== (core.restTimerEndAt ?? null)) {
-    return false;
-  }
-  if ((backupData.restTimerTotalSeconds ?? null) !== (core.restTimerTotalSeconds ?? null)) {
-    return false;
-  }
-  if ((backupData.restTimerLabel ?? null) !== (core.restTimerLabel ?? null)) {
-    return false;
-  }
-  if (canonicalJson(backupData.weightHistory ?? []) !== canonicalJson(core.weightHistory ?? [])) {
-    return false;
-  }
-  if (canonicalJson(backupData.measurementsHistory ?? []) !== canonicalJson(core.measurementsHistory ?? [])) {
-    return false;
-  }
-  if (canonicalJson(backupData.nutrition ?? null) !== canonicalJson(core.nutrition ?? null)) {
-    return false;
-  }
-  if (canonicalJson(backupData.achievements ?? []) !== canonicalJson(core.achievements ?? [])) {
-    return false;
-  }
-  if (canonicalJson(backupData.challenges ?? []) !== canonicalJson(core.challenges ?? [])) {
-    return false;
-  }
-  if (canonicalJson(backupData.favoriteExercises ?? []) !== canonicalJson(core.favoriteExercises ?? [])) {
-    return false;
-  }
-  if (canonicalJson(backupData.recentlyViewedVideoIds ?? []) !== canonicalJson(core.recentlyViewedVideoIds ?? [])) {
-    return false;
-  }
-
-  // Não permitir campos arbitrários extras divergentes
-  const KNOWN_FIELDS = new Set([
-    'user',
-    'weeklyPlan',
-    'customPrograms',
-    'activeWorkout',
-    'activeWorkoutStartedAt',
-    'restTimerEndAt',
-    'restTimerTotalSeconds',
-    'restTimerLabel',
-    'workoutHistory',
-    'historyStorage',
-    'weightHistory',
-    'measurementsHistory',
-    'nutrition',
-    'achievements',
-    'challenges',
-    'favoriteExercises',
-    'recentlyViewedVideoIds',
-    'gymProfile',
-  ]);
-
-  for (const k of Object.keys(core)) {
-    if (!KNOWN_FIELDS.has(k)) {
-      if (canonicalJson((core as any)[k]) !== canonicalJson((backupData as any)[k])) {
-        return false;
-      }
-    }
-  }
-  for (const k of Object.keys(backupData)) {
-    if (!KNOWN_FIELDS.has(k)) {
-      if (canonicalJson((backupData as any)[k]) !== canonicalJson((core as any)[k])) {
-        return false;
-      }
-    }
-  }
-
-  return true;
+  return verifyV1PredecessorOfV2(backupData, core);
 }
 
 async function attemptSafeBootReconciliation(
@@ -380,31 +432,25 @@ async function attemptSafeBootReconciliation(
 
   // Candidato 4: VERIFIED_LOCAL_V1_BACKUP
   // Avaliado somente após as fontes físicas do IndexedDB não fornecerem prova.
-  // Lê o backup v1 em localStorage, valida formato, prova linhagem com o core v2 atual
-  // e deriva as sessões comprovadas.
+  // Lê o backup v1 em localStorage, valida formato, prova predecessor legítimo
+  // do core v2 atual e deriva as sessões comprovadas.
   if (provenSessions === null) {
     try {
       const backupKey = `${input.key}${STORAGE_BACKUP_SUFFIX}`;
       const rawBackup = input.storage.getItem(backupKey);
       if (typeof rawBackup === 'string') {
         const physicalBackup = parsePhysicalEnvelope(rawBackup);
-        if (physicalBackup.status === 'v1') {
-          const backupData = physicalBackup.envelope.data;
-          if (
-            Array.isArray(backupData.workoutHistory)
-            && backupData.workoutHistory.every(
-              (s) => isRecord(s) && typeof s.id === 'string' && s.id.length > 0,
-            )
-          ) {
-            if (verifyBackupV1Lineage(backupData, core)) {
-              const normalized = normalizeSessionState({
-                activeWorkout: backupData.activeWorkout ?? null,
-                activeWorkoutStartedAt: backupData.activeWorkoutStartedAt ?? null,
-                workoutHistory: backupData.workoutHistory,
-              });
-              provenSessions = normalized.workoutHistory;
-              candidateBackupRaw = rawBackup;
-            }
+        const physicalCore = parsePhysicalEnvelope(raw);
+        if (physicalBackup.status === 'v1' && physicalCore.status === 'v2') {
+          if (verifyV1PredecessorOfV2(physicalBackup.envelope, physicalCore.envelope)) {
+            const backupData = physicalBackup.envelope.data;
+            const normalized = normalizeSessionState({
+              activeWorkout: backupData.activeWorkout ?? null,
+              activeWorkoutStartedAt: backupData.activeWorkoutStartedAt ?? null,
+              workoutHistory: backupData.workoutHistory,
+            });
+            provenSessions = normalized.workoutHistory;
+            candidateBackupRaw = rawBackup;
           }
         }
       }
