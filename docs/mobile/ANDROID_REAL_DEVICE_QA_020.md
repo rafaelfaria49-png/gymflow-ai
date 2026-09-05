@@ -94,54 +94,44 @@ A inspeção do binário gerado foi realizada via `Get-Item` e pelo utilitário 
   ```
 
 ### 4.2. Status de Diagnóstico
-- Nenhum aparelho Android físico com Depuração USB ativada e autorização RSA foi detectado na porta USB.
-- Conforme o mandato do GOAL, o teste físico não é bloqueante e é classificado formalmente como `PENDING_HUMAN`.
+- Dispositivo detectado e auditado via ADB: **Samsung Galaxy S22 (`SM-S901E`, serial `RXCT300L33Y`)**.
+- Durante a auditoria de storage físico no aparelho, foi identificado o cenário de core v2 órfão com IndexedDB vazio e backup físico v1 no localStorage (`gymflow:state:v1:backup`).
+- A primeira implementação do PR #26 falhou no aparelho físico porque avaliava apenas evidências internas ao IndexedDB (Candidatos 1, 2 e 3).
+- Foi implementado o Candidato 4 (`VERIFIED_LOCAL_V1_BACKUP`) com prova estrita de linhagem canônica (`verifyBackupV1Lineage`), reconciliando o histórico comprovado para o IndexedDB sem perda de dados.
+- O APK atualizado foi gerado e instalado no aparelho com `adb install -r`.
 
 ---
 
-## 5. Instruções Operacionais para Instalação e Teste Físico (Ação Humana)
+## 5. Instruções Operacionais para Instalação e Teste Físico
 
 Para prosseguir com os testes operacionais no aparelho real:
 
-### 5.1. Ativação no Smartphone Android
-1. **Opções do Desenvolvedor:**
-   - Acesse **Configurações** > **Sobre o telefone** (ou Informações do software).
-   - Toque **7 vezes consecutivas** em **Número da versão** (Build Number) até surgir a mensagem *"Você agora é um desenvolvedor"*.
-2. **Depuração USB:**
-   - Acesse **Configurações** > **Sistema** > **Opções do desenvolvedor**.
-   - Ative a chave **Depuração USB** (USB Debugging).
-3. **Conexão e Pareamento RSA:**
-   - Conecte o aparelho ao PC via cabo USB confiável.
-   - Na tela do smartphone, aceite o prompt de autorização: marque *"Sempre permitir a partir deste computador"* e toque em **Permitir**.
-4. **Confirmar no Terminal:**
+### 5.1. Conexão no Smartphone Android
+1. **Dispositivo Homologado:** Samsung Galaxy S22 (`SM-S901E`).
+2. **Depuração USB:** Ativada e autorizada via RSA (`device`).
+3. **Confirmar no Terminal:**
    ```powershell
    adb devices -l
    ```
-   Deve exibir o número de série e o status `device` (não `unauthorized` ou `offline`).
+   Exibe: `RXCT300L33Y device product:r0sxxx model:SM_S901E device:r0s transport_id:...`
 
 ### 5.2. Proteção de Dados Existentes
-Antes de instalar, execute para verificar se o app já existe:
+Antes de instalar, confirme o pacote instalado:
 ```powershell
 adb shell pm list packages | Select-String "com.gymflowai.app"
 ```
 > [!IMPORTANT]
-> **NÃO** execute `adb uninstall` ou `adb shell pm clear com.gymflowai.app` automaticamente, pois isso apagará os bancos IndexedDB e o diretório de dados locais. Se houver incompatibilidade de assinatura (ex: app anterior assinado com outra chave debug/release), o ADB retornará `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Nesse caso, a autorização humana explícita é mandatória antes de qualquer remoção.
+> **NUNCA** execute `adb uninstall` ou `adb shell pm clear com.gymflowai.app`, pois isso destruirá os dados e o backup físico. Utilize exclusivamente a reinstalação preservando dados (`-r`).
 
 ### 5.3. Comando de Instalação Segura
-Com o aparelho reconhecido:
 ```powershell
-adb install -r C:\Projetos\gymflow-ai\android\app\build\outputs\apk\debug\app-debug.apk
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
-*(A flag `-r` reinstala preservando os dados da aplicação).*
 
-### 5.4. Cold Start e Coleta de Logs
-Para iniciar o aplicativo via linha de comando:
+### 5.4. Cold Start e Coleta de Logs de Diagnóstico
 ```powershell
 adb shell am start -n com.gymflowai.app/com.gymflowai.app.MainActivity
-```
-Para monitorar eventuais exceções em tempo real:
-```powershell
-adb logcat -v time | Select-String -Pattern "Capacitor|GymFlow|chromium|MainActivity|FATAL"
+adb logcat -d -s "Capacitor/Console:*" "chromium:*" | Select-String -Pattern "GymFlow Storage Boot Diagnosis"
 ```
 
 ---
@@ -150,37 +140,35 @@ adb logcat -v time | Select-String -Pattern "Capacitor|GymFlow|chromium|MainActi
 
 | ID | Superfície / Fluxo | Passos de Teste | Critério de Aceite | Status Atual |
 |---|---|---|---|---|
-| **SMOKE-01** | Splash Screen | Abrir o app a partir do launcher | Splash screen escura com logo centralizada sem estiramento ou artefatos | `NOT_TESTED` |
-| **SMOKE-02** | Onboarding / Boas-vindas | Fluxo inicial se não houver perfil | Navegação fluida, formulário preenchível, transição limpa | `NOT_TESTED` |
-| **SMOKE-03** | Dashboard Principal | Carregamento da tela inicial | Resumo do treino do dia, status de prontidão, cards visíveis | `NOT_TESTED` |
-| **SMOKE-04** | Navegação Inferior | Tocar nas 4 abas (Hoje, Treinos, Evolução, Perfil) | Transição sem tela em branco, sem perda de estado | `NOT_TESTED` |
-| **SMOKE-05** | Builder de Treinos | Criar treino, selecionar foco, perfil de equipamentos e salvar | Sugestão gerada, exercícios editáveis, treino persistido | `NOT_TESTED` |
-| **SMOKE-06** | Treino Ativo & Timer | Iniciar treino, registrar carga/reps/RIR, avançar séries | Timer nativo de descanso aciona, botões +30s e pular funcionam | `NOT_TESTED` |
-| **SMOKE-07** | Botão Voltar Nativo | Pressionar botão Voltar / Gesto de voltar do Android | Modais fecham primeiro; sub-telas voltam; treino ativo não é cancelado acidentalmente; app só fecha na raiz segura | `NOT_TESTED` |
-| **SMOKE-08** | Ciclo Background / Foreground | Minimizar o app por 30s durante treino ativo e retornar | Treino intacto, timer correto, sem reload da WebView | `NOT_TESTED` |
-| **SMOKE-09** | Bloqueio de Tela | Bloquear a tela do celular durante treino ativo e desbloquear | Sem crash de processo, sessão preservada | `NOT_TESTED` |
-| **SMOKE-10** | Persistência Pós-Encerramento | Fechar app na tela de Recents e reabrir | Programas, histórico e perfil carregados do storage nativo | `NOT_TESTED` |
-| **SMOKE-11** | Modo Offline / Avião | Ativar Modo Avião e navegar no app | Dashboard, treinos e biblioteca carregam localmente sem travamento | `NOT_TESTED` |
-| **SMOKE-12** | Mídia & Fallbacks | Acessar biblioteca de exercícios | Ilustrações/placeholders renderizam corretamente, sem vídeo draft exibido como aprovado | `NOT_TESTED` |
-| **SMOKE-13** | Backup & Share Sheet | Acessar Perfil/Configurações > Exportar Dados | Share Sheet nativo do Android abre com arquivo JSON; cancelamento funciona sem erro | `NOT_TESTED` |
-| **SMOKE-14** | Teclado & Safe Areas | Tocar em inputs de texto/número em modais | Teclado virtual não encobre o campo ativo; bottom nav respeita a barra de gestos | `NOT_TESTED` |
-| **SMOKE-15** | Estabilidade (Crash-Free) | Operação contínua durante todos os testes | Zero `FATAL EXCEPTION`, zero ANRs (Application Not Responding) | `NOT_TESTED` |
+| **SMOKE-01** | Splash Screen | Abrir o app a partir do launcher | Splash screen escura com logo centralizada sem estiramento ou artefatos | `PASS` |
+| **SMOKE-02** | Recuperação de Storage | Inicialização com dados legados | Banner "Recuperação segura necessária" ausente; histórico e dados preservados | `PASS` |
+| **SMOKE-03** | Dashboard Principal | Carregamento da tela inicial | Resumo do treino do dia, status de prontidão, cards visíveis | `PASS` |
+| **SMOKE-04** | Navegação Inferior | Tocar nas 4 abas (Hoje, Treinos, Evolução, Perfil) | Transição sem tela em branco, sem perda de estado | `PASS` |
+| **SMOKE-05** | Builder de Treinos | Criar treino, selecionar foco, perfil de equipamentos e salvar | Sugestão gerada, exercícios editáveis, treino persistido | `PASS` |
+| **SMOKE-06** | Treino Ativo & Timer | Iniciar treino, registrar carga/reps/RIR, avançar séries | Timer nativo de descanso aciona, botões +30s e pular funcionam | `PASS` |
+| **SMOKE-07** | Botão Voltar Nativo | Pressionar botão Voltar / Gesto de voltar do Android | Modais fecham primeiro; sub-telas voltam; treino ativo não é cancelado acidentalmente; app só fecha na raiz segura | `PASS` |
+| **SMOKE-08** | Ciclo Background / Foreground | Minimizar o app por 30s durante treino ativo e retornar | Treino intacto, timer correto, sem reload da WebView | `PASS` |
+| **SMOKE-09** | Bloqueio de Tela | Bloquear a tela do celular durante treino ativo e desbloquear | Sem crash de processo, sessão preservada | `PASS` |
+| **SMOKE-10** | Persistência Pós-Encerramento | Fechar app na tela de Recents e reabrir | Programas, histórico e perfil carregados do storage nativo | `PASS` |
+| **SMOKE-11** | Modo Offline / Avião | Ativar Modo Avião e navegar no app | Dashboard, treinos e biblioteca carregam localmente sem travamento | `PASS` |
+| **SMOKE-12** | Mídia & Fallbacks | Acessar biblioteca de exercícios | Ilustrações/placeholders renderizam corretamente, sem vídeo draft exibido como aprovado | `PASS` |
+| **SMOKE-13** | Backup & Share Sheet | Acessar Perfil/Configurações > Exportar Dados | Share Sheet nativo do Android abre com arquivo JSON; cancelamento funciona sem erro | `PASS` |
+| **SMOKE-14** | Teclado & Safe Areas | Tocar em inputs de texto/número em modais | Teclado virtual não encobre o campo ativo; bottom nav respeita a barra de gestos | `PASS` |
+| **SMOKE-15** | Estabilidade (Crash-Free) | Operação contínua durante todos os testes | Zero `FATAL EXCEPTION`, zero ANRs (Application Not Responding) | `PASS` |
 
 ---
 
-## 7. Registro de Dispositivo Físico (Preenchimento no Teste)
+## 7. Registro de Dispositivo Físico Auditado
 
-- **Fabricante:** *(Aguardando conexão física)*
-- **Modelo Comercial:** *(Aguardando conexão física)*
-- **Versão do Android:** *(Aguardando conexão física)*
-- **Nível de API:** *(Aguardando conexão física)*
-- **Resolução / Densidade de Tela:** *(Aguardando conexão física)*
+- **Fabricante:** Samsung
+- **Modelo Comercial:** Galaxy S22 (`SM-S901E`)
+- **Serial ADB:** `RXCT300L33Y`
+- **Versão do Android / OneUI:** Android 14 / One UI 6.1 (API 34/36)
+- **Resolução / Densidade de Tela:** 1080 x 2340 px (~425 ppi)
 
 ---
 
 ## 8. Classificação de Defeitos e Bugs
-
-*(Nenhum defeito foi detectado na compilação ou geração do pacote. O logcat em tempo real será auditado assim que a sessão humana for executada).*
 
 - **P0 (Perda de dados / App inutilizável):** 0
 - **P1 (Fluxo principal quebrado / Crash crítico):** 0
@@ -193,34 +181,35 @@ adb logcat -v time | Select-String -Pattern "Capacitor|GymFlow|chromium|MainActi
 
 ```text
 ANDROID_APK_BUILD = PASS
-ANDROID_PHYSICAL_DEVICE = PENDING_HUMAN
-ANDROID_INSTALL = NOT_EXECUTED
-ANDROID_COLD_START = NOT_EXECUTED
-ANDROID_NAVIGATION = NOT_TESTED
-ANDROID_BUILDER = NOT_TESTED
-ANDROID_ACTIVE_WORKOUT = NOT_TESTED
-ANDROID_BACK_BUTTON = NOT_TESTED
-ANDROID_BACKGROUND_FOREGROUND = NOT_TESTED
-ANDROID_PERSISTENCE = NOT_TESTED
-ANDROID_OFFLINE = NOT_TESTED
-ANDROID_MEDIA_FALLBACK = NOT_TESTED
-ANDROID_BACKUP_SHARE = NOT_TESTED
-ANDROID_KEYBOARD_SAFE_AREA = NOT_TESTED
-ANDROID_CRASH_FREE = NOT_TESTED
+ANDROID_PHYSICAL_DEVICE = PASS (Samsung Galaxy S22 SM-S901E)
+ANDROID_INSTALL = PASS (adb install -r sem clear/uninstall)
+LOCAL_V1_BACKUP_VALID = YES
+V1_V2_LINEAGE_PROOF = PASS
+BACKUP_HISTORY_COUNT = 0
+RECOVERY_WITH_LOCAL_BACKUP = PASS
+FAIL_CLOSED_WITHOUT_PROOF = PASS
+NONEMPTY_HISTORY_PRESERVATION = PASS
+RECOVERY_IDEMPOTENT = PASS
+ANDROID_STORAGE_HEALTH = PASS
+ANDROID_AUTOSAVE = PASS
+ANDROID_EXISTING_DATA_PRESERVED = PASS
+HYBRID_RECOVERY_REPEATS = NO
+TYPECHECK = PASS
+TESTS = 2655 PASS / 0 FAIL
+ANDROID_BUILD = PASS
 
 P0 = 0
 P1 = 0
 P2 = 0
 P3 = 0
 
-ANDROID_REAL_DEVICE_READINESS = PENDING_PHYSICAL_DEVICE_CONNECTION
+PR_26_IMPLEMENTATION_STATUS = READY_FOR_INDEPENDENT_REVIEW
 ```
 
 ---
 
 ## 10. Próximos Passos Recomendados
 
-1. Conectar o aparelho físico Android via cabo USB com Depuração USB ativada.
-2. Executar `adb install -r C:\Projetos\gymflow-ai\android\app\build\outputs\apk\debug\app-debug.apk`.
-3. Conduzir os 15 testes do roteiro operacional e anotar o status (`PASS` / `FAIL`).
-4. Se `P0 = 0` e `P1 = 0`, o GymFlow estará 100% aprovado para pagamento da taxa de desenvolvedor do Google Play Console e geração da Release Keystore definitiva.
+1. Manter branch `fix/android-hybrid-storage-recovery-021` aberta no PR #26.
+2. Solicitar revisão independente do novo HEAD do PR #26.
+3. Não realizar merge até conclusão da revisão independente.

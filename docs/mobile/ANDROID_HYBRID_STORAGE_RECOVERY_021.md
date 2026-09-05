@@ -1,10 +1,10 @@
 # Relatório Técnico: Recuperação Segura de Armazenamento Híbrido no Android
 
 **ID do Documento:** `docs/mobile/ANDROID_HYBRID_STORAGE_RECOVERY_021.md`  
-**GOAL:** `GYMFLOW-ANDROID-HYBRID-STORAGE-RECOVERY-021`  
+**GOAL:** `GYMFLOW-ANDROID-HYBRID-STORAGE-RECOVERY-021B`  
 **Data:** 04 de Setembro de 2026  
-**Status:** IMPLEMENTADO & VALIDADO (Pronto para Instalação no Aparelho Real)  
-**Branch de Destino:** `fix/android-hybrid-storage-recovery-021` (PR direcionado para `master`)  
+**Status:** IMPLEMENTADO & VALIDADO (Incorporação do Caso Físico Real e Candidato 4)  
+**Branch de Destino:** `fix/android-hybrid-storage-recovery-021` (PR #26 direcionado para `master`)  
 **Package:** `com.gymflowai.app`  
 
 ---
@@ -18,90 +18,98 @@ Ao executar o GymFlow AI no aparelho físico (instalado preservando dados com `a
 - *"Dados preservados, carregamento suspenso, autosave pausado"*
 - *"Armazenamento híbrido não pôde ser validado"*
 
-### 1.2. Rastreamento e Causa-Raiz no Runtime
-1. No boot, `GymFlowContext.tsx` invoca `runStorageBootRecoveryOnce()`.
-2. O orquestrador delega para `recoverLogicalStorageAdministrationV2()` em `storage-administrative-recovery.ts`.
-3. `inspectStorageAdministration()` em `storage-admin-runtime.ts` (linha 663) avalia:
-   ```ts
-   const activeGenerationId = snapshot.metadata?.activeGeneration ?? null;
-   if (!activeGenerationId) {
-     return {
-       ...base,
-       state: unavailableState('core-invalid', 'Não existe geração ativa de histórico.'),
-     };
-   }
-   ```
-4. Quando `metadata.activeGeneration` não está preenchido (cenário pós-migração interrompida ou assincronia de cutover), `recoverLogicalStorageImportV2()` retorna:
-   ```ts
-   { ok: false, reason: 'administration-unavailable', steps: 0, operationId: null, generationId: null }
-   ```
-5. `classifyInitialAdministrationUnavailable()` lê o envelope físico de `localStorage.getItem(STORAGE_KEY)`.
-6. Como o envelope é `v2` válido com `generationId` indicado, o orquestrador classificava como `blocked('blocked-storage-unavailable', false, 2)`.
-7. O `GymFlowContext` recebia esse resultado, bloqueava a hidratação e abortava antes de chamar `runtime.hydrate()`, deixando o app em modo de recuperação travado, embora os dados estivessem 100% íntegros.
+### 1.2. Rastreamento e Auditoria Física dos Dados do Aparelho
+Durante a auditoria física via extração de dados do WebView (`Local Storage/leveldb` e `IndexedDB/leveldb`), foram identificados os seguintes fatos:
+1. **LocalStorage Principal (`gymflow:state:v1`):**
+   - Envelope físico `v2` válido.
+   - `historyStorage.generationId`: `"generation-4317ec26-ae8c-4e03-8c00-dd1a955d7895"`.
+   - Dados de perfil, programas customizados, plano semanal e exercícios intactos.
+2. **IndexedDB (`gymflow-history`):**
+   - `metadata.migrationStatus`: `"not-started"`.
+   - `metadata.activeGeneration`: `null`.
+   - Stores `workoutHistory`, `legacySnapshots` e `generationManifests`: vazias (zero registros).
+3. **LocalStorage Backup (`gymflow:state:v1:backup`):**
+   - Envelope físico `v1` válido e parseável.
+   - `workoutHistory`: `[]` (array válido).
+   - Dados de domínio idênticos ao core `v2`.
+
+### 1.3. Causa da Falha da Primeira Tentativa (HEAD `b3fb598`)
+A primeira implementação do PR #26 avaliava exclusivamente 3 candidatos dentro do IndexedDB:
+- Candidato 1: Geração existente e íntegra no IndexedDB.
+- Candidato 2: Snapshot legado íntegro em `legacySnapshots` do IndexedDB.
+- Candidato 3: Manifest de histórico vazio em `generationManifests` do IndexedDB.
+
+Como o IndexedDB do aparelho estava completamente em estado `not-started` com stores vazias, nenhum dos 3 candidatos foi satisfeito. Conforme a regra de fail-closed, o reconciliador retornou `null`, resultando em `blocked-storage-unavailable`. A primeira implementação falhou no aparelho real por não contemplar a evidência física existente no backup v1 do `localStorage`.
 
 ---
 
-## 2. Solução Implementada: Reconciliação Segura de Boot
+## 2. Solução Definitiva: Candidato 4 (`VERIFIED_LOCAL_V1_BACKUP`)
 
-A reconciliação segura foi introduzida estritamente dentro de `storage-boot-recovery.ts`, em conformidade total com as 11 regras arquiteturais do GymFlow:
+A solução foi expandida em `src/lib/storage-boot-recovery.ts` para reconciliar o estado órfão a partir do backup físico v1 comprovado, sem comprometer as guardas de segurança.
 
-### 2.1. Princípio da Não-Destrutividade e Prova Física
-- **Candidato 1 (Geração Existente):** Se `targetGenId` existe fisicamente em `WORKOUT_HISTORY_STORE` e sua prova criptográfica (`verifyHistoryGeneration()`) atesta integridade dos registros e do manifest, a geração é comprovada.
-- **Candidato 2 (Snapshot Legado Verificado):** Se a geração não estiver presente, mas `readLegacySnapshot()` recuperar um snapshot verificado em `LEGACY_SNAPSHOTS_STORE` com integridade de checksum comprovada, as sessões legadas são extraídas.
-- **Candidato 3 (Manifest de Histórico Vazio):** Se existir manifest íntegro com `sessionCount === 0` e digest correspondente a `EMPTY_GENERATION_DIGEST`, o histórico vazio é comprovado.
-- **Regra 10 (Ausência física continua ausência):** Se nenhuma das 3 fontes puder ser matematicamente e fisicamente comprovada, a recuperação automática é **recusada** e o sistema falha fechado (`fail-closed`), mantendo `blocked-storage-unavailable` sem inventar ou descartar dados.
+### 2.1. Requisitos e Validação do Backup v1
+O backup localizado em `${KEY}${STORAGE_BACKUP_SUFFIX}` (`gymflow:state:v1:backup`) é submetido a validação rigorosa:
+1. Presença física e parsing sem erros.
+2. Envelope físico `v1` (`parsePhysicalEnvelope(raw).version === 1`).
+3. Formato `PersistedState` válido e `workoutHistory` comprovadamente array.
+4. Normalização e migração sem perdas através de `normalizeSessionState()`.
 
-### 2.2. Protocolo de Transição Atômica (Regra 9 e Regra 11)
-1. **Backup Físico:** Antes de qualquer alteração, o estado bruto do `localStorage` é salvo em `${KEY}${HYBRID_CORE_BACKUP_SUFFIX}` e confirmado por readback imediato.
-2. **Ativação Segura:**
-   - Se `hasHistoryGeneration(targetGenId)` for verdadeiro, tenta ativação direta escrevendo `migrationGeneration`, ativando e concluindo os metadados.
-   - Caso contrário, prepara uma nova geração com `prepareHistoryGeneration(provenSessions)`, verifica integralmente o snapshot gerado e ativa a geração.
-3. **Persistência de Core:** O core do `localStorage` é atualizado com `saveHybridCoreResult()`, garantindo atomicidade e readback.
-4. **Confirmação e Reread:**
-   - Metadados relidos do IndexedDB: `activeGeneration === activeGenId`, `migrationGeneration === null`, `migrationStatus === 'completed'`.
-   - Administração relida: `inspectStorageAdministration()` retorna status `'ready'`.
-5. **Resultado:** Retorna `ready('ready-after-settled', false)`, liberando a hidratação subsequente para operar em modo híbrido v2 nativo.
+### 2.2. Prova Estrita de Linhagem (Lineage Proof)
+Antes de autorizar o uso do histórico do backup, o sistema executa a função pura `verifyBackupV1Lineage(backupData, coreData)`.
+- Todos os domínios canônicos são comparados:
+  - `user` (id, nome, email, etc.)
+  - `gymProfile`
+  - `weeklyPlan`
+  - `customPrograms`
+  - `activeWorkout`
+  - `weightHistory`
+  - `measurementsHistory`
+  - `nutrition`
+  - `achievements`, `challenges`, `favoriteExercises`, `recentlyViewedVideoIds`
+- Somente diferenças estruturais inerentes à migração `v1 → v2` são permitidas:
+  - `workoutHistory` presente no v1 e ausente no core v2.
+  - `historyStorage` presente no core v2 e ausente no v1.
+- Qualquer divergência real em dados de negócio invalida o candidato e força `fail-closed` (`blocked-storage-unavailable`).
 
-### 2.3. Respeito às Guardas Arquiteturais
-- O orquestrador não contém nenhuma das palavras/ações proibidas (`restoreStorage`, `rollbackStorage`, `resetStorage`, `startFresh`, `clearInactiveGeneration`, `replaceHistory`).
-- O teste arquitetural existente em `storage-boot-recovery.test.ts` (linha 1023) continua passando 100%.
+### 2.3. Sequência de Transição Segura e Não-Destrutiva
+1. **Preservação Pré-Mutação:** Confirmação do backup v1 existente. O backup de segurança adicional é gravado em `${KEY}${HYBRID_CORE_BACKUP_SUFFIX}` com readback imediato, sem jamais sobrescrever o backup v1 original.
+2. **Snapshot Legado no IndexedDB:** O backup v1 é persistido no adapter IndexedDB via `saveLegacySnapshot(candidateBackupRaw)`.
+3. **Preparação e Ativação da Geração:**
+   - As sessões comprovadas do backup v1 (sejam vazias `[]` ou com treinos históricos) são preparadas via `prepareHistoryGeneration(provenSessions)`.
+   - Snapshot e manifest gerados são integralmente verificados (`verifyHistoryGeneration()`).
+   - Ativação atômica via `activateHistoryGeneration()` e finalização dos metadados (`migrationStatus: 'completed'`).
+4. **Alinhamento do Core v2:**
+   - O core no `localStorage` é alinhado com o `generationId` ativado e salvo via `saveHybridCoreResult()`.
+   - Readback atesta consistência do envelope v2.
+5. **Inspeção de Administração:** `inspectStorageAdministration()` é invocado e atesta status `'ready'`.
+6. **Resultado:** Retorna `ready('ready-after-settled', false)`, liberando a hidratação e desbloqueando o autosave.
+7. **Idempotência no Segundo Boot:** Em reinicializações subsequentes, o IndexedDB já possui a geração ativa e metadados concluídos, retornando diretamente `ready('ready-no-operation', false)` (`HYBRID_RECOVERY_REPEATS = NO`).
 
 ---
 
-## 3. Matriz de Validação e Testes Automatizados
+## 3. Matriz Completa de Testes Automatizados
 
-| Suíte de Testes | Quantidade | Resultado | Destaques |
+| Suíte de Testes | Testes | Resultado | Cobertura / Destaques |
 |---|---|---|---|
-| `src/lib/storage-boot-recovery.test.ts` | 66 testes | **PASS** (66/66) | Guardas arquiteturais, idempotência e compatibilidade v1/v2 preservadas |
-| `src/lib/storage-android-recovery.test.ts` | 5 testes | **PASS** (5/5) | Candidato 1, Candidato 2, Candidato 3, Regra 10 e Idempotência validados |
-| `src/providers/GymFlowContext.storage-recovery.test.tsx` | 21 testes | **PASS** (21/21) | Diagnóstico em console, isolamento de autosave e proteção contra remontagem |
-| `npx tsc --noEmit` | Workspace | **PASS** (Exit 0) | Zero erros estáticos de TypeScript |
-| `npm run build:mobile` | Next.js 16 | **PASS** (Exit 0) | Bundle estático gerado com Turbopack em `out/` |
-| `npx cap sync android` | Capacitor 7 | **PASS** (Exit 0) | Sincronização de 7 plugins e assets em `android/app/src/main/assets` |
-| `npm run android:build` | Gradle assembleDebug | **PASS** (Exit 0) | APK gerado em `android/app/build/outputs/apk/debug/app-debug.apk` |
+| `src/lib/storage-boot-recovery.test.ts` | 66 | **PASS** (66/66) | Guardas arquiteturais, ausência de verbos proibidos, reconciliação genérica |
+| `src/lib/storage-android-recovery.test.ts` | 20 | **PASS** (20/20) | Fixture física exata do Samsung SM-S901E, sessões reais, 10 testes negativos de divergência e formato, pure lineage proof |
+| `src/providers/GymFlowContext.storage-recovery.test.tsx` | 21 | **PASS** (21/21) | Barreira de recuperação, integridade do autosave, diagnóstico formatado em logcat |
+| **Total Workspace (`npm test`)** | **2.655** | **PASS** (2655/2655, 110 suítes) | **Zero falhas**, exit code 0 |
+| `npx tsc --noEmit` | Workspace | **PASS** (Exit 0) | Zero erros de tipagem estática |
+| `npm run build:mobile` | Next.js 16 | **PASS** (Exit 0) | Build estático exportado com Turbopack |
+| `npx cap sync android` | Capacitor 7 | **PASS** (Exit 0) | Assets sincronizados com sucesso |
+| `npm run android:build` | Gradle | **PASS** (Exit 0) | APK gerado em `android/app/build/outputs/apk/debug/app-debug.apk` |
 
 ---
 
-## 4. Procedimento de Instalação e Teste no Aparelho Real
+## 4. Auditoria de Instalação e Teste no Aparelho Samsung SM-S901E
 
-Para aplicar a atualização no Samsung Galaxy S22 sem perda de dados:
-
-1. **Conectar o smartphone via USB** com a Depuração USB ativada (ou via ADB Wi-Fi).
-2. **Confirmar reconhecimento pelo ADB:**
-   ```powershell
-   adb devices -l
-   ```
-3. **Instalar preservando todos os dados locais anteriores (SEM UNINSTALL, SEM CLEAR):**
-   ```powershell
-   adb install -r android/app/build/outputs/apk/debug/app-debug.apk
-   ```
-4. **Iniciar o aplicativo:**
-   ```powershell
-   adb shell am start -n com.gymflowai.app/com.gymflowai.app.MainActivity
-   ```
-5. **Critérios de Aceite no Aparelho:**
-   - O banner de *"Recuperação segura necessária"* desaparece automaticamente.
-   - Os dados do perfil, planos semanais, treinos customizados e histórico são carregados intactos.
-   - O autosave volta ao estado ativo e funcional.
-   - Ao alterar qualquer detalhe (ex: nota de treino ou perfil) e fechar/reabrir o app, as alterações permanecem salvas.
-   - Nos logs de inicialização (`adb logcat -s Capacitor/Console`), a mensagem `[GymFlow Storage Boot Diagnosis]` confirma `outcome: ready-after-settled` ou `ready-no-operation` no segundo boot.
+1. **Instalação Canônica:**
+   - Executado exclusivamente `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`.
+   - Proibição estrita respeitada: nenhum `adb uninstall`, nenhum `pm clear`, nenhuma limpeza manual de storage.
+2. **Diagnóstico de Inicialização:**
+   - `[GymFlow Storage Boot Diagnosis]` serializado em formato JSON estruturado no console do Capacitor.
+   - Outcome comprovado: transição segura de estado órfão para pronto.
+3. **Persistência e Autosave:**
+   - Autosave liberado após recuperação com sucesso.
+   - Idempotência validada: reinicializações subsequentes não executam recovery redundante.

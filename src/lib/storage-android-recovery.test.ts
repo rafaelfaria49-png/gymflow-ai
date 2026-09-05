@@ -3,7 +3,9 @@ import { IDBFactory } from 'fake-indexeddb';
 import {
   runStorageBootRecovery,
   runStorageBootRecoveryOnce,
+  verifyBackupV1Lineage,
 } from './storage-boot-recovery';
+import { STORAGE_BACKUP_SUFFIX } from './storage';
 import {
   createHybridStorageRuntime,
   parsePhysicalEnvelope,
@@ -379,4 +381,468 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
     // Nenhuma nova escrita foi realizada no segundo boot
     expect(storage.writes.length).toBe(writesCountBefore);
   });
+
+  it('Candidato 4: Fixture do caso físico real Samsung SM-S901E (core v2 + IDB not-started + backup v1 com workoutHistory: []) -> recovery PASS', async () => {
+    const storage = new MemoryStorage();
+    const factory = new IDBFactory();
+    const dbName = `gymflow-android-c4-samsung-${dbSeq += 1}`;
+    const adapter = new IndexedDbWorkoutHistoryStorage({
+      factory,
+      databaseName: dbName,
+      generationIdFactory: () => 'gen-rec-samsung-fixed',
+      now: () => new Date('2026-09-04T19:30:00.000Z'),
+    });
+
+    await adapter.open();
+
+    // Estado exatamente como no Samsung SM-S901E:
+    // 1. IndexedDB vazio (not-started, activeGen null, nenhum registro)
+    const initialMeta = await adapter.readMetadata();
+    expect(initialMeta.migrationStatus).toBe('not-started');
+    expect(initialMeta.activeGeneration).toBeNull();
+    expect((await adapter.readStorageAdministrationSnapshot()).unsettledOperations).toHaveLength(0);
+
+    // 2. Core v2 no localStorage apontando para geração órfã
+    const state = baseDefaults();
+    const targetGenId = 'generation-4317ec26-ae8c-4e03-8c00-dd1a955d7895';
+    const core = toPersistedCoreState(state, targetGenId);
+    const rawCore = JSON.stringify({
+      v: HYBRID_STORAGE_VERSION,
+      savedAt: '2026-09-04T19:24:25.000Z',
+      data: core,
+    });
+    storage.setItem(KEY, rawCore);
+
+    // 3. Backup v1 físico no localStorage com workoutHistory: [] e dados da mesma linhagem
+    const rawBackup = JSON.stringify({
+      v: 1,
+      savedAt: '2026-08-14T10:55:02.000Z',
+      data: {
+        ...state,
+        workoutHistory: [],
+      },
+    });
+    const backupKey = `${KEY}${STORAGE_BACKUP_SUFFIX}`;
+    storage.setItem(backupKey, rawBackup);
+
+    // Executa boot recovery
+    const outcome = await runStorageBootRecovery({
+      adapter,
+      storage,
+      key: KEY,
+    });
+
+    // Deve autorizar a hidratação plenamente
+    expect(outcome.hydrationAllowed).toBe(true);
+    expect(outcome.status).toBe('ready-after-settled');
+
+    // Backup pré-mutação foi gravado
+    expect(storage.getItem(`${KEY}${HYBRID_CORE_BACKUP_SUFFIX}`)).toBe(rawCore);
+    // Backup físico v1 foi rigorosamente preservado (Regra 9)
+    expect(storage.getItem(backupKey)).toBe(rawBackup);
+
+    // Hidratação híbrida subsequente em hybrid-v2 com todos os domínios intactos
+    const hybrid = createHybridStorageRuntime({
+      key: KEY,
+      storage,
+      adapter,
+      defaults: baseDefaults(),
+      now: () => new Date('2026-09-04T19:30:00.000Z'),
+    });
+    hybrid.retain();
+    const hydrated = await hybrid.hydrate();
+    expect(hydrated.mode).toBe('hybrid-v2');
+    if (hydrated.mode !== 'hybrid-v2') throw new Error('not hybrid-v2');
+
+    // Histórico vazio comprovado via backup
+    expect(hydrated.state.workoutHistory).toEqual([]);
+
+    // Domínios canônicos preservados integralmente (Regra 15)
+    expect(hydrated.state.user?.name).toBe('Rafael');
+    expect(hydrated.state.user?.email).toBe('rafael@example.com');
+    expect(hydrated.state.gymProfile?.profiles[0].name).toBe('Academia Principal Preservada');
+    expect(hydrated.state.customPrograms[0].name).toBe('Treino Especial de Força');
+    expect(hydrated.state.weeklyPlan).toHaveLength(2);
+    expect(hydrated.state.activeWorkout?.id).toBe('active-sess-1');
+    expect(hydrated.state.weightHistory).toEqual([]);
+    expect(hydrated.state.measurementsHistory).toEqual([]);
+    expect(hydrated.state.nutrition.calories).toBe(2500);
+    expect(hydrated.state.favoriteExercises).toEqual(['supino-reto']);
+
+    await hybrid.close();
+  });
+
+  it('Candidato 4: Histórico não vazio no backup v1 -> preserva todas as sessões comprovadas exatamente', async () => {
+    const storage = new MemoryStorage();
+    const factory = new IDBFactory();
+    const dbName = `gymflow-android-c4-sessions-${dbSeq += 1}`;
+    const adapter = new IndexedDbWorkoutHistoryStorage({
+      factory,
+      databaseName: dbName,
+      generationIdFactory: () => 'gen-rec-sessions',
+      now: () => new Date('2026-09-04T19:30:00.000Z'),
+    });
+
+    await adapter.open();
+
+    const sessions = [makeSession(20), makeSession(21), makeSession(22)];
+    const state = {
+      ...baseDefaults(),
+      workoutHistory: sessions,
+    };
+
+    // Core v2 órfão
+    const targetGenId = 'generation-missing-sessions';
+    const core = toPersistedCoreState(state, targetGenId);
+    const rawCore = JSON.stringify({
+      v: HYBRID_STORAGE_VERSION,
+      savedAt: '2026-09-04T19:24:25.000Z',
+      data: core,
+    });
+    storage.setItem(KEY, rawCore);
+
+    // Backup v1 com as 3 sessões comprovadas
+    const rawBackup = JSON.stringify({
+      v: 1,
+      savedAt: '2026-08-14T10:55:02.000Z',
+      data: state,
+    });
+    storage.setItem(`${KEY}${STORAGE_BACKUP_SUFFIX}`, rawBackup);
+
+    const outcome = await runStorageBootRecovery({
+      adapter,
+      storage,
+      key: KEY,
+    });
+
+    expect(outcome.hydrationAllowed).toBe(true);
+    expect(outcome.status).toBe('ready-after-settled');
+
+    // Hidratação híbrida recupera todas as 3 sessões comprovadas
+    const hybrid = createHybridStorageRuntime({
+      key: KEY,
+      storage,
+      adapter,
+      defaults: baseDefaults(),
+      now: () => new Date('2026-09-04T19:30:00.000Z'),
+    });
+    hybrid.retain();
+    const hydrated = await hybrid.hydrate();
+    expect(hydrated.mode).toBe('hybrid-v2');
+    if (hydrated.mode !== 'hybrid-v2') throw new Error('not hybrid-v2');
+    expect(hydrated.state.workoutHistory).toHaveLength(3);
+    expect(hydrated.state.workoutHistory[0].id).toBe('sess-20');
+    expect(hydrated.state.workoutHistory[1].id).toBe('sess-21');
+    expect(hydrated.state.workoutHistory[2].id).toBe('sess-22');
+    expect(hydrated.state.workoutHistory[0].exercises[0].sets[0].weight).toBe(80);
+
+    await hybrid.close();
+  });
+
+  describe('Testes negativos de recuperação via backup (Regra 13)', () => {
+    it('backup ausente -> blocked-storage-unavailable', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-absent-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-no-backup');
+      const rawCore = JSON.stringify({
+        v: HYBRID_STORAGE_VERSION,
+        savedAt: '2026-09-04T12:00:00.000Z',
+        data: core,
+      });
+      storage.setItem(KEY, rawCore);
+      // Nenhum backup criado
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(false);
+      expect(outcome.status).toBe('blocked-storage-unavailable');
+      expect(storage.getItem(KEY)).toBe(rawCore);
+    });
+
+    it('backup com JSON inválido -> blocked-storage-unavailable', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-badjson-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-bad-json');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
+      );
+      storage.setItem(`${KEY}${STORAGE_BACKUP_SUFFIX}`, '{"v":1, "corrupt":');
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(false);
+      expect(outcome.status).toBe('blocked-storage-unavailable');
+    });
+
+    it('backup não-v1 (envelope v2 no slot de backup) -> blocked-storage-unavailable', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-notv1-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-not-v1');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
+      );
+      // Backup tem v: 2 (não é envelope v1)
+      storage.setItem(
+        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
+      );
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(false);
+      expect(outcome.status).toBe('blocked-storage-unavailable');
+    });
+
+    it('backup com core divergente em user -> blocked-storage-unavailable', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-divuser-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-div-user');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
+      );
+
+      // Backup tem usuário diferente
+      const divergentState = {
+        ...state,
+        user: { id: 'u-999', name: 'Usuario Completamente Diferente', email: 'outro@example.com' } as any,
+      };
+      storage.setItem(
+        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
+        JSON.stringify({ v: 1, savedAt: '2026-08-01T12:00:00.000Z', data: divergentState }),
+      );
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(false);
+      expect(outcome.status).toBe('blocked-storage-unavailable');
+    });
+
+    it('backup com core divergente em weeklyPlan -> blocked-storage-unavailable', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-divplan-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-div-plan');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
+      );
+
+      const divergentState = {
+        ...state,
+        weeklyPlan: [{ dayOfWeek: 3, workoutId: 'outro-treino', restDay: false }] as any,
+      };
+      storage.setItem(
+        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
+        JSON.stringify({ v: 1, savedAt: '2026-08-01T12:00:00.000Z', data: divergentState }),
+      );
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(false);
+      expect(outcome.status).toBe('blocked-storage-unavailable');
+    });
+
+    it('backup com core divergente em customPrograms -> blocked-storage-unavailable', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-divprog-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-div-prog');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
+      );
+
+      const divergentState = {
+        ...state,
+        customPrograms: [{ id: 'prog-divergente', name: 'Outro Programa', workouts: [] }] as any,
+      };
+      storage.setItem(
+        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
+        JSON.stringify({ v: 1, savedAt: '2026-08-01T12:00:00.000Z', data: divergentState }),
+      );
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(false);
+      expect(outcome.status).toBe('blocked-storage-unavailable');
+    });
+
+    it('backup com core divergente em gymProfile -> blocked-storage-unavailable', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-divgym-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-div-gym');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
+      );
+
+      const divergentState = {
+        ...state,
+        gymProfile: {
+          schemaVersion: 1,
+          activeProfileId: 'profile-divergente',
+          profiles: [{ id: 'profile-divergente', name: 'Outra Academia', kind: 'home', isDefault: true, equipment: [] }],
+        } as any,
+      };
+      storage.setItem(
+        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
+        JSON.stringify({ v: 1, savedAt: '2026-08-01T12:00:00.000Z', data: divergentState }),
+      );
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(false);
+      expect(outcome.status).toBe('blocked-storage-unavailable');
+    });
+
+    it('backup com core divergente em activeWorkout -> blocked-storage-unavailable', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-divactive-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-div-active');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
+      );
+
+      const divergentState = {
+        ...state,
+        activeWorkout: { id: 'active-divergente', workoutId: 'w-divergente', date: '2026-09-04T12:00:00.000Z', exercises: [] } as any,
+      };
+      storage.setItem(
+        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
+        JSON.stringify({ v: 1, savedAt: '2026-08-01T12:00:00.000Z', data: divergentState }),
+      );
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(false);
+      expect(outcome.status).toBe('blocked-storage-unavailable');
+    });
+
+    it('backup com workoutHistory inválido (sessão sem id) -> blocked-storage-unavailable', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-badhist-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-bad-hist');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
+      );
+
+      // Sessão sem id
+      const invalidBackupState = {
+        ...state,
+        workoutHistory: [{ name: 'Sem id', date: '2026-08-01' }] as any,
+      };
+      storage.setItem(
+        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
+        JSON.stringify({ v: 1, savedAt: '2026-08-01T12:00:00.000Z', data: invalidBackupState }),
+      );
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(false);
+      expect(outcome.status).toBe('blocked-storage-unavailable');
+    });
+
+    it('Regra 6 & 10: IndexedDB vazio sozinho NUNCA autoriza recuperação de histórico vazio sem prova', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-idbonly-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      // Core v2 órfão, IDB vazio, SEM backup no localStorage
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-orphan-alone');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
+      );
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      // Permanece fail-closed!
+      expect(outcome.hydrationAllowed).toBe(false);
+      expect(outcome.status).toBe('blocked-storage-unavailable');
+    });
+  });
+
+  describe('Função pura verifyBackupV1Lineage', () => {
+    it('aprova linhagem quando backup e core derivam do mesmo estado', () => {
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-lineage-1');
+      expect(verifyBackupV1Lineage(state, core)).toBe(true);
+    });
+
+    it('rejeita linhagem quando usuário diverge', () => {
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-lineage-2');
+      const divergent = { ...state, user: { ...state.user!, name: 'Nome Divergente' } };
+      expect(verifyBackupV1Lineage(divergent, core)).toBe(false);
+    });
+
+    it('rejeita linhagem quando gymProfile diverge', () => {
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-lineage-3');
+      const divergent = { ...state, gymProfile: null };
+      expect(verifyBackupV1Lineage(divergent, core)).toBe(false);
+    });
+  });
 });
+

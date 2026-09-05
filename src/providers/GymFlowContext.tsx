@@ -1394,12 +1394,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         if (cancelled || !mountedRef.current) return;
         storageBootOutcomeRef.current = recovery;
 
-        console.info('[GymFlow Storage Boot Diagnosis]', {
-          outcome: recovery.status,
-          hydrationAllowed: recovery.hydrationAllowed,
-          cleanupPending: recovery.cleanupPending,
-          physicalVersion: 'physicalVersion' in recovery ? recovery.physicalVersion : undefined,
-        });
+        console.info(
+          `[GymFlow Storage Boot Diagnosis] ${JSON.stringify({
+            outcome: recovery.status,
+            hydrationAllowed: recovery.hydrationAllowed,
+            cleanupPending: recovery.cleanupPending,
+            physicalVersion: 'physicalVersion' in recovery ? recovery.physicalVersion : undefined,
+          })}`
+        );
 
         blockedClassificationOnly =
           recovery.status === 'ready-for-blocked-storage-classification';

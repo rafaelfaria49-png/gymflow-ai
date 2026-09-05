@@ -20,9 +20,11 @@ import {
   EMPTY_GENERATION_DIGEST,
   verifyHistoryGeneration,
 } from './storage-history-integrity';
+import { STORAGE_BACKUP_SUFFIX } from './storage';
 import type { StorageLike, PersistedState, PersistedCoreState } from './storage-types';
 import { isRecord, parseEnvelope } from './storage-validation';
 import { recoverStorageRetirementJournal } from './storage-retirement-journal';
+import { normalizeSessionState } from './workout-session-migration';
 import type { WorkoutSession } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -148,6 +150,145 @@ function readyForBlockedStorageClassification(): StorageBootRecoveryBlockedClass
   };
 }
 
+function canonicalizeValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => {
+      const normalized = canonicalizeValue(item);
+      return normalized === undefined ? null : normalized;
+    });
+  }
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .flatMap((key) => {
+          const normalized = canonicalizeValue(record[key]);
+          return normalized === undefined ? [] : [[key, normalized]];
+        }),
+    );
+  }
+  if (typeof value === 'number' && !Number.isFinite(value)) return null;
+  if (typeof value === 'undefined' || typeof value === 'function' || typeof value === 'symbol') {
+    return undefined;
+  }
+  return value;
+}
+
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(canonicalizeValue(value));
+}
+
+export function verifyBackupV1Lineage(
+  backupData: PersistedState,
+  core: PersistedCoreState,
+): boolean {
+  if (!isRecord(backupData) || !isRecord(core)) return false;
+
+  // Normalização de sessão ativa (mesma transformação aplicada na migração v1 -> v2)
+  const normBackupActive = normalizeSessionState({
+    activeWorkout: backupData.activeWorkout ?? null,
+    activeWorkoutStartedAt: backupData.activeWorkoutStartedAt ?? null,
+    workoutHistory: [],
+  }).activeWorkout;
+
+  const normCoreActive = normalizeSessionState({
+    activeWorkout: core.activeWorkout ?? null,
+    activeWorkoutStartedAt: core.activeWorkoutStartedAt ?? null,
+    workoutHistory: [],
+  }).activeWorkout;
+
+  if (canonicalJson(normBackupActive ?? null) !== canonicalJson(normCoreActive ?? null)) {
+    return false;
+  }
+
+  // Domínios canônicos obrigatórios
+  if (canonicalJson(backupData.user ?? null) !== canonicalJson(core.user ?? null)) {
+    return false;
+  }
+  if (canonicalJson(backupData.weeklyPlan ?? []) !== canonicalJson(core.weeklyPlan ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.customPrograms ?? []) !== canonicalJson(core.customPrograms ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.gymProfile ?? null) !== canonicalJson(core.gymProfile ?? null)) {
+    return false;
+  }
+  if ((backupData.activeWorkoutStartedAt ?? null) !== (core.activeWorkoutStartedAt ?? null)) {
+    return false;
+  }
+  if ((backupData.restTimerEndAt ?? null) !== (core.restTimerEndAt ?? null)) {
+    return false;
+  }
+  if ((backupData.restTimerTotalSeconds ?? null) !== (core.restTimerTotalSeconds ?? null)) {
+    return false;
+  }
+  if ((backupData.restTimerLabel ?? null) !== (core.restTimerLabel ?? null)) {
+    return false;
+  }
+  if (canonicalJson(backupData.weightHistory ?? []) !== canonicalJson(core.weightHistory ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.measurementsHistory ?? []) !== canonicalJson(core.measurementsHistory ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.nutrition ?? null) !== canonicalJson(core.nutrition ?? null)) {
+    return false;
+  }
+  if (canonicalJson(backupData.achievements ?? []) !== canonicalJson(core.achievements ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.challenges ?? []) !== canonicalJson(core.challenges ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.favoriteExercises ?? []) !== canonicalJson(core.favoriteExercises ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.recentlyViewedVideoIds ?? []) !== canonicalJson(core.recentlyViewedVideoIds ?? [])) {
+    return false;
+  }
+
+  // Não permitir campos arbitrários extras divergentes
+  const KNOWN_FIELDS = new Set([
+    'user',
+    'weeklyPlan',
+    'customPrograms',
+    'activeWorkout',
+    'activeWorkoutStartedAt',
+    'restTimerEndAt',
+    'restTimerTotalSeconds',
+    'restTimerLabel',
+    'workoutHistory',
+    'historyStorage',
+    'weightHistory',
+    'measurementsHistory',
+    'nutrition',
+    'achievements',
+    'challenges',
+    'favoriteExercises',
+    'recentlyViewedVideoIds',
+    'gymProfile',
+  ]);
+
+  for (const k of Object.keys(core)) {
+    if (!KNOWN_FIELDS.has(k)) {
+      if (canonicalJson((core as any)[k]) !== canonicalJson((backupData as any)[k])) {
+        return false;
+      }
+    }
+  }
+  for (const k of Object.keys(backupData)) {
+    if (!KNOWN_FIELDS.has(k)) {
+      if (canonicalJson((backupData as any)[k]) !== canonicalJson((core as any)[k])) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 async function attemptSafeBootReconciliation(
   input: StorageBootRecoveryInput & {
     runtime: StorageAdminRuntime;
@@ -190,6 +331,7 @@ async function attemptSafeBootReconciliation(
   }
 
   let provenSessions: WorkoutSession[] | null = null;
+  let candidateBackupRaw: string | null = null;
 
   // Candidato 1: a geração targetGenId existe fisicamente e passa na verificação integral
   try {
@@ -236,6 +378,41 @@ async function attemptSafeBootReconciliation(
     }
   }
 
+  // Candidato 4: VERIFIED_LOCAL_V1_BACKUP
+  // Avaliado somente após as fontes físicas do IndexedDB não fornecerem prova.
+  // Lê o backup v1 em localStorage, valida formato, prova linhagem com o core v2 atual
+  // e deriva as sessões comprovadas.
+  if (provenSessions === null) {
+    try {
+      const backupKey = `${input.key}${STORAGE_BACKUP_SUFFIX}`;
+      const rawBackup = input.storage.getItem(backupKey);
+      if (typeof rawBackup === 'string') {
+        const physicalBackup = parsePhysicalEnvelope(rawBackup);
+        if (physicalBackup.status === 'v1') {
+          const backupData = physicalBackup.envelope.data;
+          if (
+            Array.isArray(backupData.workoutHistory)
+            && backupData.workoutHistory.every(
+              (s) => isRecord(s) && typeof s.id === 'string' && s.id.length > 0,
+            )
+          ) {
+            if (verifyBackupV1Lineage(backupData, core)) {
+              const normalized = normalizeSessionState({
+                activeWorkout: backupData.activeWorkout ?? null,
+                activeWorkoutStartedAt: backupData.activeWorkoutStartedAt ?? null,
+                workoutHistory: backupData.workoutHistory,
+              });
+              provenSessions = normalized.workoutHistory;
+              candidateBackupRaw = rawBackup;
+            }
+          }
+        }
+      }
+    } catch {
+      // Continua fail-closed
+    }
+  }
+
   // Se nenhuma fonte puder ser comprovada, recusa recuperação automática (Regra 10: ausência física continua sendo ausência)
   if (provenSessions === null) {
     return null;
@@ -243,11 +420,28 @@ async function attemptSafeBootReconciliation(
 
   // Reconciliação (Regra 9): prepare -> verify -> activate -> reread -> confirm
   try {
-    // 1. Preservar cópia física verificável do estado atual antes da mutação (Regra 11)
+    // 1. Confirmar backup físico v1 existente se reconciliando via backup local v1 (Regra 9)
+    if (candidateBackupRaw !== null) {
+      const v1BackupKey = `${input.key}${STORAGE_BACKUP_SUFFIX}`;
+      if (input.storage.getItem(v1BackupKey) !== candidateBackupRaw) {
+        return null;
+      }
+    }
+
+    // 2. Preservar cópia física verificável do estado atual antes da mutação (Regra 11)
     const backupKey = `${input.key}${HYBRID_CORE_BACKUP_SUFFIX}`;
     input.storage.setItem(backupKey, raw);
     if (input.storage.getItem(backupKey) !== raw) {
       return null;
+    }
+
+    // Se provido pelo backup local v1, também persiste o snapshot legado comprovado no adapter
+    if (candidateBackupRaw !== null && typeof input.adapter.saveLegacySnapshot === 'function') {
+      try {
+        await input.adapter.saveLegacySnapshot(candidateBackupRaw);
+      } catch {
+        // Continua
+      }
     }
 
     // Tentar ativação direta se a geração já estiver presente e com marker válido
