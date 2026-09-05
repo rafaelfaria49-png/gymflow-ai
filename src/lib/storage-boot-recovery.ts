@@ -9,10 +9,23 @@ import {
   recoverLogicalStorageAdministrationV2,
 } from './storage-administrative-recovery';
 import type { StorageAdminOwnerTokenCoordinator } from './storage-admin-owner-token';
-import { parsePhysicalEnvelope } from './storage-hybrid';
-import type { StorageLike } from './storage-types';
-import { isRecord } from './storage-validation';
+import {
+  combineCoreWithHistory,
+  HYBRID_CORE_BACKUP_SUFFIX,
+  parsePhysicalEnvelope,
+  saveHybridCoreResult,
+  toPersistedCoreState,
+} from './storage-hybrid';
+import {
+  EMPTY_GENERATION_DIGEST,
+  verifyHistoryGeneration,
+} from './storage-history-integrity';
+import { STORAGE_BACKUP_SUFFIX } from './storage';
+import type { StorageLike, PersistedState, PersistedCoreState } from './storage-types';
+import { isRecord, parseEnvelope } from './storage-validation';
 import { recoverStorageRetirementJournal } from './storage-retirement-journal';
+import { normalizeSessionState } from './workout-session-migration';
+import type { WorkoutSession } from '../types';
 
 // ---------------------------------------------------------------------------
 // GOAL-17B-002D-D1 — recuperação administrativa ANTES da hidratação
@@ -137,12 +150,379 @@ function readyForBlockedStorageClassification(): StorageBootRecoveryBlockedClass
   };
 }
 
-// Classificação FECHADA. O padrão é bloquear: qualquer forma não reconhecida cai
-// no `default`, nunca em "segue mesmo assim".
-function classifyInitialAdministrationUnavailable(
+function canonicalizeValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => {
+      const normalized = canonicalizeValue(item);
+      return normalized === undefined ? null : normalized;
+    });
+  }
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .flatMap((key) => {
+          const normalized = canonicalizeValue(record[key]);
+          return normalized === undefined ? [] : [[key, normalized]];
+        }),
+    );
+  }
+  if (typeof value === 'number' && !Number.isFinite(value)) return null;
+  if (typeof value === 'undefined' || typeof value === 'function' || typeof value === 'symbol') {
+    return undefined;
+  }
+  return value;
+}
+
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(canonicalizeValue(value));
+}
+
+export function verifyBackupV1Lineage(
+  backupData: PersistedState,
+  core: PersistedCoreState,
+): boolean {
+  if (!isRecord(backupData) || !isRecord(core)) return false;
+
+  // Normalização de sessão ativa (mesma transformação aplicada na migração v1 -> v2)
+  const normBackupActive = normalizeSessionState({
+    activeWorkout: backupData.activeWorkout ?? null,
+    activeWorkoutStartedAt: backupData.activeWorkoutStartedAt ?? null,
+    workoutHistory: [],
+  }).activeWorkout;
+
+  const normCoreActive = normalizeSessionState({
+    activeWorkout: core.activeWorkout ?? null,
+    activeWorkoutStartedAt: core.activeWorkoutStartedAt ?? null,
+    workoutHistory: [],
+  }).activeWorkout;
+
+  if (canonicalJson(normBackupActive ?? null) !== canonicalJson(normCoreActive ?? null)) {
+    return false;
+  }
+
+  // Domínios canônicos obrigatórios
+  if (canonicalJson(backupData.user ?? null) !== canonicalJson(core.user ?? null)) {
+    return false;
+  }
+  if (canonicalJson(backupData.weeklyPlan ?? []) !== canonicalJson(core.weeklyPlan ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.customPrograms ?? []) !== canonicalJson(core.customPrograms ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.gymProfile ?? null) !== canonicalJson(core.gymProfile ?? null)) {
+    return false;
+  }
+  if ((backupData.activeWorkoutStartedAt ?? null) !== (core.activeWorkoutStartedAt ?? null)) {
+    return false;
+  }
+  if ((backupData.restTimerEndAt ?? null) !== (core.restTimerEndAt ?? null)) {
+    return false;
+  }
+  if ((backupData.restTimerTotalSeconds ?? null) !== (core.restTimerTotalSeconds ?? null)) {
+    return false;
+  }
+  if ((backupData.restTimerLabel ?? null) !== (core.restTimerLabel ?? null)) {
+    return false;
+  }
+  if (canonicalJson(backupData.weightHistory ?? []) !== canonicalJson(core.weightHistory ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.measurementsHistory ?? []) !== canonicalJson(core.measurementsHistory ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.nutrition ?? null) !== canonicalJson(core.nutrition ?? null)) {
+    return false;
+  }
+  if (canonicalJson(backupData.achievements ?? []) !== canonicalJson(core.achievements ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.challenges ?? []) !== canonicalJson(core.challenges ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.favoriteExercises ?? []) !== canonicalJson(core.favoriteExercises ?? [])) {
+    return false;
+  }
+  if (canonicalJson(backupData.recentlyViewedVideoIds ?? []) !== canonicalJson(core.recentlyViewedVideoIds ?? [])) {
+    return false;
+  }
+
+  // Não permitir campos arbitrários extras divergentes
+  const KNOWN_FIELDS = new Set([
+    'user',
+    'weeklyPlan',
+    'customPrograms',
+    'activeWorkout',
+    'activeWorkoutStartedAt',
+    'restTimerEndAt',
+    'restTimerTotalSeconds',
+    'restTimerLabel',
+    'workoutHistory',
+    'historyStorage',
+    'weightHistory',
+    'measurementsHistory',
+    'nutrition',
+    'achievements',
+    'challenges',
+    'favoriteExercises',
+    'recentlyViewedVideoIds',
+    'gymProfile',
+  ]);
+
+  for (const k of Object.keys(core)) {
+    if (!KNOWN_FIELDS.has(k)) {
+      if (canonicalJson((core as any)[k]) !== canonicalJson((backupData as any)[k])) {
+        return false;
+      }
+    }
+  }
+  for (const k of Object.keys(backupData)) {
+    if (!KNOWN_FIELDS.has(k)) {
+      if (canonicalJson((backupData as any)[k]) !== canonicalJson((core as any)[k])) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+async function attemptSafeBootReconciliation(
+  input: StorageBootRecoveryInput & {
+    runtime: StorageAdminRuntime;
+    raw: string;
+    core: PersistedCoreState;
+  },
+): Promise<StorageBootRecoveryOutcome | null> {
+  const { raw, core } = input;
+  const targetGenId = core.historyStorage?.generationId;
+  if (!targetGenId || typeof targetGenId !== 'string') return null;
+
+  let available = false;
+  try {
+    if (typeof input.adapter?.isAvailable === 'function') {
+      available = await input.adapter.isAvailable();
+    }
+  } catch {
+    return null;
+  }
+  if (!available) return null;
+
+  try {
+    await input.adapter.open();
+  } catch {
+    return null;
+  }
+
+  let adminSnapshot;
+  try {
+    adminSnapshot = await input.adapter.readStorageAdministrationSnapshot();
+  } catch {
+    return null;
+  }
+  if (
+    !adminSnapshot
+    || adminSnapshot.unsettledOperations.length > 0
+    || adminSnapshot.pendingCompletionReceipts.length > 0
+  ) {
+    return null;
+  }
+
+  let provenSessions: WorkoutSession[] | null = null;
+  let candidateBackupRaw: string | null = null;
+
+  // Candidato 1: a geração targetGenId existe fisicamente e passa na verificação integral
+  try {
+    const genSnapshot = await input.adapter.readHistoryGenerationSnapshot(targetGenId);
+    if (genSnapshot.present) {
+      const verification = await verifyHistoryGeneration(targetGenId, genSnapshot);
+      if (verification.status === 'verified') {
+        provenSessions = verification.sessions;
+      }
+    }
+  } catch {
+    // Continua
+  }
+
+  // Candidato 2: snapshot legado verificado em LEGACY_SNAPSHOTS_STORE
+  if (provenSessions === null) {
+    try {
+      const legacy = await input.adapter.readLegacySnapshot();
+      if (legacy?.verified) {
+        const parsedLegacy = parseEnvelope<PersistedState>(legacy.raw);
+        if (parsedLegacy.status === 'ok') {
+          provenSessions = parsedLegacy.envelope.data.workoutHistory ?? [];
+        }
+      }
+    } catch {
+      // Continua
+    }
+  }
+
+  // Candidato 3: manifest explícito de histórico vazio para targetGenId
+  if (provenSessions === null) {
+    try {
+      const manifest = await input.adapter.readGenerationManifest(targetGenId);
+      if (
+        manifest
+        && manifest.verified
+        && manifest.sessionCount === 0
+        && manifest.orderedDigest === EMPTY_GENERATION_DIGEST
+      ) {
+        provenSessions = [];
+      }
+    } catch {
+      // Continua
+    }
+  }
+
+  // Candidato 4: VERIFIED_LOCAL_V1_BACKUP
+  // Avaliado somente após as fontes físicas do IndexedDB não fornecerem prova.
+  // Lê o backup v1 em localStorage, valida formato, prova linhagem com o core v2 atual
+  // e deriva as sessões comprovadas.
+  if (provenSessions === null) {
+    try {
+      const backupKey = `${input.key}${STORAGE_BACKUP_SUFFIX}`;
+      const rawBackup = input.storage.getItem(backupKey);
+      if (typeof rawBackup === 'string') {
+        const physicalBackup = parsePhysicalEnvelope(rawBackup);
+        if (physicalBackup.status === 'v1') {
+          const backupData = physicalBackup.envelope.data;
+          if (
+            Array.isArray(backupData.workoutHistory)
+            && backupData.workoutHistory.every(
+              (s) => isRecord(s) && typeof s.id === 'string' && s.id.length > 0,
+            )
+          ) {
+            if (verifyBackupV1Lineage(backupData, core)) {
+              const normalized = normalizeSessionState({
+                activeWorkout: backupData.activeWorkout ?? null,
+                activeWorkoutStartedAt: backupData.activeWorkoutStartedAt ?? null,
+                workoutHistory: backupData.workoutHistory,
+              });
+              provenSessions = normalized.workoutHistory;
+              candidateBackupRaw = rawBackup;
+            }
+          }
+        }
+      }
+    } catch {
+      // Continua fail-closed
+    }
+  }
+
+  // Se nenhuma fonte puder ser comprovada, recusa recuperação automática (Regra 10: ausência física continua sendo ausência)
+  if (provenSessions === null) {
+    return null;
+  }
+
+  // Reconciliação (Regra 9): prepare -> verify -> activate -> reread -> confirm
+  try {
+    // 1. Confirmar backup físico v1 existente se reconciliando via backup local v1 (Regra 9)
+    if (candidateBackupRaw !== null) {
+      const v1BackupKey = `${input.key}${STORAGE_BACKUP_SUFFIX}`;
+      if (input.storage.getItem(v1BackupKey) !== candidateBackupRaw) {
+        return null;
+      }
+    }
+
+    // 2. Preservar cópia física verificável do estado atual antes da mutação (Regra 11)
+    const backupKey = `${input.key}${HYBRID_CORE_BACKUP_SUFFIX}`;
+    input.storage.setItem(backupKey, raw);
+    if (input.storage.getItem(backupKey) !== raw) {
+      return null;
+    }
+
+    // Se provido pelo backup local v1, também persiste o snapshot legado comprovado no adapter
+    if (candidateBackupRaw !== null && typeof input.adapter.saveLegacySnapshot === 'function') {
+      try {
+        await input.adapter.saveLegacySnapshot(candidateBackupRaw);
+      } catch {
+        // Continua
+      }
+    }
+
+    // Tentar ativação direta se a geração já estiver presente e com marker válido
+    let activeGenId = targetGenId;
+    let activatedDirectly = false;
+    const hasTarget = typeof input.adapter.hasHistoryGeneration === 'function'
+      ? await input.adapter.hasHistoryGeneration(targetGenId)
+      : false;
+
+    if (hasTarget) {
+      try {
+        await input.adapter.writeMetadata({ migrationGeneration: targetGenId });
+        await input.adapter.activateHistoryGeneration(targetGenId);
+        await input.adapter.writeMetadata({
+          migrationGeneration: null,
+          migrationStatus: 'completed',
+          migratedAt: new Date().toISOString(),
+          sourceStorageVersion: 2,
+        });
+        activatedDirectly = true;
+      } catch {
+        await input.adapter.writeMetadata({ migrationGeneration: null }).catch(() => undefined);
+        activatedDirectly = false;
+      }
+    }
+
+    if (!activatedDirectly) {
+      await input.adapter.writeMetadata({ migrationGeneration: null }).catch(() => undefined);
+      // Preparar nova geração com as sessões comprovadas
+      const newGenId = await input.adapter.prepareHistoryGeneration(provenSessions);
+      const newGenSnapshot = await input.adapter.readHistoryGenerationSnapshot(newGenId);
+      const newVerification = await verifyHistoryGeneration(newGenId, newGenSnapshot);
+      if (newVerification.status !== 'verified') {
+        return null;
+      }
+      await input.adapter.activateHistoryGeneration(newGenId);
+      await input.adapter.writeMetadata({
+        migrationGeneration: null,
+        migrationStatus: 'completed',
+        migratedAt: new Date().toISOString(),
+        sourceStorageVersion: 2,
+      });
+      activeGenId = newGenId;
+
+      // Atualizar localStorage core com readback confirmado
+      const updatedCore = toPersistedCoreState(
+        combineCoreWithHistory(core, provenSessions),
+        activeGenId,
+      );
+      const saveResult = saveHybridCoreResult(input.key, updatedCore, input.storage);
+      if (!saveResult.ok) {
+        return null;
+      }
+    }
+
+    // Reread e confirm
+    const finalMeta = await input.adapter.readMetadata();
+    if (
+      finalMeta.activeGeneration !== activeGenId
+      || finalMeta.migrationGeneration !== null
+      || finalMeta.migrationStatus !== 'completed'
+    ) {
+      return null;
+    }
+
+    const finalAdmin = await input.runtime.inspectStorageAdministration();
+    if (finalAdmin.state.status !== 'ready') {
+      return null;
+    }
+
+    return ready('ready-after-settled', false);
+  } catch {
+    return null;
+  }
+}
+
+async function classifyInitialAdministrationUnavailable(
   result: Record<string, unknown>,
-  input: Pick<StorageBootRecoveryInput, 'storage' | 'key'>,
-): StorageBootRecoveryOutcome {
+  input: StorageBootRecoveryInput,
+  runtime: StorageAdminRuntime,
+): Promise<StorageBootRecoveryOutcome> {
   const cleanupPending = result.cleanupPending === true;
   if (
     result.steps !== 0
@@ -165,6 +545,13 @@ function classifyInitialAdministrationUnavailable(
   const physical = parsePhysicalEnvelope(raw);
   if (physical.status === 'v1') return ready('ready-no-operation', false);
   if (physical.status === 'v2') {
+    const reconciled = await attemptSafeBootReconciliation({
+      ...input,
+      runtime,
+      raw,
+      core: physical.envelope.data,
+    });
+    if (reconciled) return reconciled;
     return blocked('blocked-storage-unavailable', false, 2);
   }
   if (physical.status === 'corrupt' && physical.physicalVersion === 2) {
@@ -279,7 +666,7 @@ export async function runStorageBootRecovery(
       && result.ok === false
       && result.reason === 'administration-unavailable'
     ) {
-      return classifyInitialAdministrationUnavailable(result, input);
+      return classifyInitialAdministrationUnavailable(result, input, runtime);
     }
     const classified = classifyStorageBootRecovery(result);
     if (classified.hydrationAllowed !== true) return classified;
