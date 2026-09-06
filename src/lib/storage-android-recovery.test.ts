@@ -4,6 +4,8 @@ import {
   runStorageBootRecovery,
   runStorageBootRecoveryOnce,
   verifyBackupV1Lineage,
+  verifyV1PredecessorOfV2,
+  verifyStableIdentityCompatibility,
 } from './storage-boot-recovery';
 import { STORAGE_BACKUP_SUFFIX } from './storage';
 import {
@@ -382,7 +384,7 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
     expect(storage.writes.length).toBe(writesCountBefore);
   });
 
-  it('Candidato 4: Fixture do caso físico real Samsung SM-S901E (core v2 + IDB not-started + backup v1 com workoutHistory: []) -> recovery PASS', async () => {
+  it('Candidato 4: Fixture do caso físico real Samsung SM-S901E (core v2 com XP 2945 + IDB not-started + backup v1 predecessor com XP 2335) -> recovery PASS e core preservado', async () => {
     const storage = new MemoryStorage();
     const factory = new IDBFactory();
     const dbName = `gymflow-android-c4-samsung-${dbSeq += 1}`;
@@ -402,10 +404,38 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
     expect(initialMeta.activeGeneration).toBeNull();
     expect((await adapter.readStorageAdministrationSnapshot()).unsettledOperations).toHaveLength(0);
 
-    // 2. Core v2 no localStorage apontando para geração órfã
-    const state = baseDefaults();
+    // 2. Core v2 no localStorage apontando para geração órfã com evolução legítima posterior:
+    // XP 2945 (vs 2335 no backup), weeklyPlan mais novo (4 dias vs 2 dias), GymProfile mais novo
+    const base = baseDefaults();
+    const stateCore: PersistedState = {
+      ...base,
+      user: {
+        ...base.user!,
+        xp: 2945,
+        points: 120,
+      },
+      weeklyPlan: [
+        { dayOfWeek: 1, workoutId: 'prog-new-1', restDay: false },
+        { dayOfWeek: 2, workoutId: 'prog-new-2', restDay: false },
+        { dayOfWeek: 3, workoutId: 'prog-new-3', restDay: false },
+        { dayOfWeek: 4, workoutId: 'prog-new-4', restDay: false },
+      ] as any,
+      gymProfile: {
+        schemaVersion: 1,
+        activeProfileId: 'profile-new',
+        profiles: [
+          {
+            id: 'profile-new',
+            name: 'Academia Moderna v2 Atual',
+            kind: 'gym',
+            isDefault: true,
+            equipment: [],
+          },
+        ],
+      },
+    };
     const targetGenId = 'generation-4317ec26-ae8c-4e03-8c00-dd1a955d7895';
-    const core = toPersistedCoreState(state, targetGenId);
+    const core = toPersistedCoreState(stateCore, targetGenId);
     const rawCore = JSON.stringify({
       v: HYBRID_STORAGE_VERSION,
       savedAt: '2026-09-04T19:24:25.000Z',
@@ -413,14 +443,38 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
     });
     storage.setItem(KEY, rawCore);
 
-    // 3. Backup v1 físico no localStorage com workoutHistory: [] e dados da mesma linhagem
+    // 3. Backup v1 físico no localStorage: mesma identidade estável (Rafael / u-1 / email),
+    // anterior ao cutover (XP 2335, weeklyPlan antigo de 2 dias, gymProfile antigo)
+    const stateBackup: PersistedState = {
+      ...base,
+      user: {
+        ...base.user!,
+        xp: 2335,
+        points: 50,
+      },
+      weeklyPlan: [
+        { dayOfWeek: 1, workoutId: 'prog-old-1', restDay: false },
+        { dayOfWeek: 2, workoutId: 'prog-old-2', restDay: false },
+      ] as any,
+      gymProfile: {
+        schemaVersion: 1,
+        activeProfileId: 'profile-old',
+        profiles: [
+          {
+            id: 'profile-old',
+            name: 'Academia Antiga v1',
+            kind: 'gym',
+            isDefault: true,
+            equipment: [],
+          },
+        ],
+      },
+      workoutHistory: [],
+    };
     const rawBackup = JSON.stringify({
       v: 1,
       savedAt: '2026-08-14T10:55:02.000Z',
-      data: {
-        ...state,
-        workoutHistory: [],
-      },
+      data: stateBackup,
     });
     const backupKey = `${KEY}${STORAGE_BACKUP_SUFFIX}`;
     storage.setItem(backupKey, rawBackup);
@@ -436,7 +490,7 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
     expect(outcome.hydrationAllowed).toBe(true);
     expect(outcome.status).toBe('ready-after-settled');
 
-    // Backup pré-mutação foi gravado
+    // Backup pré-mutação foi gravado em :hybrid-core-backup:v2
     expect(storage.getItem(`${KEY}${HYBRID_CORE_BACKUP_SUFFIX}`)).toBe(rawCore);
     // Backup físico v1 foi rigorosamente preservado (Regra 9)
     expect(storage.getItem(backupKey)).toBe(rawBackup);
@@ -457,12 +511,14 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
     // Histórico vazio comprovado via backup
     expect(hydrated.state.workoutHistory).toEqual([]);
 
-    // Domínios canônicos preservados integralmente (Regra 15)
+    // CORE V2 PERMANECE SOBERANO (CORE_CURRENT_FIELDS_PRESERVED = YES):
     expect(hydrated.state.user?.name).toBe('Rafael');
     expect(hydrated.state.user?.email).toBe('rafael@example.com');
-    expect(hydrated.state.gymProfile?.profiles[0].name).toBe('Academia Principal Preservada');
+    expect(hydrated.state.user?.xp).toBe(2945); // XP atual NÃO voltou para 2335!
+    expect(hydrated.state.user?.points).toBe(120);
+    expect(hydrated.state.weeklyPlan).toHaveLength(4); // weeklyPlan atual mantido!
+    expect(hydrated.state.gymProfile?.profiles[0].name).toBe('Academia Moderna v2 Atual'); // gymProfile atual mantido!
     expect(hydrated.state.customPrograms[0].name).toBe('Treino Especial de Força');
-    expect(hydrated.state.weeklyPlan).toHaveLength(2);
     expect(hydrated.state.activeWorkout?.id).toBe('active-sess-1');
     expect(hydrated.state.weightHistory).toEqual([]);
     expect(hydrated.state.measurementsHistory).toEqual([]);
@@ -472,7 +528,7 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
     await hybrid.close();
   });
 
-  it('Candidato 4: Histórico não vazio no backup v1 -> preserva todas as sessões comprovadas exatamente', async () => {
+  it('Candidato 4: Histórico não vazio no backup v1 -> preserva todas as sessões comprovadas exatamente e mantém core v2 atual', async () => {
     const storage = new MemoryStorage();
     const factory = new IDBFactory();
     const dbName = `gymflow-android-c4-sessions-${dbSeq += 1}`;
@@ -486,14 +542,23 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
     await adapter.open();
 
     const sessions = [makeSession(20), makeSession(21), makeSession(22)];
-    const state = {
-      ...baseDefaults(),
-      workoutHistory: sessions,
-    };
+    const base = baseDefaults();
 
-    // Core v2 órfão
+    // Core v2 órfão com evolução de XP e domínio atual
+    const stateCore: PersistedState = {
+      ...base,
+      user: {
+        ...base.user!,
+        xp: 3100,
+        points: 150,
+      },
+      weeklyPlan: [
+        { dayOfWeek: 1, workoutId: 'prog-new-1', restDay: false },
+      ] as any,
+      workoutHistory: [],
+    };
     const targetGenId = 'generation-missing-sessions';
-    const core = toPersistedCoreState(state, targetGenId);
+    const core = toPersistedCoreState(stateCore, targetGenId);
     const rawCore = JSON.stringify({
       v: HYBRID_STORAGE_VERSION,
       savedAt: '2026-09-04T19:24:25.000Z',
@@ -501,11 +566,20 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
     });
     storage.setItem(KEY, rawCore);
 
-    // Backup v1 com as 3 sessões comprovadas
+    // Backup v1 com as 3 sessões comprovadas e dados predecessores
+    const stateBackup: PersistedState = {
+      ...base,
+      user: {
+        ...base.user!,
+        xp: 2500,
+        points: 80,
+      },
+      workoutHistory: sessions,
+    };
     const rawBackup = JSON.stringify({
       v: 1,
       savedAt: '2026-08-14T10:55:02.000Z',
-      data: state,
+      data: stateBackup,
     });
     storage.setItem(`${KEY}${STORAGE_BACKUP_SUFFIX}`, rawBackup);
 
@@ -518,7 +592,7 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
     expect(outcome.hydrationAllowed).toBe(true);
     expect(outcome.status).toBe('ready-after-settled');
 
-    // Hidratação híbrida recupera todas as 3 sessões comprovadas
+    // Hidratação híbrida recupera todas as 3 sessões comprovadas e preserva core v2 atual
     const hybrid = createHybridStorageRuntime({
       key: KEY,
       storage,
@@ -535,11 +609,13 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
     expect(hydrated.state.workoutHistory[1].id).toBe('sess-21');
     expect(hydrated.state.workoutHistory[2].id).toBe('sess-22');
     expect(hydrated.state.workoutHistory[0].exercises[0].sets[0].weight).toBe(80);
+    expect(hydrated.state.user?.xp).toBe(3100); // Core v2 atual preservado!
+    expect(hydrated.state.weeklyPlan).toHaveLength(1);
 
     await hybrid.close();
   });
 
-  describe('Testes negativos de recuperação via backup (Regra 13)', () => {
+  describe('Testes negativos de recuperação via backup (Regra 13 e Seção 11)', () => {
     it('backup ausente -> blocked-storage-unavailable', async () => {
       const storage = new MemoryStorage();
       const factory = new IDBFactory();
@@ -565,7 +641,7 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
       expect(storage.getItem(KEY)).toBe(rawCore);
     });
 
-    it('backup com JSON inválido -> blocked-storage-unavailable', async () => {
+    it('backup com JSON inválido (corrompido) -> blocked-storage-unavailable', async () => {
       const storage = new MemoryStorage();
       const factory = new IDBFactory();
       const adapter = new IndexedDbWorkoutHistoryStorage({
@@ -613,7 +689,7 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
       expect(outcome.status).toBe('blocked-storage-unavailable');
     });
 
-    it('backup com core divergente em user -> blocked-storage-unavailable', async () => {
+    it('backup com identidade de usuário incompatível (nome diferente sem âncora primária) -> blocked-storage-unavailable', async () => {
       const storage = new MemoryStorage();
       const factory = new IDBFactory();
       const adapter = new IndexedDbWorkoutHistoryStorage({
@@ -622,17 +698,20 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
       });
       await adapter.open();
 
-      const state = baseDefaults();
+      const state = {
+        ...baseDefaults(),
+        user: { name: 'Rafael', email: '' } as any,
+      };
       const core = toPersistedCoreState(state, 'gen-div-user');
       storage.setItem(
         KEY,
         JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
       );
 
-      // Backup tem usuário diferente
+      // Backup com nome de usuário diferente sem email
       const divergentState = {
         ...state,
-        user: { id: 'u-999', name: 'Usuario Completamente Diferente', email: 'outro@example.com' } as any,
+        user: { name: 'Usuario Completamente Diferente', email: '' } as any,
       };
       storage.setItem(
         `${KEY}${STORAGE_BACKUP_SUFFIX}`,
@@ -644,17 +723,56 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
       expect(outcome.status).toBe('blocked-storage-unavailable');
     });
 
-    it('backup com core divergente em weeklyPlan -> blocked-storage-unavailable', async () => {
+    it('backup com mesmo e-mail e nome de exibição atualizado no core v2 -> reconcilia e autoriza com sucesso (evolução legítima de perfil)', async () => {
       const storage = new MemoryStorage();
       const factory = new IDBFactory();
       const adapter = new IndexedDbWorkoutHistoryStorage({
         factory,
-        databaseName: `gymflow-neg-divplan-${dbSeq += 1}`,
+        databaseName: `gymflow-pos-name-evolved-${dbSeq += 1}`,
+        generationIdFactory: () => 'gen-rec-name-evolved',
+        now: () => new Date('2026-09-04T19:30:00.000Z'),
+      });
+      await adapter.open();
+
+      const base = baseDefaults();
+      // Core v2 com display name evoluído ("Rafael Faria")
+      const stateCore = {
+        ...base,
+        user: { ...base.user!, name: 'Rafael Faria', email: 'rafael@example.com' },
+      };
+      const core = toPersistedCoreState(stateCore, 'gen-orphan-name-evolved');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T19:24:25.000Z', data: core }),
+      );
+
+      // Backup v1 com nome anterior ("Rafael") mas mesmo email
+      const stateBackup = {
+        ...base,
+        user: { ...base.user!, name: 'Rafael', email: 'rafael@example.com' },
+        workoutHistory: [makeSession(1)],
+      };
+      storage.setItem(
+        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
+        JSON.stringify({ v: 1, savedAt: '2026-08-14T10:55:02.000Z', data: stateBackup }),
+      );
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(true);
+      expect(outcome.status).toBe('ready-after-settled');
+    });
+
+    it('backup com identidade de usuário incompatível (email diferente) -> blocked-storage-unavailable', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-divemail-${dbSeq += 1}`,
       });
       await adapter.open();
 
       const state = baseDefaults();
-      const core = toPersistedCoreState(state, 'gen-div-plan');
+      const core = toPersistedCoreState(state, 'gen-div-email');
       storage.setItem(
         KEY,
         JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
@@ -662,7 +780,7 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
 
       const divergentState = {
         ...state,
-        weeklyPlan: [{ dayOfWeek: 3, workoutId: 'outro-treino', restDay: false }] as any,
+        user: { id: 'u-1', name: 'Rafael', email: 'outro.usuario@example.com' } as any,
       };
       storage.setItem(
         `${KEY}${STORAGE_BACKUP_SUFFIX}`,
@@ -674,17 +792,17 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
       expect(outcome.status).toBe('blocked-storage-unavailable');
     });
 
-    it('backup com core divergente em customPrograms -> blocked-storage-unavailable', async () => {
+    it('backup com identidade de usuário incompatível (id diferente) -> blocked-storage-unavailable', async () => {
       const storage = new MemoryStorage();
       const factory = new IDBFactory();
       const adapter = new IndexedDbWorkoutHistoryStorage({
         factory,
-        databaseName: `gymflow-neg-divprog-${dbSeq += 1}`,
+        databaseName: `gymflow-neg-divid-${dbSeq += 1}`,
       });
       await adapter.open();
 
       const state = baseDefaults();
-      const core = toPersistedCoreState(state, 'gen-div-prog');
+      const core = toPersistedCoreState(state, 'gen-div-id');
       storage.setItem(
         KEY,
         JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
@@ -692,7 +810,7 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
 
       const divergentState = {
         ...state,
-        customPrograms: [{ id: 'prog-divergente', name: 'Outro Programa', workouts: [] }] as any,
+        user: { id: 'u-999-divergente', name: 'Rafael', email: 'rafael@example.com' } as any,
       };
       storage.setItem(
         `${KEY}${STORAGE_BACKUP_SUFFIX}`,
@@ -704,63 +822,26 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
       expect(outcome.status).toBe('blocked-storage-unavailable');
     });
 
-    it('backup com core divergente em gymProfile -> blocked-storage-unavailable', async () => {
+    it('backup com temporalidade impossível (backup posterior ao core) -> blocked-storage-unavailable', async () => {
       const storage = new MemoryStorage();
       const factory = new IDBFactory();
       const adapter = new IndexedDbWorkoutHistoryStorage({
         factory,
-        databaseName: `gymflow-neg-divgym-${dbSeq += 1}`,
+        databaseName: `gymflow-neg-time-${dbSeq += 1}`,
       });
       await adapter.open();
 
       const state = baseDefaults();
-      const core = toPersistedCoreState(state, 'gen-div-gym');
+      const core = toPersistedCoreState(state, 'gen-time-fail');
       storage.setItem(
         KEY,
         JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
       );
 
-      const divergentState = {
-        ...state,
-        gymProfile: {
-          schemaVersion: 1,
-          activeProfileId: 'profile-divergente',
-          profiles: [{ id: 'profile-divergente', name: 'Outra Academia', kind: 'home', isDefault: true, equipment: [] }],
-        } as any,
-      };
+      // Backup com savedAt no futuro em relação ao core v2
       storage.setItem(
         `${KEY}${STORAGE_BACKUP_SUFFIX}`,
-        JSON.stringify({ v: 1, savedAt: '2026-08-01T12:00:00.000Z', data: divergentState }),
-      );
-
-      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
-      expect(outcome.hydrationAllowed).toBe(false);
-      expect(outcome.status).toBe('blocked-storage-unavailable');
-    });
-
-    it('backup com core divergente em activeWorkout -> blocked-storage-unavailable', async () => {
-      const storage = new MemoryStorage();
-      const factory = new IDBFactory();
-      const adapter = new IndexedDbWorkoutHistoryStorage({
-        factory,
-        databaseName: `gymflow-neg-divactive-${dbSeq += 1}`,
-      });
-      await adapter.open();
-
-      const state = baseDefaults();
-      const core = toPersistedCoreState(state, 'gen-div-active');
-      storage.setItem(
-        KEY,
-        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
-      );
-
-      const divergentState = {
-        ...state,
-        activeWorkout: { id: 'active-divergente', workoutId: 'w-divergente', date: '2026-09-04T12:00:00.000Z', exercises: [] } as any,
-      };
-      storage.setItem(
-        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
-        JSON.stringify({ v: 1, savedAt: '2026-08-01T12:00:00.000Z', data: divergentState }),
+        JSON.stringify({ v: 1, savedAt: '2026-09-10T12:00:00.000Z', data: state }),
       );
 
       const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
@@ -799,6 +880,144 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
       expect(outcome.status).toBe('blocked-storage-unavailable');
     });
 
+    it('operação administrativa pendente no IndexedDB -> blocked (fail-closed)', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-pendingop-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-pending-op');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
+      );
+      storage.setItem(
+        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
+        JSON.stringify({ v: 1, savedAt: '2026-08-01T12:00:00.000Z', data: state }),
+      );
+
+      // Simula operação pendente no snapshot administrativo
+      const origAdminSnapshot = adapter.readStorageAdministrationSnapshot.bind(adapter);
+      adapter.readStorageAdministrationSnapshot = async () => {
+        const snap = await origAdminSnapshot();
+        return {
+          ...snap,
+          unsettledOperations: [
+            {
+              operationId: 'op-unsettled-1',
+              kind: 'import',
+              stage: 'prepared',
+              ownerToken: 'tok-1',
+              createdAt: '2026-09-04T12:00:00.000Z',
+              updatedAt: '2026-09-04T12:00:00.000Z',
+            } as any,
+          ],
+        };
+      };
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(false);
+    });
+
+    it('geração preparada que falha na verificação de digest/integridade -> blocked-storage-unavailable', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-genfail-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-rec-fail');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
+      );
+      storage.setItem(
+        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
+        JSON.stringify({ v: 1, savedAt: '2026-08-01T12:00:00.000Z', data: state }),
+      );
+
+      // Espiona readHistoryGenerationSnapshot para retornar snapshot com digest adulterado no manifest
+      const origSnapshot = adapter.readHistoryGenerationSnapshot.bind(adapter);
+      adapter.readHistoryGenerationSnapshot = async (id: string) => {
+        const snap = await origSnapshot(id);
+        return {
+          ...snap,
+          manifest: snap.manifest
+            ? { ...snap.manifest, orderedDigest: 'sha256:corrupted-hash-that-fails-verification' }
+            : null,
+        };
+      };
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(false);
+      expect(outcome.status).toBe('blocked-storage-unavailable');
+    });
+
+    it('readback divergente na preservação forense -> blocked-storage-unavailable', async () => {
+      class DivergentStorage extends MemoryStorage {
+        override setItem(key: string, value: string): void {
+          if (key.includes(HYBRID_CORE_BACKUP_SUFFIX)) {
+            super.setItem(key, 'divergent-tampered-content');
+            return;
+          }
+          super.setItem(key, value);
+        }
+      }
+      const storage = new DivergentStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-readback-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-readback-fail');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
+      );
+      storage.setItem(
+        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
+        JSON.stringify({ v: 1, savedAt: '2026-08-01T12:00:00.000Z', data: state }),
+      );
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(false);
+      expect(outcome.status).toBe('blocked-storage-unavailable');
+    });
+
+    it('core v2 inválido / corrompido -> blocked-storage-unavailable', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-neg-corecorrupt-${dbSeq += 1}`,
+      });
+      await adapter.open();
+
+      const state = baseDefaults();
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: { corrupt: true } }),
+      );
+      storage.setItem(
+        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
+        JSON.stringify({ v: 1, savedAt: '2026-08-01T12:00:00.000Z', data: state }),
+      );
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(false);
+      expect(outcome.status).toBe('blocked-storage-unavailable');
+    });
+
     it('Regra 6 & 10: IndexedDB vazio sozinho NUNCA autoriza recuperação de histórico vazio sem prova', async () => {
       const storage = new MemoryStorage();
       const factory = new IDBFactory();
@@ -823,25 +1042,146 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
     });
   });
 
-  describe('Função pura verifyBackupV1Lineage', () => {
-    it('aprova linhagem quando backup e core derivam do mesmo estado', () => {
-      const state = baseDefaults();
-      const core = toPersistedCoreState(state, 'gen-lineage-1');
-      expect(verifyBackupV1Lineage(state, core)).toBe(true);
+  describe('Função pura verifyV1PredecessorOfV2 e verifyBackupV1Lineage', () => {
+    it('aprova predecessor quando backup e core derivam do mesmo usuário com evolução de XP, plano semanal e gymProfile', () => {
+      const base = baseDefaults();
+      const backupState: PersistedState = {
+        ...base,
+        user: { ...base.user!, xp: 2335, points: 50 },
+        weeklyPlan: [{ dayOfWeek: 1, workoutId: 'w-old', restDay: false }] as any,
+        gymProfile: {
+          schemaVersion: 1,
+          activeProfileId: 'gym-old',
+          profiles: [{ id: 'gym-old', name: 'Academia Antiga', kind: 'gym', isDefault: true, equipment: [] }],
+        },
+        workoutHistory: [],
+      };
+      const coreState: PersistedCoreState = {
+        ...toPersistedCoreState({
+          ...base,
+          user: { ...base.user!, xp: 2945, points: 120 },
+          weeklyPlan: [
+            { dayOfWeek: 1, workoutId: 'w-new-1', restDay: false },
+            { dayOfWeek: 2, workoutId: 'w-new-2', restDay: false },
+          ] as any,
+          gymProfile: {
+            schemaVersion: 1,
+            activeProfileId: 'gym-new',
+            profiles: [{ id: 'gym-new', name: 'Academia Nova', kind: 'gym', isDefault: true, equipment: [] }],
+          },
+        }, 'gen-valid-1'),
+      };
+
+      const backupEnvelope = { v: 1, savedAt: '2026-08-14T10:00:00.000Z', data: backupState };
+      const coreEnvelope = { v: 2, savedAt: '2026-09-04T12:00:00.000Z', data: coreState };
+
+      expect(verifyV1PredecessorOfV2(backupEnvelope, coreEnvelope)).toBe(true);
+      expect(verifyBackupV1Lineage(backupState, coreState)).toBe(true);
     });
 
-    it('rejeita linhagem quando usuário diverge', () => {
-      const state = baseDefaults();
-      const core = toPersistedCoreState(state, 'gen-lineage-2');
-      const divergent = { ...state, user: { ...state.user!, name: 'Nome Divergente' } };
-      expect(verifyBackupV1Lineage(divergent, core)).toBe(false);
+    it('aprova predecessor quando mesmo e-mail possui nome de exibição atualizado no core v2 (evolução legítima de perfil)', () => {
+      const base = baseDefaults();
+      const stateBackup: PersistedState = {
+        ...base,
+        user: { ...base.user!, name: 'Rafael', email: 'rafael@example.com' },
+        workoutHistory: [makeSession(1)],
+      };
+      const stateCore: PersistedCoreState = toPersistedCoreState({
+        ...base,
+        user: { ...base.user!, name: 'Rafael Faria', email: 'rafael@example.com' },
+      }, 'gen-name-evolved');
+
+      expect(verifyV1PredecessorOfV2(stateBackup, stateCore)).toBe(true);
+      expect(verifyBackupV1Lineage(stateBackup, stateCore)).toBe(true);
     });
 
-    it('rejeita linhagem quando gymProfile diverge', () => {
+    it('rejeita predecessor quando nome de usuário diverge sem âncora primária (conflito fail-closed)', () => {
+      const base = baseDefaults();
+      const stateBackup = {
+        ...base,
+        user: { name: 'Nome Antigo', email: '' } as any,
+      };
+      const core = toPersistedCoreState({
+        ...base,
+        user: { name: 'Nome Totalmente Divergente', email: '' } as any,
+      }, 'gen-lineage-2');
+      expect(verifyV1PredecessorOfV2(stateBackup, core)).toBe(false);
+      expect(verifyBackupV1Lineage(stateBackup, core)).toBe(false);
+    });
+
+    it('rejeita predecessor anônimo quando ambos possuem apenas weeklyPlan vazio sem âncora positiva de domínio', () => {
+      const base = baseDefaults();
+      const stateBackup: PersistedState = {
+        ...base,
+        user: null,
+        gymProfile: null,
+        weeklyPlan: [],
+        workoutHistory: [makeSession(1)],
+      };
+      const core = toPersistedCoreState({
+        ...base,
+        user: null,
+        gymProfile: null,
+        weeklyPlan: [],
+      }, 'gen-anon-orphan');
+      expect(verifyV1PredecessorOfV2(stateBackup, core)).toBe(false);
+      expect(verifyStableIdentityCompatibility(null, null, stateBackup, core)).toBe(false);
+    });
+
+    it('rejeita predecessor quando email de usuário diverge (conflito fail-closed)', () => {
       const state = baseDefaults();
-      const core = toPersistedCoreState(state, 'gen-lineage-3');
-      const divergent = { ...state, gymProfile: null };
-      expect(verifyBackupV1Lineage(divergent, core)).toBe(false);
+      const core = toPersistedCoreState(state, 'gen-lineage-email');
+      const divergent = { ...state, user: { ...state.user!, email: 'outro.usuario@example.com' } };
+      expect(verifyV1PredecessorOfV2(divergent, core)).toBe(false);
+    });
+
+    it('rejeita predecessor quando id de usuário diverge (conflito fail-closed)', () => {
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-lineage-id');
+      const divergent = { ...state, user: { ...state.user!, id: 'u-999-outro' } as any };
+      expect(verifyV1PredecessorOfV2(divergent, core)).toBe(false);
+    });
+
+    it('rejeita predecessor quando temporalidade é impossível (backup posterior ao core)', () => {
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-lineage-time');
+      const backupEnvelope = { v: 1, savedAt: '2026-09-10T10:00:00.000Z', data: state };
+      const coreEnvelope = { v: 2, savedAt: '2026-09-01T10:00:00.000Z', data: core };
+      expect(verifyV1PredecessorOfV2(backupEnvelope, coreEnvelope)).toBe(false);
+    });
+
+    it('rejeita predecessor quando workoutHistory possui sessão sem id', () => {
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-lineage-session');
+      const invalidBackup = {
+        ...state,
+        workoutHistory: [{ name: 'Sem id', date: '2026-08-01' }] as any,
+      };
+      expect(verifyV1PredecessorOfV2(invalidBackup, core)).toBe(false);
+    });
+
+    it('rejeita predecessor quando versões físicas de envelope são inválidas', () => {
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-lineage-version');
+      const badBackupEnvelope = { v: 2, savedAt: '2026-08-01T10:00:00.000Z', data: state };
+      const coreEnvelope = { v: 2, savedAt: '2026-09-01T10:00:00.000Z', data: core };
+      expect(verifyV1PredecessorOfV2(badBackupEnvelope as any, coreEnvelope)).toBe(false);
+    });
+
+    it('rejeita predecessor quando core não possui historyStorage válido', () => {
+      const state = baseDefaults();
+      const invalidCore = { ...state } as any;
+      expect(verifyV1PredecessorOfV2(state, invalidCore)).toBe(false);
+    });
+
+    it('rejeita predecessor quando backup possui historyStorage (formato não-v1)', () => {
+      const state = baseDefaults();
+      const core = toPersistedCoreState(state, 'gen-lineage-hist');
+      const invalidBackup = {
+        ...state,
+        historyStorage: { backend: 'indexeddb', schemaVersion: 1, generationId: 'gen-illegal' },
+      } as any;
+      expect(verifyV1PredecessorOfV2(invalidBackup, core)).toBe(false);
     });
   });
 });
