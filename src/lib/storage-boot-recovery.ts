@@ -202,22 +202,28 @@ export function verifyStableIdentityCompatibility(
       return false;
     }
 
+    // Sinal positivo primário de âncora estável: ID ou E-mail
+    const hasPrimaryMatch = (bId !== null && cId !== null && bId === cId)
+      || (bEmail !== null && cEmail !== null && bEmail === cEmail);
+
     const bName = typeof backupUser.name === 'string' && backupUser.name.trim().length > 0
       ? backupUser.name.trim()
       : null;
     const cName = typeof coreUser.name === 'string' && coreUser.name.trim().length > 0
       ? coreUser.name.trim()
       : null;
-    if (bName !== null && cName !== null && bName !== cName) {
-      return false;
+
+    // Se não há âncora primária positiva (sem ID e sem e-mail correspondente),
+    // o nome passa a ser o identificador exclusivo e sua divergência bloqueia.
+    // Havendo match primário positivo (ex: mesmo e-mail), divergência em nome é
+    // permitida como evolução legítima do display name.
+    if (!hasPrimaryMatch) {
+      if (bName !== null && cName !== null && bName !== cName) {
+        return false;
+      }
     }
 
-    // Sinal positivo obrigatório: pelo menos um identificador de identidade de usuário
-    // presente em ambos deve coincidir positivamente.
-    const hasPositiveMatch = (bId !== null && cId !== null && bId === cId)
-      || (bEmail !== null && cEmail !== null && bEmail === cEmail)
-      || (bName !== null && cName !== null && bName === cName);
-
+    const hasPositiveMatch = hasPrimaryMatch || (bName !== null && cName !== null && bName === cName);
     return hasPositiveMatch;
   }
 
@@ -231,13 +237,6 @@ export function verifyStableIdentityCompatibility(
     const bGymId = backupData.gymProfile?.activeProfileId;
     const cGymId = coreData.gymProfile?.activeProfileId;
     if (bGymId && cGymId && bGymId === cGymId) {
-      return true;
-    }
-    // Se ambos tiverem arrays vazios em domínios estruturais iniciais
-    if (
-      Array.isArray(backupData.weeklyPlan) && backupData.weeklyPlan.length === 0
-      && Array.isArray(coreData.weeklyPlan) && coreData.weeklyPlan.length === 0
-    ) {
       return true;
     }
   }

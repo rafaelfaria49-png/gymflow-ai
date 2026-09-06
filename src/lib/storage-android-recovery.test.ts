@@ -689,7 +689,7 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
       expect(outcome.status).toBe('blocked-storage-unavailable');
     });
 
-    it('backup com identidade de usuário incompatível (nome diferente) -> blocked-storage-unavailable', async () => {
+    it('backup com identidade de usuário incompatível (nome diferente sem âncora primária) -> blocked-storage-unavailable', async () => {
       const storage = new MemoryStorage();
       const factory = new IDBFactory();
       const adapter = new IndexedDbWorkoutHistoryStorage({
@@ -698,17 +698,20 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
       });
       await adapter.open();
 
-      const state = baseDefaults();
+      const state = {
+        ...baseDefaults(),
+        user: { name: 'Rafael', email: '' } as any,
+      };
       const core = toPersistedCoreState(state, 'gen-div-user');
       storage.setItem(
         KEY,
         JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T12:00:00.000Z', data: core }),
       );
 
-      // Backup com nome de usuário diferente
+      // Backup com nome de usuário diferente sem email
       const divergentState = {
         ...state,
-        user: { id: 'u-1', name: 'Usuario Completamente Diferente', email: 'rafael@example.com' } as any,
+        user: { name: 'Usuario Completamente Diferente', email: '' } as any,
       };
       storage.setItem(
         `${KEY}${STORAGE_BACKUP_SUFFIX}`,
@@ -718,6 +721,45 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
       const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
       expect(outcome.hydrationAllowed).toBe(false);
       expect(outcome.status).toBe('blocked-storage-unavailable');
+    });
+
+    it('backup com mesmo e-mail e nome de exibição atualizado no core v2 -> reconcilia e autoriza com sucesso (evolução legítima de perfil)', async () => {
+      const storage = new MemoryStorage();
+      const factory = new IDBFactory();
+      const adapter = new IndexedDbWorkoutHistoryStorage({
+        factory,
+        databaseName: `gymflow-pos-name-evolved-${dbSeq += 1}`,
+        generationIdFactory: () => 'gen-rec-name-evolved',
+        now: () => new Date('2026-09-04T19:30:00.000Z'),
+      });
+      await adapter.open();
+
+      const base = baseDefaults();
+      // Core v2 com display name evoluído ("Rafael Faria")
+      const stateCore = {
+        ...base,
+        user: { ...base.user!, name: 'Rafael Faria', email: 'rafael@example.com' },
+      };
+      const core = toPersistedCoreState(stateCore, 'gen-orphan-name-evolved');
+      storage.setItem(
+        KEY,
+        JSON.stringify({ v: HYBRID_STORAGE_VERSION, savedAt: '2026-09-04T19:24:25.000Z', data: core }),
+      );
+
+      // Backup v1 com nome anterior ("Rafael") mas mesmo email
+      const stateBackup = {
+        ...base,
+        user: { ...base.user!, name: 'Rafael', email: 'rafael@example.com' },
+        workoutHistory: [makeSession(1)],
+      };
+      storage.setItem(
+        `${KEY}${STORAGE_BACKUP_SUFFIX}`,
+        JSON.stringify({ v: 1, savedAt: '2026-08-14T10:55:02.000Z', data: stateBackup }),
+      );
+
+      const outcome = await runStorageBootRecovery({ adapter, storage, key: KEY });
+      expect(outcome.hydrationAllowed).toBe(true);
+      expect(outcome.status).toBe('ready-after-settled');
     });
 
     it('backup com identidade de usuário incompatível (email diferente) -> blocked-storage-unavailable', async () => {
@@ -1037,12 +1079,53 @@ describe('GOAL-021: Recuperação Segura de Storage Híbrido no Android', () => 
       expect(verifyBackupV1Lineage(backupState, coreState)).toBe(true);
     });
 
-    it('rejeita predecessor quando nome de usuário diverge (conflito fail-closed)', () => {
-      const state = baseDefaults();
-      const core = toPersistedCoreState(state, 'gen-lineage-2');
-      const divergent = { ...state, user: { ...state.user!, name: 'Nome Totalmente Divergente' } };
-      expect(verifyV1PredecessorOfV2(divergent, core)).toBe(false);
-      expect(verifyBackupV1Lineage(divergent, core)).toBe(false);
+    it('aprova predecessor quando mesmo e-mail possui nome de exibição atualizado no core v2 (evolução legítima de perfil)', () => {
+      const base = baseDefaults();
+      const stateBackup: PersistedState = {
+        ...base,
+        user: { ...base.user!, name: 'Rafael', email: 'rafael@example.com' },
+        workoutHistory: [makeSession(1)],
+      };
+      const stateCore: PersistedCoreState = toPersistedCoreState({
+        ...base,
+        user: { ...base.user!, name: 'Rafael Faria', email: 'rafael@example.com' },
+      }, 'gen-name-evolved');
+
+      expect(verifyV1PredecessorOfV2(stateBackup, stateCore)).toBe(true);
+      expect(verifyBackupV1Lineage(stateBackup, stateCore)).toBe(true);
+    });
+
+    it('rejeita predecessor quando nome de usuário diverge sem âncora primária (conflito fail-closed)', () => {
+      const base = baseDefaults();
+      const stateBackup = {
+        ...base,
+        user: { name: 'Nome Antigo', email: '' } as any,
+      };
+      const core = toPersistedCoreState({
+        ...base,
+        user: { name: 'Nome Totalmente Divergente', email: '' } as any,
+      }, 'gen-lineage-2');
+      expect(verifyV1PredecessorOfV2(stateBackup, core)).toBe(false);
+      expect(verifyBackupV1Lineage(stateBackup, core)).toBe(false);
+    });
+
+    it('rejeita predecessor anônimo quando ambos possuem apenas weeklyPlan vazio sem âncora positiva de domínio', () => {
+      const base = baseDefaults();
+      const stateBackup: PersistedState = {
+        ...base,
+        user: null,
+        gymProfile: null,
+        weeklyPlan: [],
+        workoutHistory: [makeSession(1)],
+      };
+      const core = toPersistedCoreState({
+        ...base,
+        user: null,
+        gymProfile: null,
+        weeklyPlan: [],
+      }, 'gen-anon-orphan');
+      expect(verifyV1PredecessorOfV2(stateBackup, core)).toBe(false);
+      expect(verifyStableIdentityCompatibility(null, null, stateBackup, core)).toBe(false);
     });
 
     it('rejeita predecessor quando email de usuário diverge (conflito fail-closed)', () => {
