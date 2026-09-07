@@ -110,6 +110,7 @@ flowchart TD
   4. O migrador de dados identifica dados legados:
      - Classifica `LEGACY_DEMO` e descarta seeds não reais;
      - Classifica `LEGACY_REAL` e preserva o histórico do usuário;
+     - Classifica `UNKNOWN` (dados corrompidos ou malformados), assegurando que nunca vire consumo confirmado nem alimente `DailyActuals`, sendo isolado para diagnóstico ou descartado com segurança sem promoção silenciosa;
      - Unifica `nutrition.water` e `user.waterIntake` no ledger sem duplicidade residual.
   5. Testes automatizados cobrindo cenários de transição de fuso horário, virada de meia-noite e migração de snapshots legados.
 * **Gate Seguinte:**

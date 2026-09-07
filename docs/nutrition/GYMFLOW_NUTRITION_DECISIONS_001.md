@@ -37,7 +37,7 @@ Este documento registra as decisões arquiteturais, científicas, éticas e de g
 * **Status:** Aprovada
 * **Contexto:** Em fórmulas metabólicas (como Mifflin-St Jeor ou Harris-Benedict), as equações diferenciam constantes baseadas em sexo biológico devido à composição média de massa livre de gordura. O campo social `user.gender` não deve ser assumido como variável biológica de cálculo, e nenhuma suposição masculina padrão (`male`) pode ser aplicada a usuários neutros, não binários ou com campo não preenchido.
 * **Decisão:** Cria-se o campo explícito e explicado `biologicalSexForCalcs: 'female' | 'male' | 'unspecified'`. É expressamente proibido adotar a fórmula masculina como *fallback* para registros `unspecified`.
-* **Consequências:** Na ausência de declaração expressa do sexo para fins de cálculo metabólico, o sistema aciona o gate `LIMITED_ESTIMATE`, que gera faixas estimadas ampliadas acompanhadas de aviso transparente ao usuário, solicitando calibração manual ou orientação profissional.
+* **Consequências:** Na ausência de declaração expressa do sexo para fins de cálculo metabólico, o sistema aciona o gate `LIMITED_GUIDANCE`, que gera faixas estimadas ampliadas acompanhadas de aviso transparente ao usuário, solicitando calibração manual ou orientação profissional.
 
 ---
 

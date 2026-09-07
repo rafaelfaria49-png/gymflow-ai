@@ -1,8 +1,8 @@
 # GymFlow AI — Masterplan Canônico de Nutrição V1
 **Documento de Produto, Arquitetura e Engenharia**
 **Identificador:** `GYMFLOW_NUTRITION_MASTERPLAN_001`
-**Origem:** Transição canônica da auditoria `GYMFLOW-NUTRITION-CURRENT-STATE-RESEARCH-AUDIT-040`
-**Status:** Canonical Draft / Pré-Beta
+**Origem:** Transição canônica da auditoria `GYMFLOW-NUTRITION-CURRENT-STATE-RESEARCH-AUDIT-040` | Revisão independente aprovada em `GYMFLOW-NUTRITION-MASTERPLAN-INDEPENDENT-REVIEW-042`
+**Status:** Canonical Roadmap / Aprovado
 **Data:** Setembro de 2026
 
 ---
@@ -197,7 +197,7 @@ export interface NutritionProfile {
 * **Regra Decisória:** O campo `user.gender` existente na identidade do usuário **não pode** ser utilizado como substituto implícito de `biologicalSexForCalcs`.
 * **Transparência e Consentimento:** A UI deve explicar claramente ao usuário por que a variável biológica é solicitada ("Utilizada estritamente nas fórmulas validadas de Taxa Metabólica Basal — Mifflin-St Jeor / Harris-Benedict").
 * **Proibição de Defaults Masculinos:** Em nenhuma hipótese o sistema atribuirá o padrão masculino (`male`) caso o valor seja `unspecified` ou não binário.
-* **Fluxo `LIMITED_ESTIMATE`:** Quando o sexo metabólico não for fornecido, o sistema aciona um cálculo ponderado médio com aviso explícito de tolerância ampliada ($\pm 15\%$), incentivando o ajuste manual assistido.
+* **Fluxo `LIMITED_GUIDANCE`:** Quando o sexo metabólico não for fornecido, o sistema aciona um cálculo ponderado médio com aviso explícito de tolerância ampliada ($\pm 15\%$), incentivando o ajuste manual assistido.
 
 ---
 
@@ -616,6 +616,10 @@ export type LegacyDataClassification =
   - Os valores de calorias e macros são agrupados em uma refeição única do tipo `custom` intitulada *"Consumo consolidado legado"*;
   - A água é reconciliada pelo valor máximo entre `nutrition.water` e `user.waterIntake`;
   - As chaves legadas são marcadas como migradas e mantidas em compatibilidade passiva no storage.
+* **Dados Corrompidos ou Desconhecidos (`UNKNOWN`):**
+  - Nunca viram consumo confirmado e nunca alimentam `DailyActuals`;
+  - Devem ser isolados/quarentenados para diagnóstico de integridade ou descartados de forma segura;
+  - Nenhuma promoção silenciosa para dado real ou consumo confirmado é permitida.
 
 ---
 
@@ -631,7 +635,7 @@ O domínio de nutrição exige uma suíte rigorosa de testes unitários e de int
    - Validação de perfis contrastantes (indivíduo sedentário em obesidade vs. atleta de força em alta frequência).
 2. **Testes de Gates Clínicos (`gates.test.ts`):**
    - Bloqueio imediato de metas automáticas para menores de 18 anos ou gestantes;
-   - Ativação do modo `LIMITED_ESTIMATE` para sexo metabólico não informado (`unspecified`), garantindo ausência de assunção masculina padrão.
+   - Ativação do modo `LIMITED_GUIDANCE` para sexo metabólico não informado (`unspecified`), garantindo ausência de assunção masculina padrão.
 3. **Testes do Livro Contábil e Rollover (`ledger.test.ts` e `rollover.test.ts`):**
    - Transição determinística de dia civil simulando congelamento e retomada do app (boot e resume);
    - Verificação de imutabilidade de dias passados arquivados;
