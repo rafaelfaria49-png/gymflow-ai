@@ -596,75 +596,89 @@ export const ActiveWorkoutPage = () => {
   return (
     <div className="space-y-6 pb-active-workout lg:pb-6 max-w-3xl mx-auto">
       {/* HEADER FIXO DE TREINO */}
-      <div className="glass border border-white/10 p-5 rounded-3xl flex items-center justify-between shadow-xl">
-        <div>
+      <div className="glass border border-white/10 p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 shadow-xl">
+        {/* PARTE SUPERIOR / ÁREA A: Sessão Ativa + Título */}
+        <div className="w-full sm:w-auto min-w-0">
           <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block mb-1">
             Sessão Ativa
           </span>
-          <h1 className="text-xl font-bold text-white tracking-tight leading-none">{activeWorkout.name}</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug line-clamp-2 sm:leading-none sm:line-clamp-none break-words">
+            {activeWorkout.name}
+          </h1>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* PARTE INFERIOR / ÁREA B: Cronômetro + 3 Ações + Finalizar em linha única */}
+        <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto min-w-0">
           {/* Cronômetro */}
-          <div className="flex flex-col items-end mr-1">
-            <span className="text-[10px] text-gym-text-muted uppercase font-bold flex items-center gap-1">
+          <div className="flex items-center gap-1.5 sm:flex-col sm:items-end sm:mr-1 shrink-0">
+            <span className="hidden sm:flex text-[10px] text-gym-text-muted uppercase font-bold items-center gap-1">
               <Clock className="w-3 h-3 text-gym-accent" /> Tempo
             </span>
-            <span className="text-base font-mono font-bold text-white leading-none mt-1">
-              {formatTime(workoutDuration)}
-            </span>
+            <div className="flex items-center gap-1 sm:mt-1">
+              <Clock className="w-3.5 h-3.5 text-gym-accent sm:hidden shrink-0" />
+              <span className="text-xs sm:text-base font-mono font-bold text-white leading-none tabular-nums">
+                {formatTime(workoutDuration)}
+              </span>
+            </div>
           </div>
 
-          {/* GOAL-25: modo operacional sem trocar exercícios silenciosamente. */}
-          <button
-            type="button"
-            onClick={toggleCrowdedGymMode}
-            aria-pressed={crowdedGymMode}
-            className={`border font-bold px-3 py-2 rounded-xl transition-all text-xs flex items-center gap-1.5 ${
-              crowdedGymMode
-                ? 'bg-gym-accent/15 border-gym-accent/40 text-gym-accent'
-                : 'bg-white/5 hover:bg-gym-accent/15 border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent'
-            }`}
-            title="Priorizar pesos livres e cabos nas substituições"
-          >
-            <Sparkles className={`w-3.5 h-3.5 ${crowdedGymMode ? 'animate-pulse' : 'text-gym-accent'}`} />
-            <span className="hidden sm:inline">Academia cheia</span>
-          </button>
+          {/* Linha de ações mobile */}
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            {/* GOAL-25: modo operacional sem trocar exercícios silenciosamente. */}
+            <button
+              type="button"
+              onClick={toggleCrowdedGymMode}
+              aria-pressed={crowdedGymMode}
+              aria-label="Academia cheia: priorizar pesos livres e cabos nas substituições"
+              className={`min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 border font-bold p-2 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0 ${
+                crowdedGymMode
+                  ? 'bg-gym-accent/15 border-gym-accent/40 text-gym-accent'
+                  : 'bg-white/5 hover:bg-gym-accent/15 border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent'
+              }`}
+              title="Priorizar pesos livres e cabos nas substituições"
+            >
+              <Sparkles className={`w-3.5 h-3.5 shrink-0 ${crowdedGymMode ? 'animate-pulse' : 'text-gym-accent'}`} />
+              <span className="hidden sm:inline">Academia cheia</span>
+            </button>
 
-          {/* GOAL-25: primeira ação abre a proposta; nenhum corte acontece aqui. */}
-          <button
-            type="button"
-            onClick={openCompactProposal}
-            className="bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent font-bold px-3 py-2 rounded-xl transition-all text-xs flex items-center gap-1.5"
-            title="Montar uma versão compacta para o tempo de hoje"
-          >
-            <Zap className="w-3.5 h-3.5 text-gym-accent" />
-            <span className="hidden sm:inline">Treino rápido</span>
-          </button>
+            {/* GOAL-25: primeira ação abre a proposta; nenhum corte acontece aqui. */}
+            <button
+              type="button"
+              onClick={openCompactProposal}
+              aria-label="Treino rápido: montar uma versão compacta para o tempo de hoje"
+              className="min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent font-bold p-2 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0"
+              title="Montar uma versão compacta para o tempo de hoje"
+            >
+              <Zap className="w-3.5 h-3.5 text-gym-accent shrink-0" />
+              <span className="hidden sm:inline">Treino rápido</span>
+            </button>
 
-          {/* GOAL-30: check-in de prontidão diária pré-treino */}
-          <button
-            type="button"
-            onClick={() => setShowReadinessModal(true)}
-            className={`border font-bold px-3 py-2 rounded-xl transition-all text-xs flex items-center gap-1.5 ${
-              activeWorkout.readiness
-                ? 'bg-gym-accent/15 border-gym-accent/40 text-gym-accent'
-                : 'bg-white/5 hover:bg-gym-accent/15 border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent'
-            }`}
-            title="Check-in de prontidão diária"
-          >
-            <Activity className="w-3.5 h-3.5 text-gym-accent" />
-            <span className="hidden sm:inline">
-              {activeWorkout.readiness ? `${activeWorkout.readiness.score} pts` : 'Prontidão'}
-            </span>
-          </button>
+            {/* GOAL-30: check-in de prontidão diária pré-treino */}
+            <button
+              type="button"
+              onClick={() => setShowReadinessModal(true)}
+              aria-label={activeWorkout.readiness ? `Prontidão: ${activeWorkout.readiness.score} pontos` : 'Check-in de prontidão diária'}
+              className={`min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 border font-bold p-2 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0 ${
+                activeWorkout.readiness
+                  ? 'bg-gym-accent/15 border-gym-accent/40 text-gym-accent'
+                  : 'bg-white/5 hover:bg-gym-accent/15 border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent'
+              }`}
+              title="Check-in de prontidão diária"
+            >
+              <Activity className="w-3.5 h-3.5 text-gym-accent shrink-0" />
+              <span className="hidden sm:inline">
+                {activeWorkout.readiness ? `${activeWorkout.readiness.score} pts` : 'Prontidão'}
+              </span>
+            </button>
 
-          <button
-            onClick={openFinishModal}
-            className="bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black px-4 py-2 rounded-xl transition-all shadow-md shadow-gym-accent/15 text-xs uppercase tracking-wider"
-          >
-            Finalizar
-          </button>
+            <button
+              type="button"
+              onClick={openFinishModal}
+              className="min-h-[34px] sm:min-h-0 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl transition-all shadow-md shadow-gym-accent/15 text-xs uppercase tracking-wider whitespace-nowrap shrink-0 flex items-center justify-center"
+            >
+              Finalizar
+            </button>
+          </div>
         </div>
       </div>
 
