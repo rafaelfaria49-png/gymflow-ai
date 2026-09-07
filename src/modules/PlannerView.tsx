@@ -8,6 +8,7 @@ import { programDayDisplayLabel } from '../lib/workout-day-naming';
 import { getProgramDays, resolveProgramDays } from '../lib/workout-program-days';
 import { estimateWorkoutDuration } from '../lib/workoutDuration';
 import { defaultTargetMinutes } from '../lib/volumeProfiles';
+import { TrainingPlanAssistantModal } from '../components/training-assistant/TrainingPlanAssistantModal';
 
 const hasMissingProgramDayIssue = (day: WeeklyWorkoutDay): boolean =>
   day.planningIssue === 'missing-program-day';
@@ -25,7 +26,10 @@ export const PlannerView = () => {
     openWorkoutBuilder,
     assignDayToWeekday,
     chooserDayName,
-    setChooserDayName
+    setChooserDayName,
+    planAssistantOpen,
+    openPlanAssistant,
+    closePlanAssistant,
   } = useGymFlow();
 
   const [goal, setGoal] = useState<'hypertrophy' | 'slimming' | 'strength' | 'conditioning' | 'athlete'>(
@@ -49,8 +53,8 @@ export const PlannerView = () => {
   const [duplicatingFromDay, setDuplicatingFromDay] = useState<string | null>(null);
 
   const handleGenerate = () => {
-    generateWeeklyPlan(goal, level, gender, frequency);
     updateUserProfile({ goal, level, gender, frequency, duration });
+    openPlanAssistant();
   };
 
   // GOAL-10.5: alternar para "Treino" não fabrica mais um exerciseCount fictício —
@@ -334,7 +338,7 @@ export const PlannerView = () => {
               className="w-full py-3.5 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center justify-center gap-1.5 cursor-pointer mt-4"
             >
               <Sparkles className="w-4 h-4 fill-gym-dark text-gym-dark" />
-              Gerar Semana com IA
+              Montar com Assistente
             </button>
           </div>
         </div>
@@ -353,7 +357,7 @@ export const PlannerView = () => {
                 className="min-h-[44px] px-6 bg-gym-accent hover:bg-gym-accent-hover active:scale-[0.98] text-gym-dark font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center gap-1.5"
               >
                 <Sparkles className="w-4 h-4 fill-gym-dark text-gym-dark" />
-                Gerar Semana com IA
+                Montar com Assistente
               </button>
             </div>
           ) : (
@@ -592,6 +596,15 @@ export const PlannerView = () => {
           </div>
         </div>
       )}
+      {/* ASSISTENTE DE PLANO MODAL (GOAL-024) */}
+      <TrainingPlanAssistantModal
+        isOpen={planAssistantOpen}
+        onClose={closePlanAssistant}
+        initialFrequency={frequency}
+        initialGoal={goal}
+        initialLevel={level}
+        initialDuration={duration}
+      />
     </div>
   );
 };

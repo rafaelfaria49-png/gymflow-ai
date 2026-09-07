@@ -82,6 +82,20 @@ const RETURN_DISCLAIMER =
 /** Registry imutável. A ordem aqui é a ordem de exibição no seletor. */
 export const WORKOUT_PROGRAM_TEMPLATES: readonly WorkoutProgramTemplate[] = deepFreeze([
   {
+    id: 'full-body-2',
+    name: 'Corpo inteiro — 2 dias',
+    description: 'Duas sessões de corpo inteiro espaçadas na semana. Ideal para frequência reduzida com estímulo global.',
+    recommendedFrequencies: [2],
+    levelCompatibility: ALL_LEVELS,
+    goalCompatibility: ['hypertrophy', 'slimming', 'conditioning', 'strength'],
+    tags: ['corpo-inteiro', 'iniciante', 'simples'],
+    days: [
+      { muscleGroupIds: ['full_body'], volumeProfile: 'standard' },
+      { muscleGroupIds: ['full_body'], volumeProfile: 'standard' },
+    ],
+    disclaimer: STRUCTURAL_DISCLAIMER,
+  },
+  {
     id: 'full-body-3',
     name: 'Corpo inteiro — 3 dias',
     description: 'Três sessões de corpo inteiro na semana. Simples de manter e um bom ponto de partida.',

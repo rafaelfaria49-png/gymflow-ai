@@ -162,8 +162,11 @@ import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
 import {
   readPersistedGymProfile,
   getActiveGymProfile,
+  getActiveGymProfileAvailability,
   type GymProfileState,
 } from '../domain/gymProfile';
+import { getCurrentCivilDate } from '../lib/training-profile';
+import { generateTrainingPlanProgram } from '../lib/training-plan-assistant';
 import {
   bestWorkingSetWeight,
   buildWarmupPlan,
@@ -525,6 +528,10 @@ interface GymFlowContextType {
   assignDayToWeekday: (dayName: string, program: WorkoutProgram, day: ProgramDay) => void;
   replanMissedWorkout: () => void;
   markDayTrained: (dayName: string) => void;
+  // GOAL-024: Assistente de Plano de Treino
+  planAssistantOpen: boolean;
+  openPlanAssistant: () => void;
+  closePlanAssistant: () => void;
 
   // History & Metrics
   workoutHistory: WorkoutSession[];
@@ -739,21 +746,23 @@ function activeDaysForFrequency(frequency: number): string[] {
   return DAYS_ORDER;
 }
 
-// Distribui os Days reais do programa pelos dias ativos do calendário, em ciclo
-// (A, B, C, A, B...). Dias fora da frequência viram Descanso — sem treino genérico.
+// GOAL-024: distribui os Days reais do programa pelos dias ativos do calendário 1:1,
+// sem preenchimento cíclico (A/B/C/A/B nunca é fabricado). Dias fora da quantidade
+// de dias reais do programa viram Descanso — sem repetição silenciosa.
 // GOAL-10.5: duration/exerciseCount/muscleGroups vêm de estimateWorkoutDuration/
 // muscleGroupsForSlots (src/lib/workoutDuration.ts) — a mesma dupla de funções
 // usada pelo Construtor de Treino, então o card nunca mais diverge do treino real.
 function buildWeekFromProgram(program: WorkoutProgram, frequency: number, allExercises: Exercise[]): WeeklyWorkoutDay[] {
   const programDays = getProgramDays(program);
-  const activeDays = activeDaysForFrequency(frequency);
+  const targetDaysCount = Math.min(frequency, programDays.length);
+  const activeDays = activeDaysForFrequency(targetDaysCount);
   let cursor = 0;
   return DAYS_ORDER.map((dayName) => {
-    const isRest = !activeDays.includes(dayName) || programDays.length === 0;
-    if (isRest) {
+    const shouldSchedule = activeDays.includes(dayName) && cursor < programDays.length;
+    if (!shouldSchedule) {
       return { dayName, workoutName: 'Descanso', muscleGroups: [], duration: 0, exerciseCount: 0, isRest: true, trained: false };
     }
-    const progDay = programDays[cursor % programDays.length];
+    const progDay = programDays[cursor];
     cursor++;
     const estimate = estimateWorkoutDuration(progDay.slots);
     return {
@@ -914,6 +923,11 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // fluxo existente ("Escolher treino para hoje") sem duplicar a lógica do seletor.
   const [workoutsTab, setWorkoutsTab] = useState<'suggested' | 'mine'>('suggested');
   const [chooserDayName, setChooserDayName] = useState<string | null>(null);
+
+  // GOAL-024: Assistente de Plano de Treino
+  const [planAssistantOpen, setPlanAssistantOpen] = useState(false);
+  const openPlanAssistant = () => setPlanAssistantOpen(true);
+  const closePlanAssistant = () => setPlanAssistantOpen(false);
 
   // GOAL-10.5: treino de hoje resolvido a partir do weeklyPlan real — fonte única
   // de verdade do card "Treino do Dia" no Dashboard (nunca mais um lookup paralelo).
@@ -2834,22 +2848,33 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Planner functions
-  // GOAL-07: a semana gerada referencia Days reais de um programa (não mais
-  // templates soltos sem exercícios). Cada dia do calendário carrega
-  // programId + programDayId, e abrir o dia inicia exatamente aqueles slots.
+  // GOAL-024: geração determinística orientada pelo perfil, sem promessa enganosa de IA
+  // e sem preenchimento cíclico A/B/C/A/B.
   const generateWeeklyPlan = (goal: string, level: string, gender: string, frequency: number) => {
-    const program = selectProgramForProfile(programs, goal, level, gender);
-    if (!program) {
-      toast.error('Nenhum programa disponível para gerar a semana.');
-      return;
-    }
-    const adjustedDays = buildWeekFromProgram(program, frequency, exercises);
+    const generated = generateTrainingPlanProgram(
+      {
+        goal,
+        level: (level as any) || user?.level || 'intermediate',
+        frequency,
+        duration: user?.duration || 60,
+        availableEquipment: user?.equipments,
+        gymProfileAvailability: getActiveGymProfileAvailability(gymProfileRef.current, getCurrentCivilDate()),
+        restrictions: user?.restrictions,
+        returnToTraining: user?.returnToTraining,
+      },
+      exercises,
+    );
+
+    const adjustedDays = buildWeekFromProgram(generated.program, frequency, exercises);
 
     setWeeklyPlan(adjustedDays);
-    addXp(150, `Ficha Semanal gerada pela IA Coach com o programa "${program.name}"!`);
+    addXp(150, `Plano semanal montado pelo Assistente com "${generated.program.name}"!`);
+    toast.success(`Semana planejada com "${generated.program.name}".`);
   };
 
   // GOAL-07: atribui um programa específico à semana (usado nos Programas de Treino).
+  // GOAL-024: respeita a estrutura real do programa; se tiver menos dias que a frequência
+  // escolhida pelo usuário, não repete em ciclo e exibe informação honesta.
   const applyProgramToWeek = (programId: string) => {
     const program = allPrograms.find((p) => p.id === programId);
     if (!program) {
@@ -2865,8 +2890,17 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       toast.error('Programa sem dias estruturados para planejar a semana.');
       return;
     }
-    const frequency = user?.frequency ?? program.frequencyDays;
-    const adjustedDays = buildWeekFromProgram(program, frequency, exercises);
+    const programDays = getProgramDays(program);
+    const userFrequency = user?.frequency ?? program.frequencyDays;
+    const programDaysCount = programDays.length;
+
+    if (programDaysCount < userFrequency) {
+      toast.info(
+        `O programa "${program.name}" possui ${programDaysCount} dias estruturados. Eles foram planejados para a sua semana sem repetições.`,
+      );
+    }
+
+    const adjustedDays = buildWeekFromProgram(program, programDaysCount, exercises);
 
     setWeeklyPlan(adjustedDays);
     addXp(100, `Programa "${program.name}" atribuído à sua semana!`);
@@ -3293,9 +3327,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           payload: 'prog_int_1'
         };
       } else if (normalized.includes('gerar minha semana') || normalized.includes('gerar semana')) {
-        reply = 'Entendido! Vou estruturar sua planilha de treino semanal com base nas suas metas e perfil. Clique no botão abaixo para gerar com a IA Coach!';
+        reply = 'Entendido! Vou estruturar sua planilha de treino semanal com base nas suas metas e perfil. Clique no botão abaixo para montar com o Assistente!';
         actionCard = {
-          label: 'Gerar Semana com IA',
+          label: 'Montar com Assistente',
           actionType: 'generate-week'
         };
       } else if (normalized.includes('perdi o treino') || normalized.includes('perdi treino')) {
@@ -4275,6 +4309,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         assignDayToWeekday,
         replanMissedWorkout,
         markDayTrained,
+        planAssistantOpen,
+        openPlanAssistant,
+        closePlanAssistant,
 
         workoutHistory,
         weightHistory,

@@ -60,8 +60,8 @@ export interface WorkoutSuggestionInput {
   volumeProfile: VolumeProfile;
   /** Nível de experiência do programa. */
   level: TrainingExperienceLevel;
-  /** Objetivo do usuário (alimenta o descanso da estimativa de duração). */
-  goal: TrainingGoal | string;
+  /** Objetivo do treino para parametrização de séries, reps e descansos (opcional). */
+  goal?: TrainingGoal | string | null;
   /** Retorno aos treinos — `null` = treino contínuo. Reduz o teto de exercícios. */
   returnToTraining: ReturnToTrainingProfile | null;
   /** Slots já presentes no dia — nunca são alterados. */
@@ -133,23 +133,157 @@ export interface WorkoutSuggestionPreview {
   warnings: SuggestionWarning[];
 }
 
-// ===== Slot default (compartilhado com handleAddExercise) =====
+// ===== Resolução de Parâmetros por Objetivo e Slot default =====
+
+export interface GoalExerciseParameters {
+  series: number;
+  repRange: [number, number];
+  targetRPE: number;
+  restSec: number;
+  progression: ExerciseSlot['progression'];
+  incrementKg: number;
+}
 
 /**
- * Slot inicial de um exercício. É a MESMA heurística de `handleAddExercise` (GOAL-10.5):
- * sem sinergistas = isolado (mais reps, menos descanso). O Construtor reusa esta função,
- * então preview e adição manual produzem slots idênticos.
+ * Resolução centralizada de séries, repetições, descanso e RPE por objetivo de treino.
+ * Mantém os defaults de hipertrofia quando o objetivo for omitido ou desconhecido.
  */
-export function createDefaultExerciseSlot(exercise: Exercise): ExerciseSlot {
-  const isolated = !exercise.secondaryMuscles || exercise.secondaryMuscles.length === 0;
+export function resolveGoalExerciseParameters(
+  goal?: TrainingGoal | string | null,
+  isCompound: boolean = false,
+): GoalExerciseParameters {
+  const g = typeof goal === 'string' ? goal.trim().toLowerCase() : '';
+
+  // Strength / Força
+  if (g.includes('strength') || g.includes('força') || g.includes('power')) {
+    if (isCompound) {
+      return {
+        series: 4,
+        repRange: [4, 6],
+        targetRPE: 9,
+        restSec: 180,
+        progression: 'linear',
+        incrementKg: 2.5,
+      };
+    }
+    return {
+      series: 3,
+      repRange: [8, 10],
+      targetRPE: 8,
+      restSec: 90,
+      progression: 'dupla',
+      incrementKg: 1,
+    };
+  }
+
+  // Slimming / Emagrecimento / Definição
+  // Musculação com densidade adequada e descansos menores, preservando intensidade real.
+  if (g.includes('slim') || g.includes('emagrec') || g.includes('defin')) {
+    if (isCompound) {
+      return {
+        series: 3,
+        repRange: [10, 12],
+        targetRPE: 8,
+        restSec: 60,
+        progression: 'dupla',
+        incrementKg: 2.5,
+      };
+    }
+    return {
+      series: 3,
+      repRange: [12, 15],
+      targetRPE: 8,
+      restSec: 45,
+      progression: 'dupla',
+      incrementKg: 1,
+    };
+  }
+
+  // Conditioning / Condicionamento / Adaptação
+  if (g.includes('cond') || g.includes('adapt')) {
+    if (isCompound) {
+      return {
+        series: 3,
+        repRange: [12, 15],
+        targetRPE: 7,
+        restSec: 60,
+        progression: 'dupla',
+        incrementKg: 2,
+      };
+    }
+    return {
+      series: 3,
+      repRange: [12, 15],
+      targetRPE: 7,
+      restSec: 45,
+      progression: 'dupla',
+      incrementKg: 1,
+    };
+  }
+
+  // Athlete / Atleta
+  if (g.includes('ath') || g.includes('atleta')) {
+    if (isCompound) {
+      return {
+        series: 4,
+        repRange: [5, 8],
+        targetRPE: 9,
+        restSec: 150,
+        progression: 'linear',
+        incrementKg: 2.5,
+      };
+    }
+    return {
+      series: 3,
+      repRange: [8, 12],
+      targetRPE: 8,
+      restSec: 90,
+      progression: 'dupla',
+      incrementKg: 1.5,
+    };
+  }
+
+  // Default / Hypertrophy
+  if (isCompound) {
+    return {
+      series: 3,
+      repRange: [8, 10],
+      targetRPE: 8,
+      restSec: 120,
+      progression: 'dupla',
+      incrementKg: 2.5,
+    };
+  }
+  return {
+    series: 3,
+    repRange: [10, 15],
+    targetRPE: 8,
+    restSec: 75,
+    progression: 'dupla',
+    incrementKg: 1,
+  };
+}
+
+/**
+ * Slot inicial de um exercício. É a MESMA heurística de `handleAddExercise` (GOAL-10.5)
+ * ajustada opcionalmente pelo objetivo do treino (`goal`).
+ * Aceita `number` no segundo argumento para compatibilidade direta com `Array.prototype.map`.
+ */
+export function createDefaultExerciseSlot(
+  exercise: Exercise,
+  goal?: TrainingGoal | string | number | null,
+): ExerciseSlot {
+  const isCompound = Boolean(exercise.secondaryMuscles && exercise.secondaryMuscles.length > 0);
+  const resolvedGoal = typeof goal === 'string' ? goal : undefined;
+  const params = resolveGoalExerciseParameters(resolvedGoal, isCompound);
   return {
     exerciseId: exercise.id,
-    series: 3,
-    repRange: isolated ? [10, 15] : [8, 10],
-    targetRPE: 8,
-    restSec: isolated ? 75 : 120,
-    progression: 'dupla',
-    incrementKg: isolated ? 1 : 2.5,
+    series: params.series,
+    repRange: params.repRange,
+    targetRPE: params.targetRPE,
+    restSec: params.restSec,
+    progression: params.progression,
+    incrementKg: params.incrementKg,
   };
 }
 
@@ -416,8 +550,8 @@ export function buildWorkoutSuggestionPreview(input: WorkoutSuggestionInput): Wo
 
     const tentative = [
       ...existingSlots,
-      ...picked.map((item) => createDefaultExerciseSlot(item.exercise)),
-      createDefaultExerciseSlot(candidate.exercise),
+      ...picked.map((item) => createDefaultExerciseSlot(item.exercise, input.goal)),
+      createDefaultExerciseSlot(candidate.exercise, input.goal),
     ];
     const estimate = estimateWorkoutDurationDetailed(tentative, catalog, durationOptions);
     const fit = analyzeWorkoutTimeFit({
@@ -451,7 +585,7 @@ export function buildWorkoutSuggestionPreview(input: WorkoutSuggestionInput): Wo
 
   const additions: SuggestionAddition[] = orderedAdditions.map((candidate) => ({
     exercise: candidate.exercise,
-    slot: createDefaultExerciseSlot(candidate.exercise),
+    slot: createDefaultExerciseSlot(candidate.exercise, input.goal),
     focusGroupId: candidate.focusGroupId,
     mechanics: candidate.mechanics,
     legacyClassification: candidate.legacy,
