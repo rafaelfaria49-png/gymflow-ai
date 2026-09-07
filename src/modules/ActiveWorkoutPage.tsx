@@ -596,7 +596,7 @@ export const ActiveWorkoutPage = () => {
   return (
     <div className="space-y-6 pb-active-workout lg:pb-6 max-w-3xl mx-auto">
       {/* HEADER FIXO DE TREINO */}
-      <div className="glass border border-white/10 p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 shadow-xl">
+      <div className="glass border border-white/10 px-2 min-[360px]:px-3.5 py-3.5 sm:p-5 rounded-2xl sm:rounded-3xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 shadow-xl">
         {/* PARTE SUPERIOR / ÁREA A: Sessão Ativa + Título */}
         <div className="w-full sm:w-auto min-w-0">
           <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block mb-1">
@@ -608,9 +608,9 @@ export const ActiveWorkoutPage = () => {
         </div>
 
         {/* PARTE INFERIOR / ÁREA B: Cronômetro + 3 Ações + Finalizar em linha única */}
-        <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto min-w-0">
+        <div className="flex items-center justify-between sm:justify-end gap-1.5 min-[360px]:gap-2 sm:gap-3 w-full sm:w-auto min-w-0">
           {/* Cronômetro */}
-          <div className="flex items-center gap-1.5 sm:flex-col sm:items-end sm:mr-1 shrink-0">
+          <div className="flex items-center gap-1 min-[360px]:gap-1.5 sm:flex-col sm:items-end sm:mr-1 shrink-0">
             <span className="hidden sm:flex text-[10px] text-gym-text-muted uppercase font-bold items-center gap-1">
               <Clock className="w-3 h-3 text-gym-accent" /> Tempo
             </span>
@@ -623,14 +623,14 @@ export const ActiveWorkoutPage = () => {
           </div>
 
           {/* Linha de ações mobile */}
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             {/* GOAL-25: modo operacional sem trocar exercícios silenciosamente. */}
             <button
               type="button"
               onClick={toggleCrowdedGymMode}
               aria-pressed={crowdedGymMode}
               aria-label="Academia cheia: priorizar pesos livres e cabos nas substituições"
-              className={`min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 border font-bold p-2 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0 ${
+              className={`min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 border font-bold p-2 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0 touch-manipulation ${
                 crowdedGymMode
                   ? 'bg-gym-accent/15 border-gym-accent/40 text-gym-accent'
                   : 'bg-white/5 hover:bg-gym-accent/15 border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent'
@@ -646,7 +646,7 @@ export const ActiveWorkoutPage = () => {
               type="button"
               onClick={openCompactProposal}
               aria-label="Treino rápido: montar uma versão compacta para o tempo de hoje"
-              className="min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent font-bold p-2 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0"
+              className="min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent font-bold p-2 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0 touch-manipulation"
               title="Montar uma versão compacta para o tempo de hoje"
             >
               <Zap className="w-3.5 h-3.5 text-gym-accent shrink-0" />
@@ -658,7 +658,7 @@ export const ActiveWorkoutPage = () => {
               type="button"
               onClick={() => setShowReadinessModal(true)}
               aria-label={activeWorkout.readiness ? `Prontidão: ${activeWorkout.readiness.score} pontos` : 'Check-in de prontidão diária'}
-              className={`min-w-[34px] min-h-[34px] sm:min-w-0 sm:min-h-0 border font-bold p-2 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0 ${
+              className={`min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 border font-bold p-2 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0 touch-manipulation ${
                 activeWorkout.readiness
                   ? 'bg-gym-accent/15 border-gym-accent/40 text-gym-accent'
                   : 'bg-white/5 hover:bg-gym-accent/15 border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent'
@@ -674,7 +674,7 @@ export const ActiveWorkoutPage = () => {
             <button
               type="button"
               onClick={openFinishModal}
-              className="min-h-[34px] sm:min-h-0 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl transition-all shadow-md shadow-gym-accent/15 text-xs uppercase tracking-wider whitespace-nowrap shrink-0 flex items-center justify-center"
+              className="min-h-[44px] sm:min-h-0 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black px-2.5 min-[360px]:px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl transition-all shadow-md shadow-gym-accent/15 text-xs uppercase tracking-wider whitespace-nowrap shrink-0 flex items-center justify-center touch-manipulation"
             >
               Finalizar
             </button>
