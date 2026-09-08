@@ -490,4 +490,7 @@ export interface NutritionLog {
   carbs: number;
   fat: number;
   water: number;
+  /** NUT-001: data civil (YYYY-MM-DD) do último registro de macros para trava de XP idempotente */
+  lastMacroLoggedDate?: string;
+  lastMacroXpDate?: string;
 }
