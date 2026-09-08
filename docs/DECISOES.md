@@ -2,6 +2,11 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## NUT-001 — Honesty + Legacy Containment (2026-09-07)
+
+- **Trava de XP idempotente e contenção honesta:** `NutritionLog` recebe `lastMacroLoggedDate`/`lastMacroXpDate` opcional para teto diário de até 20 XP por data civil persistido no storage sem quebrar esquemas legados, inputs são validados antes de qualquer mutação e menções a IA/algoritmos são expurgadas da UI.
+- **Corretivo canônico de data civil, contrato público e hidratação (2026-09-08):** data civil migrada para calendário local do dispositivo/usuário (resolvendo boundary das 21h BRT), `dateOverride` removido do contrato público de `logMacros` e `lastWaterXpDate` adicionado para idempotência civil de +40 XP de água (teto de 60 XP/dia).
+
 ## GOAL-17B-002E-E7A6 — corretivo final do journal stale race (2026-08-29)
 
 - **Markers assíncronos antes do fechamento:** `markReceiptCores` termina antes da transação readonly final; essa transação relê snapshot, receipts e `retirementJournal:v1`, e qualquer mudança dos cores entre as duas leituras bloqueia sem alterar a semântica do fingerprint.

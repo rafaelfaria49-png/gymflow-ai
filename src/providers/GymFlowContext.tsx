@@ -158,6 +158,11 @@ import {
   normalizeExerciseGroups,
 } from '../domain/techniques/grouping';
 import { useToast } from '../components/ui/Toast';
+import {
+  isValidMacroInput,
+  isValidWaterInput,
+} from '../lib/nutrition-validation';
+import { getCivilDateString } from '../lib/nutrition-civil-date';
 import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
 import {
   readPersistedGymProfile,
@@ -542,8 +547,13 @@ interface GymFlowContextType {
 
   // Nutrition
   nutrition: NutritionLog;
-  logWater: (amountMl: number) => void;
-  logMacros: (calories: number, protein: number, carbs: number, fat: number) => void;
+  logWater: (amountMl: number) => boolean;
+  logMacros: (
+    calories: number,
+    protein: number,
+    carbs: number,
+    fat: number
+  ) => boolean;
 
   // Community
   communityPosts: CommunityPost[];
@@ -1021,14 +1031,16 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     { date: '2026-05-15', chest: 105, waist: 86, hips: 99, arms: 38.5 }
   ]);
 
-  // Nutrition
+  // Nutrition (NUT-001: estado inicial canônico em zero sem vazamento de demo)
   const [nutrition, setNutrition] = useState<NutritionLog>({
-    calories: 1420,
-    protein: 110,
-    carbs: 150,
-    fat: 45,
-    water: 1200
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    water: 0
   });
+  const lastMacroLoggedDateRef = useRef<string | null>(null);
+  const lastWaterXpDateRef = useRef<string | null>(null);
 
   // Achievements, XP notifications
   const [xpNotifications, setXpNotifications] = useState<XpNotification[]>([]);
@@ -1547,6 +1559,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         setWeightHistory(saved.weightHistory);
         setMeasurementsHistory(saved.measurementsHistory);
         setNutrition(saved.nutrition);
+        lastMacroLoggedDateRef.current = saved.nutrition.lastMacroLoggedDate ?? saved.nutrition.lastMacroXpDate ?? null;
+        lastWaterXpDateRef.current = saved.nutrition.lastWaterXpDate ?? null;
         setAchievements(saved.achievements);
         setChallenges(saved.challenges);
         setFavoriteExercises(saved.favoriteExercises);
@@ -1647,6 +1661,16 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     recentlyViewedVideoIds,
     gymProfile,
   ]);
+
+  useEffect(() => {
+    const loggedDate = nutrition.lastMacroLoggedDate ?? nutrition.lastMacroXpDate;
+    if (loggedDate) {
+      lastMacroLoggedDateRef.current = loggedDate;
+    }
+    if (nutrition.lastWaterXpDate) {
+      lastWaterXpDateRef.current = nutrition.lastWaterXpDate;
+    }
+  }, [nutrition.lastMacroLoggedDate, nutrition.lastMacroXpDate, nutrition.lastWaterXpDate]);
 
   // Flush síncrono reduz a janela de perda ao ocultar/fechar a página ou WebView.
   useEffect(() => {
@@ -3079,37 +3103,79 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     addXp(40, 'Medidas corporais atualizadas');
   };
 
-  // Nutrition trackers
-  const logWater = (amountMl: number) => {
+  // Nutrition trackers (NUT-001)
+  const logWater = (amountMl: number): boolean => {
+    if (!isValidWaterInput(amountMl)) {
+      return false;
+    }
+
+    const today = getCivilDateString();
+    let grantWaterXp = false;
+
+    if (user) {
+      const prevWater = user.waterIntake;
+      const newWater = prevWater + amountMl;
+      setUser((prev) => (prev ? { ...prev, waterIntake: newWater } : null));
+
+      if (newWater >= user.waterGoal && prevWater < user.waterGoal) {
+        unlockAchievement('ach_4');
+
+        const alreadyRewardedToday = (
+          lastWaterXpDateRef.current === today ||
+          nutrition.lastWaterXpDate === today
+        );
+
+        if (!alreadyRewardedToday) {
+          grantWaterXp = true;
+          lastWaterXpDateRef.current = today;
+          // NUT-001 (D-NUT-07): calibração para 40 XP para respeitar o teto diário de 60 XP em nutrição (20 XP macros + 40 XP água)
+          addXp(40, '💧 Meta Diária de Água Batida!');
+        }
+      }
+    }
+
     setNutrition((prev) => ({
       ...prev,
-      water: prev.water + amountMl
+      water: prev.water + amountMl,
+      ...(grantWaterXp ? { lastWaterXpDate: today } : {}),
     }));
-    if (user) {
-      setUser((prev) => {
-        if (!prev) return null;
-        const newWater = prev.waterIntake + amountMl;
-        if (newWater >= prev.waterGoal && prev.waterIntake < prev.waterGoal) {
-          unlockAchievement('ach_4');
-          addXp(50, '💧 Meta Diária de Água Batida!');
-        }
-        return {
-          ...prev,
-          waterIntake: newWater
-        };
-      });
-    }
+
+    return true;
   };
 
-  const logMacros = (calories: number, protein: number, carbs: number, fat: number) => {
+  const logMacros = (
+    calories: number,
+    protein: number,
+    carbs: number,
+    fat: number
+  ): boolean => {
+    if (!isValidMacroInput(calories, protein, carbs, fat)) {
+      return false;
+    }
+
+    const today = getCivilDateString();
+    const alreadyGrantedToday = (
+      lastMacroLoggedDateRef.current === today ||
+      nutrition.lastMacroLoggedDate === today ||
+      nutrition.lastMacroXpDate === today
+    );
+
+    if (!alreadyGrantedToday) {
+      lastMacroLoggedDateRef.current = today;
+      addXp(20, 'Alimento registrado na dieta');
+    }
+
     setNutrition((prev) => ({
+      ...prev,
       calories: prev.calories + calories,
       protein: prev.protein + protein,
       carbs: prev.carbs + carbs,
       fat: prev.fat + fat,
-      water: prev.water
+      lastMacroLoggedDate: today,
+      lastMacroXpDate: today,
     }));
-    addXp(20, 'Alimento registrado na dieta');
+
+    return true;
   };
 
   // Community Feed

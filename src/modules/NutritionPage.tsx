@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { Droplet, Utensils, Apple, GlassWater } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
+import { parseMacroFormInputs, isValidWaterInput } from '../lib/nutrition-validation';
 
 export const NutritionPage = () => {
   const { nutrition, logWater, logMacros, user } = useGymFlow();
@@ -15,27 +16,51 @@ export const NutritionPage = () => {
   const [fatInput, setFatInput] = useState('');
 
   const handleWaterLog = (amount: number) => {
+    if (!isValidWaterInput(amount)) return;
     logWater(amount);
   };
 
   const handleCustomWaterLog = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!waterInput) return;
-    logWater(Number(waterInput));
+    if (!waterInput.trim()) {
+      toast.error('Informe uma quantidade de água.');
+      return;
+    }
+    const amount = Number(waterInput);
+    if (!isValidWaterInput(amount)) {
+      toast.error('Informe uma quantidade positiva de água em ml (> 0).');
+      return;
+    }
+    const success = logWater(amount);
+    if (success) {
+      setWaterInput('');
+      toast.success(`${amount}ml de água registrados!`);
+    } else {
+      toast.error('Quantidade de água fora dos limites.');
+    }
   };
 
   const handleMacroSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!kcalInput || !protInput || !carbInput || !fatInput) return;
-    logMacros(Number(kcalInput), Number(protInput), Number(carbInput), Number(fatInput));
-    setKcalInput('');
-    setProtInput('');
-    setCarbInput('');
-    setFatInput('');
-    toast.success('Refeição registrada na dieta!');
+    const parsed = parseMacroFormInputs(kcalInput, protInput, carbInput, fatInput);
+    if (!parsed.valid) {
+      toast.error('Informe valores válidos: calorias (1 a 14.999 kcal) e macronutrientes (0 a 999g).');
+      return;
+    }
+    const { calories, protein, carbs, fat } = parsed.values;
+    const success = logMacros(calories, protein, carbs, fat);
+    if (success) {
+      setKcalInput('');
+      setProtInput('');
+      setCarbInput('');
+      setFatInput('');
+      toast.success('Refeição registrada na dieta!');
+    } else {
+      toast.error('Valores nutricionais fora dos limites permitidos.');
+    }
   };
 
-  // Sugestões de Refeições Baseadas no Objetivo
+  // Sugestões de Refeições Baseadas no Objetivo (Exemplos Gerais)
   const getMealSuggestions = () => {
     const goal = user?.goal || 'hypertrophy';
     if (goal === 'slimming') {
@@ -136,19 +161,19 @@ export const NutritionPage = () => {
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => handleWaterLog(250)}
-                className="py-2.5 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/20 text-white hover:text-gym-accent rounded-xl text-[10px] font-bold transition-all"
+                className="min-h-[44px] py-2.5 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/20 text-white hover:text-gym-accent rounded-xl text-[10px] font-bold transition-all flex items-center justify-center"
               >
                 +250ml (Copo)
               </button>
               <button
                 onClick={() => handleWaterLog(500)}
-                className="py-2.5 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/20 text-white hover:text-gym-accent rounded-xl text-[10px] font-bold transition-all"
+                className="min-h-[44px] py-2.5 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/20 text-white hover:text-gym-accent rounded-xl text-[10px] font-bold transition-all flex items-center justify-center"
               >
                 +500ml (Garrafa)
               </button>
               <button
                 onClick={() => handleWaterLog(1000)}
-                className="py-2.5 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/20 text-white hover:text-gym-accent rounded-xl text-[10px] font-bold transition-all"
+                className="min-h-[44px] py-2.5 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/20 text-white hover:text-gym-accent rounded-xl text-[10px] font-bold transition-all flex items-center justify-center"
               >
                 +1L (Garrafa G)
               </button>
@@ -162,12 +187,13 @@ export const NutritionPage = () => {
               placeholder="Outro valor em ml"
               value={waterInput}
               onChange={(e) => setWaterInput(e.target.value)}
-              className="flex-1 bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl px-3 py-2 text-xs text-white placeholder-gym-text-muted outline-none"
+              className="flex-1 min-h-[44px] bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl px-3 py-2 text-xs text-white placeholder-gym-text-muted outline-none"
+              min="1"
               required
             />
             <button
               type="submit"
-              className="bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-bold px-4 py-2 rounded-xl text-xs"
+              className="min-h-[44px] bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-bold px-4 py-2 rounded-xl text-xs flex items-center justify-center"
             >
               Registrar
             </button>
@@ -189,7 +215,9 @@ export const NutritionPage = () => {
                 placeholder="Ex: 450"
                 value={kcalInput}
                 onChange={(e) => setKcalInput(e.target.value)}
-                className="w-full bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl px-4 py-2.5 text-xs text-white outline-none"
+                className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl px-4 py-2.5 text-xs text-white outline-none"
+                min="1"
+                max="14999"
                 required
               />
             </div>
@@ -202,7 +230,10 @@ export const NutritionPage = () => {
                   placeholder="30"
                   value={protInput}
                   onChange={(e) => setProtInput(e.target.value)}
-                  className="w-full bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl py-2 text-center text-xs text-white outline-none"
+                  className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl py-2 text-center text-xs text-white outline-none"
+                  min="0"
+                  max="999"
+                  step="any"
                   required
                 />
               </div>
@@ -213,7 +244,10 @@ export const NutritionPage = () => {
                   placeholder="50"
                   value={carbInput}
                   onChange={(e) => setCarbInput(e.target.value)}
-                  className="w-full bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl py-2 text-center text-xs text-white outline-none"
+                  className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl py-2 text-center text-xs text-white outline-none"
+                  min="0"
+                  max="999"
+                  step="any"
                   required
                 />
               </div>
@@ -224,7 +258,10 @@ export const NutritionPage = () => {
                   placeholder="10"
                   value={fatInput}
                   onChange={(e) => setFatInput(e.target.value)}
-                  className="w-full bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl py-2 text-center text-xs text-white outline-none"
+                  className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl py-2 text-center text-xs text-white outline-none"
+                  min="0"
+                  max="999"
+                  step="any"
                   required
                 />
               </div>
@@ -232,7 +269,7 @@ export const NutritionPage = () => {
 
             <button
               type="submit"
-              className="w-full bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold py-3 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15"
+              className="w-full min-h-[44px] bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold py-3 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center justify-center"
             >
               Registrar Alimento
             </button>
@@ -262,17 +299,21 @@ export const NutritionPage = () => {
           </div>
         </div>
 
-        {/* COLUNA DIREITA: REFEIÇÕES SUGERIDAS (IA) */}
+        {/* COLUNA DIREITA: SUGESTÕES DE REFEIÇÕES (EXEMPLOS GERAIS) */}
         <div className="glass p-5 rounded-3xl border border-white/5 space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
               <Apple className="w-4.5 h-4.5 text-gym-accent" />
-              Cardápio Sugerido IA
+              Sugestões de refeições
             </h3>
             <span className="text-[9px] bg-gym-accent/15 text-gym-accent font-black uppercase px-2 py-0.5 rounded-full">
               {user?.goal === 'slimming' ? 'Cutting' : 'Bulking'}
             </span>
           </div>
+
+          <p className="text-[11px] text-gym-text-muted">
+            Exemplos gerais de refeições para referência de acordo com o objetivo selecionado.
+          </p>
 
           <div className="space-y-3.5">
             {getMealSuggestions().map((meal, idx) => (
@@ -288,7 +329,7 @@ export const NutritionPage = () => {
 
           {/* Aviso responsabilidade */}
           <div className="bg-gym-rose/5 border border-gym-rose/10 text-gym-rose rounded-xl p-3.5 text-[10px] leading-relaxed">
-            ⚠️ <span className="font-bold">Nota de Responsabilidade:</span> As sugestões nutricionais apresentadas no GymFlow AI são estimativas geradas por algoritmos. O aplicativo não substitui o planejamento alimentar e consultas de um nutricionista clínico qualificado.
+            ⚠️ <span className="font-bold">Nota de Responsabilidade:</span> As sugestões de refeições são apenas exemplos gerais baseados no objetivo e não constituem planejamento alimentar individualizado nem prescrição dietética. O aplicativo não substitui o acompanhamento de um nutricionista clínico qualificado.
           </div>
         </div>
       </div>
