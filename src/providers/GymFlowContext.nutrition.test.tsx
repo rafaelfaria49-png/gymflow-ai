@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
 import { GymFlowProvider, STORAGE_KEY, useGymFlow } from './GymFlowContext';
 import { MONOLITHIC_STORAGE_VERSION } from '../lib/storage-types';
+import { getCivilDateString } from '../lib/nutrition-civil-date';
 import type { UserProfile } from '../types';
 
 type GymFlowValue = ReturnType<typeof useGymFlow>;
@@ -345,7 +346,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
   });
 
   it('a trava de XP por data civil sobrevive a reload/hidratação de storage', async () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getCivilDateString();
 
     // Simula estado salvo onde o usuário já registrou refeição hoje
     seedPersistedStorage({
@@ -450,35 +451,53 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     expect(app.context().user!.xp).toBe(initialXp + 40);
   });
 
-  it('permite controle explícito da data via dateOverride sem depender do relógio do sistema', async () => {
+  it('boundary 20:59 -> 21:01 BRT pertence à mesma data civil e NÃO concede segundo XP de macro', async () => {
+    vi.useFakeTimers();
+    // 2026-09-08 20:59 BRT (-03:00) => 23:59:00Z UTC
+    vi.setSystemTime(new Date('2026-09-08T23:59:00.000Z'));
+
     seedPersistedStorage({
-      user: makeUser({ xp: 200 }),
+      user: makeUser({ xp: 100 }),
     });
 
     const app = await mountProvider();
     const initialXp = app.context().user!.xp;
 
-    // Data A: 1º registro -> +20 XP
+    // 1º registro às 20:59 BRT -> +20 XP concedido
     let success = false;
     await act(async () => {
-      success = app.context().logMacros(400, 30, 50, 10, '2026-10-01');
+      success = app.context().logMacros(400, 30, 50, 10);
     });
     expect(success).toBe(true);
     expect(app.context().user!.xp).toBe(initialXp + 20);
 
-    // Data A: 2º registro -> 0 XP adicional
-    await act(async () => {
-      success = app.context().logMacros(300, 20, 30, 5, '2026-10-01');
-    });
-    expect(success).toBe(true);
-    expect(app.context().user!.xp).toBe(initialXp + 20);
+    // Avança para 21:01 BRT (00:01Z UTC do dia seguinte)
+    vi.setSystemTime(new Date('2026-09-09T00:01:00.000Z'));
 
-    // Data B: 1º registro -> +20 XP adicional
+    // 2º registro às 21:01 BRT -> 0 XP adicional (mesma data civil local 08/09/2026)
     await act(async () => {
-      success = app.context().logMacros(500, 35, 60, 15, '2026-10-02');
+      success = app.context().logMacros(300, 20, 30, 5);
     });
     expect(success).toBe(true);
-    expect(app.context().user!.xp).toBe(initialXp + 40);
+    expect(app.context().user!.xp).toBe(initialXp + 20); // Permanece 120 XP!
+
+    // Avança relógio para o dia civil seguinte real em BRT: 09/09/2026 08:00 BRT (11:00Z UTC)
+    vi.setSystemTime(new Date('2026-09-09T11:00:00.000Z'));
+
+    // 1º registro do novo dia civil -> +20 XP concedido
+    await act(async () => {
+      success = app.context().logMacros(450, 35, 50, 12);
+    });
+    expect(success).toBe(true);
+    expect(app.context().user!.xp).toBe(initialXp + 40); // 140 XP!
+  });
+
+  it('dateOverride não existe na API pública de logMacros (contrato limpo de 4 parâmetros)', async () => {
+    const app = await mountProvider();
+    const logMacrosFn = app.context().logMacros;
+
+    // A função deve ter aridade de 4 parâmetros na assinatura de produção
+    expect(logMacrosFn.length).toBe(4);
   });
 
   it('água manual zero, negativa ou inválida não altera estado', async () => {
@@ -550,7 +569,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     // 2. Registra macros no mesmo dia -> concede 20 XP
     let acceptedMacro = false;
     await act(async () => {
-      acceptedMacro = app.context().logMacros(450, 30, 45, 12, '2026-09-08');
+      acceptedMacro = app.context().logMacros(450, 30, 45, 12);
     });
     expect(acceptedMacro).toBe(true);
     const xpAfterMacro = app.context().user!.xp;
@@ -561,7 +580,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     // 3. Segundo registro de macros no mesmo dia: não concede novo XP
     await act(async () => {
-      app.context().logMacros(300, 20, 30, 8, '2026-09-08');
+      app.context().logMacros(300, 20, 30, 8);
     });
     expect(app.context().user!.xp - initialXp).toBe(60);
 
@@ -587,5 +606,97 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     const ach4 = app.context().achievements.find((a) => a.id === 'ach_4');
     expect(ach4?.unlocked).toBe(true);
+  });
+
+  it('a concessão de XP de água é idempotente após reload no mesmo dia e persiste lastWaterXpDate', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-08T14:00:00.000Z'));
+    const today = getCivilDateString();
+
+    seedPersistedStorage({
+      user: makeUser({ xp: 100, points: 100, waterIntake: 2800, waterGoal: 3000 }),
+      nutrition: { calories: 0, protein: 0, carbs: 0, fat: 0, water: 2800 },
+      achievements: [{ id: 'ach_4', name: 'Hidratação Nível Elite', description: '', icon: '💧', unlocked: true }],
+    });
+
+    const app = await mountProvider();
+    const initialXp = app.context().user!.xp;
+
+    // Atinge meta de água pela primeira vez hoje -> +40 XP
+    await act(async () => {
+      app.context().logWater(300); // 2800 + 300 = 3100 >= 3000
+    });
+    expect(app.context().user!.xp - initialXp).toBe(40);
+    expect(app.context().nutrition.lastWaterXpDate).toBe(today);
+
+    // Simula reload/hidratação com o estado persistido contendo lastWaterXpDate
+    seedPersistedStorage({
+      user: makeUser({ xp: 140, points: 140, waterIntake: 3100, waterGoal: 3000 }),
+      nutrition: { calories: 0, protein: 0, carbs: 0, fat: 0, water: 3100, lastWaterXpDate: today },
+      achievements: [{ id: 'ach_4', name: 'Hidratação Nível Elite', description: '', icon: '💧', unlocked: true }],
+    });
+
+    const reloadedApp = await mountProvider();
+    expect(reloadedApp.context().user!.xp).toBe(140);
+    expect(reloadedApp.context().nutrition.lastWaterXpDate).toBe(today);
+
+    // Nova chamada no mesmo dia não re-concede XP
+    await act(async () => {
+      reloadedApp.context().logWater(200);
+    });
+    expect(reloadedApp.context().user!.xp).toBe(140);
+  });
+
+  it('snapshot legado sem lastWaterXpDate continua válido e hidrata perfeitamente', async () => {
+    seedPersistedStorage({
+      user: makeUser({ xp: 300, waterIntake: 1500, waterGoal: 2500 }),
+      nutrition: { calories: 1200, protein: 90, carbs: 110, fat: 40, water: 1500 }, // snapshot legado sem datas
+    });
+
+    const app = await mountProvider();
+    const ctx = app.context();
+
+    expect(ctx.nutrition.calories).toBe(1200);
+    expect(ctx.nutrition.protein).toBe(90);
+    expect(ctx.nutrition.carbs).toBe(110);
+    expect(ctx.nutrition.fat).toBe(40);
+    expect(ctx.nutrition.water).toBe(1500);
+    expect(ctx.nutrition.lastWaterXpDate).toBeUndefined();
+    expect(ctx.user!.xp).toBe(300);
+
+    // Pode atingir a meta e registrar o marcador pela primeira vez
+    await act(async () => {
+      ctx.logWater(1000); // 1500 + 1000 = 2500 >= 2500
+    });
+    expect(app.context().user!.xp).toBe(340); // +40 XP
+    expect(app.context().nutrition.lastWaterXpDate).toBe(getCivilDateString());
+  });
+
+  it('nova transição de limiar no mesmo dia não concede recompensa duplicada', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-08T10:00:00.000Z'));
+    const today = getCivilDateString();
+
+    seedPersistedStorage({
+      user: makeUser({ xp: 100, waterIntake: 1900, waterGoal: 2000 }),
+      nutrition: { calories: 0, protein: 0, carbs: 0, fat: 0, water: 1900 },
+      achievements: [{ id: 'ach_4', name: 'Hidratação Nível Elite', description: '', icon: '💧', unlocked: true }],
+    });
+
+    const app = await mountProvider();
+    expect(app.context().user!.xp).toBe(100);
+
+    // 1ª vez cruza 2000ml -> +40 XP
+    await act(async () => {
+      app.context().logWater(200); // 2100 >= 2000
+    });
+    expect(app.context().user!.xp).toBe(140);
+    expect(app.context().nutrition.lastWaterXpDate).toBe(today);
+
+    // Usuário já com lastWaterXpDate registrado para hoje
+    await act(async () => {
+      app.context().logWater(500);
+    });
+    expect(app.context().user!.xp).toBe(140);
   });
 });

@@ -162,6 +162,7 @@ import {
   isValidMacroInput,
   isValidWaterInput,
 } from '../lib/nutrition-validation';
+import { getCivilDateString } from '../lib/nutrition-civil-date';
 import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
 import {
   readPersistedGymProfile,
@@ -551,8 +552,7 @@ interface GymFlowContextType {
     calories: number,
     protein: number,
     carbs: number,
-    fat: number,
-    dateOverride?: string
+    fat: number
   ) => boolean;
 
   // Community
@@ -1040,6 +1040,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     water: 0
   });
   const lastMacroLoggedDateRef = useRef<string | null>(null);
+  const lastWaterXpDateRef = useRef<string | null>(null);
 
   // Achievements, XP notifications
   const [xpNotifications, setXpNotifications] = useState<XpNotification[]>([]);
@@ -1559,6 +1560,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         setMeasurementsHistory(saved.measurementsHistory);
         setNutrition(saved.nutrition);
         lastMacroLoggedDateRef.current = saved.nutrition.lastMacroLoggedDate ?? saved.nutrition.lastMacroXpDate ?? null;
+        lastWaterXpDateRef.current = saved.nutrition.lastWaterXpDate ?? null;
         setAchievements(saved.achievements);
         setChallenges(saved.challenges);
         setFavoriteExercises(saved.favoriteExercises);
@@ -1665,7 +1667,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     if (loggedDate) {
       lastMacroLoggedDateRef.current = loggedDate;
     }
-  }, [nutrition.lastMacroLoggedDate, nutrition.lastMacroXpDate]);
+    if (nutrition.lastWaterXpDate) {
+      lastWaterXpDateRef.current = nutrition.lastWaterXpDate;
+    }
+  }, [nutrition.lastMacroLoggedDate, nutrition.lastMacroXpDate, nutrition.lastWaterXpDate]);
 
   // Flush síncrono reduz a janela de perda ao ocultar/fechar a página ou WebView.
   useEffect(() => {
@@ -3103,20 +3108,38 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     if (!isValidWaterInput(amountMl)) {
       return false;
     }
-    setNutrition((prev) => ({
-      ...prev,
-      water: prev.water + amountMl
-    }));
+
+    const today = getCivilDateString();
+    let grantWaterXp = false;
+
     if (user) {
       const prevWater = user.waterIntake;
       const newWater = prevWater + amountMl;
       setUser((prev) => (prev ? { ...prev, waterIntake: newWater } : null));
+
       if (newWater >= user.waterGoal && prevWater < user.waterGoal) {
         unlockAchievement('ach_4');
-        // NUT-001 (D-NUT-07): calibração para 40 XP para respeitar o teto diário de 60 XP em nutrição (20 XP macros + 40 XP água)
-        addXp(40, '💧 Meta Diária de Água Batida!');
+
+        const alreadyRewardedToday = (
+          lastWaterXpDateRef.current === today ||
+          nutrition.lastWaterXpDate === today
+        );
+
+        if (!alreadyRewardedToday) {
+          grantWaterXp = true;
+          lastWaterXpDateRef.current = today;
+          // NUT-001 (D-NUT-07): calibração para 40 XP para respeitar o teto diário de 60 XP em nutrição (20 XP macros + 40 XP água)
+          addXp(40, '💧 Meta Diária de Água Batida!');
+        }
       }
     }
+
+    setNutrition((prev) => ({
+      ...prev,
+      water: prev.water + amountMl,
+      ...(grantWaterXp ? { lastWaterXpDate: today } : {}),
+    }));
+
     return true;
   };
 
@@ -3124,14 +3147,13 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     calories: number,
     protein: number,
     carbs: number,
-    fat: number,
-    dateOverride?: string
+    fat: number
   ): boolean => {
     if (!isValidMacroInput(calories, protein, carbs, fat)) {
       return false;
     }
 
-    const today = dateOverride || new Date().toISOString().split('T')[0];
+    const today = getCivilDateString();
     const alreadyGrantedToday = (
       lastMacroLoggedDateRef.current === today ||
       nutrition.lastMacroLoggedDate === today ||
