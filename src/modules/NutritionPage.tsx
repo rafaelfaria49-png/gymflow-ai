@@ -22,19 +22,31 @@ export const NutritionPage = () => {
 
   const handleCustomWaterLog = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!waterInput.trim()) return;
+    if (!waterInput.trim()) {
+      toast.error('Informe uma quantidade de água.');
+      return;
+    }
     const amount = Number(waterInput);
-    if (!isValidWaterInput(amount)) return;
+    if (!isValidWaterInput(amount)) {
+      toast.error('Informe uma quantidade positiva de água em ml (> 0).');
+      return;
+    }
     const success = logWater(amount);
     if (success) {
       setWaterInput('');
+      toast.success(`${amount}ml de água registrados!`);
+    } else {
+      toast.error('Quantidade de água fora dos limites.');
     }
   };
 
   const handleMacroSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = parseMacroFormInputs(kcalInput, protInput, carbInput, fatInput);
-    if (!parsed.valid) return;
+    if (!parsed.valid) {
+      toast.error('Informe valores válidos: calorias (1 a 14.999 kcal) e macronutrientes (0 a 999g).');
+      return;
+    }
     const { calories, protein, carbs, fat } = parsed.values;
     const success = logMacros(calories, protein, carbs, fat);
     if (success) {
@@ -43,6 +55,8 @@ export const NutritionPage = () => {
       setCarbInput('');
       setFatInput('');
       toast.success('Refeição registrada na dieta!');
+    } else {
+      toast.error('Valores nutricionais fora dos limites permitidos.');
     }
   };
 

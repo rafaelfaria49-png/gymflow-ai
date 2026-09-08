@@ -41,11 +41,18 @@ function makeUser(overrides: Partial<UserProfile> = {}): UserProfile {
     weight: 80.5,
     height: 178,
     frequency: 4,
+    duration: 60,
+    location: 'gym',
+    equipments: [],
+    restrictions: [],
+    muscleFocus: [],
+    preference: '',
     xp: 100,
     points: 100,
     streak: 3,
     waterIntake: 0,
     waterGoal: 3000,
+    premiumStatus: 'free',
     weeklyPlan: [],
     ...overrides,
   };
@@ -371,6 +378,9 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
   });
 
   it('no dia seguinte civil, o primeiro registro válido volta a conceder até 20 XP', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-07T12:00:00Z'));
+
     // Estado com último registro em dia anterior
     seedPersistedStorage({
       user: makeUser({ xp: 300 }),
@@ -386,7 +396,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     const app = await mountProvider();
 
-    // Hoje é outro dia civil (ex.: 2026-09-07)
+    // Hoje é outro dia civil (2026-09-07)
     let success = false;
     await act(async () => {
       success = app.context().logMacros(450, 35, 50, 12);
@@ -394,6 +404,81 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     expect(success).toBe(true);
     expect(app.context().user!.xp).toBe(320); // +20 XP concedido
+  });
+
+  it('mudança de data civil permite nova concessão diária de forma determinística (fake timers)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-07T12:00:00Z'));
+
+    seedPersistedStorage({
+      user: makeUser({ xp: 200 }),
+    });
+
+    const app = await mountProvider();
+    const initialXp = app.context().user!.xp;
+
+    // Dia 1 (2026-09-07): 1º registro -> +20 XP
+    let success = false;
+    await act(async () => {
+      success = app.context().logMacros(400, 30, 50, 10);
+    });
+    expect(success).toBe(true);
+    expect(app.context().user!.xp).toBe(initialXp + 20);
+
+    // Dia 1 (2026-09-07): 2º registro no mesmo dia -> 0 XP adicional
+    await act(async () => {
+      success = app.context().logMacros(300, 20, 30, 5);
+    });
+    expect(success).toBe(true);
+    expect(app.context().user!.xp).toBe(initialXp + 20);
+
+    // Avança relógio para Dia 2 (2026-09-08)
+    vi.setSystemTime(new Date('2026-09-08T12:00:00Z'));
+
+    // Dia 2: 1º registro -> +20 XP adicional
+    await act(async () => {
+      success = app.context().logMacros(500, 35, 60, 15);
+    });
+    expect(success).toBe(true);
+    expect(app.context().user!.xp).toBe(initialXp + 40);
+
+    // Dia 2: 2º registro -> 0 XP adicional
+    await act(async () => {
+      success = app.context().logMacros(200, 15, 20, 5);
+    });
+    expect(success).toBe(true);
+    expect(app.context().user!.xp).toBe(initialXp + 40);
+  });
+
+  it('permite controle explícito da data via dateOverride sem depender do relógio do sistema', async () => {
+    seedPersistedStorage({
+      user: makeUser({ xp: 200 }),
+    });
+
+    const app = await mountProvider();
+    const initialXp = app.context().user!.xp;
+
+    // Data A: 1º registro -> +20 XP
+    let success = false;
+    await act(async () => {
+      success = app.context().logMacros(400, 30, 50, 10, '2026-10-01');
+    });
+    expect(success).toBe(true);
+    expect(app.context().user!.xp).toBe(initialXp + 20);
+
+    // Data A: 2º registro -> 0 XP adicional
+    await act(async () => {
+      success = app.context().logMacros(300, 20, 30, 5, '2026-10-01');
+    });
+    expect(success).toBe(true);
+    expect(app.context().user!.xp).toBe(initialXp + 20);
+
+    // Data B: 1º registro -> +20 XP adicional
+    await act(async () => {
+      success = app.context().logMacros(500, 35, 60, 15, '2026-10-02');
+    });
+    expect(success).toBe(true);
+    expect(app.context().user!.xp).toBe(initialXp + 40);
   });
 
   it('água manual zero, negativa ou inválida não altera estado', async () => {

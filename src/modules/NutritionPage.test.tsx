@@ -206,9 +206,13 @@ describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
     expect(capturedContext!.nutrition.protein).toBe(0);
     expect(capturedContext!.nutrition.carbs).toBe(0);
     expect(capturedContext!.nutrition.fat).toBe(0);
+
+    // Feedback honesto de erro exibido na UI via toast
+    const renderedText = JSON.stringify(renderer!.toJSON());
+    expect(renderedText).toContain('Informe valores válidos');
   });
 
-  it('submissão de água manual com valor zero ou negativo não altera estado', async () => {
+  it('submissão de água manual com valor zero ou negativo não altera estado e exibe feedback honesto', async () => {
     let capturedContext: ReturnType<typeof useGymFlow> | null = null;
     const ContextInspector = () => {
       capturedContext = useGymFlow();
@@ -243,6 +247,7 @@ describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
       waterForm!.props.onSubmit({ preventDefault: vi.fn() });
     });
     expect(capturedContext!.nutrition.water).toBe(0);
+    expect(JSON.stringify(renderer!.toJSON())).toContain('Informe uma quantidade positiva de água');
 
     // Tentar registrar -100ml
     await act(async () => {

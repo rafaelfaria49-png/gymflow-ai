@@ -547,7 +547,13 @@ interface GymFlowContextType {
   // Nutrition
   nutrition: NutritionLog;
   logWater: (amountMl: number) => boolean;
-  logMacros: (calories: number, protein: number, carbs: number, fat: number) => boolean;
+  logMacros: (
+    calories: number,
+    protein: number,
+    carbs: number,
+    fat: number,
+    dateOverride?: string
+  ) => boolean;
 
   // Community
   communityPosts: CommunityPost[];
@@ -3118,12 +3124,18 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     return true;
   };
 
-  const logMacros = (calories: number, protein: number, carbs: number, fat: number): boolean => {
+  const logMacros = (
+    calories: number,
+    protein: number,
+    carbs: number,
+    fat: number,
+    dateOverride?: string
+  ): boolean => {
     if (!isValidMacroInput(calories, protein, carbs, fat)) {
       return false;
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = dateOverride || new Date().toISOString().split('T')[0];
     const alreadyGrantedToday = (
       lastMacroLoggedDateRef.current === today ||
       nutrition.lastMacroLoggedDate === today ||
