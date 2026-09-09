@@ -137,3 +137,56 @@ describe('normalizeSessionState — idempotência e estabilidade referencial', (
     expect(result.exercises[0].sets[0].completed).toBe(true);
   });
 });
+
+describe('GOAL-043: sessões finalizadas não reabrem como ativas', () => {
+  it('sessão com status completed no activeWorkout normaliza para null e zera activeWorkoutStartedAt', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'done', status: 'completed' }),
+      activeWorkoutStartedAt: 1000,
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout).toBeNull();
+    expect(result.activeWorkoutStartedAt).toBeNull();
+  });
+
+  it('sessão com status abandoned no activeWorkout normaliza para null e zera activeWorkoutStartedAt', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'abandoned_session', status: 'abandoned' }),
+      activeWorkoutStartedAt: 2000,
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout).toBeNull();
+    expect(result.activeWorkoutStartedAt).toBeNull();
+  });
+
+  it('sessão com status partial no activeWorkout normaliza para null', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'partial_session', status: 'partial' }),
+      activeWorkoutStartedAt: 3000,
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout).toBeNull();
+    expect(result.activeWorkoutStartedAt).toBeNull();
+  });
+
+  it('sessão com endedAt definido no activeWorkout normaliza para null', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'ended_session', endedAt: 4000 }),
+      activeWorkoutStartedAt: 3000,
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout).toBeNull();
+    expect(result.activeWorkoutStartedAt).toBeNull();
+  });
+
+  it('sessão ativa genuína permanece intacta e preserva activeWorkoutStartedAt', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'active_session', status: 'active', startedAt: 5000 }),
+      activeWorkoutStartedAt: 5000,
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout?.id).toBe('active_session');
+    expect(result.activeWorkout?.status).toBe('active');
+    expect(result.activeWorkoutStartedAt).toBe(5000);
+  });
+});

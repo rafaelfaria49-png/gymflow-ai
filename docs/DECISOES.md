@@ -2,6 +2,12 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-043 — Integridade e Honestidade do Runtime de Sessão de Treino (2026-09-09)
+
+- **Semântica do timer wall-clock e proteção:** o cronômetro mede tempo decorrido de parede (`Date.now() - startedAt`), preservando sessões retomadas mesmo no dia seguinte sem zerar arbitrariamente (sessões longas não são tratadas como bug), com clamp defensivo `Math.max(0, ...)` contra valores negativos ou NaN.
+- **Diferenciação honesta de estados finais e idempotência:** sessões são finalizadas em três estados mútuos (`completed`, `partial`, `abandoned`); sessões abandonadas (0 séries concluídas) não ganham XP indevido (0 XP), nem volume, nem calorias, nem streak, nem dia treinado no plano, nem post comemorativo; e qualquer finalização é idempotente e impede reabertura como sessão ativa após reload.
+- **Sincronia e honestidade no modal de encerramento:** o modal pós-treino reflete o estado real da sessão com textos, banners e botões específicos ("Concluir & Salvar", "Salvar Treino Parcial", "Registrar como Abandonada"), eliminando a afirmação prematura de que o treino já havia sido salvo antes da confirmação.
+
 ## NUT-002 — NutritionProfile + Gates Ético-Clínicos (2026-09-08)
 
 - **Contratos e precedência determinística de gates ético-clínicos:** `evaluateNutritionGate` isola `biologicalSexForCalcs` sem fallback implícito para 'male', prioriza blockers absolutos (`BLOCK_AUTOMATIC_TARGET`) sobre limitações e preserva `allowAutomatedTargets: true` em `LIMITED_GUIDANCE` apenas quando biometria for completa (permitindo faixas estimadas de D-NUT-02).

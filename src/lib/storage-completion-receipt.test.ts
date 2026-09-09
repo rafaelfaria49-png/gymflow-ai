@@ -313,6 +313,81 @@ describe('helper puro de conclusão de treino', () => {
     const second = deriveWorkoutCompletion(makeInput());
     expect(JSON.stringify(first)).toBe(JSON.stringify(second));
   });
+
+  it('sessão abandonada não credita XP, streak, dia treinado nem desafios', () => {
+    const abandonedSession = makeSession({ status: 'abandoned', totalVolume: 0 });
+    const initialUser = makeUser({ xp: 900, points: 900, streak: 5 });
+    const state = makeState({ user: initialUser });
+    const { state: nextState, effects } = deriveWorkoutCompletion(makeInput({
+      state,
+      finalSession: abandonedSession,
+      finalXp: 0,
+      caloriesBurned: 0,
+      totalVolume: 0,
+    }));
+
+    // Zero XP indevido: usuário não ganha XP do treino nem da postagem
+    expect(nextState.user?.xp).toBe(900);
+    expect(nextState.user?.points).toBe(900);
+    expect(effects.xpNotifications).toEqual([]);
+
+    // Streak intacto
+    expect(nextState.user?.streak).toBe(5);
+    expect(nextState.user?.lastWorkoutDate).toBeUndefined();
+
+    // Dia do plano não é marcado como treinado
+    expect(nextState.weeklyPlan.find((d) => d.dayName === 'Segunda')?.trained).toBe(false);
+    expect(effects.markedDayName).toBe('');
+
+    // Desafios não avançam
+    expect(nextState.challenges.find((c) => c.id === 'chal_1')?.progress).toBe(10);
+    expect(nextState.challenges.find((c) => c.id === 'chal_4')?.progress).toBe(0);
+    expect(nextState.challenges.find((c) => c.id === 'chal_5')?.progress).toBe(0);
+
+    // Conquistas não desbloqueadas
+    expect(effects.unlockedAchievementIds).toEqual([]);
+
+    // Sessão ativa e timers zerados
+    expect(nextState.activeWorkout).toBeNull();
+    expect(nextState.activeWorkoutStartedAt).toBeNull();
+  });
+
+  it('sessão parcial gera texto de postagem honesto e notificação de treino parcial', () => {
+    const partialSession = makeSession({ status: 'partial' });
+    const { effects } = deriveWorkoutCompletion(makeInput({
+      finalSession: partialSession,
+      finalXp: 110,
+      caloriesBurned: 200,
+    }));
+
+    expect(effects.communityPost.content).toContain('Treino parcial registrado!');
+    expect(effects.communityPost.content).not.toContain('Treino finalizado! Concluí');
+    const xpNotice = effects.xpNotifications.find((n) => n.text.includes('Treino Parcial!'));
+    expect(xpNotice).toBeDefined();
+    expect(xpNotice?.xp).toBe(110);
+  });
+
+  it('idempotência: quando a sessão já está no histórico, não duplica XP nem efeitos', () => {
+    const session = makeSession({ id: 'session_already_done' });
+    const initialUser = makeUser({ xp: 1000, points: 1000, streak: 5 });
+    const state = makeState({
+      user: initialUser,
+      workoutHistory: [session],
+    });
+
+    const outcome = deriveWorkoutCompletion(makeInput({
+      state,
+      finalSession: session,
+      finalXp: 150,
+    }));
+
+    // XP permanece o mesmo, sem notificações duplicadas
+    expect(outcome.state.user?.xp).toBe(1000);
+    expect(outcome.state.user?.points).toBe(1000);
+    expect(outcome.state.user?.streak).toBe(5);
+    expect(outcome.effects.xpNotifications).toEqual([]);
+    expect(outcome.effects.unlockedAchievementIds).toEqual([]);
+  });
 });
 
 describe('receipt durável da conclusão', () => {

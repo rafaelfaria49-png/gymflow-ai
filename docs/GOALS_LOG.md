@@ -4,6 +4,49 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-043 — Integridade e Honestidade do Runtime de Sessão de Treino (2026-09-09)
+
+Auditoria e correção da integridade operacional e honestidade semântica da sessão de treino.
+
+**Antes:**
+- Sessões finalizadas ou com `status !== 'active'` podiam ser reidratadas como ativas pelo normalizador de sessão após reload do storage.
+- Sessões abandonadas (0 séries concluídas) recebiam indevidamente 100 XP base + 25 XP de feed, marcavam o dia no plano semanal, avançavam o streak e geravam post de comemoração de treino completo.
+- O modal de finalização (`ActiveWorkoutPage`) afirmava "Sua sessão foi salva com sucesso no histórico" antes do usuário clicar no botão "CONCLUIR & REGISTRAR", gerando inconsistência e desconfiança.
+- O timer não possuía clamping defensivo explícito contra `Math.max(0, ...)` e valores NaN na exibição do modal.
+- `deriveWorkoutCompletion` e `finishWorkout` não possuíam trava explícita de idempotência quando uma sessão já existia no histórico.
+
+**Depois:**
+- `normalizeActiveWorkout` descarta sessões com `endedAt != null` ou `status !== 'active'` (`completed`, `partial`, `abandoned`), garantindo que sessões finalizadas nunca reabram como ativas após reload (`FINALIZED_SESSION_REOPEN = NO`).
+- Timer wall-clock (`Date.now() - startedAt`) preservado integralmente: sessões retomadas horas depois ou no dia seguinte continuam ativas sem zeramento arbitrário (sessões longas não são tratadas como bug), com clamp `Math.max(0, ...)` em `formatTime`.
+- Três estados finais nítidos e honestos: `completed` (todas séries concluídas), `partial` (ao menos 1 concluída e alguma incompleta), `abandoned` (0 séries concluídas).
+- Sessões abandonadas registram exatamente 0 XP (`XP_DUPLICATION = NO`), 0 kg de volume (`VOLUME_DUPLICATION = NO`), 0 calorias, sem avanço de streak, sem marcação de dia no plano semanal, sem post de feed e com status `'abandoned'` salvo honestamente no histórico (`HISTORY_EXACTLY_ONCE = PASS`).
+- Idempotência estrita: `finishWorkoutInProgressRef` impede duplo clique e verificação de sessão pré-existente no histórico impede duplicatas (`FINALIZE_IDEMPOTENT = PASS`).
+- Modal pós-treino reformulado honestamente: título, subtítulo, banner explicativo e CTA condicionados ao status real ("Concluir & Salvar", "Salvar Treino Parcial", "Registrar como Abandonada"), sem mensagem prematura de salvamento e ocultando slider de RPE / compartilhamento para treinos abandonados.
+
+**Arquivos alterados:**
+- `src/lib/workout-session-migration.ts`
+- `src/lib/workout-session-migration.test.ts`
+- `src/lib/storage-completion-receipt.ts`
+- `src/lib/storage-completion-receipt.test.ts`
+- `src/providers/GymFlowContext.tsx`
+- `src/modules/ActiveWorkoutPage.tsx`
+- `src/lib/workout-session-runtime.test.ts` (novo)
+- `docs/DECISOES.md`
+- `docs/GOALS_LOG.md`
+
+**Validações:**
+- Focados runtime/session: 10/10 no novo `workout-session-runtime.test.ts`
+- Normalização e migração: 19/19 no `workout-session-migration.test.ts`
+- Storage completion receipt: 26/26 no `storage-completion-receipt.test.ts`
+- Regressões de storage context: 23/23 no `GymFlowContext.storage.test.tsx`
+- Suíte completa de testes (`npm test`): 78 arquivos, 2409 testes aprovados
+- `npx tsc --noEmit`: 0 erros
+- `npm run build`: sucesso
+- `npm run build:mobile`: sucesso
+- `git diff --check`: limpo
+
+---
+
 ## GOAL-17B-002E-E7A6 — corretivo final do journal stale race (2026-08-29)
 
 Fecha o P1 residual encontrado na reauditoria independente da correlação de
