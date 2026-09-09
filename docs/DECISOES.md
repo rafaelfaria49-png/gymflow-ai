@@ -1,6 +1,9 @@
 # Decisões
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
+## NUT-003 — Deterministic Engine + Targets (2026-09-09)
+
+- **Pureza e proveniência determinística do NutritionEngine:** `calculateDailyTargets` aplica BMR Mifflin-St Jeor (com offset provisório -78 e piso 1200 kcal para `unspecified`), TDEE com PAL e treino, travas de segurança (déficit <= 750 kcal, BMR * 0.9 e pisos por sexo), proteína estritamente 1.6–2.2 g/kg, hidratação base 35 ml/kg (teto 4500 ml) e provenance SHA-256 canônica síncrona sem dependência externa, falhando tipado via `NutritionEngineGateError` em bloqueios ético-clínicos.
 
 ## NUT-002 — NutritionProfile + Gates Ético-Clínicos (2026-09-08)
 
