@@ -12,6 +12,7 @@ import {
   COMPLETION_POST_TIME_LABEL,
   type WorkoutCompletionInput,
   completionPostContent,
+  formatCompletionDuration,
   createWorkoutCompletionReceipt,
   deriveWorkoutCompletion,
   isWorkoutCompletionReceipt,
@@ -274,18 +275,18 @@ describe('helper puro de conclusão de treino', () => {
       userLiked: false,
       shares: 0,
     });
-    expect(effects.communityPost.content).toBe(completionPostContent({
+    expect(effects.communityPost?.content).toBe(completionPostContent({
       sessionName: 'Treino A — Peito',
       minutes: 60,
       totalVolume: 6_000,
       prsDetected: ['Supino Reto 100kg'],
     }));
-    expect(effects.communityPost.content).toContain('PRs Batidos: Supino Reto 100kg!');
+    expect(effects.communityPost?.content).toContain('PRs Batidos: Supino Reto 100kg!');
   });
 
   it('usa o autor padrão quando o nome não é informado', () => {
     const { effects } = deriveWorkoutCompletion(makeInput({ postAuthorName: '' }));
-    expect(effects.communityPost.authorName).toBe(COMPLETION_POST_FALLBACK_AUTHOR);
+    expect(effects.communityPost?.authorName).toBe(COMPLETION_POST_FALLBACK_AUTHOR);
   });
 
   it('não credita XP nem notificações quando não há usuário', () => {
@@ -295,7 +296,7 @@ describe('helper puro de conclusão de treino', () => {
     expect(state.user).toBeNull();
     expect(effects.xpNotifications).toEqual([]);
     // A postagem continua sendo materializada.
-    expect(effects.communityPost.id).toBe('post_1784000000000');
+    expect(effects.communityPost?.id).toBe('post_1784000000000');
   });
 
   it('preserva os demais campos do estado', () => {
@@ -312,6 +313,85 @@ describe('helper puro de conclusão de treino', () => {
     const first = deriveWorkoutCompletion(makeInput());
     const second = deriveWorkoutCompletion(makeInput());
     expect(JSON.stringify(first)).toBe(JSON.stringify(second));
+  });
+
+  it('sessão abandonada não credita XP, streak, dia treinado nem desafios', () => {
+    const abandonedSession = makeSession({ status: 'abandoned', totalVolume: 0 });
+    const initialUser = makeUser({ xp: 900, points: 900, streak: 5 });
+    const state = makeState({ user: initialUser });
+    const { state: nextState, effects } = deriveWorkoutCompletion(makeInput({
+      state,
+      finalSession: abandonedSession,
+      finalXp: 0,
+      caloriesBurned: 0,
+      totalVolume: 0,
+    }));
+
+    // Zero XP indevido: usuário não ganha XP do treino nem da postagem
+    expect(nextState.user?.xp).toBe(900);
+    expect(nextState.user?.points).toBe(900);
+    expect(effects.xpNotifications).toEqual([]);
+
+    // Streak intacto
+    expect(nextState.user?.streak).toBe(5);
+    expect(nextState.user?.lastWorkoutDate).toBeUndefined();
+
+    // Dia do plano não é marcado como treinado
+    expect(nextState.weeklyPlan.find((d) => d.dayName === 'Segunda')?.trained).toBe(false);
+    expect(effects.markedDayName).toBe('');
+
+    // Desafios não avançam
+    expect(nextState.challenges.find((c) => c.id === 'chal_1')?.progress).toBe(10);
+    expect(nextState.challenges.find((c) => c.id === 'chal_4')?.progress).toBe(0);
+    expect(nextState.challenges.find((c) => c.id === 'chal_5')?.progress).toBe(0);
+
+    // Post de comunidade é nulo para sessão abandonada
+    expect(effects.communityPost).toBeNull();
+
+    // Conquistas não desbloqueadas
+    expect(effects.unlockedAchievementIds).toEqual([]);
+
+    // Sessão ativa e timers zerados
+    expect(nextState.activeWorkout).toBeNull();
+    expect(nextState.activeWorkoutStartedAt).toBeNull();
+  });
+
+  it('sessão parcial gera texto de postagem honesto e notificação de treino parcial', () => {
+    const partialSession = makeSession({ status: 'partial' });
+    const { effects } = deriveWorkoutCompletion(makeInput({
+      finalSession: partialSession,
+      finalXp: 110,
+      caloriesBurned: 200,
+    }));
+
+    expect(effects.communityPost?.content).toContain('Treino parcial registrado!');
+    expect(effects.communityPost?.content).not.toContain('Treino finalizado! Concluí');
+    const xpNotice = effects.xpNotifications.find((n) => n.text.includes('Treino Parcial!'));
+    expect(xpNotice).toBeDefined();
+    expect(xpNotice?.xp).toBe(110);
+  });
+
+  it('idempotência: quando a sessão já está no histórico, não duplica XP nem efeitos', () => {
+    const session = makeSession({ id: 'session_already_done' });
+    const initialUser = makeUser({ xp: 1000, points: 1000, streak: 5 });
+    const state = makeState({
+      user: initialUser,
+      workoutHistory: [session],
+    });
+
+    const outcome = deriveWorkoutCompletion(makeInput({
+      state,
+      finalSession: session,
+      finalXp: 150,
+    }));
+
+    // XP permanece o mesmo, sem notificações duplicadas nem post
+    expect(outcome.state.user?.xp).toBe(1000);
+    expect(outcome.state.user?.points).toBe(1000);
+    expect(outcome.state.user?.streak).toBe(5);
+    expect(outcome.effects.communityPost).toBeNull();
+    expect(outcome.effects.xpNotifications).toEqual([]);
+    expect(outcome.effects.unlockedAchievementIds).toEqual([]);
   });
 });
 
@@ -463,5 +543,97 @@ describe('receipt durável da conclusão', () => {
       ...operationReceipt,
       status: 'pending',
     })).toBe(false);
+  });
+});
+
+describe('GOAL-045: formatação honesta de duração longa no feed', () => {
+  describe('formatCompletionDuration', () => {
+    it('formata 45 min como 45 minutos', () => {
+      expect(formatCompletionDuration(45)).toBe('45 minutos');
+    });
+
+    it('formata 75 min como 1h 15min', () => {
+      expect(formatCompletionDuration(75)).toBe('1h 15min');
+    });
+
+    it('formata 1080 min como 18h', () => {
+      expect(formatCompletionDuration(1080)).toBe('18h');
+    });
+
+    it('formata 1085 min como 18h 5min', () => {
+      expect(formatCompletionDuration(1085)).toBe('18h 5min');
+    });
+
+    it('formata 60 min como 1h exata', () => {
+      expect(formatCompletionDuration(60)).toBe('1h');
+    });
+
+    it('formata 1 min no singular', () => {
+      expect(formatCompletionDuration(1)).toBe('1 minuto');
+    });
+
+    it('formata 0 min defensivamente', () => {
+      expect(formatCompletionDuration(0)).toBe('0 minutos');
+    });
+  });
+
+  describe('completionPostContent', () => {
+    it('gera texto com 45 min para completed', () => {
+      const post = completionPostContent({
+        sessionName: 'Treino A',
+        minutes: 45,
+        totalVolume: 4000,
+        prsDetected: [],
+        status: 'completed',
+      });
+      expect(post).toBe('Treino finalizado! Concluí "Treino A" em 45 minutos. Volume total: 4000kg.  🔥 #GymFlow #Fitness');
+    });
+
+    it('gera texto com 75 min para completed', () => {
+      const post = completionPostContent({
+        sessionName: 'Treino Longo',
+        minutes: 75,
+        totalVolume: 5000,
+        prsDetected: [],
+        status: 'completed',
+      });
+      expect(post).toBe('Treino finalizado! Concluí "Treino Longo" em 1h 15min. Volume total: 5000kg.  🔥 #GymFlow #Fitness');
+    });
+
+    it('gera texto completed longa para 1080 min', () => {
+      const post = completionPostContent({
+        sessionName: 'Treino Épico',
+        minutes: 1080,
+        totalVolume: 6000,
+        prsDetected: [],
+        status: 'completed',
+      });
+      expect(post).toBe('Treino finalizado! Concluí "Treino Épico" em 18h. Volume total: 6000kg.  🔥 #GymFlow #Fitness');
+      expect(post).not.toContain('1080 minutos');
+    });
+
+    it('gera texto partial longa para 1080 min', () => {
+      const post = completionPostContent({
+        sessionName: 'Treino Interrompido',
+        minutes: 1080,
+        totalVolume: 2000,
+        prsDetected: [],
+        status: 'partial',
+      });
+      expect(post).toBe('Treino parcial registrado! Realizei "Treino Interrompido" em 18h. Volume total: 2000kg.  🔥 #GymFlow #Fitness');
+      expect(post).not.toContain('1080 minutos');
+      expect(post).not.toContain('Concluí');
+    });
+
+    it('gera texto partial para 75 min', () => {
+      const post = completionPostContent({
+        sessionName: 'Treino Parcial 75',
+        minutes: 75,
+        totalVolume: 1500,
+        prsDetected: [],
+        status: 'partial',
+      });
+      expect(post).toBe('Treino parcial registrado! Realizei "Treino Parcial 75" em 1h 15min. Volume total: 1500kg.  🔥 #GymFlow #Fitness');
+    });
   });
 });

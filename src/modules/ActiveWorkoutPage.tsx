@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { ExerciseMediaUnifiedPlayer } from '../components/ExerciseMediaUnifiedPlayer';
 import { preloadNextExerciseMedia } from '../domain/media/preload';
-import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, ChevronUp, ChevronDown, Flag, X, Plus, Trash2, Search, Info, Pencil, Calculator, Flame, HelpCircle, Activity } from 'lucide-react';
+import { Play, Check, RefreshCw, Sparkles, Clock, Share2, Award, Zap, ChevronRight, ChevronUp, ChevronDown, Flag, X, Plus, Trash2, Search, Info, Pencil, Calculator, Flame, HelpCircle, Activity, AlertCircle } from 'lucide-react';
 import { WhyThisWeightModal } from '../components/WhyThisWeightModal';
 import { PreWorkoutReadinessModal } from '../components/PreWorkoutReadinessModal';
 import { getProgramDays } from '../lib/workout-program-days';
@@ -17,7 +17,7 @@ import { defaultTargetMinutes } from '../lib/volumeProfiles';
 import { useToast } from '../components/ui/Toast';
 import { ExerciseOriginBadge, ExerciseExecutionBadge, SessionStatusBadge } from '../components/ui/SessionBadges';
 import { useBackHandler } from '../lib/back-navigation';
-import { deriveExerciseEntryStatus, MAX_SWAP_REASON_NOTE_LENGTH } from '../lib/workout-session-domain';
+import { deriveExerciseEntryStatus, MAX_SWAP_REASON_NOTE_LENGTH, type FinalizedSessionStatus } from '../lib/workout-session-domain';
 import { buildSessionPreview, buildSwapView, SWAP_REASON_LABELS, SWAP_REASON_ORDER } from '../lib/workout-session-view';
 import type { ActiveExercise, Exercise, WorkoutSet, WorkoutSwapReasonCode } from '../types';
 import {
@@ -170,6 +170,47 @@ function ActiveWorkoutSetRow({
     </div>
   );
 }
+
+const FINISH_MODAL_CONFIG: Record<
+  FinalizedSessionStatus,
+  {
+    title: string;
+    subtitle: string;
+    icon: React.ComponentType<{ className?: string }>;
+    iconContainerClass: string;
+    ctaLabel: string;
+    ctaClass: string;
+    bannerGradient: string;
+  }
+> = {
+  completed: {
+    title: 'Treino Concluído!',
+    subtitle: 'Revise o resumo antes de registrar sua conquista no histórico.',
+    icon: Award,
+    iconContainerClass: 'bg-gym-emerald/10 border-gym-emerald/25 text-gym-emerald',
+    ctaLabel: 'Concluir & Registrar',
+    ctaClass: 'bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black shadow-gym-accent/15',
+    bannerGradient: 'from-gym-accent to-gym-emerald',
+  },
+  partial: {
+    title: 'Treino Parcial',
+    subtitle: 'Você concluiu parte do treino planejado. Revise o resumo antes de registrar.',
+    icon: Clock,
+    iconContainerClass: 'bg-amber-400/10 border-amber-400/25 text-amber-400',
+    ctaLabel: 'Registrar Treino Parcial',
+    ctaClass: 'bg-amber-400 hover:bg-amber-300 text-gym-dark font-black shadow-amber-400/15',
+    bannerGradient: 'from-amber-400 to-amber-600',
+  },
+  abandoned: {
+    title: 'Sessão Abandonada',
+    subtitle: 'Nenhuma série foi concluída. A sessão será encerrada e registrada como abandonada.',
+    icon: AlertCircle,
+    iconContainerClass: 'bg-gym-rose/10 border-gym-rose/25 text-gym-rose',
+    ctaLabel: 'Registrar como Abandonada',
+    ctaClass: 'bg-gym-rose hover:bg-gym-rose/80 text-white font-black shadow-gym-rose/15',
+    bannerGradient: 'from-gym-rose to-rose-700',
+  },
+};
 
 export const ActiveWorkoutPage = () => {
   const {
@@ -446,9 +487,10 @@ export const ActiveWorkoutPage = () => {
   };
 
   const formatTime = (totalSeconds: number) => {
-    const hrs = Math.floor(totalSeconds / 3600);
-    const mins = Math.floor((totalSeconds % 3600) / 60);
-    const secs = totalSeconds % 60;
+    const safeSeconds = Math.max(0, Math.floor(Number.isFinite(totalSeconds) ? totalSeconds : 0));
+    const hrs = Math.floor(safeSeconds / 3600);
+    const mins = Math.floor((safeSeconds % 3600) / 60);
+    const secs = safeSeconds % 60;
     return [
       hrs > 0 ? String(hrs).padStart(2, '0') : null,
       String(mins).padStart(2, '0'),
@@ -1589,139 +1631,151 @@ export const ActiveWorkoutPage = () => {
         />
       )}
 
-      {showFinishModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-gym-dark border border-white/10 rounded-3xl w-full max-w-md p-6 text-center space-y-5 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-gym-accent to-gym-emerald"></div>
-            
-            <div className="w-12 h-12 bg-gym-accent/10 border border-gym-accent/25 rounded-full flex items-center justify-center text-gym-accent mx-auto">
-              <Award className="w-6 h-6 animate-bounce" />
-            </div>
+      {showFinishModal && (() => {
+        const statusKey: FinalizedSessionStatus = finishPreview.status === 'active' ? 'completed' : finishPreview.status;
+        const modalConfig = FINISH_MODAL_CONFIG[statusKey];
+        const IconComponent = modalConfig.icon;
+        const isAbandoned = statusKey === 'abandoned';
+        return (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-gym-dark border border-white/10 rounded-3xl w-full max-w-md p-6 text-center space-y-5 shadow-2xl relative overflow-hidden">
+              <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${modalConfig.bannerGradient}`}></div>
 
-            <div>
-              <h2 className="text-xl font-black text-white tracking-tight">Parabéns pelo Treino!</h2>
-              <p className="text-xs text-gym-text-muted mt-1">Sua sessão foi salva com sucesso no histórico.</p>
-            </div>
+              <div className={`w-12 h-12 border rounded-full flex items-center justify-center mx-auto ${modalConfig.iconContainerClass}`}>
+                <IconComponent className={`w-6 h-6 ${statusKey === 'completed' ? 'animate-bounce' : ''}`} />
+              </div>
 
-            {/* MÉTRICAS DE RESUMO */}
-            <div className="grid grid-cols-3 gap-2.5 bg-white/5 p-3.5 rounded-2xl border border-white/5">
-              <div className="text-center">
-                <span className="text-[9px] text-gym-text-muted uppercase font-bold">Tempo</span>
-                <p className="text-sm font-bold text-white mt-0.5">{formatTime(workoutDuration)}</p>
-              </div>
-              <div className="text-center border-x border-white/5">
-                <span className="text-[9px] text-gym-text-muted uppercase font-bold">Volume Total</span>
-                <p className="text-sm font-bold text-gym-accent mt-0.5">{totalVolume} kg</p>
-              </div>
-              <div className="text-center">
-                <span className="text-[9px] text-gym-text-muted uppercase font-bold">Séries OK</span>
-                <p className="text-sm font-bold text-white mt-0.5">{completedSetsCount}</p>
-              </div>
-            </div>
-
-            {/* GOAL-23B: PRÉVIA DO STATUS DA SESSÃO */}
-            <div className="text-left bg-white/5 border border-white/5 rounded-2xl p-3.5 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] text-gym-text-muted font-bold uppercase tracking-wider">
-                  Status da sessão
-                </span>
-                <SessionStatusBadge status={finishPreview.status} />
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-[11px]">
-                <div className="bg-gym-dark/40 rounded-xl p-2">
-                  <span className="text-gym-text-muted text-[9px] uppercase font-bold block">Exercícios</span>
-                  <p className="text-white font-bold mt-0.5">
-                    {finishPreview.performedExercises} concluído{finishPreview.performedExercises === 1 ? '' : 's'}
-                    {finishPreview.skippedExercises > 0 && (
-                      <span className="text-gym-rose"> · {finishPreview.skippedExercises} pulado{finishPreview.skippedExercises === 1 ? '' : 's'}</span>
-                    )}
-                  </p>
-                </div>
-                <div className="bg-gym-dark/40 rounded-xl p-2">
-                  <span className="text-gym-text-muted text-[9px] uppercase font-bold block">Séries</span>
-                  <p className="text-white font-bold mt-0.5">
-                    {finishPreview.completedSets} concluída{finishPreview.completedSets === 1 ? '' : 's'}
-                    {finishPreview.incompleteSets > 0 && (
-                      <span className="text-gym-text-muted"> · {finishPreview.incompleteSets} incompleta{finishPreview.incompleteSets === 1 ? '' : 's'}</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* PRs BATIDOS */}
-            {calculatedPrs.length > 0 && (
-              <div className="text-left bg-gym-accent/5 border border-gym-accent/10 rounded-2xl p-3.5">
-                <span className="text-[9px] font-extrabold text-gym-accent uppercase tracking-wider block mb-1.5 flex items-center gap-1">
-                  <Zap className="w-3.5 h-3.5 text-gym-accent" /> Recordes Pessoais (PRs)
-                </span>
-                <ul className="space-y-1">
-                  {calculatedPrs.map((pr, idx) => (
-                    <li key={idx} className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-gym-accent"></span>
-                      {pr}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* RPE Selector */}
-            <div className="space-y-2 text-left bg-white/5 border border-white/5 rounded-2xl p-4">
-              <div className="flex justify-between text-[10px] text-gym-text-muted font-bold">
-                <span>Esforço Físico (RPE)</span>
-                <span className="text-gym-accent font-black">{rpe} / 10</span>
-              </div>
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={rpe}
-                onChange={(e) => setRpe(Number(e.target.value))}
-                className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gym-accent mt-1"
-              />
-              <p className="text-[10px] text-gym-text-muted italic mt-1 text-center">
-                {rpe <= 3
-                  ? 'Recuperativo ou aquecimento leve.'
-                  : rpe <= 6
-                  ? 'Intensidade moderada. Bom estímulo.'
-                  : rpe <= 8
-                  ? 'Intensidade perfeita para hipertrofia e ganho de força!'
-                  : 'Extremo. Perto da falha concêntrica absoluta.'}
-              </p>
-            </div>
-
-            {/* SHARE / POST NOTE */}
-            <div className="flex items-center justify-between text-left p-3.5 bg-white/5 rounded-2xl border border-white/5">
               <div>
-                <span className="text-[10px] font-bold text-white block">Compartilhar no Feed</span>
-                <p className="text-[9px] text-gym-text-muted mt-0.5">Postar conquistas e volume na comunidade GymFlow AI</p>
+                <h2 className="text-xl font-black text-white tracking-tight">{modalConfig.title}</h2>
+                <p className="text-xs text-gym-text-muted mt-1">{modalConfig.subtitle}</p>
               </div>
-              <div className="w-8 h-8 rounded-full bg-gym-accent/15 flex items-center justify-center text-gym-accent">
-                <Share2 className="w-4 h-4" />
-              </div>
-            </div>
 
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => setShowFinishModal(false)}
-                className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold transition-all text-center"
-              >
-                Voltar
-              </button>
-              <button
-                onClick={() => {
-                  blurActiveField();
-                  finishWorkout(rpe);
-                }}
-                className="flex-1 py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15"
-              >
-                Concluir & Registrar
-              </button>
+              {/* MÉTRICAS DE RESUMO */}
+              <div className="grid grid-cols-3 gap-2.5 bg-white/5 p-3.5 rounded-2xl border border-white/5">
+                <div className="text-center">
+                  <span className="text-[9px] text-gym-text-muted uppercase font-bold">Tempo</span>
+                  <p className="text-sm font-bold text-white mt-0.5">{formatTime(workoutDuration)}</p>
+                </div>
+                <div className="text-center border-x border-white/5">
+                  <span className="text-[9px] text-gym-text-muted uppercase font-bold">Volume Total</span>
+                  <p className="text-sm font-bold text-gym-accent mt-0.5">{isAbandoned ? 0 : totalVolume} kg</p>
+                </div>
+                <div className="text-center">
+                  <span className="text-[9px] text-gym-text-muted uppercase font-bold">Séries OK</span>
+                  <p className="text-sm font-bold text-white mt-0.5">{isAbandoned ? 0 : completedSetsCount}</p>
+                </div>
+              </div>
+
+              {/* GOAL-23B: PRÉVIA DO STATUS DA SESSÃO */}
+              <div className="text-left bg-white/5 border border-white/5 rounded-2xl p-3.5 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-gym-text-muted font-bold uppercase tracking-wider">
+                    Status da sessão
+                  </span>
+                  <SessionStatusBadge status={finishPreview.status} />
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="bg-gym-dark/40 rounded-xl p-2">
+                    <span className="text-gym-text-muted text-[9px] uppercase font-bold block">Exercícios</span>
+                    <p className="text-white font-bold mt-0.5">
+                      {finishPreview.performedExercises} concluído{finishPreview.performedExercises === 1 ? '' : 's'}
+                      {finishPreview.skippedExercises > 0 && (
+                        <span className="text-gym-rose"> · {finishPreview.skippedExercises} pulado{finishPreview.skippedExercises === 1 ? '' : 's'}</span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="bg-gym-dark/40 rounded-xl p-2">
+                    <span className="text-gym-text-muted text-[9px] uppercase font-bold block">Séries</span>
+                    <p className="text-white font-bold mt-0.5">
+                      {finishPreview.completedSets} concluída{finishPreview.completedSets === 1 ? '' : 's'}
+                      {finishPreview.incompleteSets > 0 && (
+                        <span className="text-gym-text-muted"> · {finishPreview.incompleteSets} incompleta{finishPreview.incompleteSets === 1 ? '' : 's'}</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* PRs BATIDOS (somente se não abandonado) */}
+              {!isAbandoned && calculatedPrs.length > 0 && (
+                <div className="text-left bg-gym-accent/5 border border-gym-accent/10 rounded-2xl p-3.5">
+                  <span className="text-[9px] font-extrabold text-gym-accent uppercase tracking-wider block mb-1.5 flex items-center gap-1">
+                    <Zap className="w-3.5 h-3.5 text-gym-accent" /> Recordes Pessoais (PRs)
+                  </span>
+                  <ul className="space-y-1">
+                    {calculatedPrs.map((pr, idx) => (
+                      <li key={idx} className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gym-accent"></span>
+                        {pr}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* RPE Selector (somente se não abandonado) */}
+              {!isAbandoned && (
+                <div className="space-y-2 text-left bg-white/5 border border-white/5 rounded-2xl p-4">
+                  <div className="flex justify-between text-[10px] text-gym-text-muted font-bold">
+                    <span>Esforço Físico (RPE)</span>
+                    <span className="text-gym-accent font-black">{rpe} / 10</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    value={rpe}
+                    onChange={(e) => setRpe(Number(e.target.value))}
+                    className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-gym-accent mt-1"
+                  />
+                  <p className="text-[10px] text-gym-text-muted italic mt-1 text-center">
+                    {rpe <= 3
+                      ? 'Recuperativo ou aquecimento leve.'
+                      : rpe <= 6
+                      ? 'Intensidade moderada. Bom estímulo.'
+                      : rpe <= 8
+                      ? 'Intensidade perfeita para hipertrofia e ganho de força!'
+                      : 'Extremo. Perto da falha concêntrica absoluta.'}
+                  </p>
+                </div>
+              )}
+
+              {/* SHARE / POST NOTE (somente se não abandonado) */}
+              {!isAbandoned && (
+                <div className="flex items-center justify-between text-left p-3.5 bg-white/5 rounded-2xl border border-white/5">
+                  <div>
+                    <span className="text-[10px] font-bold text-white block">Compartilhar no Feed</span>
+                    <p className="text-[9px] text-gym-text-muted mt-0.5">Postar conquistas e volume na comunidade GymFlow AI</p>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-gym-accent/15 flex items-center justify-center text-gym-accent">
+                    <Share2 className="w-4 h-4" />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowFinishModal(false)}
+                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold transition-all text-center"
+                >
+                  Voltar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    blurActiveField();
+                    finishWorkout(rpe);
+                  }}
+                  className={`flex-1 py-3 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md ${modalConfig.ctaClass}`}
+                >
+                  {modalConfig.ctaLabel}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
       {/* GOAL-30: Modal de Check-in de Prontidão Diária */}
       <PreWorkoutReadinessModal
         isOpen={showReadinessModal}

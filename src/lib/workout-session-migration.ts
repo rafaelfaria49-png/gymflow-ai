@@ -27,6 +27,14 @@ function normalizeActiveWorkout(
   activeWorkoutStartedAt: number | null,
 ): WorkoutSession | null {
   if (!activeWorkout) return activeWorkout;
+  // GOAL-043: sessão com estado finalizado (completed, abandoned, partial) ou
+  // com endedAt não pode reabrir como ativa após reload.
+  if (
+    (activeWorkout.status && activeWorkout.status !== 'active')
+    || activeWorkout.endedAt != null
+  ) {
+    return null;
+  }
   const normalizedRir = migrateRirSession(migrateTechniqueSession(activeWorkout));
   const needsStatus = normalizedRir.status === undefined;
   const needsStartedAt = normalizedRir.startedAt === undefined && activeWorkoutStartedAt != null;
@@ -89,10 +97,29 @@ function normalizeHistory(history: WorkoutSession[]): WorkoutSession[] {
 export function normalizeSessionState(
   state: NormalizableSessionState,
 ): NormalizableSessionState {
-  const activeWorkout = normalizeActiveWorkout(state.activeWorkout, state.activeWorkoutStartedAt);
   const workoutHistory = normalizeHistory(state.workoutHistory);
-  if (activeWorkout === state.activeWorkout && workoutHistory === state.workoutHistory) {
+  let activeWorkout = normalizeActiveWorkout(
+    state.activeWorkout,
+    state.activeWorkoutStartedAt,
+  );
+
+  // GOAL-045: se activeWorkout existir e workoutHistory contiver uma sessão com o
+  // mesmo id já finalizada (status !== 'active' ou endedAt != null), o histórico é
+  // autoritativo: descarta activeWorkout e activeWorkoutStartedAt.
+  if (activeWorkout) {
+    const historicalMatch = workoutHistory.find((s) => s.id === activeWorkout!.id);
+    if (historicalMatch && (historicalMatch.status !== 'active' || historicalMatch.endedAt != null)) {
+      activeWorkout = null;
+    }
+  }
+
+  const activeWorkoutStartedAt = activeWorkout ? state.activeWorkoutStartedAt : null;
+  if (
+    activeWorkout === state.activeWorkout
+    && activeWorkoutStartedAt === state.activeWorkoutStartedAt
+    && workoutHistory === state.workoutHistory
+  ) {
     return state;
   }
-  return { ...state, activeWorkout, workoutHistory };
+  return { ...state, activeWorkout, activeWorkoutStartedAt, workoutHistory };
 }

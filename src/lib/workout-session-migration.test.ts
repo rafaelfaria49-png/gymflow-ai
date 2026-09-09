@@ -107,9 +107,9 @@ describe('normalizeSessionState — idempotência e estabilidade referencial', (
 
   it('estado já normalizado retorna a MESMA referência (nada muda)', () => {
     const normalized = makeState({
-      activeWorkout: makeSession({ status: 'active', startedAt: 1000 }),
+      activeWorkout: makeSession({ id: 'active_1', status: 'active', startedAt: 1000 }),
       activeWorkoutStartedAt: 1000,
-      workoutHistory: [makeSession({ status: 'completed' })],
+      workoutHistory: [makeSession({ id: 'history_1', status: 'completed' })],
     });
     expect(normalizeSessionState(normalized)).toBe(normalized);
   });
@@ -135,5 +135,146 @@ describe('normalizeSessionState — idempotência e estabilidade referencial', (
     expect(result.sourceProgramDayId).toBe('day-a');
     expect(result.totalVolume).toBe(8000);
     expect(result.exercises[0].sets[0].completed).toBe(true);
+  });
+});
+
+describe('GOAL-043: sessões finalizadas não reabrem como ativas', () => {
+  it('sessão com status completed no activeWorkout normaliza para null e zera activeWorkoutStartedAt', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'done', status: 'completed' }),
+      activeWorkoutStartedAt: 1000,
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout).toBeNull();
+    expect(result.activeWorkoutStartedAt).toBeNull();
+  });
+
+  it('sessão com status abandoned no activeWorkout normaliza para null e zera activeWorkoutStartedAt', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'abandoned_session', status: 'abandoned' }),
+      activeWorkoutStartedAt: 2000,
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout).toBeNull();
+    expect(result.activeWorkoutStartedAt).toBeNull();
+  });
+
+  it('sessão com status partial no activeWorkout normaliza para null', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'partial_session', status: 'partial' }),
+      activeWorkoutStartedAt: 3000,
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout).toBeNull();
+    expect(result.activeWorkoutStartedAt).toBeNull();
+  });
+
+  it('sessão com endedAt definido no activeWorkout normaliza para null', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'ended_session', endedAt: 4000 }),
+      activeWorkoutStartedAt: 3000,
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout).toBeNull();
+    expect(result.activeWorkoutStartedAt).toBeNull();
+  });
+
+  it('sessão ativa genuína permanece intacta e preserva activeWorkoutStartedAt', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'active_session', status: 'active', startedAt: 5000 }),
+      activeWorkoutStartedAt: 5000,
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout?.id).toBe('active_session');
+    expect(result.activeWorkout?.status).toBe('active');
+    expect(result.activeWorkoutStartedAt).toBe(5000);
+  });
+});
+
+describe('GOAL-045: reconciliação de colisão de sessionId com histórico finalizado', () => {
+  // A. activeWorkout id=session_123 status=active endedAt=null; workoutHistory contém session_123 completed
+  it('A. activeWorkout com id presente no histórico como completed é descartado e zera activeWorkoutStartedAt', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'session_123', status: 'active', endedAt: undefined }),
+      activeWorkoutStartedAt: 1000,
+      workoutHistory: [makeSession({ id: 'session_123', status: 'completed', endedAt: 2000 })],
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout).toBeNull();
+    expect(result.activeWorkoutStartedAt).toBeNull();
+    expect(result.workoutHistory).toHaveLength(1);
+    expect(result.workoutHistory[0].id).toBe('session_123');
+    expect(result.workoutHistory[0].status).toBe('completed');
+  });
+
+  // B. Mesmo caso com histórico partial
+  it('B. activeWorkout com id presente no histórico como partial não reabre', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'session_partial', status: 'active', endedAt: undefined }),
+      activeWorkoutStartedAt: 1500,
+      workoutHistory: [makeSession({ id: 'session_partial', status: 'partial', endedAt: 2500 })],
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout).toBeNull();
+    expect(result.activeWorkoutStartedAt).toBeNull();
+    expect(result.workoutHistory[0].status).toBe('partial');
+  });
+
+  // C. Mesmo caso com histórico abandoned
+  it('C. activeWorkout com id presente no histórico como abandoned não reabre', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'session_abandoned', status: 'active', endedAt: undefined }),
+      activeWorkoutStartedAt: 3000,
+      workoutHistory: [makeSession({ id: 'session_abandoned', status: 'abandoned', endedAt: 3010 })],
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout).toBeNull();
+    expect(result.activeWorkoutStartedAt).toBeNull();
+    expect(result.workoutHistory[0].status).toBe('abandoned');
+  });
+
+  // D. Active session sem id correspondente no histórico
+  it('D. active session genuína sem id correspondente no histórico é preservada', () => {
+    const active = makeSession({ id: 'session_active_fresh', status: 'active', startedAt: 5000 });
+    const historical = makeSession({ id: 'session_other_completed', status: 'completed' });
+    const state = makeState({
+      activeWorkout: active,
+      activeWorkoutStartedAt: 5000,
+      workoutHistory: [historical],
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout).toBe(active);
+    expect(result.activeWorkoutStartedAt).toBe(5000);
+    expect(result.workoutHistory).toHaveLength(1);
+    expect(result.workoutHistory[0].id).toBe('session_other_completed');
+  });
+
+  // E. Normalização repetida permanece idempotente
+  it('E. normalização repetida com colisão descartada permanece estritamente idempotente', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'session_dup', status: 'active' }),
+      activeWorkoutStartedAt: 1200,
+      workoutHistory: [makeSession({ id: 'session_dup', status: 'completed' })],
+    });
+    const once = normalizeSessionState(state);
+    expect(once.activeWorkout).toBeNull();
+    expect(once.activeWorkoutStartedAt).toBeNull();
+
+    const twice = normalizeSessionState(once);
+    expect(twice).toBe(once); // mesma referência no topo
+    expect(twice.activeWorkout).toBeNull();
+    expect(twice.activeWorkoutStartedAt).toBeNull();
+    expect(twice.workoutHistory).toBe(once.workoutHistory);
+  });
+
+  it('reconhece sessão histórica com endedAt como finalizada mesmo com status ausente/legado', () => {
+    const state = makeState({
+      activeWorkout: makeSession({ id: 'session_ended_only', status: 'active' }),
+      activeWorkoutStartedAt: 1000,
+      workoutHistory: [makeSession({ id: 'session_ended_only', endedAt: 4000, status: undefined })],
+    });
+    const result = normalizeSessionState(state);
+    expect(result.activeWorkout).toBeNull();
+    expect(result.activeWorkoutStartedAt).toBeNull();
   });
 });

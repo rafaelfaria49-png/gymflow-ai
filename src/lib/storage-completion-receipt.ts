@@ -27,7 +27,7 @@ export interface CompletionXpNotification {
 // Efeitos que não pertencem ao core e precisam ser materializados em memória.
 export interface WorkoutCompletionEffects {
   xpNotifications: CompletionXpNotification[];
-  communityPost: CommunityPost;
+  communityPost: CommunityPost | null;
   unlockedAchievementIds: string[];
   markedDayName: string;
 }
@@ -67,13 +67,28 @@ export interface WorkoutCompletionOutcome {
   effects: WorkoutCompletionEffects;
 }
 
+export function formatCompletionDuration(minutes: number): string {
+  const safeMinutes = Math.max(0, Math.round(Number.isFinite(minutes) ? minutes : 0));
+  if (safeMinutes < 60) {
+    return `${safeMinutes} ${safeMinutes === 1 ? 'minuto' : 'minutos'}`;
+  }
+  const hours = Math.floor(safeMinutes / 60);
+  const remainingMinutes = safeMinutes % 60;
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}min` : `${hours}h`;
+}
+
 export function completionPostContent(input: {
   sessionName: string;
   minutes: number;
   totalVolume: number;
   prsDetected: readonly string[];
+  status?: string;
 }): string {
-  return `Treino finalizado! Concluí "${input.sessionName}" em ${input.minutes} minutos. Volume total: ${input.totalVolume}kg. ${input.prsDetected.length > 0 ? `🚀 PRs Batidos: ${input.prsDetected.join(', ')}!` : ''} 🔥 #GymFlow #Fitness`;
+  const durationText = formatCompletionDuration(input.minutes);
+  if (input.status === 'partial') {
+    return `Treino parcial registrado! Realizei "${input.sessionName}" em ${durationText}. Volume total: ${input.totalVolume}kg. ${input.prsDetected.length > 0 ? `🚀 PRs Batidos: ${input.prsDetected.join(', ')}!` : ''} 🔥 #GymFlow #Fitness`;
+  }
+  return `Treino finalizado! Concluí "${input.sessionName}" em ${durationText}. Volume total: ${input.totalVolume}kg. ${input.prsDetected.length > 0 ? `🚀 PRs Batidos: ${input.prsDetected.join(', ')}!` : ''} 🔥 #GymFlow #Fitness`;
 }
 
 // Helper puro: deriva o resultado completo da conclusão a partir do estado atual
@@ -81,11 +96,34 @@ export function completionPostContent(input: {
 // XP, level up, streak, dia treinado, conquistas, desafios e postagem) são as
 // mesmas aplicadas pelos callbacks anteriores.
 export function deriveWorkoutCompletion(input: WorkoutCompletionInput): WorkoutCompletionOutcome {
+  const isAbandoned = input.finalSession.status === 'abandoned';
   const xpNotifications: CompletionXpNotification[] = [];
   let user = input.state.user;
 
+  // GOAL-043: idempotência estrita — se a sessão já foi gravada no histórico,
+  // não re-conceder XP, streak, desafios nem conquistas.
+  const alreadyInHistory = input.state.workoutHistory.some((s) => s.id === input.finalSession.id);
+  if (alreadyInHistory) {
+    return {
+      state: {
+        ...input.state,
+        activeWorkout: null,
+        activeWorkoutStartedAt: null,
+        restTimerEndAt: null,
+        restTimerTotalSeconds: null,
+        restTimerLabel: null,
+      },
+      effects: {
+        xpNotifications: [],
+        communityPost: null,
+        unlockedAchievementIds: [],
+        markedDayName: '',
+      },
+    };
+  }
+
   const award = (amount: number, reason: string): void => {
-    if (!user) return;
+    if (!user || amount <= 0) return;
     const newXp = user.xp + amount;
     const currentLevelIndex = Math.floor(user.xp / 1000);
     const newLevelIndex = Math.floor(newXp / 1000);
@@ -100,13 +138,18 @@ export function deriveWorkoutCompletion(input: WorkoutCompletionInput): WorkoutC
     xpNotifications.push({ kind: 'xp', text: reason, xp: amount });
   };
 
-  award(input.finalXp, `Treino Concluído! +${input.caloriesBurned} kcal gastas`);
+  if (!isAbandoned && input.finalXp > 0) {
+    const reasonText = input.finalSession.status === 'partial'
+      ? `Treino Parcial! +${input.caloriesBurned} kcal gastas`
+      : `Treino Concluído! +${input.caloriesBurned} kcal gastas`;
+    award(input.finalXp, reasonText);
+  }
 
   const weeklyPlan = input.state.weeklyPlan.map((day) => (
-    day.dayName === input.todayDayName ? { ...day, trained: true } : day
+    !isAbandoned && day.dayName === input.todayDayName ? { ...day, trained: true } : day
   ));
 
-  if (user) {
+  if (user && !isAbandoned) {
     user = {
       ...user,
       streak: user.lastWorkoutDate === input.todayIso ? user.streak : user.streak + 1,
@@ -116,21 +159,24 @@ export function deriveWorkoutCompletion(input: WorkoutCompletionInput): WorkoutC
 
   const unlockedAchievementIds: string[] = [];
   let achievements = input.state.achievements;
-  const achievementCandidates = [
-    ...input.prAchievementIds,
-    'ach_1',
-    ...(input.totalVolume >= 10_000 ? ['ach_18'] : []),
-  ];
-  for (const achievementId of achievementCandidates) {
-    achievements = achievements.map((achievement) => {
-      if (achievement.id !== achievementId || achievement.unlocked) return achievement;
-      award(150, `🏆 Conquista Desbloqueada: ${achievement.name}!`);
-      unlockedAchievementIds.push(achievement.id);
-      return { ...achievement, unlocked: true, unlockedAt: input.todayIso };
-    });
+  if (!isAbandoned) {
+    const achievementCandidates = [
+      ...input.prAchievementIds,
+      'ach_1',
+      ...(input.totalVolume >= 10_000 ? ['ach_18'] : []),
+    ];
+    for (const achievementId of achievementCandidates) {
+      achievements = achievements.map((achievement) => {
+        if (achievement.id !== achievementId || achievement.unlocked) return achievement;
+        award(150, `🏆 Conquista Desbloqueada: ${achievement.name}!`);
+        unlockedAchievementIds.push(achievement.id);
+        return { ...achievement, unlocked: true, unlockedAt: input.todayIso };
+      });
+    }
   }
 
   const challenges = input.state.challenges.map((challenge) => {
+    if (isAbandoned) return challenge;
     if (challenge.id === 'chal_1') {
       const progress = Math.min(100, challenge.progress + 15);
       return { ...challenge, progress, completed: progress >= 100 };
@@ -152,24 +198,29 @@ export function deriveWorkoutCompletion(input: WorkoutCompletionInput): WorkoutC
     return challenge;
   });
 
-  const communityPost: CommunityPost = {
-    id: input.postId,
-    authorName: input.postAuthorName || COMPLETION_POST_FALLBACK_AUTHOR,
-    authorAvatar: COMPLETION_POST_AVATAR,
-    time: COMPLETION_POST_TIME_LABEL,
-    content: completionPostContent({
-      sessionName: input.finalSession.name,
-      minutes: input.minutes,
-      totalVolume: input.totalVolume,
-      prsDetected: input.prsDetected,
-    }),
-    image: input.postImage,
-    likes: 0,
-    comments: [],
-    userLiked: false,
-    shares: 0,
-  };
-  award(25, 'Nova postagem no feed da comunidade');
+  const communityPost: CommunityPost | null = isAbandoned
+    ? null
+    : {
+        id: input.postId,
+        authorName: input.postAuthorName || COMPLETION_POST_FALLBACK_AUTHOR,
+        authorAvatar: COMPLETION_POST_AVATAR,
+        time: COMPLETION_POST_TIME_LABEL,
+        content: completionPostContent({
+          sessionName: input.finalSession.name,
+          minutes: input.minutes,
+          totalVolume: input.totalVolume,
+          prsDetected: input.prsDetected,
+          status: input.finalSession.status,
+        }),
+        image: input.postImage,
+        likes: 0,
+        comments: [],
+        userLiked: false,
+        shares: 0,
+      };
+  if (!isAbandoned && communityPost) {
+    award(25, 'Nova postagem no feed da comunidade');
+  }
 
   // O weeklyPlan do usuário acompanha o top-level, igual ao dispatch canônico.
   if (user) user = { ...user, weeklyPlan };
@@ -191,7 +242,7 @@ export function deriveWorkoutCompletion(input: WorkoutCompletionInput): WorkoutC
       xpNotifications,
       communityPost,
       unlockedAchievementIds,
-      markedDayName: input.todayDayName,
+      markedDayName: isAbandoned ? '' : input.todayDayName,
     },
   };
 }
@@ -230,16 +281,15 @@ export function isCompletionXpNotification(value: unknown): value is CompletionX
 export function isWorkoutCompletionEffects(value: unknown): value is WorkoutCompletionEffects {
   if (value === null || typeof value !== 'object') return false;
   const record = value as Record<string, unknown>;
-  const post = record.communityPost as Record<string, unknown> | undefined;
+  const post = record.communityPost;
+  const validPost = post === null
+    || (typeof post === 'object' && post !== null && typeof (post as Record<string, unknown>).id === 'string' && typeof (post as Record<string, unknown>).content === 'string');
   return Array.isArray(record.xpNotifications)
     && record.xpNotifications.every(isCompletionXpNotification)
     && Array.isArray(record.unlockedAchievementIds)
     && record.unlockedAchievementIds.every((id) => typeof id === 'string')
     && typeof record.markedDayName === 'string'
-    && post !== undefined
-    && post !== null
-    && typeof post.id === 'string'
-    && typeof post.content === 'string';
+    && validPost;
 }
 
 export function isWorkoutCompletionReceipt(value: unknown): value is WorkoutCompletionReceipt {

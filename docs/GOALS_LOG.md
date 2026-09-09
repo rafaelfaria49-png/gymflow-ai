@@ -4,6 +4,87 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-045 — Correção de Reabertura por Colisão e Semântica de Duração no Feed (2026-09-09)
+
+Correção dos achados P1 (HISTORY_DUPLICATE_ACTIVE_REOPEN) e P3 (LONG_SESSION_FEED_DURATION_SEMANTICS) da revisão independente do PR #35.
+
+**Antes:**
+- Se o storage carregasse um `activeWorkout` com mesmo id de uma sessão já finalizada no histórico, a sessão podia ser reaberta indevidamente como ativa.
+- Postagens no feed da comunidade exibiam durações longas de forma pouco amigável (ex.: "em 1080 minutos").
+
+**Depois:**
+- `normalizeSessionState` reconcilia explicitamente colisão de `sessionId`: se `activeWorkout` possuir sessão correspondente já finalizada no histórico (`status !== 'active'` ou `endedAt != null`), o histórico é autoritativo e `activeWorkout` / `activeWorkoutStartedAt` são definidos como `null` (`HISTORY_DUPLICATE_ACTIVE_REOPEN = PASS`, `FINALIZED_HISTORY_AUTHORITATIVE = YES`, `GENUINE_ACTIVE_SESSION_PRESERVED = YES`, `NORMALIZATION_IDEMPOTENT = PASS`).
+- `completionPostContent` utiliza `formatCompletionDuration` para formatar a duração decorrida em linguagem humana (ex.: `45 minutos`, `1h 15min`, `18h`, `18h 5min`), sem alterar o cálculo calórico, métricas persistidas ou semântica de tempo decorrido (`LONG_SESSION_FEED_DURATION_SEMANTICS = PASS`).
+
+**Arquivos alterados:**
+- `src/lib/workout-session-migration.ts`
+- `src/lib/workout-session-migration.test.ts`
+- `src/lib/storage-completion-receipt.ts`
+- `src/lib/storage-completion-receipt.test.ts`
+- `src/lib/workout-session-runtime.test.ts`
+- `docs/DECISOES.md`
+- `docs/GOALS_LOG.md`
+
+**Validações:**
+- Migração de sessão (`workout-session-migration.test.ts`): 25/25 aprovados
+- Runtime de sessão (`workout-session-runtime.test.ts`): 15/15 aprovados
+- Recibos e posts (`storage-completion-receipt.test.ts`): 38/38 aprovados
+- Storage híbrido (`storage-hybrid.test.ts`): 49/49 aprovados
+- Contexto e storage (`GymFlowContext.storage.test.tsx`): 23/23 aprovados
+- Suíte completa de testes (`npm test`): 120 arquivos, 2858 testes aprovados
+- `npx tsc --noEmit`: 0 erros
+- `npm run build`: sucesso
+- `npm run build:mobile`: sucesso
+- `git diff --check`: 0 avisos / 0 erros
+
+---
+
+## GOAL-043 — Integridade e Honestidade do Runtime de Sessão de Treino (2026-09-09)
+
+Auditoria e correção da integridade operacional e honestidade semântica da sessão de treino.
+
+**Antes:**
+- Sessões finalizadas ou com `status !== 'active'` podiam ser reidratadas como ativas pelo normalizador de sessão após reload do storage.
+- Sessões abandonadas (0 séries concluídas) recebiam indevidamente 100 XP base + 25 XP de feed, marcavam o dia no plano semanal, avançavam o streak e geravam post de comemoração de treino completo.
+- O modal de finalização (`ActiveWorkoutPage`) afirmava "Sua sessão foi salva com sucesso no histórico" antes do usuário clicar no botão "CONCLUIR & REGISTRAR", gerando inconsistência e desconfiança.
+- O timer não possuía clamping defensivo explícito contra `Math.max(0, ...)` e valores NaN na exibição do modal.
+- `deriveWorkoutCompletion` e `finishWorkout` não possuíam trava explícita de idempotência quando uma sessão já existia no histórico.
+
+**Depois:**
+- `normalizeActiveWorkout` descarta sessões com `endedAt != null` ou `status !== 'active'` (`completed`, `partial`, `abandoned`), garantindo que sessões finalizadas nunca reabram como ativas após reload (`FINALIZED_SESSION_REOPEN = NO`).
+- Timer wall-clock (`Date.now() - startedAt`) preservado integralmente: sessões retomadas horas depois ou no dia seguinte continuam ativas sem zeramento arbitrário (sessões longas não são tratadas como bug), com clamp `Math.max(0, ...)` em `formatTime`.
+- Contenção calórica fisiológica contra wall-clock longo: o cálculo de calorias ancora o tempo calórico ativo nas séries efetivamente concluídas (~6 min/série + margem) com teto máximo de 180 min e teto absoluto de 1200 kcal (0 kcal em abandonadas), impedindo que sessões abertas por horas/dias gerem calorias absurdas.
+- Data civil local determinística: `startWorkout` e `finishWorkout` utilizam `getCivilDateString` do dispositivo/usuário (evitando que sessões após as 21h em fusos UTC-3 pulem prematuramente para a data UTC seguinte no histórico, streak e plano semanal).
+- Três estados finais nítidos e honestos: `completed` (todas séries concluídas), `partial` (ao menos 1 concluída e alguma incompleta), `abandoned` (0 séries concluídas).
+- Efeitos de sessão abandonada estritamente contidos: sessões abandonadas registram exatamente 0 XP (`XP_DUPLICATION = NO`), 0 kg de volume (`VOLUME_DUPLICATION = NO`), 0 calorias, sem avanço de streak, sem marcação de dia no plano semanal, geram `effects.communityPost: null` (nenhum post materializado) e gravam status `'abandoned'` honestamente no histórico (`HISTORY_EXACTLY_ONCE = PASS`).
+- Idempotência estrita e liberação incondicional do lock: `finishWorkoutInProgressRef` impede execuções concorrentes ou duplicadas, é protegido por `try...catch` síncrono e `.finally()` assíncrono, e é liberado também em `cancelWorkout` (`FINALIZE_IDEMPOTENT = PASS`).
+- Modal pós-treino reformulado honestamente: título, subtítulo, banner explicativo e CTA condicionados ao status real ("Concluir & Salvar", "Salvar Treino Parcial", "Registrar como Abandonada"), sem mensagem prematura de salvamento e ocultando slider de RPE / compartilhamento para treinos abandonados.
+
+**Arquivos alterados:**
+- `src/lib/workout-session-migration.ts`
+- `src/lib/workout-session-migration.test.ts`
+- `src/lib/storage-completion-receipt.ts`
+- `src/lib/storage-completion-receipt.test.ts`
+- `src/lib/storage-hybrid.test.ts`
+- `src/providers/GymFlowContext.tsx`
+- `src/modules/ActiveWorkoutPage.tsx`
+- `src/lib/workout-session-runtime.test.ts` (novo)
+- `docs/DECISOES.md`
+- `docs/GOALS_LOG.md`
+
+**Validações:**
+- Focados runtime/session: 14/14 no novo `workout-session-runtime.test.ts`
+- Normalização e migração: 19/19 no `workout-session-migration.test.ts`
+- Storage completion receipt: 26/26 no `storage-completion-receipt.test.ts`
+- Regressões de storage context: 23/23 no `GymFlowContext.storage.test.tsx`
+- Suíte completa de testes (`npm test`): 120 arquivos, 2839 testes aprovados
+- `npx tsc --noEmit`: 0 erros
+- `npm run build`: sucesso
+- `npm run build:mobile`: sucesso
+- `git diff --check`: limpo
+
+---
+
 ## GOAL-17B-002E-E7A6 — corretivo final do journal stale race (2026-08-29)
 
 Fecha o P1 residual encontrado na reauditoria independente da correlação de

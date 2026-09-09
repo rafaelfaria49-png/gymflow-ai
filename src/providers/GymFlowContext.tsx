@@ -139,6 +139,7 @@ import {
 } from '../domain/readinessEngine';
 import {
   buildSessionPlan,
+  deriveSessionStatus,
   finalizeSession,
   markEntrySwapped,
   startActiveSession,
@@ -1377,7 +1378,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       const known = new Set(previous.map((post) => post.id));
       const additions = recovered
         .map((item) => item.effects.communityPost)
-        .filter((post) => Boolean(post?.id) && !known.has(post.id));
+        .filter((post): post is CommunityPost => Boolean(post?.id) && !known.has(post!.id));
       return additions.length === 0 ? previous : [...additions.reverse(), ...previous];
     });
     for (const item of recovered) {
@@ -1554,7 +1555,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           workoutHistory: saved.workoutHistory,
         });
         setActiveWorkout(normalizedSession.activeWorkout);
-        setActiveWorkoutStartedAt(saved.activeWorkoutStartedAt);
+        setActiveWorkoutStartedAt(normalizedSession.activeWorkout ? saved.activeWorkoutStartedAt : null);
         setWorkoutHistory(normalizedSession.workoutHistory);
         setWeightHistory(saved.weightHistory);
         setMeasurementsHistory(saved.measurementsHistory);
@@ -1566,7 +1567,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         setFavoriteExercises(saved.favoriteExercises);
         setRecentlyViewedVideoIds(saved.recentlyViewedVideoIds);
 
-        if (saved.activeWorkout && saved.activeWorkoutStartedAt) {
+        if (normalizedSession.activeWorkout && saved.activeWorkoutStartedAt) {
           setWorkoutDuration(Math.max(0, Math.floor((Date.now() - saved.activeWorkoutStartedAt) / 1000)));
         }
         if (saved.restTimerEndAt && saved.restTimerEndAt > Date.now()) {
@@ -1575,7 +1576,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           setRestTimerLabel(saved.restTimerLabel);
         }
         if (saved.user) {
-          setActiveView(saved.activeWorkout && saved.activeWorkoutStartedAt ? 'active-workout' : 'dashboard');
+          setActiveView(normalizedSession.activeWorkout && saved.activeWorkoutStartedAt ? 'active-workout' : 'dashboard');
         }
 
         // Receipts pendentes: o core já foi gravado/confirmado pelo runtime.
@@ -2178,7 +2179,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       plan,
       sessionId: `session_${startedAt}`,
       name: workoutName,
-      date: new Date().toISOString().split('T')[0],
+      date: getCivilDateString(new Date(startedAt)),
       startedAt,
       plannedDuration,
       exercises: activeExs,
@@ -2622,33 +2623,64 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     const workoutToFinish = activeWorkoutRef.current;
     if (!workoutToFinish || !user) return;
 
+    // GOAL-043: idempotência estrita — se a sessão já foi finalizada e está no histórico,
+    // apenas encerra o treino ativo e retorna sem duplicar histórico, volume ou XP.
+    if (workoutHistoryRef.current.some((session) => session.id === workoutToFinish.id)) {
+      setActiveWorkout(null);
+      setActiveWorkoutStartedAt(null);
+      setWorkoutDuration(0);
+      setRestTimerEndAt(null);
+      setRestTimerTotalSeconds(null);
+      setRestTimerLabel(null);
+      setActiveView('dashboard');
+      return;
+    }
+
+    finishWorkoutInProgressRef.current = true;
+    try {
+
+    const status = deriveSessionStatus(workoutToFinish.exercises);
+    const isAbandoned = status === 'abandoned';
+
+    const volumeSummary = aggregateWorkoutVolume(workoutToFinish.exercises);
+    const completedSetsCount = isAbandoned ? 0 : volumeSummary.effectiveSets;
+    const totalVolume = isAbandoned ? 0 : volumeSummary.totalVolume;
+    const finalXp = isAbandoned ? 0 : (100 + completedSetsCount * 5 + (totalVolume > 5000 ? 50 : 0));
+
     const minutes = Math.ceil(workoutDuration / 60);
     const kcalPerMinute = rpe >= 8 ? 8.5 : rpe >= 5 ? 6.5 : 4.5;
-    const caloriesBurned = Math.round(minutes * kcalPerMinute);
-    const volumeSummary = aggregateWorkoutVolume(workoutToFinish.exercises);
-    const completedSetsCount = volumeSummary.effectiveSets;
-    const totalVolume = volumeSummary.totalVolume;
-    const finalXp = 100 + completedSetsCount * 5 + (totalVolume > 5000 ? 50 : 0);
+    // GOAL-043: Wall-clock longo (sessão deixada aberta overnight/reload) não pode
+    // inflar calorias para números absurdos (milhares de kcal).
+    // Ancoramos o tempo calórico ativo com teto fisiológico e plausibilidade das séries:
+    // - Abandonada: 0 kcal.
+    // - Teto plausível por série: ~6 min/série concluída + margem inicial.
+    // - Teto fisiológico de treino: máximo 180 min e teto absoluto de 1200 kcal.
+    const maxActiveMinutes = Math.min(180, Math.max(15, completedSetsCount * 6));
+    const calorieMinutes = Math.min(minutes, maxActiveMinutes);
+    const rawCalories = Math.round(calorieMinutes * kcalPerMinute);
+    const caloriesBurned = isAbandoned ? 0 : Math.min(rawCalories, 1200);
 
     // PRs e conquistas são apenas calculados aqui. Nenhum efeito de sucesso ocorre
     // antes do commit IndexedDB no modo híbrido.
     const prsDetected: string[] = [];
     const prAchievementIds: string[] = [];
-    workoutToFinish.exercises.forEach((exercise) => {
-      const bestSet = bestWorkingSetWeight(exercise.sets);
-      if (bestSet >= 100 && exercise.exerciseId === 'chest_supino_reto') {
-        prsDetected.push('Supino Reto 100kg');
-        prAchievementIds.push('ach_2');
-      }
-      if (bestSet >= 140 && exercise.exerciseId === 'legs_agachamento_barra') {
-        prsDetected.push('Agachamento 140kg');
-        prAchievementIds.push('ach_7');
-      }
-      if (bestSet >= 100 && exercise.exerciseId === 'glutes_elevacao_pelvica') {
-        prsDetected.push('Elevação Pélvica 100kg');
-        prAchievementIds.push('ach_8');
-      }
-    });
+    if (!isAbandoned) {
+      workoutToFinish.exercises.forEach((exercise) => {
+        const bestSet = bestWorkingSetWeight(exercise.sets);
+        if (bestSet >= 100 && exercise.exerciseId === 'chest_supino_reto') {
+          prsDetected.push('Supino Reto 100kg');
+          prAchievementIds.push('ach_2');
+        }
+        if (bestSet >= 140 && exercise.exerciseId === 'legs_agachamento_barra') {
+          prsDetected.push('Agachamento 140kg');
+          prAchievementIds.push('ach_7');
+        }
+        if (bestSet >= 100 && exercise.exerciseId === 'glutes_elevacao_pelvica') {
+          prsDetected.push('Elevação Pélvica 100kg');
+          prAchievementIds.push('ach_8');
+        }
+      });
+    }
 
     const startedAtMs = workoutToFinish.startedAt ?? activeWorkoutStartedAtRef.current ?? 0;
     const endedAt = startedAtMs + workoutDuration * 1000;
@@ -2660,7 +2692,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       totalVolume,
       prsDetected,
       xpEarned: finalXp,
-      techniqueMetrics: volumeSummary,
+      techniqueMetrics: isAbandoned ? undefined : volumeSummary,
     });
 
     const clearFinishedWorkout = () => {
@@ -2679,36 +2711,48 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       setStorageHealth({ status: 'ready', hasBackup: hasValidBackup() });
     };
 
+    const notifyCompletionHonesty = () => {
+      if (isAbandoned) {
+        toast.info('Sessão encerrada e registrada no histórico como abandonada.');
+      } else if (status === 'partial') {
+        toast.success('Treino parcial salvo com sucesso no histórico!');
+      } else {
+        toast.success('Treino concluído e salvo no histórico!');
+      }
+    };
+
     // GOAL-29: registrar overrides e aplicar ajustes de parâmetros aprendidos
     let updatedOverrides = [...(user?.progressionOverrides ?? [])];
     let updatedAdjustments = [...(user?.progressionParameterAdjustments ?? [])];
     const newAdjustments: ProgressionParameterAdjustment[] = [];
 
-    workoutToFinish.exercises.forEach((exercise) => {
-      const suggested = exercise.progressionDecision?.pesoKg ?? null;
-      const actual = bestWorkingSetWeight(exercise.sets);
-      if (suggested !== null && actual > 0 && Math.abs(actual - suggested) >= 0.25) {
-        const overrideItem: ProgressionOverride = {
-          exerciseId: exercise.exerciseId,
-          suggestedWeightKg: suggested,
-          actualWeightKg: actual,
-          recordedAt: new Date().toISOString(),
-        };
-        const currentExerciseAdjustment = updatedAdjustments
-          .filter((adj) => adj.exerciseId === exercise.exerciseId)
-          .at(-1);
-        const result = recordProgressionOverride(
-          updatedOverrides,
-          overrideItem,
-          currentExerciseAdjustment ? { incrementKg: currentExerciseAdjustment.nextValueKg } : {},
-        );
-        updatedOverrides = result.overrides;
-        if (result.adjustment) {
-          updatedAdjustments.push(result.adjustment);
-          newAdjustments.push(result.adjustment);
+    if (!isAbandoned) {
+      workoutToFinish.exercises.forEach((exercise) => {
+        const suggested = exercise.progressionDecision?.pesoKg ?? null;
+        const actual = bestWorkingSetWeight(exercise.sets);
+        if (suggested !== null && actual > 0 && Math.abs(actual - suggested) >= 0.25) {
+          const overrideItem: ProgressionOverride = {
+            exerciseId: exercise.exerciseId,
+            suggestedWeightKg: suggested,
+            actualWeightKg: actual,
+            recordedAt: new Date().toISOString(),
+          };
+          const currentExerciseAdjustment = updatedAdjustments
+            .filter((adj) => adj.exerciseId === exercise.exerciseId)
+            .at(-1);
+          const result = recordProgressionOverride(
+            updatedOverrides,
+            overrideItem,
+            currentExerciseAdjustment ? { incrementKg: currentExerciseAdjustment.nextValueKg } : {},
+          );
+          updatedOverrides = result.overrides;
+          if (result.adjustment) {
+            updatedAdjustments.push(result.adjustment);
+            newAdjustments.push(result.adjustment);
+          }
         }
-      }
-    });
+      });
+    }
 
     const currentState = currentPersistedState();
     const stateForOutcome: PersistedState = user
@@ -2734,7 +2778,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       prsDetected,
       prAchievementIds,
       todayDayName: getTodayDayName(),
-      todayIso: new Date().toISOString().split('T')[0],
+      todayIso: getCivilDateString(new Date(endedAt)),
       postId: `post_${Date.now()}`,
       postAuthorName: user.name,
       postImage: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600&auto=format&fit=crop',
@@ -2760,11 +2804,13 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       setWeeklyPlan(state.weeklyPlan);
       setAchievements(state.achievements);
       setChallenges(state.challenges);
-      setCommunityPosts((previous) => (
-        previous.some((post) => post.id === effects.communityPost.id)
-          ? previous
-          : [effects.communityPost, ...previous]
-      ));
+      if (effects.communityPost) {
+        setCommunityPosts((previous) => (
+          previous.some((post) => post.id === effects.communityPost!.id)
+            ? previous
+            : [effects.communityPost!, ...previous]
+        ));
+      }
       for (const notification of effects.xpNotifications) {
         pushXpNotification(notification.kind, notification.text, notification.xp);
       }
@@ -2787,15 +2833,17 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     if (storageModeRef.current === 'legacy-v1') {
       applyCompletionOutcome(outcome.state, outcome.effects, finalSession);
       markHistoryCommitHealthy();
+      notifyCompletionHonesty();
+      finishWorkoutInProgressRef.current = false;
       return;
     }
     const runtime = hybridRuntimeRef.current;
     if (storageModeRef.current !== 'hybrid-v2' || !runtime) {
+      finishWorkoutInProgressRef.current = false;
       toast.error('O armazenamento do histórico não está pronto para confirmar este treino.');
       return;
     }
 
-    finishWorkoutInProgressRef.current = true;
     const finalization = runtime.commitCompletion({
       session: finalSession,
       state: outcome.state,
@@ -2823,6 +2871,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         result.effects,
         result.session,
       );
+      notifyCompletionHonesty();
       if (result.coreWrite.ok) {
         await runtime.settleCompletion(result.receiptId);
         if (mountedRef.current) markHistoryCommitHealthy();
@@ -2859,9 +2908,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       }
     });
     pendingFinalizationPromiseRef.current = finalization;
+    } catch (error) {
+      finishWorkoutInProgressRef.current = false;
+      throw error;
+    }
   };
 
   const cancelWorkout = () => {
+    finishWorkoutInProgressRef.current = false;
     setActiveWorkout(null);
     setActiveWorkoutStartedAt(null);
     setWorkoutDuration(0);
