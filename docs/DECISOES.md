@@ -5,8 +5,12 @@ Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decis�
 ## GOAL-043 — Integridade e Honestidade do Runtime de Sessão de Treino (2026-09-09)
 
 - **Semântica do timer wall-clock e proteção:** o cronômetro mede tempo decorrido de parede (`Date.now() - startedAt`), preservando sessões retomadas mesmo no dia seguinte sem zerar arbitrariamente (sessões longas não são tratadas como bug), com clamp defensivo `Math.max(0, ...)` contra valores negativos ou NaN.
-- **Diferenciação honesta de estados finais e idempotência:** sessões são finalizadas em três estados mútuos (`completed`, `partial`, `abandoned`); sessões abandonadas (0 séries concluídas) não ganham XP indevido (0 XP), nem volume, nem calorias, nem streak, nem dia treinado no plano, nem post comemorativo; e qualquer finalização é idempotente e impede reabertura como sessão ativa após reload.
+- **Contenção calórica fisiológica contra wall-clock longo:** durações longas de sessões deixadas abertas não inflacionam calorias para números absurdos; o cálculo ancora o tempo calórico ativo nas séries efetivamente concluídas (~6 min/série + margem) com teto de 180 min e teto absoluto de 1200 kcal (e rigorosamente 0 kcal para abandonadas).
+- **Data civil local determinística:** a criação e finalização de sessão utilizam `getCivilDateString` do dispositivo/usuário, eliminando discrepância de data civil UTC após as 21h BRT no histórico, no plano semanal e no streak.
+- **Diferenciação honesta de estados finais e idempotência:** sessões são finalizadas em três estados mútuos (`completed`, `partial`, `abandoned`); sessões abandonadas (0 séries concluídas) não ganham XP indevido (0 XP), nem volume, nem calorias, nem streak, nem dia treinado no plano, e geram `effects.communityPost: null` (nenhum post materializado); e qualquer finalização é idempotente e impede reabertura como sessão ativa após reload.
+- **Liberação incondicional do lock de finalização:** `finishWorkoutInProgressRef` é protegido por bloco `try...catch` síncrono, `.finally()` assíncrono e liberado explicitamente em `cancelWorkout`, garantindo que o lock nunca fique preso.
 - **Sincronia e honestidade no modal de encerramento:** o modal pós-treino reflete o estado real da sessão com textos, banners e botões específicos ("Concluir & Salvar", "Salvar Treino Parcial", "Registrar como Abandonada"), eliminando a afirmação prematura de que o treino já havia sido salvo antes da confirmação.
+
 
 ## NUT-002 — NutritionProfile + Gates Ético-Clínicos (2026-09-08)
 

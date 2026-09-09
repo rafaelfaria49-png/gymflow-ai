@@ -1378,7 +1378,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       const known = new Set(previous.map((post) => post.id));
       const additions = recovered
         .map((item) => item.effects.communityPost)
-        .filter((post) => Boolean(post?.id) && !known.has(post.id));
+        .filter((post): post is CommunityPost => Boolean(post?.id) && !known.has(post!.id));
       return additions.length === 0 ? previous : [...additions.reverse(), ...previous];
     });
     for (const item of recovered) {
@@ -2179,7 +2179,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       plan,
       sessionId: `session_${startedAt}`,
       name: workoutName,
-      date: new Date().toISOString().split('T')[0],
+      date: getCivilDateString(new Date(startedAt)),
       startedAt,
       plannedDuration,
       exercises: activeExs,
@@ -2637,17 +2637,28 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     }
 
     finishWorkoutInProgressRef.current = true;
+    try {
 
     const status = deriveSessionStatus(workoutToFinish.exercises);
     const isAbandoned = status === 'abandoned';
 
-    const minutes = Math.ceil(workoutDuration / 60);
-    const kcalPerMinute = rpe >= 8 ? 8.5 : rpe >= 5 ? 6.5 : 4.5;
-    const caloriesBurned = isAbandoned ? 0 : Math.round(minutes * kcalPerMinute);
     const volumeSummary = aggregateWorkoutVolume(workoutToFinish.exercises);
     const completedSetsCount = isAbandoned ? 0 : volumeSummary.effectiveSets;
     const totalVolume = isAbandoned ? 0 : volumeSummary.totalVolume;
     const finalXp = isAbandoned ? 0 : (100 + completedSetsCount * 5 + (totalVolume > 5000 ? 50 : 0));
+
+    const minutes = Math.ceil(workoutDuration / 60);
+    const kcalPerMinute = rpe >= 8 ? 8.5 : rpe >= 5 ? 6.5 : 4.5;
+    // GOAL-043: Wall-clock longo (sessão deixada aberta overnight/reload) não pode
+    // inflar calorias para números absurdos (milhares de kcal).
+    // Ancoramos o tempo calórico ativo com teto fisiológico e plausibilidade das séries:
+    // - Abandonada: 0 kcal.
+    // - Teto plausível por série: ~6 min/série concluída + margem inicial.
+    // - Teto fisiológico de treino: máximo 180 min e teto absoluto de 1200 kcal.
+    const maxActiveMinutes = Math.min(180, Math.max(15, completedSetsCount * 6));
+    const calorieMinutes = Math.min(minutes, maxActiveMinutes);
+    const rawCalories = Math.round(calorieMinutes * kcalPerMinute);
+    const caloriesBurned = isAbandoned ? 0 : Math.min(rawCalories, 1200);
 
     // PRs e conquistas são apenas calculados aqui. Nenhum efeito de sucesso ocorre
     // antes do commit IndexedDB no modo híbrido.
@@ -2767,7 +2778,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       prsDetected,
       prAchievementIds,
       todayDayName: getTodayDayName(),
-      todayIso: new Date().toISOString().split('T')[0],
+      todayIso: getCivilDateString(new Date(endedAt)),
       postId: `post_${Date.now()}`,
       postAuthorName: user.name,
       postImage: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600&auto=format&fit=crop',
@@ -2793,11 +2804,11 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       setWeeklyPlan(state.weeklyPlan);
       setAchievements(state.achievements);
       setChallenges(state.challenges);
-      if (!isAbandoned && effects.communityPost?.id) {
+      if (effects.communityPost) {
         setCommunityPosts((previous) => (
-          previous.some((post) => post.id === effects.communityPost.id)
+          previous.some((post) => post.id === effects.communityPost!.id)
             ? previous
-            : [effects.communityPost, ...previous]
+            : [effects.communityPost!, ...previous]
         ));
       }
       for (const notification of effects.xpNotifications) {
@@ -2897,9 +2908,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       }
     });
     pendingFinalizationPromiseRef.current = finalization;
+    } catch (error) {
+      finishWorkoutInProgressRef.current = false;
+      throw error;
+    }
   };
 
   const cancelWorkout = () => {
+    finishWorkoutInProgressRef.current = false;
     setActiveWorkout(null);
     setActiveWorkoutStartedAt(null);
     setWorkoutDuration(0);

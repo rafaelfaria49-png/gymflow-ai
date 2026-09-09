@@ -27,7 +27,7 @@ export interface CompletionXpNotification {
 // Efeitos que não pertencem ao core e precisam ser materializados em memória.
 export interface WorkoutCompletionEffects {
   xpNotifications: CompletionXpNotification[];
-  communityPost: CommunityPost;
+  communityPost: CommunityPost | null;
   unlockedAchievementIds: string[];
   markedDayName: string;
 }
@@ -104,24 +104,7 @@ export function deriveWorkoutCompletion(input: WorkoutCompletionInput): WorkoutC
       },
       effects: {
         xpNotifications: [],
-        communityPost: {
-          id: input.postId,
-          authorName: input.postAuthorName || COMPLETION_POST_FALLBACK_AUTHOR,
-          authorAvatar: COMPLETION_POST_AVATAR,
-          time: COMPLETION_POST_TIME_LABEL,
-          content: completionPostContent({
-            sessionName: input.finalSession.name,
-            minutes: input.minutes,
-            totalVolume: input.totalVolume,
-            prsDetected: input.prsDetected,
-            status: input.finalSession.status,
-          }),
-          image: input.postImage,
-          likes: 0,
-          comments: [],
-          userLiked: false,
-          shares: 0,
-        },
+        communityPost: null,
         unlockedAchievementIds: [],
         markedDayName: '',
       },
@@ -204,25 +187,27 @@ export function deriveWorkoutCompletion(input: WorkoutCompletionInput): WorkoutC
     return challenge;
   });
 
-  const communityPost: CommunityPost = {
-    id: input.postId,
-    authorName: input.postAuthorName || COMPLETION_POST_FALLBACK_AUTHOR,
-    authorAvatar: COMPLETION_POST_AVATAR,
-    time: COMPLETION_POST_TIME_LABEL,
-    content: completionPostContent({
-      sessionName: input.finalSession.name,
-      minutes: input.minutes,
-      totalVolume: input.totalVolume,
-      prsDetected: input.prsDetected,
-      status: input.finalSession.status,
-    }),
-    image: input.postImage,
-    likes: 0,
-    comments: [],
-    userLiked: false,
-    shares: 0,
-  };
-  if (!isAbandoned) {
+  const communityPost: CommunityPost | null = isAbandoned
+    ? null
+    : {
+        id: input.postId,
+        authorName: input.postAuthorName || COMPLETION_POST_FALLBACK_AUTHOR,
+        authorAvatar: COMPLETION_POST_AVATAR,
+        time: COMPLETION_POST_TIME_LABEL,
+        content: completionPostContent({
+          sessionName: input.finalSession.name,
+          minutes: input.minutes,
+          totalVolume: input.totalVolume,
+          prsDetected: input.prsDetected,
+          status: input.finalSession.status,
+        }),
+        image: input.postImage,
+        likes: 0,
+        comments: [],
+        userLiked: false,
+        shares: 0,
+      };
+  if (!isAbandoned && communityPost) {
     award(25, 'Nova postagem no feed da comunidade');
   }
 
@@ -285,16 +270,15 @@ export function isCompletionXpNotification(value: unknown): value is CompletionX
 export function isWorkoutCompletionEffects(value: unknown): value is WorkoutCompletionEffects {
   if (value === null || typeof value !== 'object') return false;
   const record = value as Record<string, unknown>;
-  const post = record.communityPost as Record<string, unknown> | undefined;
+  const post = record.communityPost;
+  const validPost = post === null
+    || (typeof post === 'object' && post !== null && typeof (post as Record<string, unknown>).id === 'string' && typeof (post as Record<string, unknown>).content === 'string');
   return Array.isArray(record.xpNotifications)
     && record.xpNotifications.every(isCompletionXpNotification)
     && Array.isArray(record.unlockedAchievementIds)
     && record.unlockedAchievementIds.every((id) => typeof id === 'string')
     && typeof record.markedDayName === 'string'
-    && post !== undefined
-    && post !== null
-    && typeof post.id === 'string'
-    && typeof post.content === 'string';
+    && validPost;
 }
 
 export function isWorkoutCompletionReceipt(value: unknown): value is WorkoutCompletionReceipt {

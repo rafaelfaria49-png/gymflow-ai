@@ -18,9 +18,11 @@ Auditoria e correção da integridade operacional e honestidade semântica da se
 **Depois:**
 - `normalizeActiveWorkout` descarta sessões com `endedAt != null` ou `status !== 'active'` (`completed`, `partial`, `abandoned`), garantindo que sessões finalizadas nunca reabram como ativas após reload (`FINALIZED_SESSION_REOPEN = NO`).
 - Timer wall-clock (`Date.now() - startedAt`) preservado integralmente: sessões retomadas horas depois ou no dia seguinte continuam ativas sem zeramento arbitrário (sessões longas não são tratadas como bug), com clamp `Math.max(0, ...)` em `formatTime`.
+- Contenção calórica fisiológica contra wall-clock longo: o cálculo de calorias ancora o tempo calórico ativo nas séries efetivamente concluídas (~6 min/série + margem) com teto máximo de 180 min e teto absoluto de 1200 kcal (0 kcal em abandonadas), impedindo que sessões abertas por horas/dias gerem calorias absurdas.
+- Data civil local determinística: `startWorkout` e `finishWorkout` utilizam `getCivilDateString` do dispositivo/usuário (evitando que sessões após as 21h em fusos UTC-3 pulem prematuramente para a data UTC seguinte no histórico, streak e plano semanal).
 - Três estados finais nítidos e honestos: `completed` (todas séries concluídas), `partial` (ao menos 1 concluída e alguma incompleta), `abandoned` (0 séries concluídas).
-- Sessões abandonadas registram exatamente 0 XP (`XP_DUPLICATION = NO`), 0 kg de volume (`VOLUME_DUPLICATION = NO`), 0 calorias, sem avanço de streak, sem marcação de dia no plano semanal, sem post de feed e com status `'abandoned'` salvo honestamente no histórico (`HISTORY_EXACTLY_ONCE = PASS`).
-- Idempotência estrita: `finishWorkoutInProgressRef` impede duplo clique e verificação de sessão pré-existente no histórico impede duplicatas (`FINALIZE_IDEMPOTENT = PASS`).
+- Efeitos de sessão abandonada estritamente contidos: sessões abandonadas registram exatamente 0 XP (`XP_DUPLICATION = NO`), 0 kg de volume (`VOLUME_DUPLICATION = NO`), 0 calorias, sem avanço de streak, sem marcação de dia no plano semanal, geram `effects.communityPost: null` (nenhum post materializado) e gravam status `'abandoned'` honestamente no histórico (`HISTORY_EXACTLY_ONCE = PASS`).
+- Idempotência estrita e liberação incondicional do lock: `finishWorkoutInProgressRef` impede execuções concorrentes ou duplicadas, é protegido por `try...catch` síncrono e `.finally()` assíncrono, e é liberado também em `cancelWorkout` (`FINALIZE_IDEMPOTENT = PASS`).
 - Modal pós-treino reformulado honestamente: título, subtítulo, banner explicativo e CTA condicionados ao status real ("Concluir & Salvar", "Salvar Treino Parcial", "Registrar como Abandonada"), sem mensagem prematura de salvamento e ocultando slider de RPE / compartilhamento para treinos abandonados.
 
 **Arquivos alterados:**
@@ -28,6 +30,7 @@ Auditoria e correção da integridade operacional e honestidade semântica da se
 - `src/lib/workout-session-migration.test.ts`
 - `src/lib/storage-completion-receipt.ts`
 - `src/lib/storage-completion-receipt.test.ts`
+- `src/lib/storage-hybrid.test.ts`
 - `src/providers/GymFlowContext.tsx`
 - `src/modules/ActiveWorkoutPage.tsx`
 - `src/lib/workout-session-runtime.test.ts` (novo)
@@ -35,11 +38,11 @@ Auditoria e correção da integridade operacional e honestidade semântica da se
 - `docs/GOALS_LOG.md`
 
 **Validações:**
-- Focados runtime/session: 10/10 no novo `workout-session-runtime.test.ts`
+- Focados runtime/session: 14/14 no novo `workout-session-runtime.test.ts`
 - Normalização e migração: 19/19 no `workout-session-migration.test.ts`
 - Storage completion receipt: 26/26 no `storage-completion-receipt.test.ts`
 - Regressões de storage context: 23/23 no `GymFlowContext.storage.test.tsx`
-- Suíte completa de testes (`npm test`): 78 arquivos, 2409 testes aprovados
+- Suíte completa de testes (`npm test`): 120 arquivos, 2839 testes aprovados
 - `npx tsc --noEmit`: 0 erros
 - `npm run build`: sucesso
 - `npm run build:mobile`: sucesso

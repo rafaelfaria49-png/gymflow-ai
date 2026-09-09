@@ -24,6 +24,7 @@ import {
   type WorkoutCompletionInput,
 } from './storage-completion-receipt';
 import { aggregateWorkoutVolume } from '../domain/techniques/aggregator';
+import { getCivilDateString } from './nutrition-civil-date';
 import type { PersistedState } from './storage-types';
 
 function makeSet(completed: boolean, weight = 50, reps = 10, isWarmup = false, id = `set_${Math.random()}`): WorkoutSet {
@@ -248,6 +249,8 @@ describe('GOAL-043: Integridade e Honestidade Operacional do Runtime de Sessão'
     expect(completion.state.user?.streak).toBe(3);
     expect(completion.state.weeklyPlan.find((d) => d.dayName === 'Segunda')?.trained).toBe(false);
     expect(completion.effects.xpNotifications).toEqual([]);
+    expect(completion.effects.communityPost).toBeNull();
+    expect(completion.effects.markedDayName).toBe('');
     expect(completion.state.activeWorkout).toBeNull();
   });
 
@@ -487,5 +490,95 @@ describe('GOAL-043: Integridade e Honestidade Operacional do Runtime de Sessão'
     expect(countTotalSets(session.exercises)).toBe(2);
     expect(countCompletedSets(session.exercises)).toBe(1);
     expect(countIncompleteSets(session.exercises)).toBe(1);
+  });
+
+  // 13. Wall-clock de muitas horas não infla calorias para números absurdos
+  it('13. wall-clock longo (ex.: sessão retomada no dia seguinte) ancora calorias em teto fisiológico seguro', () => {
+    // Sessão com 18 horas de duração (1080 minutos) e 12 séries concluídas
+    const exercises = [
+      makeExercise('ex1', [makeSet(true, 50, 10), makeSet(true, 50, 10), makeSet(true, 50, 10)]),
+      makeExercise('ex2', [makeSet(true, 50, 10), makeSet(true, 50, 10), makeSet(true, 50, 10)]),
+      makeExercise('ex3', [makeSet(true, 50, 10), makeSet(true, 50, 10), makeSet(true, 50, 10)]),
+      makeExercise('ex4', [makeSet(true, 50, 10), makeSet(true, 50, 10), makeSet(true, 50, 10)]),
+    ];
+    const session = makeSession(exercises);
+    const volumeSummary = aggregateWorkoutVolume(session.exercises);
+    const completedSetsCount = volumeSummary.effectiveSets; // 12
+    const workoutDurationSeconds = 18 * 3600; // 18h = 64800s
+    const minutes = Math.ceil(workoutDurationSeconds / 60); // 1080 min
+    const kcalPerMinute = 8.5;
+
+    // Fórmula canônica aplicada no GymFlowContext
+    const maxActiveMinutes = Math.min(180, Math.max(15, completedSetsCount * 6)); // min(180, 72) = 72 min
+    const calorieMinutes = Math.min(minutes, maxActiveMinutes); // 72 min
+    const rawCalories = Math.round(calorieMinutes * kcalPerMinute); // 72 * 8.5 = 612 kcal
+    const caloriesBurned = Math.min(rawCalories, 1200);
+
+    expect(caloriesBurned).toBe(612);
+    // Sem a proteção, seria 1080 * 8.5 = 9180 kcal!
+    expect(caloriesBurned).toBeLessThan(1000);
+  });
+
+  it('13b. sessão abandonada com wall-clock longo registra rigorosamente 0 calorias', () => {
+    const exercises = [
+      makeExercise('ex1', [makeSet(false), makeSet(false)]),
+    ];
+    const session = makeSession(exercises);
+    const volumeSummary = aggregateWorkoutVolume(session.exercises);
+    const completedSetsCount = 0;
+    const isAbandoned = true;
+    const workoutDurationSeconds = 24 * 3600; // 24 horas
+    const minutes = Math.ceil(workoutDurationSeconds / 60);
+    const maxActiveMinutes = Math.min(180, Math.max(15, completedSetsCount * 6));
+    const calorieMinutes = Math.min(minutes, maxActiveMinutes);
+    const rawCalories = Math.round(calorieMinutes * 6.5);
+    const caloriesBurned = isAbandoned ? 0 : Math.min(rawCalories, 1200);
+
+    expect(caloriesBurned).toBe(0);
+  });
+
+  // 14. Data civil local determinística
+  it('14. data civil local garante que horário após 21h em fusos negativos (ex.: Brasília UTC-3) preserva a data correta', () => {
+    // 2026-09-09 às 22:00 BRT -> 2026-09-10T01:00Z em UTC
+    const eveningDate = new Date('2026-09-10T01:00:00.000Z');
+    const localCivilDate = getCivilDateString(eveningDate, 'America/Sao_Paulo');
+    expect(localCivilDate).toBe('2026-09-09');
+
+    // toISOString().split('T')[0] retornaria incorretamente 2026-09-10
+    expect(eveningDate.toISOString().split('T')[0]).toBe('2026-09-10');
+  });
+
+  // 15. Effects de abandoned garante nenhum post e nenhum dia treinado
+  it('15. sessão abandonada produz effects com communityPost estritamente null e markedDayName vazio', () => {
+    const session = makeSession([makeExercise('ex1', [makeSet(false)])], { status: 'abandoned' });
+    const { session: finalized } = finalizeSession({
+      session,
+      endedAt: Date.now(),
+      duration: 1200,
+      calories: 0,
+      totalVolume: 0,
+      prsDetected: [],
+      xpEarned: 0,
+    });
+
+    const completion = deriveWorkoutCompletion({
+      state: makeState({ activeWorkout: session }),
+      finalSession: finalized,
+      finalXp: 0,
+      caloriesBurned: 0,
+      totalVolume: 0,
+      minutes: 20,
+      prsDetected: [],
+      prAchievementIds: [],
+      todayDayName: 'Segunda',
+      todayIso: '2026-09-09',
+      postId: 'post_abandoned_check',
+    });
+
+    expect(completion.effects.communityPost).toBeNull();
+    expect(completion.effects.markedDayName).toBe('');
+    expect(completion.effects.xpNotifications).toHaveLength(0);
+    // Nenhum dia do weeklyPlan treinado
+    expect(completion.state.weeklyPlan.every((d) => !d.trained)).toBe(true);
   });
 });

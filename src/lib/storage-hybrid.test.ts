@@ -1176,7 +1176,7 @@ describe('conclusão híbrida recuperável', () => {
     expect(recovered.state.workoutHistory.map((item) => item.id)).toEqual(['session-1']);
     expect(recovered.recoveredCompletions).toHaveLength(1);
     expect(recovered.recoveredCompletions[0]).toMatchObject({ receiptId: 'receipt-1' });
-    expect(recovered.recoveredCompletions[0].effects.communityPost.id).toBe('post-1');
+    expect(recovered.recoveredCompletions[0].effects.communityPost?.id).toBe('post-1');
     expect(persistedCore(harness.storage).favoriteExercises).toEqual(['pos-conclusao']);
     await reloaded.close();
   });

@@ -274,18 +274,18 @@ describe('helper puro de conclusão de treino', () => {
       userLiked: false,
       shares: 0,
     });
-    expect(effects.communityPost.content).toBe(completionPostContent({
+    expect(effects.communityPost?.content).toBe(completionPostContent({
       sessionName: 'Treino A — Peito',
       minutes: 60,
       totalVolume: 6_000,
       prsDetected: ['Supino Reto 100kg'],
     }));
-    expect(effects.communityPost.content).toContain('PRs Batidos: Supino Reto 100kg!');
+    expect(effects.communityPost?.content).toContain('PRs Batidos: Supino Reto 100kg!');
   });
 
   it('usa o autor padrão quando o nome não é informado', () => {
     const { effects } = deriveWorkoutCompletion(makeInput({ postAuthorName: '' }));
-    expect(effects.communityPost.authorName).toBe(COMPLETION_POST_FALLBACK_AUTHOR);
+    expect(effects.communityPost?.authorName).toBe(COMPLETION_POST_FALLBACK_AUTHOR);
   });
 
   it('não credita XP nem notificações quando não há usuário', () => {
@@ -295,7 +295,7 @@ describe('helper puro de conclusão de treino', () => {
     expect(state.user).toBeNull();
     expect(effects.xpNotifications).toEqual([]);
     // A postagem continua sendo materializada.
-    expect(effects.communityPost.id).toBe('post_1784000000000');
+    expect(effects.communityPost?.id).toBe('post_1784000000000');
   });
 
   it('preserva os demais campos do estado', () => {
@@ -344,6 +344,9 @@ describe('helper puro de conclusão de treino', () => {
     expect(nextState.challenges.find((c) => c.id === 'chal_4')?.progress).toBe(0);
     expect(nextState.challenges.find((c) => c.id === 'chal_5')?.progress).toBe(0);
 
+    // Post de comunidade é nulo para sessão abandonada
+    expect(effects.communityPost).toBeNull();
+
     // Conquistas não desbloqueadas
     expect(effects.unlockedAchievementIds).toEqual([]);
 
@@ -360,8 +363,8 @@ describe('helper puro de conclusão de treino', () => {
       caloriesBurned: 200,
     }));
 
-    expect(effects.communityPost.content).toContain('Treino parcial registrado!');
-    expect(effects.communityPost.content).not.toContain('Treino finalizado! Concluí');
+    expect(effects.communityPost?.content).toContain('Treino parcial registrado!');
+    expect(effects.communityPost?.content).not.toContain('Treino finalizado! Concluí');
     const xpNotice = effects.xpNotifications.find((n) => n.text.includes('Treino Parcial!'));
     expect(xpNotice).toBeDefined();
     expect(xpNotice?.xp).toBe(110);
@@ -381,10 +384,11 @@ describe('helper puro de conclusão de treino', () => {
       finalXp: 150,
     }));
 
-    // XP permanece o mesmo, sem notificações duplicadas
+    // XP permanece o mesmo, sem notificações duplicadas nem post
     expect(outcome.state.user?.xp).toBe(1000);
     expect(outcome.state.user?.points).toBe(1000);
     expect(outcome.state.user?.streak).toBe(5);
+    expect(outcome.effects.communityPost).toBeNull();
     expect(outcome.effects.xpNotifications).toEqual([]);
     expect(outcome.effects.unlockedAchievementIds).toEqual([]);
   });
