@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { NutritionProfile } from '../../types/nutrition';
+import type { HealthFlag, NutritionProfile } from '../../types/nutrition';
 import {
   BIOMETRIC_LIMITS,
   BLOCKING_HEALTH_FLAGS,
@@ -456,7 +456,7 @@ describe('evaluateNutritionGate — NUT-002', () => {
       const profile = Object.freeze(
         createMockNutritionProfile({
           biologicalSexForCalcs: 'unspecified',
-          healthFlags: Object.freeze(['underage']) as unknown as typeof profile.healthFlags,
+          healthFlags: Object.freeze(['underage']) as unknown as HealthFlag[],
         })
       );
 
