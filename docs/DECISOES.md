@@ -2,6 +2,10 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## NUT-002 — NutritionProfile + Gates Ético-Clínicos (2026-09-08)
+
+- **Contratos e precedência determinística de gates ético-clínicos:** `evaluateNutritionGate` isola `biologicalSexForCalcs` sem fallback implícito para 'male', prioriza blockers absolutos (`BLOCK_AUTOMATIC_TARGET`) sobre limitações e preserva `allowAutomatedTargets: true` em `LIMITED_GUIDANCE` apenas quando biometria for completa (permitindo faixas estimadas de D-NUT-02).
+
 ## NUT-001 — Honesty + Legacy Containment (2026-09-07)
 
 - **Trava de XP idempotente e contenção honesta:** `NutritionLog` recebe `lastMacroLoggedDate`/`lastMacroXpDate` opcional para teto diário de até 20 XP por data civil persistido no storage sem quebrar esquemas legados, inputs são validados antes de qualquer mutação e menções a IA/algoritmos são expurgadas da UI.

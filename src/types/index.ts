@@ -496,3 +496,15 @@ export interface NutritionLog {
   /** NUT-001: data civil (YYYY-MM-DD) da última concessão de XP por meta de água batida */
   lastWaterXpDate?: string;
 }
+
+export type {
+  ActivityLevel,
+  BiologicalSexForCalcs,
+  DietaryPattern,
+  HealthFlag,
+  NutritionGateResult,
+  NutritionGateStatus,
+  NutritionGoal,
+  NutritionProfile,
+  NutritionSuggestedAction,
+} from './nutrition';
