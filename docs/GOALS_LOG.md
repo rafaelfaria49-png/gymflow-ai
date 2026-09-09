@@ -4,6 +4,41 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-045 — Correção de Reabertura por Colisão e Semântica de Duração no Feed (2026-09-09)
+
+Correção dos achados P1 (HISTORY_DUPLICATE_ACTIVE_REOPEN) e P3 (LONG_SESSION_FEED_DURATION_SEMANTICS) da revisão independente do PR #35.
+
+**Antes:**
+- Se o storage carregasse um `activeWorkout` com mesmo id de uma sessão já finalizada no histórico, a sessão podia ser reaberta indevidamente como ativa.
+- Postagens no feed da comunidade exibiam durações longas de forma pouco amigável (ex.: "em 1080 minutos").
+
+**Depois:**
+- `normalizeSessionState` reconcilia explicitamente colisão de `sessionId`: se `activeWorkout` possuir sessão correspondente já finalizada no histórico (`status !== 'active'` ou `endedAt != null`), o histórico é autoritativo e `activeWorkout` / `activeWorkoutStartedAt` são definidos como `null` (`HISTORY_DUPLICATE_ACTIVE_REOPEN = PASS`, `FINALIZED_HISTORY_AUTHORITATIVE = YES`, `GENUINE_ACTIVE_SESSION_PRESERVED = YES`, `NORMALIZATION_IDEMPOTENT = PASS`).
+- `completionPostContent` utiliza `formatCompletionDuration` para formatar a duração decorrida em linguagem humana (ex.: `45 minutos`, `1h 15min`, `18h`, `18h 5min`), sem alterar o cálculo calórico, métricas persistidas ou semântica de tempo decorrido (`LONG_SESSION_FEED_DURATION_SEMANTICS = PASS`).
+
+**Arquivos alterados:**
+- `src/lib/workout-session-migration.ts`
+- `src/lib/workout-session-migration.test.ts`
+- `src/lib/storage-completion-receipt.ts`
+- `src/lib/storage-completion-receipt.test.ts`
+- `src/lib/workout-session-runtime.test.ts`
+- `docs/DECISOES.md`
+- `docs/GOALS_LOG.md`
+
+**Validações:**
+- Migração de sessão (`workout-session-migration.test.ts`): 25/25 aprovados
+- Runtime de sessão (`workout-session-runtime.test.ts`): 15/15 aprovados
+- Recibos e posts (`storage-completion-receipt.test.ts`): 38/38 aprovados
+- Storage híbrido (`storage-hybrid.test.ts`): 49/49 aprovados
+- Contexto e storage (`GymFlowContext.storage.test.tsx`): 23/23 aprovados
+- Suíte completa de testes (`npm test`): 120 arquivos, 2858 testes aprovados
+- `npx tsc --noEmit`: 0 erros
+- `npm run build`: sucesso
+- `npm run build:mobile`: sucesso
+- `git diff --check`: 0 avisos / 0 erros
+
+---
+
 ## GOAL-043 — Integridade e Honestidade do Runtime de Sessão de Treino (2026-09-09)
 
 Auditoria e correção da integridade operacional e honestidade semântica da sessão de treino.

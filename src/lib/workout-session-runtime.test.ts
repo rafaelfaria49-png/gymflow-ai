@@ -433,9 +433,23 @@ describe('GOAL-043: Integridade e Honestidade Operacional do Runtime de Sessão'
     expect(normalizedEnded.activeWorkoutStartedAt).toBeNull();
   });
 
-  // 11. Mensagens coerentes com status
+  it('10b. activeWorkout com id colidente com sessão já finalizada no histórico não reabre (histórico autoritativo)', () => {
+    for (const finalStatus of ['completed', 'partial', 'abandoned'] as const) {
+      const state = {
+        activeWorkout: makeSession([], { id: 'session_colliding', status: 'active', endedAt: undefined }),
+        activeWorkoutStartedAt: 12345,
+        workoutHistory: [makeSession([], { id: 'session_colliding', status: finalStatus, endedAt: 20000 })],
+      };
+      const normalized = normalizeSessionState(state);
+      expect(normalized.activeWorkout).toBeNull();
+      expect(normalized.activeWorkoutStartedAt).toBeNull();
+      expect(normalized.workoutHistory[0].status).toBe(finalStatus);
+    }
+  });
+
+  // 11. Mensagens coerentes com status e formatação honesta de duração
   it('11. textos de postagem e preview são honestos e não dizem que já salvou antes de registrar', () => {
-    // completed
+    // completed 45 min
     const completedPost = completionPostContent({
       sessionName: 'Treino Completo',
       minutes: 45,
@@ -445,7 +459,28 @@ describe('GOAL-043: Integridade e Honestidade Operacional do Runtime de Sessão'
     });
     expect(completedPost).toContain('Treino finalizado! Concluí "Treino Completo" em 45 minutos.');
 
-    // partial
+    // completed 75 min (1h 15min)
+    const completedPost75 = completionPostContent({
+      sessionName: 'Treino 75',
+      minutes: 75,
+      totalVolume: 5000,
+      prsDetected: [],
+      status: 'completed',
+    });
+    expect(completedPost75).toContain('Treino finalizado! Concluí "Treino 75" em 1h 15min.');
+
+    // completed 1080 min (18h)
+    const completedPostLong = completionPostContent({
+      sessionName: 'Treino Longo',
+      minutes: 1080,
+      totalVolume: 6000,
+      prsDetected: [],
+      status: 'completed',
+    });
+    expect(completedPostLong).toContain('Treino finalizado! Concluí "Treino Longo" em 18h.');
+    expect(completedPostLong).not.toContain('1080 minutos');
+
+    // partial 20 min
     const partialPost = completionPostContent({
       sessionName: 'Treino Parcial',
       minutes: 20,
@@ -455,6 +490,18 @@ describe('GOAL-043: Integridade e Honestidade Operacional do Runtime de Sessão'
     });
     expect(partialPost).toContain('Treino parcial registrado! Realizei "Treino Parcial" em 20 minutos.');
     expect(partialPost).not.toContain('Concluí');
+
+    // partial 1080 min (18h)
+    const partialPostLong = completionPostContent({
+      sessionName: 'Treino Parcial Longo',
+      minutes: 1080,
+      totalVolume: 2000,
+      prsDetected: [],
+      status: 'partial',
+    });
+    expect(partialPostLong).toContain('Treino parcial registrado! Realizei "Treino Parcial Longo" em 18h.');
+    expect(partialPostLong).not.toContain('1080 minutos');
+    expect(partialPostLong).not.toContain('Concluí');
   });
 
   // 12. Contagens do resumo coerentes

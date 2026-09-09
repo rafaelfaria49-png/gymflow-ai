@@ -2,6 +2,11 @@
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 
+## GOAL-045 — Integridade Corretiva de Sessão e Semântica de Duração Longa (2026-09-09)
+
+- **Histórico autoritativo em colisão de sessionId:** se `activeWorkout` possuir o mesmo id de uma sessão já finalizada no histórico (`status !== 'active'` ou `endedAt != null`), `normalizeSessionState` descarta `activeWorkout` e `activeWorkoutStartedAt` sem exigir nova finalização nem conceder efeitos adicionais.
+- **Formatação humana de duração longa no feed:** `completionPostContent` utiliza `formatCompletionDuration` para apresentar durações de forma legível (ex.: 45 minutos, 1h 15min, 18h, 18h 5min), preservando a semântica de tempo decorrido sem inflacionar nem renomear o tempo ativo e sem alterar o storage ou timer.
+
 ## GOAL-043 — Integridade e Honestidade do Runtime de Sessão de Treino (2026-09-09)
 
 - **Semântica do timer wall-clock e proteção:** o cronômetro mede tempo decorrido de parede (`Date.now() - startedAt`), preservando sessões retomadas mesmo no dia seguinte sem zerar arbitrariamente (sessões longas não são tratadas como bug), com clamp defensivo `Math.max(0, ...)` contra valores negativos ou NaN.

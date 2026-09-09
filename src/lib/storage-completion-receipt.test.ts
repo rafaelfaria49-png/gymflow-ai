@@ -12,6 +12,7 @@ import {
   COMPLETION_POST_TIME_LABEL,
   type WorkoutCompletionInput,
   completionPostContent,
+  formatCompletionDuration,
   createWorkoutCompletionReceipt,
   deriveWorkoutCompletion,
   isWorkoutCompletionReceipt,
@@ -542,5 +543,97 @@ describe('receipt durável da conclusão', () => {
       ...operationReceipt,
       status: 'pending',
     })).toBe(false);
+  });
+});
+
+describe('GOAL-045: formatação honesta de duração longa no feed', () => {
+  describe('formatCompletionDuration', () => {
+    it('formata 45 min como 45 minutos', () => {
+      expect(formatCompletionDuration(45)).toBe('45 minutos');
+    });
+
+    it('formata 75 min como 1h 15min', () => {
+      expect(formatCompletionDuration(75)).toBe('1h 15min');
+    });
+
+    it('formata 1080 min como 18h', () => {
+      expect(formatCompletionDuration(1080)).toBe('18h');
+    });
+
+    it('formata 1085 min como 18h 5min', () => {
+      expect(formatCompletionDuration(1085)).toBe('18h 5min');
+    });
+
+    it('formata 60 min como 1h exata', () => {
+      expect(formatCompletionDuration(60)).toBe('1h');
+    });
+
+    it('formata 1 min no singular', () => {
+      expect(formatCompletionDuration(1)).toBe('1 minuto');
+    });
+
+    it('formata 0 min defensivamente', () => {
+      expect(formatCompletionDuration(0)).toBe('0 minutos');
+    });
+  });
+
+  describe('completionPostContent', () => {
+    it('gera texto com 45 min para completed', () => {
+      const post = completionPostContent({
+        sessionName: 'Treino A',
+        minutes: 45,
+        totalVolume: 4000,
+        prsDetected: [],
+        status: 'completed',
+      });
+      expect(post).toBe('Treino finalizado! Concluí "Treino A" em 45 minutos. Volume total: 4000kg.  🔥 #GymFlow #Fitness');
+    });
+
+    it('gera texto com 75 min para completed', () => {
+      const post = completionPostContent({
+        sessionName: 'Treino Longo',
+        minutes: 75,
+        totalVolume: 5000,
+        prsDetected: [],
+        status: 'completed',
+      });
+      expect(post).toBe('Treino finalizado! Concluí "Treino Longo" em 1h 15min. Volume total: 5000kg.  🔥 #GymFlow #Fitness');
+    });
+
+    it('gera texto completed longa para 1080 min', () => {
+      const post = completionPostContent({
+        sessionName: 'Treino Épico',
+        minutes: 1080,
+        totalVolume: 6000,
+        prsDetected: [],
+        status: 'completed',
+      });
+      expect(post).toBe('Treino finalizado! Concluí "Treino Épico" em 18h. Volume total: 6000kg.  🔥 #GymFlow #Fitness');
+      expect(post).not.toContain('1080 minutos');
+    });
+
+    it('gera texto partial longa para 1080 min', () => {
+      const post = completionPostContent({
+        sessionName: 'Treino Interrompido',
+        minutes: 1080,
+        totalVolume: 2000,
+        prsDetected: [],
+        status: 'partial',
+      });
+      expect(post).toBe('Treino parcial registrado! Realizei "Treino Interrompido" em 18h. Volume total: 2000kg.  🔥 #GymFlow #Fitness');
+      expect(post).not.toContain('1080 minutos');
+      expect(post).not.toContain('Concluí');
+    });
+
+    it('gera texto partial para 75 min', () => {
+      const post = completionPostContent({
+        sessionName: 'Treino Parcial 75',
+        minutes: 75,
+        totalVolume: 1500,
+        prsDetected: [],
+        status: 'partial',
+      });
+      expect(post).toBe('Treino parcial registrado! Realizei "Treino Parcial 75" em 1h 15min. Volume total: 1500kg.  🔥 #GymFlow #Fitness');
+    });
   });
 });

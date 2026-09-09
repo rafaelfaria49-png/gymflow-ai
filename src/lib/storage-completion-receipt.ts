@@ -67,6 +67,16 @@ export interface WorkoutCompletionOutcome {
   effects: WorkoutCompletionEffects;
 }
 
+export function formatCompletionDuration(minutes: number): string {
+  const safeMinutes = Math.max(0, Math.round(Number.isFinite(minutes) ? minutes : 0));
+  if (safeMinutes < 60) {
+    return `${safeMinutes} ${safeMinutes === 1 ? 'minuto' : 'minutos'}`;
+  }
+  const hours = Math.floor(safeMinutes / 60);
+  const remainingMinutes = safeMinutes % 60;
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}min` : `${hours}h`;
+}
+
 export function completionPostContent(input: {
   sessionName: string;
   minutes: number;
@@ -74,10 +84,11 @@ export function completionPostContent(input: {
   prsDetected: readonly string[];
   status?: string;
 }): string {
+  const durationText = formatCompletionDuration(input.minutes);
   if (input.status === 'partial') {
-    return `Treino parcial registrado! Realizei "${input.sessionName}" em ${input.minutes} minutos. Volume total: ${input.totalVolume}kg. ${input.prsDetected.length > 0 ? `🚀 PRs Batidos: ${input.prsDetected.join(', ')}!` : ''} 🔥 #GymFlow #Fitness`;
+    return `Treino parcial registrado! Realizei "${input.sessionName}" em ${durationText}. Volume total: ${input.totalVolume}kg. ${input.prsDetected.length > 0 ? `🚀 PRs Batidos: ${input.prsDetected.join(', ')}!` : ''} 🔥 #GymFlow #Fitness`;
   }
-  return `Treino finalizado! Concluí "${input.sessionName}" em ${input.minutes} minutos. Volume total: ${input.totalVolume}kg. ${input.prsDetected.length > 0 ? `🚀 PRs Batidos: ${input.prsDetected.join(', ')}!` : ''} 🔥 #GymFlow #Fitness`;
+  return `Treino finalizado! Concluí "${input.sessionName}" em ${durationText}. Volume total: ${input.totalVolume}kg. ${input.prsDetected.length > 0 ? `🚀 PRs Batidos: ${input.prsDetected.join(', ')}!` : ''} 🔥 #GymFlow #Fitness`;
 }
 
 // Helper puro: deriva o resultado completo da conclusão a partir do estado atual

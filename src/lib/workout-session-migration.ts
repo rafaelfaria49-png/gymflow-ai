@@ -98,10 +98,21 @@ export function normalizeSessionState(
   state: NormalizableSessionState,
 ): NormalizableSessionState {
   const workoutHistory = normalizeHistory(state.workoutHistory);
-  const activeWorkout = normalizeActiveWorkout(
+  let activeWorkout = normalizeActiveWorkout(
     state.activeWorkout,
     state.activeWorkoutStartedAt,
   );
+
+  // GOAL-045: se activeWorkout existir e workoutHistory contiver uma sessão com o
+  // mesmo id já finalizada (status !== 'active' ou endedAt != null), o histórico é
+  // autoritativo: descarta activeWorkout e activeWorkoutStartedAt.
+  if (activeWorkout) {
+    const historicalMatch = workoutHistory.find((s) => s.id === activeWorkout!.id);
+    if (historicalMatch && (historicalMatch.status !== 'active' || historicalMatch.endedAt != null)) {
+      activeWorkout = null;
+    }
+  }
+
   const activeWorkoutStartedAt = activeWorkout ? state.activeWorkoutStartedAt : null;
   if (
     activeWorkout === state.activeWorkout
