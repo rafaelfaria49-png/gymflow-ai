@@ -13,17 +13,26 @@ describe('Manifest de Mídia (GOAL-34)', () => {
     resetToDefaultManifest();
   });
 
-  it('carrega o manifest baseline com version 1, assets indexados e status draft honesto', () => {
+  it('carrega o manifest baseline com version 2, cdn real (Vercel Blob) e 1 vídeo aprovado real', () => {
     const manifest = getActiveManifest();
-    expect(manifest.version).toBe(1);
+    expect(manifest.version).toBe(2);
     expect(manifest.schemaVersion).toBe('1.0.0');
-    expect(manifest.cdnBaseUrl).toBe('https://assets.gymflow.ai/media');
+    // GOAL-053: cdnBaseUrl passou a apontar para a origem REAL (Vercel Blob public storage)
+    expect(manifest.cdnBaseUrl).toBe('https://jmnpdtxahhb8xobk.public.blob.vercel-storage.com');
 
     const approvedVideos = Object.values(manifest.assets).filter(
       (a) => a.video && a.video.status === 'approved'
     );
-    // Honestidade de conteúdo: 0 approved até haver produção e aprovação humana
-    expect(approvedVideos.length).toBe(0);
+    // GOAL-053: exatamente 1 vídeo com aprovação humana comprovada (back_remada_baixa)
+    expect(approvedVideos.length).toBe(1);
+    expect(approvedVideos[0].exerciseId).toBe('back_remada_baixa');
+    expect(approvedVideos[0].video?.url).toBe(
+      'https://jmnpdtxahhb8xobk.public.blob.vercel-storage.com/back_remada_baixa_v1.mp4'
+    );
+    expect(approvedVideos[0].video?.checksum).toBe(
+      'sha256:93fc1fa4cb1a68f266c7d98e2b09229194e238ce91dd063ce239c41fdd161732'
+    );
+    expect(approvedVideos[0].video?.provenance?.approval?.approvedBy).toBeTruthy();
 
     const draftVideos = Object.values(manifest.assets).filter(
       (a) => a.video && a.video.status === 'draft'

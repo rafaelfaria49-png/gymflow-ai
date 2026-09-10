@@ -9,8 +9,8 @@ describe('Validador de Manifest de Mídia (GOAL-34 & Decisões D11–D14)', () =
 
     expect(report.errors).toEqual([]);
     expect(report.valid).toBe(true);
-    // Honestidade de conteúdo: zero vídeos MP4 aprovados atualmente no repo
-    expect(report.approvedVideosCount).toBe(0);
+    // GOAL-053: 1 vídeo aprovado real (back_remada_baixa) com aprovação humana comprovada
+    expect(report.approvedVideosCount).toBe(1);
     expect(report.draftVideosCount).toBeGreaterThanOrEqual(20);
     // Reporta explicitamente pendência de produção de conteúdo
     expect(report.contentAcceptance.fulfilled).toBe(false);

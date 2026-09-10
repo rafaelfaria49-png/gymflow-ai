@@ -1052,3 +1052,11 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
 - **Escopo permanece fechado.** Restore, rollback completo e reset continuam
   Classe C; nenhuma UI, executor, política de idade/quantidade, seleção,
   deleção, push, PR ou merge foi iniciada.
+
+- **MEDIA-053-001 — frame fantasma no manifest para `chest_supino_reto`.** *Aberto · P2.*
+  O `src/domain/media/manifest.json` referencia `/assets/exercises/chest_supino_reto/2.jpg`
+  (frame do GOAL-34), mas o binário não existe em `public/` (há apenas `0.jpg`, `1.jpg` e
+  `sequence/step-01..05.jpg` do lote GOAL-14). No `ExerciseMediaUnifiedPlayer` o frame 2 dá 404
+  e o modal termina com placeholder dentro do tier de frames. Detectado no smoke do GOAL-053;
+  fora do escopo deste GOAL (não altera itens não publicados). Correção sugerida: apontar os
+  frames do manifest para `sequence/step-01..05.jpg` em um GOAL próprio.

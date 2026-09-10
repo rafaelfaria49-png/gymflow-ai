@@ -4437,3 +4437,15 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
   - `git diff --check` sem erros de formatação.
   - Confirmação de zero mudança de comportamento e zero backend introduzido.
 
+
+## GOAL-53 — Ingestão de vídeo técnico aprovado em CDN real (2026-09-10)
+
+- **Contexto:** sucessor do GOAL-052 (parado em `CDN_BLOCKED`). Provisiona origem remota real e publica o primeiro vídeo com aprovação humana comprovada.
+- **Cloud:** Vercel Blob public store `gymflow-media` (`store_JMnPdTXAHHB8XOBk`, iad1), criada sem gate de cobrança e conectada ao projeto Vercel `gymflow`. `cdnBaseUrl` deixou de ser o stub `assets.gymflow.ai` (domínio inexistente) e passou a ser a base URL real da store.
+- **Antes:** 0 vídeos reais; 24 vídeos `draft` com URLs fictícias; nenhum binário publicado; player nunca entrava em Tier 1.
+- **Depois:** `back_remada_baixa` publicado como `approved` v1 em `https://jmnpdtxahhb8xobk.public.blob.vercel-storage.com/back_remada_baixa_v1.mp4` (1080×1920, h264/yuv420p, 24fps, 6s, sem áudio, 3.985.039 bytes, sha256 `93fc1fa4…61732`, `provenance.approval` real do operador). `Puxada alta aberta` permanece bloqueada (APPROVAL_NOT_PROVEN) e `Agachamento sumô na máquina` permanece BLOCKED_MAPPING (sem exerciseId canônico de máquina).
+- **Arquivos:** `src/domain/media/manifest.json` + `public/media-manifest.json` (version 2, sincronizados), `src/domain/media/manifest.test.ts` e `scripts/media/manifest-validator.test.ts` (baseline honesto: 1 aprovado), `docs/GYMFLOW_VIDEO_INGEST_053.md` (inventário), `docs/PENDENCIAS.md` (MEDIA-053-001: frame 2.jpg do supino com 404 pré-existente).
+- **D14 preservada:** zero binários de vídeo em `public/`/`src/` e nenhum MP4 no Git; normalização feita fora do repo (ffmpeg determinístico scale/crop, originais intactos em Downloads).
+- **Validação:** `media:validate` 5/5; suíte completa 2870/2870 (uma falha isolada de timeout em teste de storage, pré-existente sob carga, verde isolado e no rerun); `tsc --noEmit` 0 erros; `npm run build` e `build:mobile` OK; `git diff --check` OK.
+- **Smoke real (Chrome headless, viewport mobile 390×844):** 16/16 — Tier 1 toca da URL remota (1080×1920, currentTime avança, seek/Range ok), Cache Storage cors/put/match 200 com 3.985.039 bytes e replay offline via blob:, draft bloqueado cai para frames, falha de vídeo cai para thumbnail, placeholder honesto intacto, 10/10 steps sequence/ do lote GOAL-14 servidos.
+- **Como testar:** abrir a Biblioteca → buscar "Remada Sentada" → o modal exibe badge "Vídeo HD • Coach Kai" com o vídeo remoto em loop.
