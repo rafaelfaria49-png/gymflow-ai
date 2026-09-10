@@ -1985,3 +1985,9 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - **Roadmap da Fase 8 (SAAS §6):** Decomposição formal dos futuros GOAL-36 ao GOAL-43
   documentada em `docs/personal/FASE_8_ROADMAP_GOALS.md`.
 
+
+
+## GOAL-056 - proveniencia honesta sem timestamp falso (2026-09-10)
+
+- D56-001: `approvedAt` virou opcional + `approvedAtPrecision`/`approvalEvidenceRef` obrigatorios (schema 1.1.0, manifest v3); rejeicao de claim `commercial` restrita a videos `approved` para nao invalidar os drafts placeholder; `provider: grok` mantido como identificacao da ferramenta do pacote de producao, sem model/run inventado.
+

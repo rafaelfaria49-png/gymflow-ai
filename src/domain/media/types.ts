@@ -5,11 +5,33 @@
 
 export type MediaAssetStatus = 'draft' | 'approved' | 'retired';
 
+/**
+ * Precisão declarada do timestamp de aprovação (GOAL-056):
+ * - 'exact': `approvedAt` contém o timestamp comprovado do evento de aprovação;
+ * - 'unknown': o timestamp exato do evento é desconhecido; `approvedAt` deve
+ *   estar ausente e `approvalEvidenceRef` deve rastrear a evidência do evento.
+ */
+export type MediaApprovalTimestampPrecision = 'exact' | 'unknown';
+
 export interface MediaAssetApproval {
   /** Identificador do revisor humano do GymFlow */
   approvedBy: string;
-  /** Timestamp ISO 8601 da aprovação */
-  approvedAt: string;
+  /**
+   * Timestamp ISO 8601 do evento de aprovação — presente SOMENTE quando o
+   * timestamp real do evento for comprovado. Nunca usar mtime de arquivo ou
+   * data de documento como se fosse o timestamp do evento (GOAL-056).
+   */
+  approvedAt?: string;
+  /**
+   * Precisão declarada do timestamp de aprovação. Aprovações com timestamp
+   * exato desconhecido devem declarar 'unknown' e omitir `approvedAt`.
+   */
+  approvedAtPrecision: MediaApprovalTimestampPrecision;
+  /**
+   * Referência objetiva e rastreável à evidência documental da aprovação
+   * (ex.: documento + seção que declara o vídeo aprovado).
+   */
+  approvalEvidenceRef: string;
   /** Notas da revisão técnica/biomecânica */
   notes?: string;
 }
@@ -21,7 +43,11 @@ export interface MediaAssetProvenance {
   modelOrWorkflow?: string;
   /** Timestamp ISO 8601 da geração ou captura */
   generatedAt?: string;
-  /** Referência aplicável de termos de serviço, licença da plataforma ou contrato */
+  /**
+   * Referência aplicável de termos de serviço, licença da plataforma ou contrato.
+   * NÃO usar para atestar direitos comerciais sem evidência (GOAL-056:
+   * direitos/licença comercial não são atestados pelo manifest).
+   */
   termsOrLicenseRef?: string;
   /** Notas de proveniência ou identificador de lote */
   provenanceNotes?: string;

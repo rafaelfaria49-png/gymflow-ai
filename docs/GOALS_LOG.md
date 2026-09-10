@@ -4449,3 +4449,13 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
 - **Validação:** `media:validate` 5/5; suíte completa 2870/2870 (uma falha isolada de timeout em teste de storage, pré-existente sob carga, verde isolado e no rerun); `tsc --noEmit` 0 erros; `npm run build` e `build:mobile` OK; `git diff --check` OK.
 - **Smoke real (Chrome headless, viewport mobile 390×844):** 16/16 — Tier 1 toca da URL remota (1080×1920, currentTime avança, seek/Range ok), Cache Storage cors/put/match 200 com 3.985.039 bytes e replay offline via blob:, draft bloqueado cai para frames, falha de vídeo cai para thumbnail, placeholder honesto intacto, 10/10 steps sequence/ do lote GOAL-14 servidos.
 - **Como testar:** abrir a Biblioteca → buscar "Remada Sentada" → o modal exibe badge "Vídeo HD • Coach Kai" com o vídeo remoto em loop.
+
+
+## GOAL-056 - Hardening de proveniencia de midia (2026-09-10)
+
+- **Contexto:** corrige exclusivamente os dois P2 da revisao independente do GOAL-053, sem alterar video, Blob, URL, checksum, player ou catalogo.
+- **Antes:** `provenance.approval.approvedAt` de `back_remada_baixa` reaproveitava o mtime do documento de evidencia como se fosse o timestamp do evento; `termsOrLicenseRef` afirmava `(commercial generation)` sem evidencia.
+- **Depois:** contrato `MediaAssetApproval` evoluido (`approvedAt` opcional somente com timestamp comprovado; `approvedAtPrecision: exact|unknown` e `approvalEvidenceRef` obrigatorios); `back_remada_baixa` declara precisao `unknown`, omite `approvedAt`, cita `GYMFLOW_VIDEO_SKILL (1).md, secao 8` e mantem `status: approved` (evento comprovado); claim comercial removido e validadores rejeitam `commercial` em video `approved`, com nota de que direitos/licenca comercial nao sao atestados; `provider: grok` preservado sem model/run inventado.
+- **Arquivos:** `src/domain/media/types.ts`, `src/domain/media/manifest.ts`, `src/domain/media/manifest.json` + `public/media-manifest.json` (version 3, schema 1.1.0, sincronizados), `src/domain/media/manifest.test.ts`, `scripts/media/manifest-validator.ts`, `scripts/media/manifest-validator.test.ts`, fixtures de conformidade (`fallbackChain`, `mediaCache`, `preload`), `docs/GYMFLOW_VIDEO_INGEST_053.md`, `docs/GOALS_LOG.md`.
+- **Preservado:** URL/blob/bytes/checksum/specs do video, `back_puxada_pulley` ainda `draft`, sem exerciseId novo, sem upload novo, sem mudanca em Nutrition ou session runtime; `cdnBaseUrl` inalterado.
+- **Validacao:** `npm run media:validate`, `npm test`, `npx tsc --noEmit`, `npm run build`, `npm run build:mobile` e `git diff --check` (resultados abaixo).

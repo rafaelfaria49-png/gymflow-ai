@@ -20,8 +20,8 @@ Data: 2026-09-10 · Base: `dcd1e38` · Sucessor do GOAL-052 (parado em `CDN_BLOC
 
 ## Evidência de aprovação (`back_remada_baixa`)
 
-- `GYMFLOW_VIDEO_SKILL (1).md` (pacote de produção do operador, mtime **2026-08-14T18:26:08.526Z** = 15:26:08-03:00), seção 8, declara textualmente: **"O vídeo aprovado conseguiu duas repetições completas em 6 segundos"** para a Remada Sentada com Triângulo na Polia Baixa.
-- `approvedAt` no manifest = o timestamp de modificação do próprio documento de evidência; **nenhuma data histórica inventada**.
+- `GYMFLOW_VIDEO_SKILL (1).md` (pacote de produção do operador), seção 8, declara textualmente: **"O vídeo aprovado conseguiu duas repetições completas em 6 segundos"** para a Remada Sentada com Triângulo na Polia Baixa.
+- GOAL-056: o timestamp exato do evento de aprovação é **desconhecido** — o manifest declara `approvedAtPrecision: 'unknown'`, omite `approvedAt` e cita a evidência em `approvalEvidenceRef`. O mtime do documento de evidência (2026-08-14T18:26:08.526Z = 15:26:08-03:00) **não** é usado como timestamp do evento; **nenhuma data inventada**.
 - Mapeamento canônico confirmado: catálogo (`src/mock/exercises.ts`) — "Remada Sentada com Triângulo", equipamento "Polia Baixa e Triângulo".
 
 ## Normalização (determinística, sem IA)
@@ -44,3 +44,10 @@ Data: 2026-09-10 · Base: `dcd1e38` · Sucessor do GOAL-052 (parado em `CDN_BLOC
 - `version` 1 → 2; `cdnBaseUrl` → base URL real da store Vercel Blob.
 - Somente `back_remada_baixa` foi publicado (status `approved` com `provenance.approval` real); os demais itens permanecem `draft`/`retired` intocados.
 - Testes que fixavam o baseline antigo (`manifest.test.ts`, `scripts/media/manifest-validator.test.ts`) atualizados para o novo baseline honesto: 1 vídeo aprovado real.
+
+## GOAL-056 — Hardening de proveniência (correção dos 2 P2 da revisão do GOAL-053)
+
+- **P2-1 (falsa precisão de timestamp):** removido o `approvedAt` que reaproveitava o mtime do documento de evidência. Contrato evoluído de forma mínima (`src/domain/media/types.ts`): `approvedAt` passa a opcional (somente com timestamp comprovado), `approvedAtPrecision: 'exact' | 'unknown'` e `approvalEvidenceRef` passam a obrigatórios. `back_remada_baixa` declara `'unknown'`, omite `approvedAt` e cita `GYMFLOW_VIDEO_SKILL (1).md, secao 8` como evidência — mantendo `status: approved`, pois o evento de aprovação já foi comprovado.
+- **P2-2 (claim comercial não comprovado):** removido `termsOrLicenseRef` com "(commercial generation)" do vídeo aprovado. Ambos os validadores (`src/domain/media/manifest.ts`, `scripts/media/manifest-validator.ts`) passam a rejeitar qualquer afirmação `commercial` em vídeo `approved`. `provenanceNotes` registra que **direitos/licença comercial não são atestados pelo manifest**.
+- `provider: grok` preservado como identificação da ferramenta no pacote de produção; nenhum `modelOrWorkflow`/run inventado.
+- `version` 2 → 3; `schemaVersion` 1.0.0 → 1.1.0 (`MediaAssetApproval` evoluiu); `cdnBaseUrl`, URL remota, bytes (3985039), checksum, specs (1080×1920, 24fps, h264, sem áudio) e demais vídeos intocados (`back_puxada_pulley` segue `draft`; sem exerciseId novo; sem upload novo).

@@ -220,10 +220,48 @@ function validateAsset(asset: MediaAsset, path: string, errors: string[]): void 
 
   // D13 & QA Gate: status 'approved' em vídeo só é autorizado com evidência humana formal de aprovação
   if (asset.status === 'approved' && path.endsWith('.video')) {
-    const approval = asset.provenance?.approval;
-    if (!approval?.approvedBy || !approval?.approvedAt) {
-      errors.push(`${path}: D13/QA Gate violado: vídeo com status 'approved' requer metadados de aprovação humana formal (approvedBy e approvedAt)`);
+    validateVideoApproval(asset.provenance?.approval, path, errors);
+    // GOAL-056 P2: nenhum vídeo approved pode atestar direitos comerciais sem evidência
+    const termsRef = asset.provenance?.termsOrLicenseRef;
+    const legacyLicense = asset.license;
+    if ((typeof termsRef === 'string' && /commercial/i.test(termsRef)) ||
+        (typeof legacyLicense === 'string' && /commercial/i.test(legacyLicense))) {
+      errors.push(`${path}: D13/QA Gate violado: afirmação comercial não comprovada em termsOrLicenseRef/licença (direitos/licença comercial não são atestados pelo manifest)`);
     }
+  }
+}
+
+/**
+ * GOAL-056 — Validação honesta da aprovação de vídeo:
+ * exige aprovador real + evidência rastreável, sem timestamp falso.
+ * `approvedAt` só é aceito com precisão 'exact' e formato ISO 8601 válido;
+ * precisão 'unknown' proíbe `approvedAt` (mtime de arquivo não é timestamp do evento).
+ */
+function validateVideoApproval(approval: unknown, path: string, errors: string[]): void {
+  const a = approval as Partial<import('./types').MediaAssetApproval> | undefined;
+  if (!a || typeof a !== 'object') {
+    errors.push(`${path}: D13/QA Gate violado: vídeo com status 'approved' requer metadados de aprovação humana formal (approval)`);
+    return;
+  }
+  if (typeof a.approvedBy !== 'string' || !a.approvedBy.trim()) {
+    errors.push(`${path}: D13/QA Gate violado: vídeo com status 'approved' requer aprovador humano real (approvedBy)`);
+  }
+  if (typeof a.approvalEvidenceRef !== 'string' || !a.approvalEvidenceRef.trim()) {
+    errors.push(`${path}: D13/QA Gate violado: vídeo com status 'approved' requer evidência de aprovação rastreável (approvalEvidenceRef)`);
+  }
+  const precision = (a as { approvedAtPrecision?: unknown }).approvedAtPrecision;
+  if (precision !== 'exact' && precision !== 'unknown') {
+    errors.push(`${path}: D13/QA Gate violado: vídeo com status 'approved' requer declaração honesta de precisão do timestamp (approvedAtPrecision: 'exact' | 'unknown')`);
+    return;
+  }
+  if (precision === 'exact') {
+    if (typeof a.approvedAt !== 'string' || !a.approvedAt.trim()) {
+      errors.push(`${path}: D13/QA Gate violado: metadado contraditório — approvedAtPrecision 'exact' exige approvedAt com o timestamp comprovado do evento`);
+    } else if (Number.isNaN(Date.parse(a.approvedAt))) {
+      errors.push(`${path}: D13/QA Gate violado: approvedAt em formato inválido (ISO 8601 esperado): '${a.approvedAt}'`);
+    }
+  } else if (a.approvedAt !== undefined) {
+    errors.push(`${path}: D13/QA Gate violado: metadado contraditório — approvedAtPrecision 'unknown' proíbe approvedAt (timestamp do evento desconhecido; mtime de arquivo não é timestamp do evento)`);
   }
 }
 

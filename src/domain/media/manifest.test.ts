@@ -13,10 +13,10 @@ describe('Manifest de Mídia (GOAL-34)', () => {
     resetToDefaultManifest();
   });
 
-  it('carrega o manifest baseline com version 2, cdn real (Vercel Blob) e 1 vídeo aprovado real', () => {
+  it('carrega o manifest baseline com version 3, schema 1.1.0, cdn real (Vercel Blob) e 1 vídeo aprovado real', () => {
     const manifest = getActiveManifest();
-    expect(manifest.version).toBe(2);
-    expect(manifest.schemaVersion).toBe('1.0.0');
+    expect(manifest.version).toBe(3);
+    expect(manifest.schemaVersion).toBe('1.1.0');
     // GOAL-053: cdnBaseUrl passou a apontar para a origem REAL (Vercel Blob public storage)
     expect(manifest.cdnBaseUrl).toBe('https://jmnpdtxahhb8xobk.public.blob.vercel-storage.com');
 
@@ -32,7 +32,18 @@ describe('Manifest de Mídia (GOAL-34)', () => {
     expect(approvedVideos[0].video?.checksum).toBe(
       'sha256:93fc1fa4cb1a68f266c7d98e2b09229194e238ce91dd063ce239c41fdd161732'
     );
-    expect(approvedVideos[0].video?.provenance?.approval?.approvedBy).toBeTruthy();
+    expect(approvedVideos[0].video?.provenance?.approval?.approvedBy).toBe('rafaelfaria49-png');
+    // GOAL-056: aprovação comprovada sem timestamp falso — precisão 'unknown',
+    // sem approvedAt (mtime não é timestamp do evento), evidência rastreável
+    expect(approvedVideos[0].video?.provenance?.approval?.approvedAt).toBeUndefined();
+    expect(approvedVideos[0].video?.provenance?.approval?.approvedAtPrecision).toBe('unknown');
+    expect(approvedVideos[0].video?.provenance?.approval?.approvalEvidenceRef).toContain('GYMFLOW_VIDEO_SKILL');
+    // GOAL-056: provider preservado sem model/run inventado; nenhum claim comercial
+    expect(approvedVideos[0].video?.provenance?.provider).toBe('grok');
+    expect(approvedVideos[0].video?.provenance?.modelOrWorkflow).toBeUndefined();
+    expect(approvedVideos[0].video?.provenance?.termsOrLicenseRef).toBeUndefined();
+    // GOAL-056: Puxada Alta permanece draft, sem publicação nova
+    expect(getExerciseMedia('back_puxada_pulley')?.video?.status).toBe('draft');
 
     const draftVideos = Object.values(manifest.assets).filter(
       (a) => a.video && a.video.status === 'draft'
@@ -58,7 +69,7 @@ describe('Manifest de Mídia (GOAL-34)', () => {
   it('manifest bump: troca URL e versão do vídeo dinamicamente sem release do app', () => {
     const current = getActiveManifest();
     const upgraded: MediaManifest = JSON.parse(JSON.stringify(current));
-    upgraded.version = 2;
+    upgraded.version = 3;
     upgraded.assets['chest_supino_reto'].video = {
       id: 'vid_chest_supino_reto_v2',
       url: 'https://assets.gymflow.ai/media/videos/chest_supino_reto_v2.mp4',
@@ -75,10 +86,11 @@ describe('Manifest de Mídia (GOAL-34)', () => {
         provider: 'higgsfield',
         modelOrWorkflow: 'character_soul_kai_v2',
         generatedAt: '2026-09-02T19:00:00.000Z',
-        termsOrLicenseRef: 'Higgsfield Commercial Terms',
         approval: {
           approvedBy: 'coach_lead_human_gymflow',
           approvedAt: '2026-09-02T19:30:00.000Z',
+          approvedAtPrecision: 'exact',
+          approvalEvidenceRef: 'human-review-log 2026-09-02 (biomechanical review, 2 reps @24fps)',
           notes: 'Aprovado após revisão biomecânica humana.',
         },
       },
@@ -88,7 +100,7 @@ describe('Manifest de Mídia (GOAL-34)', () => {
     setActiveManifest(upgraded);
 
     const active = getActiveManifest();
-    expect(active.version).toBe(2);
+    expect(active.version).toBe(3);
     const updatedMedia = getExerciseMedia('chest_supino_reto');
     expect(updatedMedia?.video?.version).toBe(2);
     expect(updatedMedia?.video?.url).toBe('https://assets.gymflow.ai/media/videos/chest_supino_reto_v2.mp4');
@@ -115,5 +127,144 @@ describe('Manifest de Mídia (GOAL-34)', () => {
     expect(res.valid).toBe(false);
     expect(res.errors.some((e) => e.includes('LIBRARY §5 violado'))).toBe(true);
     expect(res.contentAcceptance.status).toBe('pending_human_production');
+  });
+
+  describe('Proveniência de aprovação honesta (GOAL-056)', () => {
+    function manifestWithRemadaProvenance(overrides: Record<string, unknown> = {}) {
+      const current = getActiveManifest();
+      const clone: MediaManifest = JSON.parse(JSON.stringify(current));
+      const video = clone.assets['back_remada_baixa'].video!;
+      // Base honesta: aprovação comprovada sem timestamp exato
+      video.provenance = {
+        provider: 'grok',
+        provenanceNotes: 'Direitos/licenca comercial nao atestados por este manifest.',
+        approval: {
+          approvedBy: 'rafaelfaria49-png',
+          approvedAtPrecision: 'unknown',
+          approvalEvidenceRef: 'GYMFLOW_VIDEO_SKILL (1).md, secao 8',
+        },
+      };
+      Object.assign(video, overrides);
+      return clone;
+    }
+
+    it('aceita aprovação com timestamp exato comprovado', () => {
+      const manifest = manifestWithRemadaProvenance({
+        provenance: {
+          provider: 'grok',
+          approval: {
+            approvedBy: 'rafaelfaria49-png',
+            approvedAt: '2026-09-10T12:00:00.000Z',
+            approvedAtPrecision: 'exact',
+            approvalEvidenceRef: 'human-review-log 2026-09-10 (aprovacao registrada com horario)',
+          },
+        },
+      });
+      const res = validateMediaManifest(manifest);
+      expect(res.valid).toBe(true);
+    });
+
+    it('aceita aprovação comprovada sem timestamp exato (precisão unknown, sem approvedAt)', () => {
+      const manifest = manifestWithRemadaProvenance();
+      const res = validateMediaManifest(manifest);
+      expect(res.valid).toBe(true);
+      expect(res.approvedVideoCount).toBe(1);
+    });
+
+    it('rejeita approved sem evidência rastreável', () => {
+      const noEvidence = manifestWithRemadaProvenance({
+        provenance: {
+          provider: 'grok',
+          approval: {
+            approvedBy: 'rafaelfaria49-png',
+            approvedAtPrecision: 'unknown',
+          },
+        },
+      });
+      expect(validateMediaManifest(noEvidence).valid).toBe(false);
+      expect(validateMediaManifest(noEvidence).errors.some((e) => e.includes('approvalEvidenceRef'))).toBe(true);
+
+      const noApprover = manifestWithRemadaProvenance({
+        provenance: {
+          provider: 'grok',
+          approval: {
+            approvedBy: '  ',
+            approvedAtPrecision: 'unknown',
+            approvalEvidenceRef: 'GYMFLOW_VIDEO_SKILL (1).md, secao 8',
+          },
+        },
+      });
+      expect(validateMediaManifest(noApprover).valid).toBe(false);
+      expect(validateMediaManifest(noApprover).errors.some((e) => e.includes('approvedBy'))).toBe(true);
+
+      const noApproval = manifestWithRemadaProvenance({
+        provenance: { provider: 'grok' },
+      });
+      expect(validateMediaManifest(noApproval).valid).toBe(false);
+    });
+
+    it('rejeita approved com metadado contraditório', () => {
+      // unknown + approvedAt presente (ex.: mtime reaproveitado) = contradição
+      const mtimeReuse = manifestWithRemadaProvenance({
+        provenance: {
+          provider: 'grok',
+          approval: {
+            approvedBy: 'rafaelfaria49-png',
+            approvedAt: '2026-08-14T18:26:08.526Z',
+            approvedAtPrecision: 'unknown',
+            approvalEvidenceRef: 'GYMFLOW_VIDEO_SKILL (1).md, secao 8',
+          },
+        },
+      });
+      const resMtime = validateMediaManifest(mtimeReuse);
+      expect(resMtime.valid).toBe(false);
+      expect(resMtime.errors.some((e) => e.includes('contraditório'))).toBe(true);
+
+      // exact sem approvedAt = contradição
+      const exactWithoutAt = manifestWithRemadaProvenance({
+        provenance: {
+          provider: 'grok',
+          approval: {
+            approvedBy: 'rafaelfaria49-png',
+            approvedAtPrecision: 'exact',
+            approvalEvidenceRef: 'human-review-log 2026-09-10',
+          },
+        },
+      });
+      expect(validateMediaManifest(exactWithoutAt).valid).toBe(false);
+
+      // approvedAt malformado = inválido
+      const malformed = manifestWithRemadaProvenance({
+        provenance: {
+          provider: 'grok',
+          approval: {
+            approvedBy: 'rafaelfaria49-png',
+            approvedAt: 'ontem à tarde',
+            approvedAtPrecision: 'exact',
+            approvalEvidenceRef: 'human-review-log 2026-09-10',
+          },
+        },
+      });
+      const resMalformed = validateMediaManifest(malformed);
+      expect(resMalformed.valid).toBe(false);
+      expect(resMalformed.errors.some((e) => e.includes('formato inválido'))).toBe(true);
+    });
+
+    it('rejeita afirmação comercial não comprovada em vídeo approved', () => {
+      const commercial = manifestWithRemadaProvenance({
+        provenance: {
+          provider: 'grok',
+          termsOrLicenseRef: 'X.AI Grok Terms of Service (commercial generation)',
+          approval: {
+            approvedBy: 'rafaelfaria49-png',
+            approvedAtPrecision: 'unknown',
+            approvalEvidenceRef: 'GYMFLOW_VIDEO_SKILL (1).md, secao 8',
+          },
+        },
+      });
+      const res = validateMediaManifest(commercial);
+      expect(res.valid).toBe(false);
+      expect(res.errors.some((e) => e.includes('comercial não comprovada'))).toBe(true);
+    });
   });
 });

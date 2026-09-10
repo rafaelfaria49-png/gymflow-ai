@@ -54,6 +54,8 @@ describe('Preload de Mídia do Próximo Exercício (GOAL-34)', () => {
               approval: {
                 approvedBy: 'coach_lead_human',
                 approvedAt: '2026-09-02T18:00:00Z',
+                approvedAtPrecision: 'exact',
+                approvalEvidenceRef: 'human-review-log 2026-09-02 (preload fixture)',
               },
             },
           },
