@@ -193,7 +193,7 @@ export const BottomNavigation = () => {
     setShowMoreSheet(false);
   };
 
-  const hasActive = !activeWorkout;
+  const hasActive = Boolean(activeWorkout);
   // GOAL-048: CTA contextual de Treinar/Continuar.
   // Escondido em telas de foco e edição para não cobrir cards/campos/ações:
   // - active-workout (usa a actionbar fixa própria)
@@ -209,11 +209,13 @@ export const BottomNavigation = () => {
 
   return (
     <>
-      {/* Botão principal de treino (FAB) — flutua acima da barra, alcançável pelo polegar */}
+      {/* Botão principal de treino (FAB) — flutua acima da barra, alcançável pelo polegar.
+          GOAL-049: z-40 fica ABAIXO dos overlays full-screen (z-50+) — modais de escolha
+          de treino, ficha de detalhes e sheets cobrem o FAB em vez de ele cobrir o conteúdo. */}
       {showFab && (
         <button
           onClick={() => setActiveView(hasActive ? 'active-workout' : 'workouts')}
-          className="lg:hidden fixed right-4 z-50 flex items-center gap-1.5 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black uppercase tracking-wider text-xs pl-3.5 pr-4 py-3 rounded-2xl shadow-lg shadow-gym-accent/30 tap-target active:scale-95 transition-all"
+          className="lg:hidden fixed right-4 z-40 flex items-center gap-1.5 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black uppercase tracking-wider text-xs pl-3.5 pr-4 py-3 rounded-2xl shadow-lg shadow-gym-accent/30 tap-target active:scale-95 transition-all"
           style={{ bottom: 'calc(4.75rem + env(safe-area-inset-bottom))' }}
           aria-label={hasActive ? 'Continuar treino' : 'Iniciar treino'}
         >
