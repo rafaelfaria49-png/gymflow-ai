@@ -3,12 +3,13 @@
 import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { WeeklyWorkoutDay, WorkoutProgram, ProgramDay } from '../types';
-import { AlertTriangle, Calendar, Sparkles, Play, RotateCcw, Sliders, Clock, Move, Copy, Wrench, Pencil, ListChecks, X } from 'lucide-react';
+import { AlertTriangle, Calendar, Sparkles, Play, RotateCcw, Sliders, Clock, Move, Copy, Wrench, Pencil, ListChecks, X, Moon } from 'lucide-react';
 import { programDayDisplayLabel } from '../lib/workout-day-naming';
 import { getProgramDays, resolveProgramDays } from '../lib/workout-program-days';
 import { estimateWorkoutDuration } from '../lib/workoutDuration';
 import { defaultTargetMinutes } from '../lib/volumeProfiles';
 import { TrainingPlanAssistantModal } from '../components/training-assistant/TrainingPlanAssistantModal';
+import { getMuscleGroupLabel } from '../lib/mobile-training-ux';
 
 const hasMissingProgramDayIssue = (day: WeeklyWorkoutDay): boolean =>
   day.planningIssue === 'missing-program-day';
@@ -381,17 +382,22 @@ export const PlannerView = () => {
                     }`}
                   >
                     {/* DIA E NOME DO TREINO */}
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs font-black w-14 text-gym-text-muted capitalize">{day.dayName}</span>
-                      <div>
-                        <h4 className="text-xs font-bold">{day.workoutName}</h4>
-                        {!day.isRest && day.muscleGroups && (
-                          <div className="flex gap-1.5 mt-1">
-                            {day.muscleGroups.map((mg) => (
-                              <span key={mg} className="text-[8px] bg-white/5 px-2 py-0.5 rounded uppercase font-bold text-gym-text-muted">
-                                {mg}
+                    <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
+                      <span className="text-xs font-black w-14 shrink-0 text-gym-text-muted capitalize pt-0.5 sm:pt-0">{day.dayName}</span>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-xs font-bold truncate">{day.workoutName}</h4>
+                        {!day.isRest && (
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                            {day.muscleGroups && day.muscleGroups.map((mg) => (
+                              <span key={mg} className="text-[8px] bg-white/5 px-2 py-0.5 rounded font-bold text-gym-text-muted">
+                                {getMuscleGroupLabel(mg)}
                               </span>
                             ))}
+                            {day.exerciseCount > 0 && (
+                              <span className="text-[9px] text-gym-text-muted">
+                                • {day.exerciseCount} {day.exerciseCount === 1 ? 'ex' : 'exs'}{day.duration ? ` · ~${day.duration}m` : ''}
+                              </span>
+                            )}
                           </div>
                         )}
                         {hasMissingProgramDay && (
@@ -465,13 +471,22 @@ export const PlannerView = () => {
                           {/* Toggle rest status */}
                           <button
                             onClick={() => handleToggleRest(day.dayName)}
-                            className={`min-h-[44px] text-[9px] font-bold px-2.5 rounded-lg transition-all border ${
+                            className={`min-h-[44px] text-[9px] font-bold px-2.5 rounded-lg transition-all border flex items-center gap-1 active:scale-95 ${
                               day.isRest
-                                ? 'bg-gym-accent/15 border-gym-accent/20 text-gym-accent font-black'
-                                : 'bg-white/5 border-white/15 text-gym-text-muted hover:text-white'
+                                ? 'bg-gym-accent/15 border-gym-accent/25 text-gym-accent font-black'
+                                : 'bg-white/5 border-white/10 text-gym-text-muted hover:text-white'
                             }`}
+                            title={day.isRest ? 'Alterar para dia de treino' : 'Alterar para dia de descanso'}
+                            aria-label={day.isRest ? `Alterar ${day.dayName} para dia de treino` : `Alterar ${day.dayName} para dia de descanso`}
                           >
-                            {day.isRest ? 'Descanso' : 'Treino'}
+                            {day.isRest ? (
+                              <>
+                                <Moon className="w-3 h-3 text-gym-accent" />
+                                <span>Descanso</span>
+                              </>
+                            ) : (
+                              <span>Treino</span>
+                            )}
                           </button>
 
                           {!day.isRest && (

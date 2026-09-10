@@ -49,6 +49,7 @@ import { WorkoutDayActions } from './WorkoutDayActions';
 import { WorkoutDayFocusSelector } from './WorkoutDayFocusSelector';
 import { WorkoutDaySummary } from './WorkoutDaySummary';
 import { TechniquePicker } from '../../domain/techniques/TechniquePicker';
+import { getMuscleGroupLabel } from '../../lib/mobile-training-ux';
 
 interface WorkoutDaysEditorProps {
   day: WorkoutDayBuilderDraft;
@@ -439,11 +440,11 @@ export const WorkoutDaysEditor = ({
                         </span>
                       )}
                     </div>
-                    <h5 className="text-xs font-bold text-white truncate">
+                    <h5 className="text-xs font-bold text-white line-clamp-2 leading-snug break-words">
                       {exercise?.name ?? 'Exercício desconhecido'}
                     </h5>
-                    <p className="text-[10px] text-gym-text-muted capitalize">
-                      {exercise?.muscleGroup ?? 'sem classificação'}
+                    <p className="text-[10px] text-gym-text-muted">
+                      {getMuscleGroupLabel(exercise?.muscleGroup) || 'Sem classificação'}
                       {alsoIn.length > 0 && (
                         <span className="text-gym-text-muted"> • também no {alsoIn.join(', ')}</span>
                       )}
@@ -471,36 +472,36 @@ export const WorkoutDaysEditor = ({
                     <button
                       onClick={() => onSlotMove(index, -1)}
                       disabled={index === 0}
-                      className="p-2 bg-white/5 rounded-lg disabled:opacity-30 text-white tap-target"
+                      className="min-w-[44px] min-h-[44px] p-2 bg-white/5 hover:bg-white/10 rounded-lg disabled:opacity-25 text-white flex items-center justify-center transition-all tap-target"
                       title="Mover para cima"
                       aria-label="Mover exercício para cima"
                     >
-                      <ArrowUp className="w-3.5 h-3.5" />
+                      <ArrowUp className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => onSlotMove(index, 1)}
                       disabled={index === day.slots.length - 1}
-                      className="p-2 bg-white/5 rounded-lg disabled:opacity-30 text-white tap-target"
+                      className="min-w-[44px] min-h-[44px] p-2 bg-white/5 hover:bg-white/10 rounded-lg disabled:opacity-25 text-white flex items-center justify-center transition-all tap-target"
                       title="Mover para baixo"
                       aria-label="Mover exercício para baixo"
                     >
-                      <ArrowDown className="w-3.5 h-3.5" />
+                      <ArrowDown className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => onSlotDuplicate(index)}
-                      className="p-2 bg-white/5 rounded-lg text-white tap-target"
+                      className="min-w-[44px] min-h-[44px] p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white flex items-center justify-center transition-all tap-target"
                       title="Duplicar"
                       aria-label="Duplicar exercício"
                     >
-                      <Copy className="w-3.5 h-3.5" />
+                      <Copy className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => onSlotRemove(index)}
-                      className="p-2 bg-gym-rose/10 rounded-lg text-gym-rose tap-target"
+                      className="min-w-[44px] min-h-[44px] p-2 bg-gym-rose/10 hover:bg-gym-rose/20 rounded-lg text-gym-rose flex items-center justify-center transition-all tap-target"
                       title="Remover"
                       aria-label="Remover exercício"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -543,6 +544,9 @@ export const WorkoutDaysEditor = ({
                       className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                     />
                   </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
                     Descanso (s)
                     <NumericInput

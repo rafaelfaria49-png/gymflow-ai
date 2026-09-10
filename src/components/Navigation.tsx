@@ -162,7 +162,14 @@ const MORE_MENU_ITEMS: NavItem[] = [
 const MORE_MENU_VIEWS: AppView[] = MORE_MENU_ITEMS.map((item) => item.view);
 
 export const BottomNavigation = () => {
-  const { activeView, setActiveView, user, activeWorkout } = useGymFlow();
+  const {
+    activeView,
+    setActiveView,
+    user,
+    activeWorkout,
+    chooserDayName,
+    planAssistantOpen,
+  } = useGymFlow();
   const [showMoreSheet, setShowMoreSheet] = useState(false);
 
   // Fecha o bottom sheet "Mais" no botão Voltar Android / ESC
@@ -186,11 +193,19 @@ export const BottomNavigation = () => {
     setShowMoreSheet(false);
   };
 
-  const hasActive = !!activeWorkout;
-  // Dentro do próprio Treino Ativo o FAB "Continuar" é substituído pela ActionBar
-  // fixa da página (ver ActiveWorkoutPage.tsx) — evita duas barras fixas competindo
-  // pelo mesmo espaço e cobrindo conteúdo (GOAL-04).
-  const showFab = !(hasActive && activeView === 'active-workout');
+  const hasActive = !activeWorkout;
+  // GOAL-048: CTA contextual de Treinar/Continuar.
+  // Escondido em telas de foco e edição para não cobrir cards/campos/ações:
+  // - active-workout (usa a actionbar fixa própria)
+  // - workout-builder (não cobrir campos de edição)
+  // - planner (não cobrir cards semanais nem ações de dia)
+  // - modais de escolha de treino (chooserDayName) ou assistente de plano (planAssistantOpen)
+  const isExcludedView =
+    activeView === 'active-workout' ||
+    activeView === 'workout-builder' ||
+    activeView === 'planner';
+  const hasModalOpen = Boolean(chooserDayName || planAssistantOpen);
+  const showFab = !isExcludedView && !hasModalOpen;
 
   return (
     <>

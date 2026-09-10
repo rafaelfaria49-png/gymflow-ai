@@ -43,8 +43,8 @@ export const ExercisePickerItem = ({
       }`}
     >
       <div className="min-w-0 flex-1 overflow-hidden">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <h4 className="min-w-0 truncate text-xs font-bold text-white">{exercise.name}</h4>
+        <div className="flex min-w-0 items-start justify-between gap-1.5">
+          <h4 className="min-w-0 text-xs font-bold text-white line-clamp-2 leading-snug break-words">{exercise.name}</h4>
           {inDay > 0 && (
             <span className="flex-shrink-0 text-[8px] font-black uppercase bg-gym-accent/15 text-gym-accent px-1.5 py-0.5 rounded-full">
               No treino ×{inDay}

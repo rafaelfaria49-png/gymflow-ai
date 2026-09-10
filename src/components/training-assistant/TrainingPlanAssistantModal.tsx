@@ -25,6 +25,7 @@ import {
   PRIMARY_FOCUS_GROUPS,
   muscleGroupShortLabel,
 } from '../../lib/workout-day-naming';
+import { getMuscleGroupLabel } from '../../lib/mobile-training-ux';
 import {
   generateTrainingSplitProposal,
   generateTrainingPlanProgram,
@@ -504,12 +505,12 @@ export const TrainingPlanAssistantModal: React.FC<TrainingPlanAssistantModalProp
                         const ex = exercises.find((e) => e.id === slot.exerciseId);
                         return (
                           <div key={sIdx} className="p-3 flex items-center justify-between gap-2">
-                            <div className="min-w-0">
-                              <h5 className="text-xs font-bold text-white truncate">
+                            <div className="min-w-0 flex-1">
+                              <h5 className="text-xs font-bold text-white line-clamp-2 leading-snug break-words">
                                 {ex?.name || slot.exerciseId}
                               </h5>
-                              <p className="text-[9px] text-gym-text-muted capitalize">
-                                {ex?.muscleGroup || 'Geral'} • Descanso {slot.restSec}s • RPE {slot.targetRPE}
+                              <p className="text-[9px] text-gym-text-muted">
+                                {getMuscleGroupLabel(ex?.muscleGroup) || 'Geral'} • Descanso {slot.restSec}s • RPE {slot.targetRPE}
                               </p>
                             </div>
                             <span className="text-xs font-black text-gym-accent font-mono whitespace-nowrap">
