@@ -4,6 +4,40 @@ Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, valid
 
 ---
 
+## GOAL-049 — Correção do CTA Treinar/Continuar, Seções Compactas do Builder e Responsividade (2026-09-10)
+
+Correção do bug P1 (FAB invertido) herdado do GOAL-048, conclusão dos dois itens de UX pendentes (técnica especial compacta e rodadas alternadas compacta) e revalidação completa de responsividade em viewports reais.
+
+**Antes:**
+- `Navigation.tsx` calculava `const hasActive = !activeWorkout;`, invertendo a semântica do CTA flutuante: sem sessão ativa exibia "Continuar" (levando a `active-workout`, que era ignorado sem sessão) e com sessão ativa exibia "Treinar" (levando à lista de treinos).
+- O FAB usava `z-50`, mesma camada dos overlays full-screen (`fixed inset-0 z-50`), flutuando sobre o conteúdo de modais como a Ficha de Treino Detalhada do Hub de Treinos.
+- A seção "Técnica especial" do `WorkoutDaysEditor` renderizava o `TechniquePicker` diretamente o tempo todo, mesmo sem técnica ativa.
+- A seção "Rodadas alternadas" exibia permanentemente Tipo, Descanso, Agrupar e Desfazer, mesmo quando não configurada.
+
+**Depois:**
+- `hasActive = Boolean(activeWorkout)` — sem sessão: FAB "Treinar" (`aria-label` "Iniciar treino") leva ao fluxo de escolha/lista de treinos; com sessão: FAB "Continuar" (`aria-label` "Continuar treino") leva a `active-workout` (`FAB_WITHOUT_ACTIVE = TREINAR`, `FAB_WITH_ACTIVE = CONTINUAR`, `FAB_ROUTING = PASS`). Teste focado `src/components/Navigation.test.tsx` impede regressão.
+- FAB rebaixado para `z-40`: qualquer overlay full-screen (`z-50+`) o cobre naturalmente — modais cobrem o FAB, nunca o contrário (`FLOATING_TRAIN_OVERLAP = NO`), sem depender de `overflow-x` global.
+- `SlotTechniqueSection`: linha compacta com disclosure — sem técnica mostra "Técnica especial (opcional) · Série convencional"; com técnica ativa identifica o rótulo (ex.: "Pirâmide"). Expandir revela o `TechniquePicker` intacto (seleção, remoção e desbloqueio preservados; nenhuma regra de técnica alterada) (`SPECIAL_TECHNIQUE_COMPACT = PASS`).
+- Painel "Rodadas alternadas" nasce compacto: título + status ("Nenhum grupo configurado" ou "N grupo(s) configurado(s)") + ação "Configurar". Expande via "Configurar" ou automaticamente enquanto houver cartões selecionados (fluxo existente de criar/desfazer grupo). Seleção, tipo, descanso, validações, agrupamento, desfazer e grupos existentes preservados; sem nova máquina de domínio (`ALTERNATING_ROUNDS_COMPACT = PASS`).
+
+**Arquivos alterados:**
+- `src/components/Navigation.tsx`
+- `src/components/Navigation.test.tsx` (novo)
+- `src/components/workout-builder/WorkoutDaysEditor.tsx`
+- `docs/GOALS_LOG.md`
+
+**Validações:**
+- Testes focados do FAB (`Navigation.test.tsx`): 3/3 aprovados
+- Suíte completa (`npm test`): 122 arquivos, 2870 testes aprovados
+- `npx tsc --noEmit`: 0 erros
+- `npm run build`: sucesso
+- `npm run build:mobile`: sucesso
+- `git diff --check`: limpo
+- Smoke real emulado (Chromium, viewports 360/390/412): Dashboard, Planejador, Builder, Sessão Ativa e Modal/Seletor de treino com zero overflow horizontal, zero CTA sobre conteúdo, zero botão cortado, header sem colisão e sticky sem cobrir ações (`HORIZONTAL_OVERFLOW_360/390/412 = NO`, `ACTIVE_HEADER_COLLISION = NO`, `STICKY_CONTENT_OVERLAP = NO`)
+- Sem mudança em runtime de sessão nem em nutrição (`SESSION_RUNTIME_CHANGED = NO`, `NUTRITION_CHANGED = NO`)
+
+---
+
 ## GOAL-045 — Correção de Reabertura por Colisão e Semântica de Duração no Feed (2026-09-09)
 
 Correção dos achados P1 (HISTORY_DUPLICATE_ACTIVE_REOPEN) e P3 (LONG_SESSION_FEED_DURATION_SEMANTICS) da revisão independente do PR #35.

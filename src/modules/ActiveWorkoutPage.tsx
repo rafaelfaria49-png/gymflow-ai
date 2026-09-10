@@ -32,6 +32,7 @@ import { getActiveGymProfile } from '../domain/gymProfile';
 import { calculatePlateLoad, getPlateCalculatorConfig, type PlateLoadout } from '../domain/plateCalculator';
 import { bestWorkingSetWeight } from '../domain/warmupEngine';
 import { RirEducationCard } from '../components/RirEducationCard';
+import { exerciseUsesPlates, getMuscleGroupLabel } from '../lib/mobile-training-ux';
 
 function formatLoadKg(value: number): string {
   return `${Number.isInteger(value) ? value : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '').replace('.', ',')} kg`;
@@ -42,6 +43,7 @@ interface ActiveWorkoutSetRowProps {
   displayIndex: number;
   warmupIndex?: number;
   showRir?: boolean;
+  isCurrentFocus?: boolean;
   onUpdate: (fields: Partial<WorkoutSet>) => void;
   onToggle: () => void;
 }
@@ -51,6 +53,7 @@ function ActiveWorkoutSetRow({
   displayIndex,
   warmupIndex,
   showRir = false,
+  isCurrentFocus = false,
   onUpdate,
   onToggle,
 }: ActiveWorkoutSetRowProps) {
@@ -62,13 +65,21 @@ function ActiveWorkoutSetRow({
       className={`grid grid-cols-12 items-center text-center p-1 rounded-xl transition-all border gap-1 relative ${
         set.completed
           ? 'bg-gym-accent/5 border-gym-accent/20'
-          : set.isWarmup
-            ? 'bg-gym-amber/[0.04] border-gym-amber/15'
-            : 'bg-white/5 border-transparent'
+          : isCurrentFocus
+            ? 'bg-gym-accent/[0.08] border-gym-accent/50 ring-1 ring-gym-accent/30 shadow-[0_0_12px_rgba(163,230,53,0.12)]'
+            : set.isWarmup
+              ? 'bg-gym-amber/[0.04] border-gym-amber/15'
+              : 'bg-white/5 border-transparent'
       }`}
     >
-      <span className="col-span-2 text-xs text-white font-bold text-left pl-2 flex flex-col justify-center">
-        <span>{label}</span>
+      <span className="col-span-2 text-xs text-white font-bold text-left pl-2 flex flex-col justify-center relative">
+        {isCurrentFocus && !set.completed && (
+          <span
+            className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-gym-accent animate-pulse"
+            aria-hidden="true"
+          />
+        )}
+        <span className={isCurrentFocus && !set.completed ? 'text-gym-accent font-extrabold' : ''}>{label}</span>
         {set.isWarmup && (
           <span className="text-[7px] text-gym-amber uppercase font-extrabold tracking-widest -mt-0.5">Aprox.</span>
         )}
@@ -381,6 +392,7 @@ export const ActiveWorkoutPage = () => {
     ? activeWorkout.exercises[nextFocusIndex] ?? null
     : null;
   const nextExerciseName = nextExercise ? nextExercise.name : 'Nenhum (Finalize o Treino!)';
+  const currentFocusSetId = nextExercise?.sets.find((s) => !s.completed)?.id;
 
   const muscleGroupsWorked = Array.from(new Set(activeWorkout.exercises.map(ex => {
     const mg = ex.muscleGroup.toLowerCase();
@@ -638,7 +650,7 @@ export const ActiveWorkoutPage = () => {
   return (
     <div className="space-y-6 pb-active-workout lg:pb-6 max-w-3xl mx-auto">
       {/* HEADER FIXO DE TREINO */}
-      <div className="glass border border-white/10 px-2 min-[360px]:px-3.5 py-3.5 sm:p-5 rounded-2xl sm:rounded-3xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 shadow-xl">
+      <div className="glass border border-white/10 px-3 min-[360px]:px-4 py-3.5 sm:p-5 rounded-2xl sm:rounded-3xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 shadow-xl">
         {/* PARTE SUPERIOR / ÁREA A: Sessão Ativa + Título */}
         <div className="w-full sm:w-auto min-w-0">
           <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block mb-1">
@@ -649,14 +661,14 @@ export const ActiveWorkoutPage = () => {
           </h1>
         </div>
 
-        {/* PARTE INFERIOR / ÁREA B: Cronômetro + 3 Ações + Finalizar em linha única */}
-        <div className="flex items-center justify-between sm:justify-end gap-1.5 min-[360px]:gap-2 sm:gap-3 w-full sm:w-auto min-w-0">
+        {/* PARTE INFERIOR / ÁREA B: Cronômetro + Ações + Finalizar responsivos */}
+        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto min-w-0">
           {/* Cronômetro */}
-          <div className="flex items-center gap-1 min-[360px]:gap-1.5 sm:flex-col sm:items-end sm:mr-1 shrink-0">
+          <div className="flex items-center gap-1.5 sm:flex-col sm:items-end sm:mr-1 shrink-0">
             <span className="hidden sm:flex text-[10px] text-gym-text-muted uppercase font-bold items-center gap-1">
               <Clock className="w-3 h-3 text-gym-accent" /> Tempo
             </span>
-            <div className="flex items-center gap-1 sm:mt-1">
+            <div className="flex items-center gap-1.5 sm:mt-1">
               <Clock className="w-3.5 h-3.5 text-gym-accent sm:hidden shrink-0" />
               <span className="text-xs sm:text-base font-mono font-bold text-white leading-none tabular-nums">
                 {formatTime(workoutDuration)}
@@ -664,15 +676,15 @@ export const ActiveWorkoutPage = () => {
             </div>
           </div>
 
-          {/* Linha de ações mobile */}
-          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+          {/* Grupo de ações e finalizar com touch targets preservados */}
+          <div className="flex items-center gap-1.5 min-[360px]:gap-2 sm:gap-2.5 shrink-0 flex-wrap">
             {/* GOAL-25: modo operacional sem trocar exercícios silenciosamente. */}
             <button
               type="button"
               onClick={toggleCrowdedGymMode}
               aria-pressed={crowdedGymMode}
               aria-label="Academia cheia: priorizar pesos livres e cabos nas substituições"
-              className={`min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 border font-bold p-2 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0 touch-manipulation ${
+              className={`min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 border font-bold p-2.5 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0 touch-manipulation ${
                 crowdedGymMode
                   ? 'bg-gym-accent/15 border-gym-accent/40 text-gym-accent'
                   : 'bg-white/5 hover:bg-gym-accent/15 border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent'
@@ -688,7 +700,7 @@ export const ActiveWorkoutPage = () => {
               type="button"
               onClick={openCompactProposal}
               aria-label="Treino rápido: montar uma versão compacta para o tempo de hoje"
-              className="min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent font-bold p-2 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0 touch-manipulation"
+              className="min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent font-bold p-2.5 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0 touch-manipulation"
               title="Montar uma versão compacta para o tempo de hoje"
             >
               <Zap className="w-3.5 h-3.5 text-gym-accent shrink-0" />
@@ -700,7 +712,7 @@ export const ActiveWorkoutPage = () => {
               type="button"
               onClick={() => setShowReadinessModal(true)}
               aria-label={activeWorkout.readiness ? `Prontidão: ${activeWorkout.readiness.score} pontos` : 'Check-in de prontidão diária'}
-              className={`min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 border font-bold p-2 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0 touch-manipulation ${
+              className={`min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 border font-bold p-2.5 sm:px-3 sm:py-2 rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 shrink-0 touch-manipulation ${
                 activeWorkout.readiness
                   ? 'bg-gym-accent/15 border-gym-accent/40 text-gym-accent'
                   : 'bg-white/5 hover:bg-gym-accent/15 border-white/10 hover:border-gym-accent/30 text-white hover:text-gym-accent'
@@ -716,7 +728,7 @@ export const ActiveWorkoutPage = () => {
             <button
               type="button"
               onClick={openFinishModal}
-              className="min-h-[44px] sm:min-h-0 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black px-2.5 min-[360px]:px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl transition-all shadow-md shadow-gym-accent/15 text-xs uppercase tracking-wider whitespace-nowrap shrink-0 flex items-center justify-center touch-manipulation"
+              className="min-h-[44px] sm:min-h-0 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black px-3.5 sm:px-4 py-2 rounded-xl transition-all shadow-md shadow-gym-accent/15 text-xs uppercase tracking-wider whitespace-nowrap shrink-0 flex items-center justify-center touch-manipulation active:scale-95"
             >
               Finalizar
             </button>
@@ -765,10 +777,21 @@ export const ActiveWorkoutPage = () => {
       </div>
 
       {user && user.level !== 'beginner' && user.rirOnboardingCompleted !== true && (
-        <RirEducationCard
-          compact
-          onComplete={() => updateUserProfile({ rirOnboardingCompleted: true })}
-        />
+        <details className="group rounded-2xl border border-gym-accent/20 bg-gym-accent/[0.04]">
+          <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 px-3.5 text-xs font-bold text-gym-accent [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center gap-2">
+              <HelpCircle className="w-4 h-4 text-gym-accent flex-shrink-0" />
+              <span>Entenda a escala RIR (Repetições em Reserva)</span>
+            </span>
+            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180 flex-shrink-0" aria-hidden="true" />
+          </summary>
+          <div className="p-3 border-t border-gym-accent/15">
+            <RirEducationCard
+              compact
+              onComplete={() => updateUserProfile({ rirOnboardingCompleted: true })}
+            />
+          </div>
+        </details>
       )}
 
       {activeWorkout.warmup?.enabled && (
@@ -937,7 +960,7 @@ export const ActiveWorkoutPage = () => {
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
                   <span className="text-gym-accent">#{exIdx + 1}</span>
-                  <span className="truncate">{ex.name}</span>
+                  <span className="line-clamp-2 leading-snug break-words">{ex.name}</span>
                   {group && (
                     <span className="inline-flex items-center rounded-full border border-gym-accent/25 bg-gym-accent/10 px-2 py-1 text-[8px] font-black uppercase tracking-wide text-gym-accent">
                       {group.label} · rodada {currentGroupRound}/{groupRounds}
@@ -953,11 +976,11 @@ export const ActiveWorkoutPage = () => {
                     <ExerciseExecutionBadge status={liveEntryStatus} />
                   )}
                 </h3>
-                <span className="text-[10px] text-gym-text-muted capitalize">
+                <span className="text-[10px] text-gym-text-muted">
                   {/* GOAL-07: meta real do ExerciseSlot quando o treino vem de um Day de programa */}
                   {ex.repRange
-                    ? `${ex.muscleGroup} • Meta: ${ex.repRange[0] === ex.repRange[1] ? ex.repRange[0] : `${ex.repRange[0]}-${ex.repRange[1]}`} reps • RPE ${ex.targetRPE ?? 8}${ex.restSec ? ` • Descanso ${ex.restSec}s` : ''}`
-                    : ex.muscleGroup}
+                    ? `${getMuscleGroupLabel(ex.muscleGroup)} • Meta: ${ex.repRange[0] === ex.repRange[1] ? ex.repRange[0] : `${ex.repRange[0]}-${ex.repRange[1]}`} reps • RPE ${ex.targetRPE ?? 8}${ex.restSec ? ` • Descanso ${ex.restSec}s` : ''}`
+                    : getMuscleGroupLabel(ex.muscleGroup)}
                 </span>
                 {/* GOAL-08 / GOAL-29: motivo honesto e tela "Por que esse peso?" */}
                 {(ex.progressionNote || ex.progressionDecision) && (
@@ -990,7 +1013,7 @@ export const ActiveWorkoutPage = () => {
 
               {/* Ações */}
               <div className="flex gap-2 flex-wrap justify-end">
-                {firstWorkingSet && (
+                {firstWorkingSet && exerciseUsesPlates(exercises.find((e) => e.id === ex.exerciseId) ?? ex) && (
                   <button
                     type="button"
                     onClick={() => plateCalculatorExerciseId === ex.id
@@ -1095,6 +1118,7 @@ export const ActiveWorkoutPage = () => {
                         displayIndex={warmupIndex}
                         warmupIndex={warmupIndex}
                         showRir={user?.level !== 'beginner'}
+                        isCurrentFocus={exIdx === nextFocusIndex && !set.completed && set.id === currentFocusSetId}
                         onUpdate={(fields) => updateWorkoutSet(exIdx, setIdx, fields)}
                         onToggle={() => {
                           const wasCompleted = set.completed;
@@ -1118,6 +1142,7 @@ export const ActiveWorkoutPage = () => {
                     set={set}
                     displayIndex={workIndex}
                     showRir={user?.level !== 'beginner'}
+                    isCurrentFocus={exIdx === nextFocusIndex && !set.completed && set.id === currentFocusSetId}
                     onUpdate={(fields) => updateWorkoutSet(exIdx, setIdx, fields)}
                     onToggle={() => {
                       const wasCompleted = set.completed;
@@ -1305,11 +1330,11 @@ export const ActiveWorkoutPage = () => {
             </div>
           ) : (
             <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
+              <div className="flex-1 min-w-0 pr-2">
                 <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block">
                   Série {currentSetNumber} de {totalSetsCount}
                 </span>
-                <span className="text-xs font-bold text-white block truncate max-w-[180px]">
+                <span className="text-xs font-bold text-white block truncate">
                   {allSetsCompleted ? 'Treino Concluído' : nextExerciseName}
                 </span>
               </div>

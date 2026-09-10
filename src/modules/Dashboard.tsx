@@ -18,6 +18,7 @@ import {
   ListChecks
 } from 'lucide-react';
 import { defaultTargetMinutes } from '../lib/volumeProfiles';
+import { getMuscleGroupLabel } from '../lib/mobile-training-ux';
 
 export const Dashboard = () => {
   const {
@@ -163,8 +164,8 @@ export const Dashboard = () => {
                       ~{todayPlan.duration} min
                     </span>
                     {todayPlan.muscleGroups.length > 0 && (
-                      <span className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 font-bold text-white uppercase font-mono">
-                        {todayPlan.muscleGroups.join(', ')}
+                      <span className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 font-bold text-white">
+                        {todayPlan.muscleGroups.map(getMuscleGroupLabel).join(' · ')}
                       </span>
                     )}
                   </div>

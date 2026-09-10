@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   Copy,
   Dumbbell,
   Plus,
@@ -19,7 +20,7 @@ import type { MuscleGroupId } from '../../types/training-taxonomy';
 import type { DetailedWorkoutDurationEstimate } from '../../types/training-volume';
 import type { WorkoutDayBuilderDraft } from '../../types/workout-builder';
 import type { TrainingExperienceLevel } from '../../types/training-profile';
-import type { ExerciseGroupType, TechniqueId } from '../../domain/techniques/types';
+import type { ExerciseGroupType, TechniqueId, TechniquePlan } from '../../domain/techniques/types';
 import {
   EXERCISE_GROUP_LABELS,
   groupLabel,
@@ -49,6 +50,7 @@ import { WorkoutDayActions } from './WorkoutDayActions';
 import { WorkoutDayFocusSelector } from './WorkoutDayFocusSelector';
 import { WorkoutDaySummary } from './WorkoutDaySummary';
 import { TechniquePicker } from '../../domain/techniques/TechniquePicker';
+import { getMuscleGroupLabel } from '../../lib/mobile-training-ux';
 
 interface WorkoutDaysEditorProps {
   day: WorkoutDayBuilderDraft;
@@ -84,6 +86,70 @@ interface WorkoutDaysEditorProps {
   onSlotDuplicate: (index: number) => void;
   onSlotRemove: (index: number) => void;
 }
+
+interface SlotTechniqueSectionProps {
+  slot: ExerciseSlot;
+  exercise?: Exercise;
+  level: TrainingExperienceLevel;
+  manualUnlocks: readonly TechniqueId[];
+  onChange: (technique: TechniquePlan | undefined) => void;
+  onUnlock: (technique: TechniqueId) => void;
+}
+
+/**
+ * GOAL-049: disclosure compacto da técnica especial de um slot.
+ * Estado padrão é a linha única: "Série convencional" quando não há técnica, ou o
+ * rótulo da técnica ativa como identificação. Expandir revela o TechniquePicker
+ * completo — seleção, remoção e desbloqueio com orientação permanecem como estavam
+ * (nenhuma regra de técnica mudou).
+ */
+const SlotTechniqueSection = ({
+  slot,
+  exercise,
+  level,
+  manualUnlocks,
+  onChange,
+  onUnlock,
+}: SlotTechniqueSectionProps) => {
+  const [configOpen, setConfigOpen] = useState(false);
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 space-y-1.5">
+      <button
+        type="button"
+        onClick={() => setConfigOpen((open) => !open)}
+        aria-expanded={configOpen}
+        className="flex min-h-[44px] w-full items-center justify-between gap-2 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block text-[9px] font-black uppercase tracking-wider text-gym-text-muted">
+            Técnica especial (opcional)
+          </span>
+          <span
+            className={`block text-[10px] font-bold leading-snug ${slot.technique ? 'text-gym-accent' : 'text-gym-text-muted'}`}
+          >
+            {slot.technique ? slot.technique.label : 'Série convencional'}
+          </span>
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 flex-shrink-0 text-gym-text-muted transition-transform ${configOpen ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
+      </button>
+      {configOpen && (
+        <TechniquePicker
+          slot={slot}
+          exercise={exercise}
+          level={level}
+          manualUnlocks={manualUnlocks}
+          value={slot.technique}
+          onChange={onChange}
+          onUnlock={onUnlock}
+        />
+      )}
+    </div>
+  );
+};
 
 /** GOAL-19A: edição do dia selecionado. Cada dia tem os próprios slots (PART 8). */
 export const WorkoutDaysEditor = ({
@@ -123,6 +189,11 @@ export const WorkoutDaysEditor = ({
   const [selectedSlotIndices, setSelectedSlotIndices] = useState<number[]>([]);
   const [groupType, setGroupType] = useState<ExerciseGroupType>('superset');
   const [groupRestSec, setGroupRestSec] = useState(90);
+  // GOAL-049: painel de rodadas alternadas nasce compacto. Abre via "Configurar" ou
+  // automaticamente enquanto houver cartões selecionados (criar ou desfazer grupo),
+  // que é por onde o fluxo existente de agrupamento começa.
+  const [groupingManuallyOpen, setGroupingManuallyOpen] = useState(false);
+  const groupingOpen = groupingManuallyOpen || selectedSlotIndices.length > 0;
   const [displayState, setDisplayState] = useState(() => ({
     dayId: day.id,
     canonicalMinutes: day.targetMinutes,
@@ -326,67 +397,103 @@ export const WorkoutDaysEditor = ({
 
       {day.slots.length > 0 && (
         <section className="rounded-2xl border border-gym-accent/20 bg-gym-accent/[0.03] p-3 space-y-2.5" aria-label="Agrupamento de exercícios">
-          <div className="flex items-start gap-2">
-            <Link2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-gym-accent" />
-            <div className="min-w-0">
-              <h5 className="text-[10px] font-black uppercase tracking-widest text-gym-accent">Rodadas alternadas</h5>
-              <p className="mt-1 text-[10px] leading-relaxed text-gym-text-muted">
-                Selecione cartões abaixo para alternar exercícios. O descanso do grupo entra só no fim da rodada; entre cartões são 30s de transição.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <label className="min-w-0 flex-1">
-              <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-gym-text-muted">Tipo</span>
-              <select
-                value={groupType}
-                onChange={(event) => setGroupType(event.target.value as ExerciseGroupType)}
-                className="w-full min-h-[40px] rounded-lg border border-white/10 bg-gym-dark px-2 text-[10px] font-bold text-white outline-none focus:border-gym-accent"
-                aria-label="Tipo do grupo de exercícios"
+          {groupingOpen ? (
+            <>
+              <div className="flex items-start gap-2">
+                <Link2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-gym-accent" />
+                <div className="min-w-0 flex-1">
+                  <h5 className="text-[10px] font-black uppercase tracking-widest text-gym-accent">Rodadas alternadas</h5>
+                  <p className="mt-1 text-[10px] leading-relaxed text-gym-text-muted">
+                    Selecione cartões abaixo para alternar exercícios. O descanso do grupo entra só no fim da rodada; entre cartões são 30s de transição.
+                  </p>
+                </div>
+                {selectedSlotIndices.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setGroupingManuallyOpen(false)}
+                    aria-expanded="true"
+                    className="flex flex-shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 text-[10px] font-black uppercase tracking-wide text-gym-text-muted hover:text-white"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5 rotate-180" /> Fechar
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <label className="min-w-0 flex-1">
+                  <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-gym-text-muted">Tipo</span>
+                  <select
+                    value={groupType}
+                    onChange={(event) => setGroupType(event.target.value as ExerciseGroupType)}
+                    className="w-full min-h-[40px] rounded-lg border border-white/10 bg-gym-dark px-2 text-[10px] font-bold text-white outline-none focus:border-gym-accent"
+                    aria-label="Tipo do grupo de exercícios"
+                  >
+                    {(Object.keys(EXERCISE_GROUP_LABELS) as ExerciseGroupType[]).map((type) => (
+                      <option key={type} value={type}>{EXERCISE_GROUP_LABELS[type]}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="w-full sm:w-32">
+                  <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-gym-text-muted">Descanso (s)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={600}
+                    value={groupRestSec}
+                    onChange={(event) => setGroupRestSec(Number(event.target.value) || 0)}
+                    className="w-full min-h-[40px] rounded-lg border border-white/10 bg-gym-dark px-2 text-center text-xs font-mono text-white outline-none focus:border-gym-accent"
+                    aria-label="Descanso do grupo em segundos"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={handleCreateGroup}
+                  disabled={selectedSlotIndices.length < 2}
+                  className="min-h-[40px] rounded-lg bg-gym-accent px-3 text-[10px] font-black uppercase tracking-wide text-gym-dark disabled:cursor-not-allowed disabled:opacity-35"
+                >
+                  Agrupar {selectedSlotIndices.length > 0 ? `(${selectedSlotIndices.length})` : ''}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemoveGroups}
+                  disabled={selectedGroupIds.length === 0}
+                  className="min-h-[40px] rounded-lg border border-white/10 bg-white/5 px-3 text-[10px] font-black uppercase tracking-wide text-gym-text-muted hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                >
+                  <Unlink2 className="mr-1 inline h-3.5 w-3.5" /> Desfazer
+                </button>
+              </div>
+              {groupValidation?.warnings.map((warning) => (
+                <p key={warning.code} className="text-[9px] leading-relaxed text-amber-300">
+                  <AlertTriangle className="mr-1 inline h-3 w-3" /> {warning.message} O aviso é informativo.
+                </p>
+              ))}
+              {groups.length > 0 && (
+                <p className="text-[9px] text-gym-text-muted">
+                  {groups.length} grupo(s) configurado(s). Selecione um cartão agrupado para desfazê-lo.
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <Link2 className="h-4 w-4 flex-shrink-0 text-gym-accent" />
+                <div className="min-w-0">
+                  <h5 className="text-[10px] font-black uppercase tracking-widest text-gym-accent">Rodadas alternadas</h5>
+                  <p className="text-[10px] leading-snug text-gym-text-muted">
+                    {groups.length > 0
+                      ? `${groups.length} grupo(s) configurado(s)`
+                      : 'Nenhum grupo configurado'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGroupingManuallyOpen(true)}
+                aria-expanded={false}
+                className="min-h-[44px] flex-shrink-0 rounded-lg border border-gym-accent/40 bg-gym-accent/10 px-3 text-[10px] font-black uppercase tracking-wide text-gym-accent active:scale-[0.98] transition-transform"
               >
-                {(Object.keys(EXERCISE_GROUP_LABELS) as ExerciseGroupType[]).map((type) => (
-                  <option key={type} value={type}>{EXERCISE_GROUP_LABELS[type]}</option>
-                ))}
-              </select>
-            </label>
-            <label className="w-full sm:w-32">
-              <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-gym-text-muted">Descanso (s)</span>
-              <input
-                type="number"
-                min={0}
-                max={600}
-                value={groupRestSec}
-                onChange={(event) => setGroupRestSec(Number(event.target.value) || 0)}
-                className="w-full min-h-[40px] rounded-lg border border-white/10 bg-gym-dark px-2 text-center text-xs font-mono text-white outline-none focus:border-gym-accent"
-                aria-label="Descanso do grupo em segundos"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={handleCreateGroup}
-              disabled={selectedSlotIndices.length < 2}
-              className="min-h-[40px] rounded-lg bg-gym-accent px-3 text-[10px] font-black uppercase tracking-wide text-gym-dark disabled:cursor-not-allowed disabled:opacity-35"
-            >
-              Agrupar {selectedSlotIndices.length > 0 ? `(${selectedSlotIndices.length})` : ''}
-            </button>
-            <button
-              type="button"
-              onClick={handleRemoveGroups}
-              disabled={selectedGroupIds.length === 0}
-              className="min-h-[40px] rounded-lg border border-white/10 bg-white/5 px-3 text-[10px] font-black uppercase tracking-wide text-gym-text-muted hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
-            >
-              <Unlink2 className="mr-1 inline h-3.5 w-3.5" /> Desfazer
-            </button>
-          </div>
-          {groupValidation?.warnings.map((warning) => (
-            <p key={warning.code} className="text-[9px] leading-relaxed text-amber-300">
-              <AlertTriangle className="mr-1 inline h-3 w-3" /> {warning.message} O aviso é informativo.
-            </p>
-          ))}
-          {groups.length > 0 && (
-            <p className="text-[9px] text-gym-text-muted">
-              {groups.length} grupo(s) configurado(s). Selecione um cartão agrupado para desfazê-lo.
-            </p>
+                Configurar
+              </button>
+            </div>
           )}
         </section>
       )}
@@ -439,11 +546,11 @@ export const WorkoutDaysEditor = ({
                         </span>
                       )}
                     </div>
-                    <h5 className="text-xs font-bold text-white truncate">
+                    <h5 className="text-xs font-bold text-white line-clamp-2 leading-snug break-words">
                       {exercise?.name ?? 'Exercício desconhecido'}
                     </h5>
-                    <p className="text-[10px] text-gym-text-muted capitalize">
-                      {exercise?.muscleGroup ?? 'sem classificação'}
+                    <p className="text-[10px] text-gym-text-muted">
+                      {getMuscleGroupLabel(exercise?.muscleGroup) || 'Sem classificação'}
                       {alsoIn.length > 0 && (
                         <span className="text-gym-text-muted"> • também no {alsoIn.join(', ')}</span>
                       )}
@@ -471,36 +578,36 @@ export const WorkoutDaysEditor = ({
                     <button
                       onClick={() => onSlotMove(index, -1)}
                       disabled={index === 0}
-                      className="p-2 bg-white/5 rounded-lg disabled:opacity-30 text-white tap-target"
+                      className="min-w-[44px] min-h-[44px] p-2 bg-white/5 hover:bg-white/10 rounded-lg disabled:opacity-25 text-white flex items-center justify-center transition-all tap-target"
                       title="Mover para cima"
                       aria-label="Mover exercício para cima"
                     >
-                      <ArrowUp className="w-3.5 h-3.5" />
+                      <ArrowUp className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => onSlotMove(index, 1)}
                       disabled={index === day.slots.length - 1}
-                      className="p-2 bg-white/5 rounded-lg disabled:opacity-30 text-white tap-target"
+                      className="min-w-[44px] min-h-[44px] p-2 bg-white/5 hover:bg-white/10 rounded-lg disabled:opacity-25 text-white flex items-center justify-center transition-all tap-target"
                       title="Mover para baixo"
                       aria-label="Mover exercício para baixo"
                     >
-                      <ArrowDown className="w-3.5 h-3.5" />
+                      <ArrowDown className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => onSlotDuplicate(index)}
-                      className="p-2 bg-white/5 rounded-lg text-white tap-target"
+                      className="min-w-[44px] min-h-[44px] p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white flex items-center justify-center transition-all tap-target"
                       title="Duplicar"
                       aria-label="Duplicar exercício"
                     >
-                      <Copy className="w-3.5 h-3.5" />
+                      <Copy className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => onSlotRemove(index)}
-                      className="p-2 bg-gym-rose/10 rounded-lg text-gym-rose tap-target"
+                      className="min-w-[44px] min-h-[44px] p-2 bg-gym-rose/10 hover:bg-gym-rose/20 rounded-lg text-gym-rose flex items-center justify-center transition-all tap-target"
                       title="Remover"
                       aria-label="Remover exercício"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -543,6 +650,9 @@ export const WorkoutDaysEditor = ({
                       className="mt-1 w-full bg-gym-dark border border-white/10 rounded-lg min-h-[44px] px-2 text-xs text-white outline-none focus:border-gym-accent"
                     />
                   </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <label className="text-[9px] font-bold text-gym-text-muted uppercase block">
                     Descanso (s)
                     <NumericInput
@@ -576,18 +686,14 @@ export const WorkoutDaysEditor = ({
                   </label>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 space-y-1.5">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-gym-text-muted">Técnica especial (opcional)</span>
-                  <TechniquePicker
-                    slot={slot}
-                    exercise={exercise}
-                    level={techniqueLevel}
-                    manualUnlocks={techniqueUnlocks}
-                    value={slot.technique}
-                    onChange={(technique) => onSlotChange(index, { technique })}
-                    onUnlock={onTechniqueUnlock}
-                  />
-                </div>
+                <SlotTechniqueSection
+                  slot={slot}
+                  exercise={exercise}
+                  level={techniqueLevel}
+                  manualUnlocks={techniqueUnlocks}
+                  onChange={(technique) => onSlotChange(index, { technique })}
+                  onUnlock={onTechniqueUnlock}
+                />
               </div>
             );
           })}
