@@ -1990,4 +1990,5 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 ## GOAL-056 - proveniencia honesta sem timestamp falso (2026-09-10)
 
 - D56-001: `approvedAt` virou opcional + `approvedAtPrecision`/`approvalEvidenceRef` obrigatorios (schema 1.1.0, manifest v3); rejeicao de claim `commercial` restrita a videos `approved` para nao invalidar os drafts placeholder; `provider: grok` mantido como identificacao da ferramenta do pacote de producao, sem model/run inventado.
+- D59-001: `provider: grok` no video da puxada como identificacao da ferramenta da frente de producao (pacote `GYMFLOW_VIDEO_SKILL (1).md` define pipeline via comandos tecnicos para o Grok e lista a puxada no inventario; fonte compartilha a assinatura tecnica exata do lote GOAL-053), sem `modelOrWorkflow`/`generatedAt`/`termsOrLicenseRef` — copiar a atribuicao por inferencia de lote sem declarar a base seria desonesto; a base esta declarada em `provenanceNotes` para revisao independente.
 
