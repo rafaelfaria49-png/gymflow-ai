@@ -1,5 +1,18 @@
 # Pendências
 
+## NUT-003 — Corretivo de Safety e Proveniência (2026-09-11)
+
+- **Superávit calórico não possui teto duro.** *Aberto · P3.* As travas absolutas
+  implementadas cobrem a direção hipocalórica (déficit, pisos, proteína, hidratação).
+  `goalAdjustments` positivos e os pisos calóricos por sexo só são validados como
+  números finitos/acima do mínimo canônico: não existe limite superior canônico
+  documentado no Masterplan, e criar um seria inventar regra clínica. Fica reservado
+  ao gate D-NUT-08 (homologação nutricionista).
+- **`minProteinGramsPerKg` deixou de influenciar números.** *Aberto · P3.* Com a
+  rejeição fail-closed de taxas por objetivo fora da faixa, o piso virou apenas
+  critério de validação (e continua no hash de proveniência). Se a revisão profissional
+  quiser um piso que *eleve* taxas configuradas, a semântica precisa ser redecidida.
+
 ## GOAL-17B-002E-E7A6 — correlação de executor readiness
 
 - ~~**Journal stale race no fechamento final.**~~ Fechada no corretivo final de 2026-08-29: markers assíncronos agora precedem a transação readonly final, sem `await` depois dela.

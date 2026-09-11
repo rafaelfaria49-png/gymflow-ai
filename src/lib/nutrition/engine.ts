@@ -6,8 +6,15 @@
  * TDEE, déficit/superávit seguro, partição de macronutrientes (proteína 1.6–2.2 g/kg),
  * hidratação canônica e carimbo de proveniência SHA-256.
  *
+ * Garantias estruturais (NUT-003 corretivo):
+ * - Invariantes absolutos não são configuráveis: configuração que os viole falha fechada
+ *   (`NutritionEngineConfigError`), sem clamp silencioso.
+ * - Nenhum número não finito entra no cálculo nem sai em `DailyTargets`.
+ * - `inputSnapshotHash` cobre a totalidade dos parâmetros de cálculo resolvidos.
+ * - O motor não lê relógio nem inventa data: sem `computedAt` explícito, o campo é `null`.
+ *
  * Referências canônicas:
- * - docs/nutrition/GYMFLOW_NUTRITION_MASTERPLAN_001.md (Seções 7 e 8)
+ * - docs/nutrition/GYMFLOW_NUTRITION_MASTERPLAN_001.md (Seções 5.2, 7, 8 e 9.2)
  * - docs/nutrition/GYMFLOW_NUTRITION_DECISIONS_001.md (D-NUT-01, D-NUT-02, D-NUT-03, D-NUT-04)
  * - docs/nutrition/GYMFLOW_NUTRITION_IMPLEMENTATION_GOALS_001.md (NUT-003)
  */
@@ -15,12 +22,30 @@
 import type { NutritionProfile } from '../../types/nutrition';
 import { evaluateNutritionGate } from './profile-gates';
 import {
+  DEFAULT_CALCULATION_CONFIG,
   DEFAULT_ENGINE_CONFIG,
-  DailyTargets,
-  EngineConfig,
+  MACRO_ROUNDING_TOLERANCE_KCAL,
+  NutritionEngineConfigError,
   NutritionEngineGateError,
-  NutritionInputSnapshot,
+  NutritionEngineInputError,
+  NutritionEngineSerializationError,
+  UNSPECIFIED_ESTIMATION_RELATIVE_TOLERANCE,
+  type DailyTargets,
+  type EngineConfig,
+  type EstimationTolerance,
+  type MacroConstraintCode,
+  type MacroReconciliation,
+  type NutritionInputSnapshot,
+  type ResolvedCalculationConfig,
+  type ResolvedComputationContext,
+  type ResolvedEngineConfig,
 } from './engine-types';
+import {
+  isFiniteNumber,
+  validateDailyTargetsOutput,
+  validateEngineConfig,
+  validateProfileInputs,
+} from './engine-validation';
 
 // ============================================================================
 // CRIPTOGRAFIA PORTÁTIL: SHA-256 SÍNCRONO (FIPS 180-4)
@@ -132,15 +157,26 @@ export function sha256Sync(input: string): string {
 // SERIALIZAÇÃO CANÔNICA (PROVENANCE ESTÁVEL)
 // ============================================================================
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /**
  * Normaliza recursivamente qualquer estrutura de dados com ordenação léxica de chaves.
+ *
+ * Números não finitos (NaN, Infinity, -Infinity) são rejeitados com
+ * `NutritionEngineSerializationError`: `JSON.stringify` os converteria em `null`,
+ * apagando silenciosamente a diferença entre inputs distintos no hash de proveniência.
  */
-export function canonicalizeJson(value: unknown): unknown {
+export function canonicalizeJson(value: unknown, path = '$'): unknown {
+  if (typeof value === 'number' && !Number.isFinite(value)) {
+    throw new NutritionEngineSerializationError(path, value);
+  }
   if (value === null || typeof value !== 'object') {
     return value;
   }
   if (Array.isArray(value)) {
-    return value.map(canonicalizeJson);
+    return value.map((item, index) => canonicalizeJson(item, `${path}[${index}]`));
   }
   const obj = value as Record<string, unknown>;
   const keys = Object.keys(obj).sort();
@@ -148,7 +184,7 @@ export function canonicalizeJson(value: unknown): unknown {
   for (const key of keys) {
     const v = obj[key];
     if (v !== undefined) {
-      result[key] = canonicalizeJson(v);
+      result[key] = canonicalizeJson(v, `${path}.${key}`);
     }
   }
   return result;
@@ -165,77 +201,116 @@ export function canonicalSerialize(value: unknown): string {
 // RESOLUÇÃO DE CONFIGURAÇÃO E SNAPSHOT
 // ============================================================================
 
-/**
- * Mescla de forma pura e imutável a configuração fornecida com a configuração canônica padrão.
- */
-export function resolveEngineConfig(config?: EngineConfig): Required<EngineConfig> {
-  if (!config) {
-    return DEFAULT_ENGINE_CONFIG;
+function pick<T>(value: T | undefined, fallback: T): T {
+  // `null` NÃO cai no default: é preservado para que a validação o rejeite explicitamente.
+  return value === undefined ? fallback : value;
+}
+
+function pickRecord<T extends Record<string, number>>(value: T | undefined, defaults: T): T {
+  if (value === undefined) {
+    return defaults;
   }
+  if (!isPlainRecord(value)) {
+    // Estrutura inválida é preservada para rejeição explícita na validação.
+    return value;
+  }
+  return { ...defaults, ...value };
+}
+
+/**
+ * Mescla de forma pura e imutável os parâmetros de cálculo com a configuração canônica padrão.
+ * Não valida e não clampeia: a validação fail-closed é responsabilidade de `validateEngineConfig`.
+ */
+export function resolveCalculationConfig(config?: EngineConfig): ResolvedCalculationConfig {
+  if (!config) {
+    return DEFAULT_CALCULATION_CONFIG;
+  }
+  const d = DEFAULT_CALCULATION_CONFIG;
   return {
-    engineVersion: config.engineVersion ?? DEFAULT_ENGINE_CONFIG.engineVersion,
-    formulaVersion: config.formulaVersion ?? DEFAULT_ENGINE_CONFIG.formulaVersion,
-    computedAtOverride: config.computedAtOverride ?? DEFAULT_ENGINE_CONFIG.computedAtOverride,
-    computedReason: config.computedReason ?? DEFAULT_ENGINE_CONFIG.computedReason,
-    bmrUnspecifiedOffset:
-      config.bmrUnspecifiedOffset ?? DEFAULT_ENGINE_CONFIG.bmrUnspecifiedOffset,
-    palFactors: {
-      ...DEFAULT_ENGINE_CONFIG.palFactors,
-      ...(config.palFactors ?? {}),
-    },
-    trainingKcalPerMinute:
-      config.trainingKcalPerMinute ?? DEFAULT_ENGINE_CONFIG.trainingKcalPerMinute,
-    goalAdjustments: {
-      ...DEFAULT_ENGINE_CONFIG.goalAdjustments,
-      ...(config.goalAdjustments ?? {}),
-    },
-    maxAbsoluteDeficitKcal:
-      config.maxAbsoluteDeficitKcal ?? DEFAULT_ENGINE_CONFIG.maxAbsoluteDeficitKcal,
-    minBmrMultiplierInDeficit:
-      config.minBmrMultiplierInDeficit ?? DEFAULT_ENGINE_CONFIG.minBmrMultiplierInDeficit,
-    femaleCaloricFloorKcal:
-      config.femaleCaloricFloorKcal ?? DEFAULT_ENGINE_CONFIG.femaleCaloricFloorKcal,
-    maleCaloricFloorKcal:
-      config.maleCaloricFloorKcal ?? DEFAULT_ENGINE_CONFIG.maleCaloricFloorKcal,
-    unspecifiedCaloricFloorKcal:
-      config.unspecifiedCaloricFloorKcal ?? DEFAULT_ENGINE_CONFIG.unspecifiedCaloricFloorKcal,
-    proteinGramsPerKgByGoal: {
-      ...DEFAULT_ENGINE_CONFIG.proteinGramsPerKgByGoal,
-      ...(config.proteinGramsPerKgByGoal ?? {}),
-    },
-    minProteinGramsPerKg:
-      config.minProteinGramsPerKg ?? DEFAULT_ENGINE_CONFIG.minProteinGramsPerKg,
-    maxProteinGramsPerKg:
-      config.maxProteinGramsPerKg ?? DEFAULT_ENGINE_CONFIG.maxProteinGramsPerKg,
-    defaultFatGramsPerKg:
-      config.defaultFatGramsPerKg ?? DEFAULT_ENGINE_CONFIG.defaultFatGramsPerKg,
-    minFatGramsPerKg: config.minFatGramsPerKg ?? DEFAULT_ENGINE_CONFIG.minFatGramsPerKg,
-    maxFatGramsPerKg: config.maxFatGramsPerKg ?? DEFAULT_ENGINE_CONFIG.maxFatGramsPerKg,
-    minFatCaloriePercentage:
-      config.minFatCaloriePercentage ?? DEFAULT_ENGINE_CONFIG.minFatCaloriePercentage,
-    ketogenicFatCaloriePercentage:
-      config.ketogenicFatCaloriePercentage ?? DEFAULT_ENGINE_CONFIG.ketogenicFatCaloriePercentage,
-    nonKetoCarbsFloorGrams:
-      config.nonKetoCarbsFloorGrams ?? DEFAULT_ENGINE_CONFIG.nonKetoCarbsFloorGrams,
-    ketogenicCarbsGrams:
-      config.ketogenicCarbsGrams ?? DEFAULT_ENGINE_CONFIG.ketogenicCarbsGrams,
-    baseHydrationMlPerKg:
-      config.baseHydrationMlPerKg ?? DEFAULT_ENGINE_CONFIG.baseHydrationMlPerKg,
-    trainingHydrationMlPerHour:
-      config.trainingHydrationMlPerHour ?? DEFAULT_ENGINE_CONFIG.trainingHydrationMlPerHour,
-    maxHydrationMlPerDay:
-      config.maxHydrationMlPerDay ?? DEFAULT_ENGINE_CONFIG.maxHydrationMlPerDay,
-    minHydrationMlPerDay:
-      config.minHydrationMlPerDay ?? DEFAULT_ENGINE_CONFIG.minHydrationMlPerDay,
+    bmrUnspecifiedOffset: pick(config.bmrUnspecifiedOffset, d.bmrUnspecifiedOffset),
+    palFactors: pickRecord(config.palFactors, d.palFactors),
+    trainingKcalPerMinute: pick(config.trainingKcalPerMinute, d.trainingKcalPerMinute),
+    goalAdjustments: pickRecord(config.goalAdjustments, d.goalAdjustments),
+    maxAbsoluteDeficitKcal: pick(config.maxAbsoluteDeficitKcal, d.maxAbsoluteDeficitKcal),
+    minBmrMultiplierInDeficit: pick(
+      config.minBmrMultiplierInDeficit,
+      d.minBmrMultiplierInDeficit
+    ),
+    femaleCaloricFloorKcal: pick(config.femaleCaloricFloorKcal, d.femaleCaloricFloorKcal),
+    maleCaloricFloorKcal: pick(config.maleCaloricFloorKcal, d.maleCaloricFloorKcal),
+    unspecifiedCaloricFloorKcal: pick(
+      config.unspecifiedCaloricFloorKcal,
+      d.unspecifiedCaloricFloorKcal
+    ),
+    proteinGramsPerKgByGoal: pickRecord(config.proteinGramsPerKgByGoal, d.proteinGramsPerKgByGoal),
+    minProteinGramsPerKg: pick(config.minProteinGramsPerKg, d.minProteinGramsPerKg),
+    maxProteinGramsPerKg: pick(config.maxProteinGramsPerKg, d.maxProteinGramsPerKg),
+    defaultFatGramsPerKg: pick(config.defaultFatGramsPerKg, d.defaultFatGramsPerKg),
+    minFatGramsPerKg: pick(config.minFatGramsPerKg, d.minFatGramsPerKg),
+    maxFatGramsPerKg: pick(config.maxFatGramsPerKg, d.maxFatGramsPerKg),
+    nonKetoCarbsPreferenceGrams: pick(
+      config.nonKetoCarbsPreferenceGrams,
+      d.nonKetoCarbsPreferenceGrams
+    ),
+    ketogenicCarbsGrams: pick(config.ketogenicCarbsGrams, d.ketogenicCarbsGrams),
+    baseHydrationMlPerKg: pick(config.baseHydrationMlPerKg, d.baseHydrationMlPerKg),
+    trainingHydrationMlPerHour: pick(
+      config.trainingHydrationMlPerHour,
+      d.trainingHydrationMlPerHour
+    ),
+    maxHydrationMlPerDay: pick(config.maxHydrationMlPerDay, d.maxHydrationMlPerDay),
+    minHydrationMlPerDay: pick(config.minHydrationMlPerDay, d.minHydrationMlPerDay),
   };
 }
 
 /**
- * Constrói o snapshot formal dos parâmetros e biometria para cálculo do SHA-256.
+ * Resolve versões e metadados de evento.
+ *
+ * `computedAt` NUNCA é inventado: sem instante explícito o resultado carrega `null`
+ * e `computedAtSource: 'absent'`.
+ */
+export function resolveComputationContext(config?: EngineConfig): ResolvedComputationContext {
+  const providedComputedAt = config?.computedAt;
+  const hasComputedAt = providedComputedAt !== undefined;
+
+  return {
+    engineVersion: pick(config?.engineVersion, DEFAULT_ENGINE_CONFIG.engineVersion),
+    formulaVersion: pick(config?.formulaVersion, DEFAULT_ENGINE_CONFIG.formulaVersion),
+    computedAt: hasComputedAt ? providedComputedAt : null,
+    computedAtSource: hasComputedAt ? 'explicit_context' : 'absent',
+    computedReason: pick(config?.computedReason, DEFAULT_ENGINE_CONFIG.computedReason),
+  };
+}
+
+/**
+ * Mescla de forma pura e imutável a configuração fornecida com a configuração canônica padrão.
+ */
+export function resolveEngineConfig(config?: EngineConfig): ResolvedEngineConfig {
+  if (!config) {
+    return DEFAULT_ENGINE_CONFIG;
+  }
+  const context = resolveComputationContext(config);
+  return {
+    ...resolveCalculationConfig(config),
+    engineVersion: context.engineVersion,
+    formulaVersion: context.formulaVersion,
+    computedAt: context.computedAt,
+    computedReason: context.computedReason,
+  };
+}
+
+/**
+ * Constrói o snapshot formal de biometria, estilo de vida, versões e da TOTALIDADE dos
+ * parâmetros de cálculo resolvidos para o SHA-256 de proveniência.
+ *
+ * `effectiveParameters` é o próprio `ResolvedCalculationConfig`: a completude é garantida
+ * pelo tipo, e não por uma lista curada manualmente que possa esquecer um parâmetro.
+ * Metadados de evento (`computedAt`, `computedReason`) ficam fora por não alterarem números.
  */
 export function buildInputSnapshot(
   profile: NutritionProfile,
-  effectiveConfig: Required<EngineConfig>
+  calculationConfig: ResolvedCalculationConfig,
+  versions: { engineVersion: string; formulaVersion: string }
 ): NutritionInputSnapshot {
   return {
     biometrics: {
@@ -253,42 +328,29 @@ export function buildInputSnapshot(
       trainingFrequencyDaysPerWeek: profile.trainingFrequencyDaysPerWeek,
     },
     versions: {
-      engineVersion: effectiveConfig.engineVersion,
-      formulaVersion: effectiveConfig.formulaVersion,
+      engineVersion: versions.engineVersion,
+      formulaVersion: versions.formulaVersion,
     },
-    effectiveParameters: {
-      bmrUnspecifiedOffset: effectiveConfig.bmrUnspecifiedOffset,
-      goalAdjustments: effectiveConfig.goalAdjustments,
-      maxAbsoluteDeficitKcal: effectiveConfig.maxAbsoluteDeficitKcal,
-      minBmrMultiplierInDeficit: effectiveConfig.minBmrMultiplierInDeficit,
-      palFactors: effectiveConfig.palFactors,
-      proteinGramsPerKgByGoal: effectiveConfig.proteinGramsPerKgByGoal,
-      caloricFloors: {
-        female: effectiveConfig.femaleCaloricFloorKcal,
-        male: effectiveConfig.maleCaloricFloorKcal,
-        unspecified: effectiveConfig.unspecifiedCaloricFloorKcal,
-      },
-      fat: {
-        defaultGramsPerKg: effectiveConfig.defaultFatGramsPerKg,
-        minGramsPerKg: effectiveConfig.minFatGramsPerKg,
-        maxGramsPerKg: effectiveConfig.maxFatGramsPerKg,
-      },
-      carbs: {
-        nonKetoFloorGrams: effectiveConfig.nonKetoCarbsFloorGrams,
-        ketogenicGrams: effectiveConfig.ketogenicCarbsGrams,
-      },
-      hydration: {
-        baseMlPerKg: effectiveConfig.baseHydrationMlPerKg,
-        trainingMlPerHour: effectiveConfig.trainingHydrationMlPerHour,
-        maxMlPerDay: effectiveConfig.maxHydrationMlPerDay,
-      },
-    },
+    effectiveParameters: calculationConfig,
   };
 }
 
 // ============================================================================
 // ETAPAS DO MOTOR BIOENERGÉTICO
 // ============================================================================
+
+function requireFiniteParameter(field: string, value: unknown): number {
+  if (!isFiniteNumber(value)) {
+    throw new NutritionEngineInputError([
+      {
+        field,
+        code: 'NOT_FINITE',
+        message: `parâmetro efetivo ausente ou não finito: ${String(value)}`,
+      },
+    ]);
+  }
+  return value;
+}
 
 /**
  * 1. BMR — Equação de Mifflin-St Jeor (formulaVersion: 'mifflin-st-jeor-v1')
@@ -297,10 +359,12 @@ export function buildInputSnapshot(
  * Mulher: 10 * peso + 6.25 * altura - 5 * idade - 161
  * Unspecified: base + offset provisório (-78) com marcação explícita de LIMITED_GUIDANCE.
  * NUNCA assume default masculino (D-NUT-02).
+ *
+ * Pré-condição: perfil e config já validados (`validateProfileInputs` / `validateEngineConfig`).
  */
 export function computeBmr(
   profile: NutritionProfile,
-  config: Required<EngineConfig>
+  config: ResolvedCalculationConfig
 ): { bmrKcal: number; isLimitedGuidance: boolean } {
   const base = 10 * profile.weightKg + 6.25 * profile.heightCm - 5 * profile.age;
   let bmrKcal: number;
@@ -313,7 +377,7 @@ export function computeBmr(
   } else {
     // biologicalSexForCalcs === 'unspecified'
     // PROFESSIONAL_REVIEW_REQUIRED: Ponto médio entre +5 e -161 (-78)
-    bmrKcal = base + config.bmrUnspecifiedOffset;
+    bmrKcal = base + requireFiniteParameter('bmrUnspecifiedOffset', config.bmrUnspecifiedOffset);
     isLimitedGuidance = true;
   }
 
@@ -325,21 +389,30 @@ export function computeBmr(
 
 /**
  * 2. TDEE — Fator de Atividade Física (PAL 1.2–1.75) + Gasto Médio de Treino
+ *
+ * Sem default oculto: nível de atividade fora do contrato falha de forma tipada,
+ * em vez de cair silenciosamente no PAL sedentário.
  */
 export function computeTdee(
   bmrKcal: number,
   profile: NutritionProfile,
-  config: Required<EngineConfig>
+  config: ResolvedCalculationConfig
 ): { tdeeKcal: number; dailyTrainingKcal: number } {
-  const pal = config.palFactors[profile.nonExerciseActivity] ?? 1.2;
+  const pal = requireFiniteParameter(
+    `palFactors.${String(profile.nonExerciseActivity)}`,
+    config.palFactors[profile.nonExerciseActivity]
+  );
+  const kcalPerMinute = requireFiniteParameter(
+    'trainingKcalPerMinute',
+    config.trainingKcalPerMinute
+  );
 
   // Custo calórico diário de treinamento proporcional à frequência e duração
-  const validFreq = Math.max(0, Math.min(7, profile.trainingFrequencyDaysPerWeek));
-  const validDuration = Math.max(0, profile.averageTrainingDurationMinutes);
-  const dailyTrainingMinutes = (validFreq * validDuration) / 7;
+  const dailyTrainingMinutes =
+    (profile.trainingFrequencyDaysPerWeek * profile.averageTrainingDurationMinutes) / 7;
 
   // PROFESSIONAL_REVIEW_REQUIRED: custo de 6 kcal/min
-  const dailyTrainingKcal = Math.round(dailyTrainingMinutes * config.trainingKcalPerMinute);
+  const dailyTrainingKcal = Math.round(dailyTrainingMinutes * kcalPerMinute);
   const tdeeKcal = Math.round(bmrKcal * pal + dailyTrainingKcal);
 
   return { tdeeKcal, dailyTrainingKcal };
@@ -348,7 +421,7 @@ export function computeTdee(
 /**
  * 3. Partição Energética — Déficit / Superávit Seguro com Pisos de Emergência
  *
- * Regras mandatórias de segurança:
+ * Regras mandatórias de segurança (invariantes duros, não configuráveis acima do limite):
  * - Déficit máximo absoluto <= 750 kcal/dia.
  * - Target em déficit nunca abaixo de BMR * 0.90.
  * - Piso absoluto de emergência:
@@ -360,25 +433,26 @@ export function computeTargetCalories(
   bmrKcal: number,
   tdeeKcal: number,
   profile: NutritionProfile,
-  config: Required<EngineConfig>
+  config: ResolvedCalculationConfig
 ): {
   targetCalories: number;
   energyBalanceKcal: number;
   appliedCaloricFloor: number;
 } {
-  let rawAdjustment = config.goalAdjustments[profile.goal] ?? 0;
+  let rawAdjustment = requireFiniteParameter(
+    `goalAdjustments.${String(profile.goal)}`,
+    config.goalAdjustments[profile.goal]
+  );
 
-  // Trava 1: Déficit máximo absoluto limitado a 750 kcal/dia
+  // Trava 1: Déficit máximo absoluto limitado (teto duro de 750 kcal/dia no config validado)
   if (rawAdjustment < 0) {
-    // PROFESSIONAL_REVIEW_REQUIRED: limite 750 kcal
     rawAdjustment = Math.max(rawAdjustment, -config.maxAbsoluteDeficitKcal);
   }
 
   let rawTarget = tdeeKcal + rawAdjustment;
 
-  // Trava 2: Proteção em déficit — nunca descer abaixo de BMR * 0.90
+  // Trava 2: Proteção em déficit — nunca descer abaixo de BMR * minBmrMultiplierInDeficit
   if (rawAdjustment < 0) {
-    // PROFESSIONAL_REVIEW_REQUIRED: BMR * 0.90
     const bmrFloor = Math.round(bmrKcal * config.minBmrMultiplierInDeficit);
     rawTarget = Math.max(rawTarget, bmrFloor);
   }
@@ -411,100 +485,129 @@ export function computeTargetCalories(
 /**
  * 4. Partição de Macronutrientes
  *
- * - Proteína primeiro: estritamente 1.6 a 2.2 g/kg/dia (D-NUT-04).
- *   Cutting favorece faixa superior; manutenção/hipertrofia faixa central.
- * - Lipídios de suporte essencial: 0.7 a 1.0 g/kg/dia.
- * - Carboidratos: saldo energético restante.
- *   Em dieta não cetogênica, preserva piso de 100 a 130 g/dia (config: 120g).
- *   Em dieta cetogênica, alocação baixa controlada (30g) sem imposição de piso glicolítico.
- * - Garantia matemática de ausência de números negativos ou não finitos.
+ * Ordem de prioridade (inalterada, sem nova regra clínica):
+ * 1. Proteína, estritamente dentro de [minProteinGramsPerKg, maxProteinGramsPerKg],
+ *    com teto duro de 2.2 g/kg reaplicado APÓS o arredondamento inteiro.
+ * 2. Lipídios de suporte essencial (nunca abaixo de `minFatGramsPerKg`).
+ * 3. Carboidratos pelo saldo energético; em dieta não cetogênica o motor tenta atingir a
+ *    PREFERÊNCIA `nonKetoCarbsPreferenceGrams` deslocando lipídio até o piso essencial.
+ *
+ * Reconciliação: o resultado expõe `MacroReconciliation` com o delta real entre
+ * (4P + 4C + 9F) e `targetCalories`. Quando as constraints tornam a igualdade impossível,
+ * o motor NÃO finge reconciliação: sinaliza a constraint não atendida de forma tipada.
  */
 export function computeMacros(
   targetCalories: number,
   profile: NutritionProfile,
-  config: Required<EngineConfig>
+  config: ResolvedCalculationConfig
 ): {
   targetProteinGrams: number;
   targetFatGrams: number;
   targetCarbsGrams: number;
   effectiveProteinGramsPerKg: number;
   effectiveFatGramsPerKg: number;
+  reconciliation: MacroReconciliation;
 } {
-  // 1. Ingestão de Proteína (g/kg/dia)
-  const rawProteinRate = config.proteinGramsPerKgByGoal[profile.goal] ?? 1.8;
-  // D-NUT-04: Trava de projeto — nunca automatizar < 1.6 ou > 2.2 g/kg/dia
-  const clampedProteinRate = Math.min(
+  const weightKg = profile.weightKg;
+
+  // 1. Proteína (g/kg/dia) — D-NUT-04
+  const goalProteinRate = requireFiniteParameter(
+    `proteinGramsPerKgByGoal.${String(profile.goal)}`,
+    config.proteinGramsPerKgByGoal[profile.goal]
+  );
+  const boundedProteinRate = Math.min(
     config.maxProteinGramsPerKg,
-    Math.max(config.minProteinGramsPerKg, rawProteinRate)
+    Math.max(config.minProteinGramsPerKg, goalProteinRate)
   );
 
-  const targetProteinGrams = Math.round(profile.weightKg * clampedProteinRate);
+  // Teto duro reaplicado após o arredondamento: `Math.round` pode ultrapassar 2.2 g/kg.
+  const hardCapProteinGrams = Math.floor(weightKg * config.maxProteinGramsPerKg);
+  let targetProteinGrams = Math.min(
+    Math.round(weightKg * boundedProteinRate),
+    hardCapProteinGrams
+  );
+  if (targetProteinGrams < 0) {
+    targetProteinGrams = 0;
+  }
   const proteinCalories = targetProteinGrams * 4;
 
-  let targetFatGrams = 0;
-  let targetCarbsGrams = 0;
+  let targetFatGrams: number;
+  let targetCarbsGrams: number;
+  let roundingToleranceKcal: number;
+  const unmetConstraints: MacroConstraintCode[] = [];
 
   if (profile.dietaryPattern === 'ketogenic') {
-    // Dieta Cetogênica: carboidratos fixados baixos; lipídios absorvem saldo calórico
+    // Dieta Cetogênica: carboidratos fixados baixos; lipídios absorvem o saldo calórico.
     // PROFESSIONAL_REVIEW_REQUIRED: 30g de carboidratos
-    targetCarbsGrams = Math.max(0, config.ketogenicCarbsGrams);
+    targetCarbsGrams = Math.max(0, Math.round(config.ketogenicCarbsGrams));
     const carbsCalories = targetCarbsGrams * 4;
-
-    const remainingForFat = Math.max(0, targetCalories - (proteinCalories + carbsCalories));
-    targetFatGrams = Math.round(remainingForFat / 9);
+    targetFatGrams = Math.max(
+      0,
+      Math.round((targetCalories - proteinCalories - carbsCalories) / 9)
+    );
+    // Lipídio é o macro residual: meio grama de gordura = 4.5 kcal.
+    roundingToleranceKcal = MACRO_ROUNDING_TOLERANCE_KCAL.FAT_RESIDUAL;
   } else {
     // Dieta Não Cetogênica
     // Lipídios de suporte essencial (0.7 a 1.0 g/kg/dia)
     // PROFESSIONAL_REVIEW_REQUIRED: default 0.85 g/kg/dia
-    const rawFatRate = Math.min(
+    const fatRate = Math.min(
       config.maxFatGramsPerKg,
       Math.max(config.minFatGramsPerKg, config.defaultFatGramsPerKg)
     );
-    let fatGrams = Math.round(profile.weightKg * rawFatRate);
-    let fatCalories = fatGrams * 9;
+    let fatGrams = Math.max(0, Math.round(weightKg * fatRate));
+    const essentialFatGrams = Math.min(fatGrams, Math.max(0, Math.round(weightKg * config.minFatGramsPerKg)));
 
     // Carboidratos pelo saldo energético: Target - (Kcal_prot + Kcal_gord)
-    let remainingForCarbs = targetCalories - (proteinCalories + fatCalories);
-    let carbsGrams = Math.round(remainingForCarbs / 4);
+    let carbsGrams = Math.round((targetCalories - proteinCalories - fatGrams * 9) / 4);
 
-    // Respeito ao piso de carboidratos em dieta não cetogênica (100 a 130 g/dia)
-    // PROFESSIONAL_REVIEW_REQUIRED: piso de 120g
-    if (carbsGrams < config.nonKetoCarbsFloorGrams) {
-      const carbsShortfallGrams = config.nonKetoCarbsFloorGrams - carbsGrams;
-      const neededCalories = carbsShortfallGrams * 4;
-
-      // Desloca gordura acima do piso mínimo de 0.7 g/kg para viabilizar carboidratos
-      const minFatGrams = Math.round(profile.weightKg * config.minFatGramsPerKg);
-      const reducibleFatGrams = Math.max(0, fatGrams - minFatGrams);
-      const reducibleFatCalories = reducibleFatGrams * 9;
-
+    // Preferência de carboidratos em dieta não cetogênica (best-effort, não invariante).
+    // PROFESSIONAL_REVIEW_REQUIRED: preferência de 120g
+    const carbsPreference = Math.max(0, Math.round(config.nonKetoCarbsPreferenceGrams));
+    if (carbsGrams < carbsPreference) {
+      const neededCalories = (carbsPreference - carbsGrams) * 4;
+      const reducibleFatCalories = Math.max(0, (fatGrams - essentialFatGrams) * 9);
       const caloriesToShift = Math.min(neededCalories, reducibleFatCalories);
       if (caloriesToShift > 0) {
-        const fatGramsToReduce = Math.floor(caloriesToShift / 9);
-        fatGrams -= fatGramsToReduce;
-        fatCalories = fatGrams * 9;
-        remainingForCarbs = targetCalories - (proteinCalories + fatCalories);
-        carbsGrams = Math.round(remainingForCarbs / 4);
+        fatGrams -= Math.floor(caloriesToShift / 9);
+        carbsGrams = Math.round((targetCalories - proteinCalories - fatGrams * 9) / 4);
       }
     }
 
     targetFatGrams = Math.max(0, fatGrams);
     targetCarbsGrams = Math.max(0, carbsGrams);
+
+    if (targetCarbsGrams < carbsPreference) {
+      unmetConstraints.push('NON_KETO_CARBS_PREFERENCE_UNMET');
+    }
+    // Carboidrato é o macro residual: meio grama de carboidrato = 2 kcal.
+    roundingToleranceKcal = MACRO_ROUNDING_TOLERANCE_KCAL.CARBS_RESIDUAL;
   }
 
-  // Garantia matemática de finitude e não-negatividade
-  const safeProtein =
-    Number.isFinite(targetProteinGrams) && targetProteinGrams >= 0 ? targetProteinGrams : 0;
-  const safeFat = Number.isFinite(targetFatGrams) && targetFatGrams >= 0 ? targetFatGrams : 0;
-  const safeCarbs =
-    Number.isFinite(targetCarbsGrams) && targetCarbsGrams >= 0 ? targetCarbsGrams : 0;
+  const macroCalories = targetProteinGrams * 4 + targetCarbsGrams * 4 + targetFatGrams * 9;
+  const deltaKcal = macroCalories - targetCalories;
+  const isReconciled = Math.abs(deltaKcal) <= roundingToleranceKcal;
+
+  if (deltaKcal > roundingToleranceKcal) {
+    // Energia alvo insuficiente para proteína + lipídio essencial (+ carboidrato cetogênico):
+    // a igualdade energética é matematicamente impossível e isso é declarado, não mascarado.
+    unmetConstraints.unshift('ENERGY_BELOW_MACRO_MINIMUMS');
+  }
 
   return {
-    targetProteinGrams: safeProtein,
-    targetFatGrams: safeFat,
-    targetCarbsGrams: safeCarbs,
-    effectiveProteinGramsPerKg: Number((safeProtein / profile.weightKg).toFixed(2)),
-    effectiveFatGramsPerKg: Number((safeFat / profile.weightKg).toFixed(2)),
+    targetProteinGrams,
+    targetFatGrams,
+    targetCarbsGrams,
+    effectiveProteinGramsPerKg: Number((targetProteinGrams / weightKg).toFixed(2)),
+    effectiveFatGramsPerKg: Number((targetFatGrams / weightKg).toFixed(2)),
+    reconciliation: {
+      macroCalories,
+      targetCalories,
+      deltaKcal,
+      roundingToleranceKcal,
+      isReconciled,
+      unmetConstraints,
+    },
   };
 }
 
@@ -517,14 +620,13 @@ export function computeMacros(
  */
 export function computeHydration(
   profile: NutritionProfile,
-  config: Required<EngineConfig>
+  config: ResolvedCalculationConfig
 ): number {
   // PROFESSIONAL_REVIEW_REQUIRED: 35 ml/kg
   const baseMl = profile.weightKg * config.baseHydrationMlPerKg;
 
-  const validFreq = Math.max(0, Math.min(7, profile.trainingFrequencyDaysPerWeek));
-  const validDuration = Math.max(0, profile.averageTrainingDurationMinutes);
-  const dailyTrainingHours = (validFreq * validDuration) / (7 * 60);
+  const dailyTrainingHours =
+    (profile.trainingFrequencyDaysPerWeek * profile.averageTrainingDurationMinutes) / (7 * 60);
 
   // PROFESSIONAL_REVIEW_REQUIRED: +500 ml por hora de treino
   const trainingMl = dailyTrainingHours * config.trainingHydrationMlPerHour;
@@ -539,6 +641,27 @@ export function computeHydration(
   return Math.round(clampedWater);
 }
 
+/**
+ * 6. Tolerância declarada do alvo (Masterplan 5.2)
+ *
+ * Para `biologicalSexForCalcs === 'unspecified'`, o alvo carrega tolerância ampliada
+ * de +/- 15%. É guidance explícita: o alvo NÃO é ajustado automaticamente por ela.
+ */
+export function buildEstimationTolerance(
+  profile: NutritionProfile,
+  targetCalories: number
+): EstimationTolerance {
+  const isUnspecified = profile.biologicalSexForCalcs === 'unspecified';
+  const relative = isUnspecified ? UNSPECIFIED_ESTIMATION_RELATIVE_TOLERANCE : 0;
+
+  return {
+    relative,
+    reason: isUnspecified ? 'BIOLOGICAL_SEX_UNSPECIFIED' : 'NONE',
+    targetCaloriesLowerKcal: Math.round(targetCalories * (1 - relative)),
+    targetCaloriesUpperKcal: Math.round(targetCalories * (1 + relative)),
+  };
+}
+
 // ============================================================================
 // PONTO DE ENTRADA PRINCIPAL: calculateDailyTargets
 // ============================================================================
@@ -548,72 +671,98 @@ export function computeHydration(
  *
  * Função puramente funcional e determinística:
  * - Mesmos profile + config produzem exatamente os mesmos números, hash e id.
- * - Sem Math.random(), randomUUID() ou Date.now().
- * - Validação estrita do gate clínico: falha tipada para BLOCK_AUTOMATIC_TARGET e PROFESSIONAL_REFERRAL.
+ * - Sem Math.random(), randomUUID(), Date.now() ou `new Date()`.
  *
- * @throws {NutritionEngineGateError} se o perfil for bloqueado pelo gate ético-clínico.
+ * Precedência de falha (fail-closed):
+ * 1. `NutritionEngineConfigError` — configuração viola invariante duro de segurança.
+ * 2. `NutritionEngineGateError` — gate ético-clínico bloqueia metas automáticas.
+ * 3. `NutritionEngineInputError` — números/enumerações do perfil inválidos, ou saída não finita.
+ *
+ * @throws {NutritionEngineConfigError} configuração inválida ou acima de invariante absoluto.
+ * @throws {NutritionEngineGateError} perfil bloqueado pelo gate ético-clínico.
+ * @throws {NutritionEngineInputError} entrada numérica inválida ou saída fora do contrato.
  */
 export function calculateDailyTargets(
   profile: NutritionProfile,
   config?: EngineConfig
 ): DailyTargets {
-  // 1. GATE CLÍNICO: Antes de calcular targets, respeitar evaluateNutritionGate(profile)
+  // 1. CONFIGURAÇÃO: resolução pura seguida de validação fail-closed dos invariantes absolutos
+  const calculationConfig = resolveCalculationConfig(config);
+  const context = resolveComputationContext(config);
+  const configViolations = validateEngineConfig({
+    ...calculationConfig,
+    engineVersion: context.engineVersion,
+    formulaVersion: context.formulaVersion,
+    computedAt: context.computedAt,
+    computedReason: context.computedReason,
+  });
+  if (configViolations.length > 0) {
+    throw new NutritionEngineConfigError(configViolations);
+  }
+
+  // 2. GATE CLÍNICO: antes de calcular targets, respeitar evaluateNutritionGate(profile)
   const gateResult = evaluateNutritionGate(profile);
   if (!gateResult.allowAutomatedTargets) {
     throw new NutritionEngineGateError(gateResult);
   }
 
-  // 2. Configuração Canônica Efetiva
-  const effectiveConfig = resolveEngineConfig(config);
+  // 3. VALIDAÇÃO NUMÉRICA DO PERFIL: nenhum NaN/Infinity/negativo inválido entra no cálculo
+  const inputViolations = validateProfileInputs(profile);
+  if (inputViolations.length > 0) {
+    throw new NutritionEngineInputError(inputViolations);
+  }
 
-  // 3. Proveniência: Snapshot Canônico e SHA-256
-  const snapshot = buildInputSnapshot(profile, effectiveConfig);
-  const serializedSnapshot = canonicalSerialize(snapshot);
-  const inputSnapshotHash = sha256Sync(serializedSnapshot);
+  // 4. Proveniência: snapshot canônico completo e SHA-256
+  const snapshot = buildInputSnapshot(profile, calculationConfig, {
+    engineVersion: context.engineVersion,
+    formulaVersion: context.formulaVersion,
+  });
+  const inputSnapshotHash = sha256Sync(canonicalSerialize(snapshot));
 
-  // 4. BMR (Mifflin-St Jeor provisório)
-  const { bmrKcal, isLimitedGuidance } = computeBmr(profile, effectiveConfig);
+  // 5. BMR (Mifflin-St Jeor provisório)
+  const { bmrKcal, isLimitedGuidance } = computeBmr(profile, calculationConfig);
 
-  // 5. TDEE (PAL + Componente de Treino)
-  const { tdeeKcal } = computeTdee(bmrKcal, profile, effectiveConfig);
+  // 6. TDEE (PAL + Componente de Treino)
+  const { tdeeKcal } = computeTdee(bmrKcal, profile, calculationConfig);
 
-  // 6. Balanço Calórico Seguro e Pisos Fisiológicos
+  // 7. Balanço Calórico Seguro e Pisos Fisiológicos
   const { targetCalories, energyBalanceKcal, appliedCaloricFloor } = computeTargetCalories(
     bmrKcal,
     tdeeKcal,
     profile,
-    effectiveConfig
+    calculationConfig
   );
 
-  // 7. Partição de Macronutrientes (Proteína -> Lipídios -> Carboidratos)
+  // 8. Partição de Macronutrientes (Proteína -> Lipídios -> Carboidratos)
   const {
     targetProteinGrams,
     targetFatGrams,
     targetCarbsGrams,
     effectiveProteinGramsPerKg,
     effectiveFatGramsPerKg,
-  } = computeMacros(targetCalories, profile, effectiveConfig);
+    reconciliation,
+  } = computeMacros(targetCalories, profile, calculationConfig);
 
-  // 8. Meta Hídrica (35 ml/kg base + treino, teto 4500 ml)
-  const targetWaterMl = computeHydration(profile, effectiveConfig);
+  // 9. Meta Hídrica (35 ml/kg base + treino, teto 4500 ml)
+  const targetWaterMl = computeHydration(profile, calculationConfig);
 
-  // 9. Metadados temporais e determinísticos de auditoria
-  const computedAt =
-    effectiveConfig.computedAtOverride && effectiveConfig.computedAtOverride.length > 0
-      ? effectiveConfig.computedAtOverride
-      : profile.updatedAt || '2026-09-09T00:00:00.000Z';
-  const computedReason = effectiveConfig.computedReason;
-
-  // 10. Identificador determinístico derivado do SHA-256
-  const id = `dt_${inputSnapshotHash.slice(0, 16)}`;
-
-  return {
-    id,
-    engineVersion: effectiveConfig.engineVersion,
-    formulaVersion: effectiveConfig.formulaVersion,
+  // 10. Identidade de evento: snapshot + metadados que NÃO alteram números,
+  //     de modo que razões/instantes distintos nunca colidam como o mesmo evento.
+  const eventFingerprint = canonicalSerialize({
     inputSnapshotHash,
-    computedAt,
-    computedReason,
+    computedAt: context.computedAt,
+    computedReason: context.computedReason,
+  });
+  const id = `dt_${sha256Sync(eventFingerprint).slice(0, 16)}`;
+
+  const targets: DailyTargets = {
+    id,
+    engineVersion: context.engineVersion,
+    formulaVersion: context.formulaVersion,
+    inputSnapshotHash,
+    computedAt: context.computedAt,
+    computedAtSource: context.computedAtSource,
+    computedReason: context.computedReason,
     targetCalories,
     targetProteinGrams,
     targetCarbsGrams,
@@ -627,5 +776,15 @@ export function calculateDailyTargets(
     appliedCaloricFloor,
     effectiveProteinGramsPerKg,
     effectiveFatGramsPerKg,
+    macroReconciliation: reconciliation,
+    estimationTolerance: buildEstimationTolerance(profile, targetCalories),
   };
+
+  // 11. Garantia final: nenhum número não finito, hidratação negativa ou proteína acima do teto
+  const outputViolations = validateDailyTargetsOutput(targets, profile);
+  if (outputViolations.length > 0) {
+    throw new NutritionEngineInputError(outputViolations);
+  }
+
+  return targets;
 }

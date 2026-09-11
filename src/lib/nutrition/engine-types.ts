@@ -2,9 +2,17 @@
  * GymFlow AI — Contratos do Motor Nutricional Canônico (NUT-003)
  *
  * Referências canônicas:
- * - docs/nutrition/GYMFLOW_NUTRITION_MASTERPLAN_001.md (Seções 7 e 8)
+ * - docs/nutrition/GYMFLOW_NUTRITION_MASTERPLAN_001.md (Seções 5.2, 7, 8 e 9.2)
  * - docs/nutrition/GYMFLOW_NUTRITION_DECISIONS_001.md (D-NUT-01, D-NUT-02, D-NUT-03, D-NUT-04)
  * - docs/nutrition/GYMFLOW_NUTRITION_IMPLEMENTATION_GOALS_001.md (NUT-003)
+ *
+ * Separação estrutural deste contrato:
+ * - `EngineCalculationConfig`: parâmetros que alteram números de saída. Entram INTEGRALMENTE
+ *   no `inputSnapshotHash` (garantia de tipo em `NutritionInputSnapshot.effectiveParameters`).
+ * - `EngineComputationContext`: metadados de evento (`computedAt`, `computedReason`).
+ *   NÃO alteram números e NÃO entram no snapshot determinístico, apenas na identidade de evento.
+ * - `ENGINE_HARD_SAFETY_LIMITS`: invariantes absolutos. Não são ajustáveis por configuração;
+ *   configuração que tente ultrapassá-los falha fechada (`NutritionEngineConfigError`).
  */
 
 import type {
@@ -16,6 +24,42 @@ import type {
   NutritionGoal,
 } from '../../types/nutrition';
 
+// ============================================================================
+// ENUMERAÇÕES CANÔNICAS (VALIDAÇÃO EM RUNTIME)
+// ============================================================================
+
+export const NUTRITION_GOALS: readonly NutritionGoal[] = Object.freeze([
+  'fat_loss_aggressive',
+  'fat_loss_moderate',
+  'maintenance',
+  'hypertrophy_lean',
+  'hypertrophy_aggressive',
+  'strength_performance',
+]);
+
+export const ACTIVITY_LEVELS: readonly ActivityLevel[] = Object.freeze([
+  'sedentary',
+  'lightly_active',
+  'moderately_active',
+  'very_active',
+]);
+
+export const DIETARY_PATTERNS: readonly DietaryPattern[] = Object.freeze([
+  'omnivore',
+  'flexitarian',
+  'vegetarian',
+  'vegan',
+  'pescatarian',
+  'low_carb',
+  'ketogenic',
+]);
+
+export const BIOLOGICAL_SEXES_FOR_CALCS: readonly BiologicalSexForCalcs[] = Object.freeze([
+  'female',
+  'male',
+  'unspecified',
+]);
+
 /**
  * Razão determinística da computação dos alvos diários.
  */
@@ -25,21 +69,180 @@ export type ComputedReason =
   | 'weight_checkin'
   | 'manual_override';
 
+export const COMPUTED_REASONS: readonly ComputedReason[] = Object.freeze([
+  'initial_setup',
+  'profile_update',
+  'weight_checkin',
+  'manual_override',
+]);
+
 /**
  * Metadados de status científico das equações provisórias do V1.
  */
 export type ScientificStatus = 'PROVISIONAL_PENDING_PROFESSIONAL_REVIEW';
 
+// ============================================================================
+// INVARIANTES ABSOLUTOS (NÃO CONFIGURÁVEIS)
+// ============================================================================
+
+/**
+ * Limites duros de segurança do motor. Diferente de `EngineConfig`, estes valores
+ * NÃO são ajustáveis: qualquer configuração que tente ultrapassá-los é rejeitada
+ * com `NutritionEngineConfigError` (fail-closed), sem clamp silencioso.
+ *
+ * Origem canônica de cada limite:
+ * - Déficit máximo, piso BMR * 0.90 e pisos calóricos: Masterplan 7.2.
+ * - Teto de proteína 2.2 g/kg: Masterplan 8.1 / D-NUT-04.
+ * - Faixa de PAL 1.2 a 1.75: Masterplan 7.2.
+ * - Teto de hidratação 4500 ml/dia: Masterplan 9.2.
+ * - Offsets de BMR por sexo (Mifflin-St Jeor) e proibição de default masculino: D-NUT-02.
+ *
+ * PROFESSIONAL_REVIEW_REQUIRED (valores provisórios pendentes de revisão profissional).
+ */
+export const ENGINE_HARD_SAFETY_LIMITS = Object.freeze({
+  /** Déficit calórico absoluto programado nunca pode passar de 750 kcal/dia. */
+  MAX_ABSOLUTE_DEFICIT_KCAL: 750,
+
+  /** Em déficit, o alvo nunca pode descer abaixo de BMR * 0.90. */
+  MIN_BMR_MULTIPLIER_IN_DEFICIT: 0.9,
+
+  /**
+   * Acima de 1.0 o parâmetro deixa de ser piso de déficit e passa a forçar superávit;
+   * limite estrutural para preservar a semântica do multiplicador.
+   */
+  MAX_BMR_MULTIPLIER_IN_DEFICIT: 1.0,
+
+  /** Piso calórico absoluto feminino: nunca abaixo de 1200 kcal. */
+  MIN_FEMALE_CALORIC_FLOOR_KCAL: 1200,
+
+  /** Piso calórico absoluto masculino: nunca abaixo de 1500 kcal. */
+  MIN_MALE_CALORIC_FLOOR_KCAL: 1500,
+
+  /** Piso calórico absoluto para `unspecified`: nunca abaixo de 1200 kcal. */
+  MIN_UNSPECIFIED_CALORIC_FLOOR_KCAL: 1200,
+
+  /** D-NUT-04: automação nunca acima de 2.2 g/kg/dia de proteína. */
+  MAX_PROTEIN_GRAMS_PER_KG: 2.2,
+
+  /** Faixa canônica vigente de PAL (Masterplan 7.2). */
+  MIN_PAL_FACTOR: 1.2,
+  MAX_PAL_FACTOR: 1.75,
+
+  /** Teto máximo de hidratação automatizada (prevenção de hiponatremia). */
+  MAX_HYDRATION_ML_PER_DAY: 4500,
+
+  /** Offsets canônicos de Mifflin-St Jeor usados como fronteira para `unspecified`. */
+  MALE_BMR_OFFSET: 5,
+  FEMALE_BMR_OFFSET: -161,
+
+  /** Guarda estrutural (não clínica) para duração diária de treino. */
+  MAX_TRAINING_DURATION_MINUTES: 1440,
+
+  /** Guarda estrutural (não clínica) para frequência semanal de treino. */
+  MAX_TRAINING_DAYS_PER_WEEK: 7,
+});
+
+/**
+ * Tolerância ampliada exigida pelo Masterplan 5.2 quando `biologicalSexForCalcs === 'unspecified'`.
+ * É uma declaração de incerteza (guidance), NUNCA um ajuste automático do alvo.
+ */
+export const UNSPECIFIED_ESTIMATION_RELATIVE_TOLERANCE = 0.15;
+
+/**
+ * Tolerâncias inevitáveis de arredondamento inteiro na reconciliação de macros.
+ * O macro residual é arredondado para grama inteira: meio grama de carboidrato = 2 kcal,
+ * meio grama de lipídio = 4.5 kcal.
+ */
+export const MACRO_ROUNDING_TOLERANCE_KCAL = Object.freeze({
+  CARBS_RESIDUAL: 2,
+  FAT_RESIDUAL: 4.5,
+});
+
+// ============================================================================
+// RECONCILIAÇÃO DE MACROS E TOLERÂNCIA DE ESTIMATIVA
+// ============================================================================
+
+/**
+ * Constraints estruturais que podem não ser atendidas pela partição de macros.
+ * O motor nunca finge reconciliação: quando a igualdade energética é impossível,
+ * o estado é exposto de forma tipada.
+ */
+export type MacroConstraintCode =
+  /** Energia alvo insuficiente para proteína + lipídio essencial mínimo (+ carboidrato keto). */
+  | 'ENERGY_BELOW_MACRO_MINIMUMS'
+  /** Preferência de carboidratos não cetogênicos não atingida (preferência, não invariante). */
+  | 'NON_KETO_CARBS_PREFERENCE_UNMET';
+
+/**
+ * Estado explícito de reconciliação energética entre macros e `targetCalories`.
+ *
+ * `isReconciled === true` garante que a divergência absoluta não passa de
+ * `roundingToleranceKcal`, isto é, apenas o arredondamento inteiro inevitável.
+ */
+export interface MacroReconciliation {
+  /** 4 * proteína + 4 * carboidrato + 9 * lipídio. */
+  macroCalories: number;
+  /** Alvo calórico efetivamente emitido. */
+  targetCalories: number;
+  /** macroCalories - targetCalories (positivo = macros acima do alvo). */
+  deltaKcal: number;
+  /** Tolerância inevitável de arredondamento aplicável ao padrão alimentar. */
+  roundingToleranceKcal: number;
+  /** true somente quando o desvio absoluto cabe em `roundingToleranceKcal`. */
+  isReconciled: boolean;
+  /** Constraints estruturais não atendidas (lista determinística e ordenada). */
+  unmetConstraints: MacroConstraintCode[];
+}
+
+export type EstimationToleranceReason = 'BIOLOGICAL_SEX_UNSPECIFIED' | 'NONE';
+
+/**
+ * Tolerância declarada do alvo calórico (Masterplan 5.2).
+ * Para `unspecified`, `relative` é 0.15 (mais ou menos 15%) e as bordas são informativas:
+ * o alvo emitido NÃO é ajustado por elas.
+ */
+export interface EstimationTolerance {
+  relative: number;
+  reason: EstimationToleranceReason;
+  targetCaloriesLowerKcal: number;
+  targetCaloriesUpperKcal: number;
+}
+
+/**
+ * Origem do carimbo temporal do cálculo.
+ * - `explicit_context`: instante fornecido explicitamente pelo chamador.
+ * - `absent`: nenhum instante foi fornecido; `computedAt` permanece `null`.
+ *   O motor NUNCA inventa data (nem `profile.updatedAt`, nem literal hardcoded).
+ */
+export type ComputedAtSource = 'explicit_context' | 'absent';
+
+// ============================================================================
+// CONTRATO DE SAÍDA
+// ============================================================================
+
 /**
  * Contrato de Alvos Diários emitidos pelo NutritionEngine (Masterplan Seção 7.1).
  */
 export interface DailyTargets {
-  // Identificação e Provenance
+  /**
+   * Identidade de EVENTO do cálculo: deriva de `inputSnapshotHash` + `computedAt` + `computedReason`.
+   * Dois cálculos do mesmo snapshot com razão ou instante diferentes NÃO colidem.
+   */
   id: string;
+
   engineVersion: string; // ex: '1.0.0'
   formulaVersion: string; // ex: 'mifflin-st-jeor-v1'
-  inputSnapshotHash: string; // Hash SHA-256 estável dos inputs
-  computedAt: string; // ISO 8601 UTC determinístico
+
+  /**
+   * Identidade determinística do SNAPSHOT de entrada (SHA-256 hex completo).
+   * Cobre biometria, estilo de vida, versões e a totalidade dos parâmetros de cálculo.
+   * Não cobre metadados de evento (`computedAt`, `computedReason`), que não alteram números.
+   */
+  inputSnapshotHash: string;
+
+  /** Instante do cálculo (ISO 8601 UTC) quando fornecido explicitamente; `null` caso contrário. */
+  computedAt: string | null;
+  computedAtSource: ComputedAtSource;
   computedReason: ComputedReason;
 
   // Alvos Diários Principais
@@ -58,50 +261,46 @@ export interface DailyTargets {
   scientificStatus: ScientificStatus;
 
   // Metadados Determinísticos de Transparência e Segurança
-  isLimitedGuidance?: boolean;
-  appliedCaloricFloor?: number;
-  effectiveProteinGramsPerKg?: number;
-  effectiveFatGramsPerKg?: number;
-}
-
-/**
- * Configuração e parâmetros centralizados do NutritionEngine.
- *
- * D-NUT-03: Todos os parâmetros metabólicos e fisiológicos provisórios
- * carregam formalmente a marcação literal: PROFESSIONAL_REVIEW_REQUIRED.
- */
-export interface EngineConfig {
-  /** Versão canônica do motor */
-  engineVersion?: string;
-
-  /** Versão da fórmula metabólica */
-  formulaVersion?: string;
-
-  /** Override de timestamp determinístico (se omitido, usa profile.updatedAt) */
-  computedAtOverride?: string;
-
-  /** Motivo da computação */
-  computedReason?: ComputedReason;
-
-  // --- PARÂMETROS PROVISÓRIOS COM MARCAÇÃO CANÔNICA (D-NUT-03) ---
+  isLimitedGuidance: boolean;
 
   /**
+   * Piso calórico de emergência aplicável ao sexo metabólico do perfil.
+   * É o limite inferior considerado no cálculo — vinculante apenas quando o alvo bruto
+   * ficaria abaixo dele. Comparar com `targetCalories` para saber se foi determinante.
+   */
+  appliedCaloricFloor: number;
+  effectiveProteinGramsPerKg: number;
+  effectiveFatGramsPerKg: number;
+  macroReconciliation: MacroReconciliation;
+  estimationTolerance: EstimationTolerance;
+}
+
+// ============================================================================
+// CONFIGURAÇÃO
+// ============================================================================
+
+/**
+ * Parâmetros que participam do cálculo numérico.
+ *
+ * Regra estrutural: todo campo aqui declarado entra obrigatoriamente no
+ * `inputSnapshotHash` (ver `NutritionInputSnapshot.effectiveParameters`).
+ *
+ * D-NUT-03: parâmetros metabólicos e fisiológicos provisórios carregam a marcação
+ * literal PROFESSIONAL_REVIEW_REQUIRED.
+ */
+export interface EngineCalculationConfig {
+  /**
    * Constante BMR para sexo unspecified (ponto médio entre male +5 e female -161: -78).
-   * NUNCA assume default masculino (D-NUT-02).
+   * NUNCA assume default masculino (D-NUT-02): valor deve ficar em [-161, +5).
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   bmrUnspecifiedOffset?: number;
 
   /**
-   * Fatores de Nível de Atividade Física (PAL: 1.2 a 1.75).
+   * Fatores de Nível de Atividade Física. Faixa canônica dura: 1.2 a 1.75.
    * PROFESSIONAL_REVIEW_REQUIRED
    */
-  palFactors?: {
-    sedentary: number; // 1.20 // PROFESSIONAL_REVIEW_REQUIRED
-    lightly_active: number; // 1.375 // PROFESSIONAL_REVIEW_REQUIRED
-    moderately_active: number; // 1.55 // PROFESSIONAL_REVIEW_REQUIRED
-    very_active: number; // 1.725 // PROFESSIONAL_REVIEW_REQUIRED
-  };
+  palFactors?: Record<ActivityLevel, number>;
 
   /**
    * Custo energético estimado por minuto de treino moderado/intenso (kcal/min).
@@ -111,60 +310,50 @@ export interface EngineConfig {
 
   /**
    * Ajuste de balanço energético diário por NutritionGoal (kcal/dia).
+   * Déficits configurados são limitados por `maxAbsoluteDeficitKcal` (trava de algoritmo).
    * PROFESSIONAL_REVIEW_REQUIRED
    */
-  goalAdjustments?: {
-    fat_loss_aggressive: number; // PROFESSIONAL_REVIEW_REQUIRED
-    fat_loss_moderate: number; // PROFESSIONAL_REVIEW_REQUIRED
-    maintenance: number;
-    hypertrophy_lean: number; // PROFESSIONAL_REVIEW_REQUIRED
-    hypertrophy_aggressive: number; // PROFESSIONAL_REVIEW_REQUIRED
-    strength_performance: number; // PROFESSIONAL_REVIEW_REQUIRED
-  };
+  goalAdjustments?: Record<NutritionGoal, number>;
 
   /**
-   * Limite máximo de déficit calórico absoluto programado (<= 750 kcal/dia).
+   * Limite máximo de déficit calórico absoluto programado.
+   * Invariante dura: menor ou igual a 750 kcal/dia.
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   maxAbsoluteDeficitKcal?: number; // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
-   * Multiplicador mínimo de BMR em déficit (target >= BMR * 0.9).
+   * Multiplicador mínimo de BMR em déficit. Invariante dura: entre 0.90 e 1.00.
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   minBmrMultiplierInDeficit?: number; // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
-   * Piso calórico absoluto de emergência feminino (>= 1200 kcal).
+   * Piso calórico absoluto de emergência feminino. Invariante dura: nunca abaixo de 1200 kcal.
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   femaleCaloricFloorKcal?: number; // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
-   * Piso calórico absoluto de emergência masculino (>= 1500 kcal).
+   * Piso calórico absoluto de emergência masculino. Invariante dura: nunca abaixo de 1500 kcal.
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   maleCaloricFloorKcal?: number; // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
-   * Piso calórico absoluto para sexo unspecified (1200 kcal — nunca piso masculino).
+   * Piso calórico absoluto para sexo unspecified.
+   * Invariante dura: nunca abaixo de 1200 kcal e estritamente abaixo do piso masculino (D-NUT-02).
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   unspecifiedCaloricFloorKcal?: number; // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
-   * Faixa de proteína conservadora automática (estritamente 1.6 a 2.2 g/kg/dia).
-   * Bloqueada automação acima de 2.2 g/kg (D-NUT-04).
+   * Faixa de proteína conservadora automática por objetivo (g/kg/dia).
+   * Cada valor deve pertencer a [minProteinGramsPerKg, maxProteinGramsPerKg];
+   * valores fora da faixa são rejeitados (sem clamp silencioso).
    * PROFESSIONAL_REVIEW_REQUIRED
    */
-  proteinGramsPerKgByGoal?: {
-    fat_loss_aggressive: number; // 2.2 // PROFESSIONAL_REVIEW_REQUIRED
-    fat_loss_moderate: number; // 2.0 // PROFESSIONAL_REVIEW_REQUIRED
-    maintenance: number; // 1.8 // PROFESSIONAL_REVIEW_REQUIRED
-    hypertrophy_lean: number; // 1.8 // PROFESSIONAL_REVIEW_REQUIRED
-    hypertrophy_aggressive: number; // 1.7 // PROFESSIONAL_REVIEW_REQUIRED
-    strength_performance: number; // 1.9 // PROFESSIONAL_REVIEW_REQUIRED
-  };
+  proteinGramsPerKgByGoal?: Record<NutritionGoal, number>;
 
   /**
    * Proteína mínima permitida na partição automática (g/kg/dia).
@@ -173,17 +362,19 @@ export interface EngineConfig {
 
   /**
    * Proteína máxima permitida na partição automática (g/kg/dia).
+   * Invariante dura: nunca acima de 2.2 (D-NUT-04).
    */
   maxProteinGramsPerKg?: number; // 2.2
 
   /**
-   * Lipídios de suporte essencial padrão (g/kg/dia). Faixa: 0.7 a 1.0 g/kg/dia.
+   * Lipídios de suporte essencial padrão (g/kg/dia). Faixa de projeto: 0.7 a 1.0 g/kg/dia.
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   defaultFatGramsPerKg?: number; // 0.85 // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
-   * Piso mínimo de lipídios essenciais (g/kg/dia).
+   * Piso mínimo de lipídios essenciais (g/kg/dia). O motor nunca reduz lipídio abaixo
+   * deste piso para financiar carboidratos.
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   minFatGramsPerKg?: number; // 0.70 // PROFESSIONAL_REVIEW_REQUIRED
@@ -195,22 +386,15 @@ export interface EngineConfig {
   maxFatGramsPerKg?: number; // 1.00 // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
-   * Percentual calórico mínimo de lipídios para saúde hormonal (20%).
+   * PREFERÊNCIA (não invariante) de carboidratos diários em dieta não cetogênica.
+   *
+   * Semântica real implementada: o motor tenta atingir este valor deslocando lipídio
+   * até o piso essencial `minFatGramsPerKg`. Quando a energia disponível é insuficiente,
+   * a preferência NÃO é atingida e o motor sinaliza `NON_KETO_CARBS_PREFERENCE_UNMET`
+   * em `macroReconciliation.unmetConstraints`. Nenhuma garantia clínica de piso é prometida.
    * PROFESSIONAL_REVIEW_REQUIRED
    */
-  minFatCaloriePercentage?: number; // 0.20 // PROFESSIONAL_REVIEW_REQUIRED
-
-  /**
-   * Percentual calórico de lipídios em dieta cetogênica (70%).
-   * PROFESSIONAL_REVIEW_REQUIRED
-   */
-  ketogenicFatCaloriePercentage?: number; // 0.70 // PROFESSIONAL_REVIEW_REQUIRED
-
-  /**
-   * Piso de carboidratos para dietas não cetogênicas (100 a 130 g/dia).
-   * PROFESSIONAL_REVIEW_REQUIRED
-   */
-  nonKetoCarbsFloorGrams?: number; // 120 // PROFESSIONAL_REVIEW_REQUIRED
+  nonKetoCarbsPreferenceGrams?: number; // 120 // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
    * Alocação diária de carboidratos para dieta cetogênica (g/dia).
@@ -231,40 +415,86 @@ export interface EngineConfig {
   trainingHydrationMlPerHour?: number; // 500 // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
-   * Teto máximo seguro de hidratação automatizada (<= 4500 ml/dia).
+   * Teto máximo seguro de hidratação automatizada. Invariante dura: nunca acima de 4500 ml/dia.
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   maxHydrationMlPerDay?: number; // 4500 // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
-   * Piso mínimo de hidratação (ml/dia).
+   * Piso mínimo de hidratação (ml/dia). Deve ser positivo e não maior que `maxHydrationMlPerDay`.
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   minHydrationMlPerDay?: number; // 1500 // PROFESSIONAL_REVIEW_REQUIRED
 }
 
 /**
- * Configuração canônica padrão imutável do NutritionEngine.
+ * Metadados de evento do cálculo. NÃO alteram nenhum número de saída e por isso
+ * NÃO entram em `inputSnapshotHash` — apenas na identidade de evento (`DailyTargets.id`).
+ */
+export interface EngineComputationContext {
+  /**
+   * Instante do cálculo em ISO 8601. Deve vir de um contexto válido do chamador.
+   * Quando omitido, `DailyTargets.computedAt` é `null` e `computedAtSource` é `'absent'`:
+   * o motor não deriva data de `profile.updatedAt` nem de literal hardcoded, e não lê o relógio.
+   */
+  computedAt?: string;
+
+  /** Motivo da computação. */
+  computedReason?: ComputedReason;
+}
+
+/**
+ * Versionamento canônico do motor e da fórmula metabólica (entra no snapshot).
+ */
+export interface EngineVersionConfig {
+  engineVersion?: string;
+  formulaVersion?: string;
+}
+
+/**
+ * Configuração e parâmetros centralizados do NutritionEngine.
+ */
+export type EngineConfig = EngineCalculationConfig &
+  EngineComputationContext &
+  EngineVersionConfig;
+
+/** Configuração de cálculo totalmente resolvida (todos os campos presentes). */
+export type ResolvedCalculationConfig = Required<EngineCalculationConfig>;
+
+/** Contexto de evento totalmente resolvido. */
+export interface ResolvedComputationContext {
+  engineVersion: string;
+  formulaVersion: string;
+  computedAt: string | null;
+  computedAtSource: ComputedAtSource;
+  computedReason: ComputedReason;
+}
+
+/** Configuração completa resolvida (cálculo + versões + evento). */
+export type ResolvedEngineConfig = ResolvedCalculationConfig & {
+  engineVersion: string;
+  formulaVersion: string;
+  computedAt: string | null;
+  computedReason: ComputedReason;
+};
+
+/**
+ * Parâmetros canônicos padrão de cálculo (imutáveis).
  * Todos os parâmetros provisórios trazem marcação formal D-NUT-03.
  */
-export const DEFAULT_ENGINE_CONFIG: Readonly<Required<EngineConfig>> = Object.freeze({
-  engineVersion: '1.0.0',
-  formulaVersion: 'mifflin-st-jeor-v1',
-  computedAtOverride: '',
-  computedReason: 'profile_update' as ComputedReason,
-
-  // BMR unspecified: midpoint (-78) entre +5 (male) e -161 (female)
+export const DEFAULT_CALCULATION_CONFIG: Readonly<ResolvedCalculationConfig> = Object.freeze({
+  // BMR unspecified: ponto médio (-78) entre +5 (male) e -161 (female)
   // PROFESSIONAL_REVIEW_REQUIRED
   bmrUnspecifiedOffset: -78,
 
-  // PAL (1.2 a 1.75)
+  // PAL (faixa canônica 1.2 a 1.75)
   // PROFESSIONAL_REVIEW_REQUIRED
   palFactors: Object.freeze({
     sedentary: 1.2, // PROFESSIONAL_REVIEW_REQUIRED
     lightly_active: 1.375, // PROFESSIONAL_REVIEW_REQUIRED
     moderately_active: 1.55, // PROFESSIONAL_REVIEW_REQUIRED
     very_active: 1.725, // PROFESSIONAL_REVIEW_REQUIRED
-  }),
+  }) as Record<ActivityLevel, number>,
 
   // Treino: ~6 kcal/min (~360 kcal/hora de treino moderado/intenso)
   // PROFESSIONAL_REVIEW_REQUIRED
@@ -279,13 +509,13 @@ export const DEFAULT_ENGINE_CONFIG: Readonly<Required<EngineConfig>> = Object.fr
     hypertrophy_lean: 200, // PROFESSIONAL_REVIEW_REQUIRED
     hypertrophy_aggressive: 400, // PROFESSIONAL_REVIEW_REQUIRED
     strength_performance: 150, // PROFESSIONAL_REVIEW_REQUIRED
-  }),
+  }) as Record<NutritionGoal, number>,
 
   // Trava de déficit calórico absoluto máximo
   // PROFESSIONAL_REVIEW_REQUIRED
   maxAbsoluteDeficitKcal: 750,
 
-  // Proteção: em déficit, target não deve descer abaixo de BMR * 0.90
+  // Proteção: em déficit, target não desce abaixo de BMR * 0.90
   // PROFESSIONAL_REVIEW_REQUIRED
   minBmrMultiplierInDeficit: 0.9,
 
@@ -296,7 +526,7 @@ export const DEFAULT_ENGINE_CONFIG: Readonly<Required<EngineConfig>> = Object.fr
   unspecifiedCaloricFloorKcal: 1200, // Proibido piso masculino a unspecified (D-NUT-02)
 
   // Proteína conservadora por objetivo (1.6 a 2.2 g/kg/dia)
-  // D-NUT-04: Proibida automação > 2.2 g/kg
+  // D-NUT-04: Proibida automação acima de 2.2 g/kg
   // PROFESSIONAL_REVIEW_REQUIRED
   proteinGramsPerKgByGoal: Object.freeze({
     fat_loss_aggressive: 2.2, // Ponto superior para cutting agressivo // PROFESSIONAL_REVIEW_REQUIRED
@@ -305,7 +535,7 @@ export const DEFAULT_ENGINE_CONFIG: Readonly<Required<EngineConfig>> = Object.fr
     hypertrophy_lean: 1.8, // Faixa central com suporte glicolítico // PROFESSIONAL_REVIEW_REQUIRED
     hypertrophy_aggressive: 1.7, // Efeito poupador de carboidratos abundantes // PROFESSIONAL_REVIEW_REQUIRED
     strength_performance: 1.9, // Suporte à força miofibrilar // PROFESSIONAL_REVIEW_REQUIRED
-  }),
+  }) as Record<NutritionGoal, number>,
 
   minProteinGramsPerKg: 1.6,
   maxProteinGramsPerKg: 2.2,
@@ -315,12 +545,10 @@ export const DEFAULT_ENGINE_CONFIG: Readonly<Required<EngineConfig>> = Object.fr
   defaultFatGramsPerKg: 0.85,
   minFatGramsPerKg: 0.7,
   maxFatGramsPerKg: 1.0,
-  minFatCaloriePercentage: 0.2,
-  ketogenicFatCaloriePercentage: 0.7,
 
   // Carboidratos
   // PROFESSIONAL_REVIEW_REQUIRED
-  nonKetoCarbsFloorGrams: 120, // Faixa canônica 100-130 g/dia
+  nonKetoCarbsPreferenceGrams: 120, // Preferência best-effort (faixa canônica 100-130 g/dia)
   ketogenicCarbsGrams: 30, // Keto controlada
 
   // Hidratação
@@ -330,6 +558,53 @@ export const DEFAULT_ENGINE_CONFIG: Readonly<Required<EngineConfig>> = Object.fr
   maxHydrationMlPerDay: 4500, // Teto preventivo de hiponatremia
   minHydrationMlPerDay: 1500,
 });
+
+/**
+ * Configuração canônica padrão imutável do NutritionEngine (cálculo + versões + evento).
+ */
+export const DEFAULT_ENGINE_CONFIG: Readonly<ResolvedEngineConfig> = Object.freeze({
+  ...DEFAULT_CALCULATION_CONFIG,
+  engineVersion: '1.0.0',
+  formulaVersion: 'mifflin-st-jeor-v1',
+  computedAt: null,
+  computedReason: 'profile_update' as ComputedReason,
+});
+
+// ============================================================================
+// ERROS TIPADOS
+// ============================================================================
+
+/**
+ * Códigos determinísticos de violação de contrato numérico/estrutural.
+ */
+export type EngineViolationCode =
+  | 'NOT_FINITE'
+  | 'NOT_POSITIVE'
+  | 'NEGATIVE'
+  | 'ABOVE_HARD_LIMIT'
+  | 'BELOW_HARD_LIMIT'
+  | 'ABOVE_RANGE'
+  | 'BELOW_RANGE'
+  | 'INCONSISTENT_RANGE'
+  | 'INVALID_ENUM'
+  | 'INVALID_NESTED_CONFIG'
+  | 'UNKNOWN_NESTED_KEY'
+  | 'INVALID_TIMESTAMP'
+  | 'EMPTY_STRING'
+  | 'MALE_DEFAULT_FORBIDDEN';
+
+/**
+ * Violação individual de contrato, com caminho do campo e código determinístico.
+ */
+export interface EngineViolation {
+  field: string;
+  code: EngineViolationCode;
+  message: string;
+}
+
+function formatViolations(violations: readonly EngineViolation[]): string {
+  return violations.map((v) => `${v.field}: ${v.code} (${v.message})`).join('; ');
+}
 
 /**
  * Erro tipado emitido quando a avaliação do gate clínico bloqueia a geração automática de metas.
@@ -349,7 +624,66 @@ export class NutritionEngineGateError extends Error {
 }
 
 /**
+ * Erro tipado de configuração inválida (fail-closed).
+ * Emitido quando `EngineConfig` tenta ultrapassar um invariante duro de segurança,
+ * fornece número não finito/negativo ou quebra a consistência de faixas.
+ */
+export class NutritionEngineConfigError extends Error {
+  readonly code = 'NUTRITION_ENGINE_CONFIG_INVALID' as const;
+  readonly violations: readonly EngineViolation[];
+
+  constructor(violations: readonly EngineViolation[]) {
+    super(`Configuração do NutritionEngine rejeitada: ${formatViolations(violations)}`);
+    this.name = 'NutritionEngineConfigError';
+    this.violations = Object.freeze([...violations]);
+    Object.setPrototypeOf(this, NutritionEngineConfigError.prototype);
+  }
+}
+
+/**
+ * Erro tipado de entrada inválida (fail-closed) para números/enumerações do perfil
+ * e para a garantia final de finitude da saída.
+ */
+export class NutritionEngineInputError extends Error {
+  readonly code = 'NUTRITION_ENGINE_INPUT_INVALID' as const;
+  readonly violations: readonly EngineViolation[];
+
+  constructor(violations: readonly EngineViolation[]) {
+    super(`Entrada do NutritionEngine rejeitada: ${formatViolations(violations)}`);
+    this.name = 'NutritionEngineInputError';
+    this.violations = Object.freeze([...violations]);
+    Object.setPrototypeOf(this, NutritionEngineInputError.prototype);
+  }
+}
+
+/**
+ * Erro tipado de serialização canônica.
+ * O serializador nunca converte NaN/Infinity em `null` silenciosamente.
+ */
+export class NutritionEngineSerializationError extends Error {
+  readonly code = 'NUTRITION_ENGINE_NON_FINITE_SERIALIZATION' as const;
+  readonly path: string;
+
+  constructor(path: string, value: number) {
+    super(
+      `Serialização canônica rejeitada: valor numérico não finito em "${path}" (${String(value)})`
+    );
+    this.name = 'NutritionEngineSerializationError';
+    this.path = path;
+    Object.setPrototypeOf(this, NutritionEngineSerializationError.prototype);
+  }
+}
+
+// ============================================================================
+// SNAPSHOT DE PROVENIÊNCIA
+// ============================================================================
+
+/**
  * Snapshot canônico dos inputs que influenciam o cálculo para proveniência SHA-256.
+ *
+ * `effectiveParameters` é tipado como `ResolvedCalculationConfig` (e não como uma
+ * lista curada manualmente): qualquer parâmetro novo de cálculo entra automaticamente
+ * no hash, impedindo que dois configs com saídas diferentes compartilhem o mesmo snapshot.
  */
 export interface NutritionInputSnapshot {
   biometrics: {
@@ -370,31 +704,5 @@ export interface NutritionInputSnapshot {
     engineVersion: string;
     formulaVersion: string;
   };
-  effectiveParameters: {
-    bmrUnspecifiedOffset: number;
-    goalAdjustments: Record<string, number>;
-    maxAbsoluteDeficitKcal: number;
-    minBmrMultiplierInDeficit: number;
-    palFactors: Record<string, number>;
-    proteinGramsPerKgByGoal: Record<string, number>;
-    caloricFloors: {
-      female: number;
-      male: number;
-      unspecified: number;
-    };
-    fat: {
-      defaultGramsPerKg: number;
-      minGramsPerKg: number;
-      maxGramsPerKg: number;
-    };
-    carbs: {
-      nonKetoFloorGrams: number;
-      ketogenicGrams: number;
-    };
-    hydration: {
-      baseMlPerKg: number;
-      trainingMlPerHour: number;
-      maxMlPerDay: number;
-    };
-  };
+  effectiveParameters: ResolvedCalculationConfig;
 }

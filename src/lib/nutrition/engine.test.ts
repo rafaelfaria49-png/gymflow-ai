@@ -15,6 +15,7 @@ import type {
   NutritionProfile,
 } from '../../types/nutrition';
 import {
+  buildInputSnapshot,
   calculateDailyTargets,
   canonicalizeJson,
   canonicalSerialize,
@@ -23,15 +24,50 @@ import {
   computeMacros,
   computeTargetCalories,
   computeTdee,
+  resolveCalculationConfig,
   resolveEngineConfig,
   sha256Sync,
 } from './engine';
 import {
+  DEFAULT_CALCULATION_CONFIG,
   DEFAULT_ENGINE_CONFIG,
   EngineConfig,
+  NutritionEngineConfigError,
   NutritionEngineGateError,
+  NutritionEngineInputError,
+  NutritionEngineSerializationError,
 } from './engine-types';
 import { NUTRITION_GATE_REASONS } from './profile-gates';
+
+/**
+ * Captura o erro lançado por `calculateDailyTargets` sem depender de matcher genérico,
+ * permitindo asserção sobre o código determinístico da violação.
+ */
+function captureEngineError(
+  profile: NutritionProfile,
+  config?: EngineConfig
+): NutritionEngineConfigError | NutritionEngineInputError | Error {
+  try {
+    calculateDailyTargets(profile, config);
+  } catch (err) {
+    return err as Error;
+  }
+  throw new Error('calculateDailyTargets deveria ter falhado e não falhou');
+}
+
+function violationCodes(err: Error): string[] {
+  if (err instanceof NutritionEngineConfigError || err instanceof NutritionEngineInputError) {
+    return err.violations.map((v) => v.code);
+  }
+  return [];
+}
+
+function violationFields(err: Error): string[] {
+  if (err instanceof NutritionEngineConfigError || err instanceof NutritionEngineInputError) {
+    return err.violations.map((v) => v.field);
+  }
+  return [];
+}
 
 function createTestProfile(overrides: Partial<NutritionProfile> = {}): NutritionProfile {
   return {
@@ -472,13 +508,13 @@ describe('NutritionEngine (NUT-003)', () => {
   // --------------------------------------------------------------------------
   // 17. PROTEÍNA NUNCA > 2.2 G/KG
   // --------------------------------------------------------------------------
-  it('17. proteína nunca > 2.2 g/kg (trava estrita D-NUT-04)', () => {
+  it('17. proteína acima de 2.2 g/kg é rejeitada, não clampeada silenciosamente (D-NUT-04)', () => {
     const profile = createTestProfile({
       goal: 'fat_loss_aggressive',
       weightKg: 80,
     });
 
-    // Tentativa de configurar 2.8 g/kg no config
+    // Tentativa de configurar 2.8 g/kg no config: fail-closed, sem clamp silencioso
     const customConfig: EngineConfig = {
       proteinGramsPerKgByGoal: {
         fat_loss_aggressive: 2.8,
@@ -491,9 +527,14 @@ describe('NutritionEngine (NUT-003)', () => {
       maxProteinGramsPerKg: 2.2,
     };
 
-    const targets = calculateDailyTargets(profile, customConfig);
-    const proteinRate = targets.targetProteinGrams / profile.weightKg;
-    expect(proteinRate).toBeLessThanOrEqual(2.2 + 0.02);
+    expect(() => calculateDailyTargets(profile, customConfig)).toThrow(NutritionEngineConfigError);
+    const err = captureEngineError(profile, customConfig);
+    expect(violationFields(err)).toContain('proteinGramsPerKgByGoal.fat_loss_aggressive');
+    expect(violationCodes(err)).toContain('ABOVE_RANGE');
+
+    // Com a taxa dentro da faixa permitida, o alvo permanece abaixo do teto duro de 2.2 g/kg
+    const validTargets = calculateDailyTargets(profile);
+    expect(validTargets.targetProteinGrams / profile.weightKg).toBeLessThanOrEqual(2.2);
   });
 
   // --------------------------------------------------------------------------
@@ -722,7 +763,11 @@ describe('NutritionEngine (NUT-003)', () => {
       const resB = calculateDailyTargets(profile);
 
       expect(resA).toEqual(resB);
-      expect(resA.computedAt).toBe('2026-09-09T08:00:00.000Z');
+
+      // Sem instante explícito, o motor NÃO inventa data: nem relógio, nem profile.updatedAt
+      expect(resA.computedAt).toBeNull();
+      expect(resA.computedAtSource).toBe('absent');
+      expect(resA.computedAt).not.toBe(profile.updatedAt);
     } finally {
       Date.now = realDateNow;
     }
@@ -739,5 +784,714 @@ describe('NutritionEngine (NUT-003)', () => {
 
     expect(randomSpy).not.toHaveBeenCalled();
     randomSpy.mockRestore();
+  });
+
+  // ==========================================================================
+  // REGRESSÕES CORRETIVAS (revisão 063) — HARD SAFETY, PROVENIÊNCIA E MACROS
+  // ==========================================================================
+
+  // --------------------------------------------------------------------------
+  // 31. INVARIANTES ABSOLUTOS NÃO SÃO AJUSTÁVEIS POR CONFIG
+  // --------------------------------------------------------------------------
+  describe('31. hard safety: EngineConfig não ultrapassa invariantes absolutos', () => {
+    it('rejeita maxAbsoluteDeficitKcal acima de 750 kcal e aceita exatamente 750', () => {
+      const profile = createTestProfile();
+
+      const err = captureEngineError(profile, { maxAbsoluteDeficitKcal: 751 });
+      expect(err).toBeInstanceOf(NutritionEngineConfigError);
+      expect(violationFields(err)).toContain('maxAbsoluteDeficitKcal');
+      expect(violationCodes(err)).toContain('ABOVE_HARD_LIMIT');
+
+      expect(() =>
+        calculateDailyTargets(profile, { maxAbsoluteDeficitKcal: 750 })
+      ).not.toThrow();
+      expect(() => calculateDailyTargets(profile, { maxAbsoluteDeficitKcal: 0 })).toThrow(
+        NutritionEngineConfigError
+      );
+    });
+
+    it('déficit efetivo nunca passa de 750 kcal mesmo com ajuste extremo configurado', () => {
+      const extremeConfig: EngineConfig = {
+        goalAdjustments: {
+          fat_loss_aggressive: -5000,
+          fat_loss_moderate: -4000,
+          maintenance: 0,
+          hypertrophy_lean: 200,
+          hypertrophy_aggressive: 400,
+          strength_performance: 150,
+        },
+      };
+
+      const sexes: BiologicalSexForCalcs[] = ['female', 'male', 'unspecified'];
+      for (const biologicalSexForCalcs of sexes) {
+        for (const weightKg of [55, 80, 120, 180]) {
+          for (const goal of ['fat_loss_aggressive', 'fat_loss_moderate'] as NutritionGoal[]) {
+            const profile = createTestProfile({ biologicalSexForCalcs, weightKg, goal });
+            const targets = calculateDailyTargets(profile, extremeConfig);
+            expect(targets.tdeeKcal - targets.targetCalories).toBeLessThanOrEqual(750);
+          }
+        }
+      }
+    });
+
+    it('rejeita minBmrMultiplierInDeficit abaixo de 0.90 ou acima de 1.00', () => {
+      const profile = createTestProfile();
+
+      const low = captureEngineError(profile, { minBmrMultiplierInDeficit: 0.89 });
+      expect(low).toBeInstanceOf(NutritionEngineConfigError);
+      expect(violationFields(low)).toContain('minBmrMultiplierInDeficit');
+      expect(violationCodes(low)).toContain('BELOW_HARD_LIMIT');
+
+      const high = captureEngineError(profile, { minBmrMultiplierInDeficit: 1.01 });
+      expect(violationCodes(high)).toContain('ABOVE_HARD_LIMIT');
+
+      expect(() =>
+        calculateDailyTargets(profile, { minBmrMultiplierInDeficit: 0.9 })
+      ).not.toThrow();
+    });
+
+    it('rejeita pisos calóricos abaixo dos mínimos canônicos por sexo metabólico', () => {
+      const profile = createTestProfile();
+
+      const female = captureEngineError(profile, { femaleCaloricFloorKcal: 1199 });
+      expect(violationFields(female)).toContain('femaleCaloricFloorKcal');
+      expect(violationCodes(female)).toContain('BELOW_HARD_LIMIT');
+
+      const male = captureEngineError(profile, { maleCaloricFloorKcal: 1499 });
+      expect(violationFields(male)).toContain('maleCaloricFloorKcal');
+
+      const unspecified = captureEngineError(profile, { unspecifiedCaloricFloorKcal: 1199 });
+      expect(violationFields(unspecified)).toContain('unspecifiedCaloricFloorKcal');
+
+      expect(() =>
+        calculateDailyTargets(profile, {
+          femaleCaloricFloorKcal: 1200,
+          maleCaloricFloorKcal: 1500,
+          unspecifiedCaloricFloorKcal: 1200,
+        })
+      ).not.toThrow();
+    });
+
+    it('proíbe que unspecified herde o piso masculino (D-NUT-02)', () => {
+      const profile = createTestProfile({ biologicalSexForCalcs: 'unspecified' });
+      const err = captureEngineError(profile, { unspecifiedCaloricFloorKcal: 1500 });
+
+      expect(err).toBeInstanceOf(NutritionEngineConfigError);
+      expect(violationFields(err)).toContain('unspecifiedCaloricFloorKcal');
+      expect(violationCodes(err)).toContain('MALE_DEFAULT_FORBIDDEN');
+    });
+
+    it('proíbe que o offset de BMR unspecified adote o offset masculino (+5)', () => {
+      const profile = createTestProfile({ biologicalSexForCalcs: 'unspecified' });
+
+      const maleDefault = captureEngineError(profile, { bmrUnspecifiedOffset: 5 });
+      expect(violationCodes(maleDefault)).toContain('MALE_DEFAULT_FORBIDDEN');
+
+      const belowFemale = captureEngineError(profile, { bmrUnspecifiedOffset: -200 });
+      expect(violationCodes(belowFemale)).toContain('BELOW_HARD_LIMIT');
+    });
+
+    it('rejeita proteína máxima acima de 2.2 g/kg', () => {
+      const profile = createTestProfile();
+      const err = captureEngineError(profile, { maxProteinGramsPerKg: 2.21 });
+
+      expect(err).toBeInstanceOf(NutritionEngineConfigError);
+      expect(violationFields(err)).toContain('maxProteinGramsPerKg');
+      expect(violationCodes(err)).toContain('ABOVE_HARD_LIMIT');
+    });
+
+    it('rejeita PAL fora da faixa canônica vigente (1.2 a 1.75)', () => {
+      const profile = createTestProfile();
+
+      const above = captureEngineError(profile, {
+        palFactors: {
+          sedentary: 1.2,
+          lightly_active: 1.375,
+          moderately_active: 1.55,
+          very_active: 1.76,
+        },
+      });
+      expect(violationFields(above)).toContain('palFactors.very_active');
+      expect(violationCodes(above)).toContain('ABOVE_HARD_LIMIT');
+
+      const below = captureEngineError(profile, {
+        palFactors: {
+          sedentary: 1.0,
+          lightly_active: 1.375,
+          moderately_active: 1.55,
+          very_active: 1.725,
+        },
+      });
+      expect(violationFields(below)).toContain('palFactors.sedentary');
+      expect(violationCodes(below)).toContain('BELOW_HARD_LIMIT');
+
+      expect(() =>
+        calculateDailyTargets(profile, {
+          palFactors: {
+            sedentary: 1.2,
+            lightly_active: 1.375,
+            moderately_active: 1.55,
+            very_active: 1.75,
+          },
+        })
+      ).not.toThrow();
+    });
+
+    it('rejeita hidratação máxima acima de 4500 ml/dia e piso acima do teto', () => {
+      const profile = createTestProfile();
+
+      const above = captureEngineError(profile, { maxHydrationMlPerDay: 4501 });
+      expect(violationFields(above)).toContain('maxHydrationMlPerDay');
+      expect(violationCodes(above)).toContain('ABOVE_HARD_LIMIT');
+
+      const inverted = captureEngineError(profile, {
+        minHydrationMlPerDay: 4000,
+        maxHydrationMlPerDay: 3000,
+      });
+      expect(violationCodes(inverted)).toContain('INCONSISTENT_RANGE');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 32. VALIDAÇÃO NUMÉRICA CONTROLADA (NaN / Infinity / NEGATIVOS / ENUM)
+  // --------------------------------------------------------------------------
+  describe('32. validação numérica fail-closed', () => {
+    it('rejeita NaN, Infinity e -Infinity em parâmetros de config', () => {
+      const profile = createTestProfile();
+
+      for (const invalid of [NaN, Infinity, -Infinity]) {
+        const err = captureEngineError(profile, { trainingKcalPerMinute: invalid });
+        expect(err).toBeInstanceOf(NutritionEngineConfigError);
+        expect(violationFields(err)).toContain('trainingKcalPerMinute');
+        expect(violationCodes(err)).toContain('NOT_FINITE');
+      }
+
+      const negativeHydration = captureEngineError(profile, { baseHydrationMlPerKg: -35 });
+      expect(violationCodes(negativeHydration)).toContain('NEGATIVE');
+    });
+
+    it('rejeita config aninhado inválido (PAL nulo ou com chave desconhecida)', () => {
+      const profile = createTestProfile();
+
+      const nullPal = captureEngineError(profile, {
+        palFactors: null as unknown as Record<ActivityLevel, number>,
+      });
+      expect(violationCodes(nullPal)).toContain('INVALID_NESTED_CONFIG');
+
+      const unknownKey = captureEngineError(profile, {
+        palFactors: {
+          sedentary: 1.2,
+          lightly_active: 1.375,
+          moderately_active: 1.55,
+          very_active: 1.725,
+          hyperactive: 2.5,
+        } as unknown as Record<ActivityLevel, number>,
+      });
+      expect(violationCodes(unknownKey)).toContain('UNKNOWN_NESTED_KEY');
+
+      const nanPal = captureEngineError(profile, {
+        palFactors: {
+          sedentary: NaN,
+          lightly_active: 1.375,
+          moderately_active: 1.55,
+          very_active: 1.725,
+        },
+      });
+      expect(violationFields(nanPal)).toContain('palFactors.sedentary');
+      expect(violationCodes(nanPal)).toContain('NOT_FINITE');
+    });
+
+    it('rejeita números inválidos do perfil que antes vazavam NaN para o output', () => {
+      const nanFrequency = captureEngineError(
+        createTestProfile({ trainingFrequencyDaysPerWeek: NaN })
+      );
+      expect(nanFrequency).toBeInstanceOf(NutritionEngineInputError);
+      expect(violationFields(nanFrequency)).toContain('profile.trainingFrequencyDaysPerWeek');
+      expect(violationCodes(nanFrequency)).toContain('NOT_FINITE');
+
+      const infiniteDuration = captureEngineError(
+        createTestProfile({ averageTrainingDurationMinutes: Infinity })
+      );
+      expect(violationCodes(infiniteDuration)).toContain('NOT_FINITE');
+
+      const negativeDuration = captureEngineError(
+        createTestProfile({ averageTrainingDurationMinutes: -30 })
+      );
+      expect(violationCodes(negativeDuration)).toContain('NEGATIVE');
+
+      const impossibleFrequency = captureEngineError(
+        createTestProfile({ trainingFrequencyDaysPerWeek: 8 })
+      );
+      expect(violationCodes(impossibleFrequency)).toContain('ABOVE_HARD_LIMIT');
+    });
+
+    it('rejeita enumerações fora do contrato em vez de aplicar default oculto', () => {
+      const badActivity = captureEngineError(
+        createTestProfile({
+          nonExerciseActivity: 'hyperactive' as unknown as ActivityLevel,
+        })
+      );
+      expect(badActivity).toBeInstanceOf(NutritionEngineInputError);
+      expect(violationFields(badActivity)).toContain('profile.nonExerciseActivity');
+      expect(violationCodes(badActivity)).toContain('INVALID_ENUM');
+
+      const badGoal = captureEngineError(
+        createTestProfile({ goal: 'recomposition' as unknown as NutritionGoal })
+      );
+      expect(violationFields(badGoal)).toContain('profile.goal');
+
+      const badPattern = captureEngineError(
+        createTestProfile({ dietaryPattern: 'carnivore' as unknown as DietaryPattern })
+      );
+      expect(violationFields(badPattern)).toContain('profile.dietaryPattern');
+    });
+
+    it('nunca retorna DailyTargets com número não finito ou hidratação negativa', () => {
+      const configs: EngineConfig[] = [
+        {},
+        { maxAbsoluteDeficitKcal: 750, minBmrMultiplierInDeficit: 0.9 },
+        { minHydrationMlPerDay: 4500, maxHydrationMlPerDay: 4500 },
+        { baseHydrationMlPerKg: 0, trainingHydrationMlPerHour: 0 },
+        { trainingKcalPerMinute: 0 },
+      ];
+
+      for (const config of configs) {
+        for (const weightKg of [31, 70, 299]) {
+          for (const dietaryPattern of ['omnivore', 'ketogenic'] as DietaryPattern[]) {
+            const targets = calculateDailyTargets(
+              createTestProfile({ weightKg, dietaryPattern }),
+              config
+            );
+
+            const numbers = [
+              targets.targetCalories,
+              targets.targetProteinGrams,
+              targets.targetCarbsGrams,
+              targets.targetFatGrams,
+              targets.targetWaterMl,
+              targets.bmrKcal,
+              targets.tdeeKcal,
+              targets.energyBalanceKcal,
+              targets.macroReconciliation.macroCalories,
+              targets.macroReconciliation.deltaKcal,
+              targets.estimationTolerance.targetCaloriesLowerKcal,
+              targets.estimationTolerance.targetCaloriesUpperKcal,
+            ];
+            for (const value of numbers) {
+              expect(Number.isFinite(value)).toBe(true);
+            }
+            expect(targets.targetWaterMl).toBeGreaterThan(0);
+            expect(targets.targetWaterMl).toBeLessThanOrEqual(4500);
+          }
+        }
+      }
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 33. PROVENIÊNCIA: HASH COBRE TODO INPUT EFETIVO DE CÁLCULO
+  // --------------------------------------------------------------------------
+  describe('33. proveniência completa do inputSnapshotHash', () => {
+    it('parâmetros auditados alteram o hash mesmo quando isolados', () => {
+      const profile = createTestProfile({ weightKg: 40, trainingFrequencyDaysPerWeek: 3 });
+      const baseHash = calculateDailyTargets(profile).inputSnapshotHash;
+
+      // trainingKcalPerMinute: altera TDEE e, portanto, o output
+      const training = calculateDailyTargets(profile, { trainingKcalPerMinute: 9 });
+      expect(training.inputSnapshotHash).not.toBe(baseHash);
+
+      // minHydrationMlPerDay: para perfil leve sem treino, altera diretamente a meta hídrica
+      // (base 40 kg * 35 ml = 1400 ml, abaixo do piso configurado)
+      const lightProfile = createTestProfile({
+        weightKg: 40,
+        trainingFrequencyDaysPerWeek: 0,
+        averageTrainingDurationMinutes: 0,
+      });
+      const hydrationBase = calculateDailyTargets(lightProfile, { minHydrationMlPerDay: 1500 });
+      const hydrationRaised = calculateDailyTargets(lightProfile, { minHydrationMlPerDay: 1600 });
+      expect(hydrationRaised.targetWaterMl).not.toBe(hydrationBase.targetWaterMl);
+      expect(hydrationRaised.inputSnapshotHash).not.toBe(hydrationBase.inputSnapshotHash);
+
+      // minProteinGramsPerKg: participa da faixa aceita e entra no hash
+      const minProtein = calculateDailyTargets(profile, { minProteinGramsPerKg: 1.7 });
+      expect(minProtein.inputSnapshotHash).not.toBe(baseHash);
+
+      // maxProteinGramsPerKg isolado (mesmas taxas por objetivo em ambos os configs)
+      const uniformRates = {
+        fat_loss_aggressive: 1.8,
+        fat_loss_moderate: 1.8,
+        maintenance: 1.8,
+        hypertrophy_lean: 1.8,
+        hypertrophy_aggressive: 1.8,
+        strength_performance: 1.8,
+      };
+      const capAt20 = calculateDailyTargets(profile, {
+        proteinGramsPerKgByGoal: uniformRates,
+        maxProteinGramsPerKg: 2.0,
+      });
+      const capAt22 = calculateDailyTargets(profile, {
+        proteinGramsPerKgByGoal: uniformRates,
+        maxProteinGramsPerKg: 2.2,
+      });
+      expect(capAt20.inputSnapshotHash).not.toBe(capAt22.inputSnapshotHash);
+    });
+
+    it('configs com outputs diferentes nunca compartilham o mesmo inputSnapshotHash', () => {
+      const profile = createTestProfile({ weightKg: 40, trainingFrequencyDaysPerWeek: 4 });
+      const configs: EngineConfig[] = [
+        {},
+        { trainingKcalPerMinute: 9 },
+        { minHydrationMlPerDay: 1600 },
+        { baseHydrationMlPerKg: 40 },
+        { defaultFatGramsPerKg: 0.7 },
+        { nonKetoCarbsPreferenceGrams: 200 },
+        { maxAbsoluteDeficitKcal: 500 },
+        { engineVersion: '1.0.1' },
+      ];
+
+      const byOutput = new Map<string, string>();
+      for (const config of configs) {
+        const targets = calculateDailyTargets(profile, config);
+        const outputSignature = canonicalSerialize({
+          targetCalories: targets.targetCalories,
+          targetProteinGrams: targets.targetProteinGrams,
+          targetCarbsGrams: targets.targetCarbsGrams,
+          targetFatGrams: targets.targetFatGrams,
+          targetWaterMl: targets.targetWaterMl,
+        });
+
+        for (const [otherOutput, otherHash] of byOutput.entries()) {
+          if (otherOutput !== outputSignature) {
+            expect(targets.inputSnapshotHash).not.toBe(otherHash);
+          }
+        }
+        byOutput.set(outputSignature, targets.inputSnapshotHash);
+      }
+    });
+
+    it('snapshot serializa a totalidade dos parâmetros de cálculo resolvidos', () => {
+      const profile = createTestProfile();
+      const snapshot = buildInputSnapshot(profile, resolveCalculationConfig(), {
+        engineVersion: '1.0.0',
+        formulaVersion: 'mifflin-st-jeor-v1',
+      });
+      const serialized = canonicalSerialize(snapshot);
+
+      for (const key of Object.keys(DEFAULT_CALCULATION_CONFIG)) {
+        expect(serialized).toContain(`"${key}"`);
+      }
+    });
+
+    it('serializador canônico rejeita NaN/Infinity em vez de convertê-los em null', () => {
+      // Comportamento nativo que o motor precisa impedir:
+      expect(JSON.stringify({ a: NaN })).toBe('{"a":null}');
+
+      expect(() => canonicalSerialize({ a: NaN })).toThrow(NutritionEngineSerializationError);
+      expect(() => canonicalSerialize({ a: Infinity })).toThrow(NutritionEngineSerializationError);
+      expect(() => canonicalSerialize([1, -Infinity])).toThrow(NutritionEngineSerializationError);
+      expect(() => canonicalizeJson({ nested: { value: NaN } })).toThrow(
+        NutritionEngineSerializationError
+      );
+
+      expect(canonicalSerialize({ a: 1, b: 'ok' })).toBe('{"a":1,"b":"ok"}');
+    });
+
+    it('metadados de evento não alteram o inputSnapshotHash', () => {
+      const profile = createTestProfile();
+      const a = calculateDailyTargets(profile, { computedReason: 'initial_setup' });
+      const b = calculateDailyTargets(profile, {
+        computedReason: 'weight_checkin',
+        computedAt: '2026-09-10T12:00:00.000Z',
+      });
+
+      expect(a.inputSnapshotHash).toBe(b.inputSnapshotHash);
+      expect(a.id).not.toBe(b.id);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 34. SEMÂNTICA DE computedAt E IDENTIDADE DE EVENTO
+  // --------------------------------------------------------------------------
+  describe('34. computedAt honesto e identidade de evento sem colisão', () => {
+    it('sem instante explícito, computedAt é null e não deriva de profile.updatedAt', () => {
+      const profile = createTestProfile({ updatedAt: '2026-09-09T10:00:00.000Z' });
+      const targets = calculateDailyTargets(profile);
+
+      expect(targets.computedAt).toBeNull();
+      expect(targets.computedAtSource).toBe('absent');
+      expect(targets.computedAt).not.toBe(profile.updatedAt);
+      expect(targets.computedAt).not.toBe('2026-09-09T00:00:00.000Z');
+    });
+
+    it('com instante explícito, usa exatamente o contexto fornecido', () => {
+      const profile = createTestProfile({ updatedAt: '2026-09-09T10:00:00.000Z' });
+      const targets = calculateDailyTargets(profile, {
+        computedAt: '2026-09-11T07:30:00.000Z',
+        computedReason: 'weight_checkin',
+      });
+
+      expect(targets.computedAt).toBe('2026-09-11T07:30:00.000Z');
+      expect(targets.computedAtSource).toBe('explicit_context');
+      expect(targets.computedReason).toBe('weight_checkin');
+    });
+
+    it('rejeita timestamp inválido, não UTC estrito ou inexistente no calendário', () => {
+      const profile = createTestProfile();
+
+      for (const invalid of [
+        'ontem',
+        '2026-09-11',
+        '2026-09-11T07:30:00+03:00',
+        '2026-02-30T00:00:00.000Z',
+        '2026-13-01T00:00:00.000Z',
+        '2026-09-11T25:00:00.000Z',
+      ]) {
+        const err = captureEngineError(profile, { computedAt: invalid });
+        expect(err).toBeInstanceOf(NutritionEngineConfigError);
+        expect(violationFields(err)).toContain('computedAt');
+        expect(violationCodes(err)).toContain('INVALID_TIMESTAMP');
+      }
+
+      // Ano bissexto válido é aceito
+      expect(() =>
+        calculateDailyTargets(profile, { computedAt: '2028-02-29T23:59:59.999Z' })
+      ).not.toThrow();
+    });
+
+    it('ids de evento não colidem quando razão ou instante diferem', () => {
+      const profile = createTestProfile();
+      const at = '2026-09-11T07:30:00.000Z';
+
+      const initial = calculateDailyTargets(profile, { computedAt: at, computedReason: 'initial_setup' });
+      const update = calculateDailyTargets(profile, { computedAt: at, computedReason: 'profile_update' });
+      const later = calculateDailyTargets(profile, {
+        computedAt: '2026-09-12T07:30:00.000Z',
+        computedReason: 'initial_setup',
+      });
+      const absent = calculateDailyTargets(profile, { computedReason: 'initial_setup' });
+
+      const ids = new Set([initial.id, update.id, later.id, absent.id]);
+      expect(ids.size).toBe(4);
+
+      // O snapshot determinístico permanece idêntico: apenas a identidade de evento muda
+      expect(update.inputSnapshotHash).toBe(initial.inputSnapshotHash);
+      expect(later.inputSnapshotHash).toBe(initial.inputSnapshotHash);
+      expect(absent.inputSnapshotHash).toBe(initial.inputSnapshotHash);
+
+      // Mesmo snapshot + mesmos metadados continuam produzindo o mesmo id
+      expect(
+        calculateDailyTargets(profile, { computedAt: at, computedReason: 'initial_setup' }).id
+      ).toBe(initial.id);
+    });
+
+    it('não usa Date.now nem new Date em nenhum caminho de cálculo', () => {
+      const RealDate = globalThis.Date;
+      let constructedCount = 0;
+      const nowSpy = vi.spyOn(RealDate, 'now');
+
+      class TrackingDate extends RealDate {
+        constructor(...args: unknown[]) {
+          constructedCount += 1;
+          super(...(args as []));
+        }
+      }
+      globalThis.Date = TrackingDate as unknown as DateConstructor;
+
+      try {
+        calculateDailyTargets(createTestProfile());
+        calculateDailyTargets(createTestProfile({ biologicalSexForCalcs: 'unspecified' }), {
+          computedAt: '2026-09-11T07:30:00.000Z',
+        });
+      } finally {
+        globalThis.Date = RealDate;
+      }
+
+      expect(constructedCount).toBe(0);
+      expect(nowSpy).not.toHaveBeenCalled();
+      nowSpy.mockRestore();
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 35. MACROS: RECONCILIAÇÃO REAL E TETO DURO PÓS-ARREDONDAMENTO
+  // --------------------------------------------------------------------------
+  describe('35. reconciliação explícita de macronutrientes', () => {
+    it('reconcilia 4P + 4C + 9F com targetCalories dentro da tolerância de arredondamento', () => {
+      const patterns: DietaryPattern[] = ['omnivore', 'low_carb', 'vegan', 'ketogenic'];
+      const goals: NutritionGoal[] = [
+        'fat_loss_aggressive',
+        'maintenance',
+        'hypertrophy_aggressive',
+      ];
+
+      for (const dietaryPattern of patterns) {
+        for (const goal of goals) {
+          for (const weightKg of [55, 70, 88]) {
+            const targets = calculateDailyTargets(
+              createTestProfile({ dietaryPattern, goal, weightKg })
+            );
+            const { macroReconciliation: rec } = targets;
+
+            expect(rec.macroCalories).toBe(
+              targets.targetProteinGrams * 4 +
+                targets.targetCarbsGrams * 4 +
+                targets.targetFatGrams * 9
+            );
+            expect(rec.deltaKcal).toBe(rec.macroCalories - targets.targetCalories);
+            expect(rec.isReconciled).toBe(
+              Math.abs(rec.deltaKcal) <= rec.roundingToleranceKcal
+            );
+
+            // Casos viáveis reconciliam apenas dentro do arredondamento inevitável
+            expect(rec.isReconciled).toBe(true);
+            expect(rec.unmetConstraints).not.toContain('ENERGY_BELOW_MACRO_MINIMUMS');
+          }
+        }
+      }
+    });
+
+    it('sinaliza caso infeasível em vez de fingir reconciliação exata', () => {
+      // Energia alvo (piso de BMR * 0.9) é insuficiente para proteína + lipídio essencial
+      const profile = createTestProfile({
+        biologicalSexForCalcs: 'female',
+        weightKg: 100,
+        heightCm: 160,
+        age: 40,
+        goal: 'fat_loss_aggressive',
+        nonExerciseActivity: 'sedentary',
+        trainingFrequencyDaysPerWeek: 0,
+        averageTrainingDurationMinutes: 0,
+      });
+
+      const targets = calculateDailyTargets(profile);
+      const rec = targets.macroReconciliation;
+
+      expect(rec.isReconciled).toBe(false);
+      expect(rec.unmetConstraints).toContain('ENERGY_BELOW_MACRO_MINIMUMS');
+      expect(rec.deltaKcal).toBeGreaterThan(rec.roundingToleranceKcal);
+      // O delta declarado é o delta real, sem maquiagem
+      expect(rec.macroCalories - rec.targetCalories).toBe(rec.deltaKcal);
+      // Lipídio essencial preservado (nenhuma constraint clínica nova foi inventada)
+      expect(targets.targetFatGrams).toBe(Math.round(profile.weightKg * 0.7));
+    });
+
+    it('preferência de carboidratos não cetogênicos é sinalizada, não prometida', () => {
+      const unmetProfile = createTestProfile({
+        biologicalSexForCalcs: 'female',
+        weightKg: 85,
+        heightCm: 160,
+        age: 40,
+        goal: 'fat_loss_aggressive',
+        nonExerciseActivity: 'sedentary',
+        trainingFrequencyDaysPerWeek: 0,
+        averageTrainingDurationMinutes: 0,
+      });
+      const unmet = calculateDailyTargets(unmetProfile);
+      expect(unmet.targetCarbsGrams).toBeLessThan(120);
+      expect(unmet.macroReconciliation.unmetConstraints).toContain(
+        'NON_KETO_CARBS_PREFERENCE_UNMET'
+      );
+
+      const metProfile = createTestProfile({ weightKg: 75, goal: 'maintenance' });
+      const met = calculateDailyTargets(metProfile);
+      expect(met.targetCarbsGrams).toBeGreaterThanOrEqual(120);
+      expect(met.macroReconciliation.unmetConstraints).toHaveLength(0);
+    });
+
+    it('proteína final nunca excede 2.2 g/kg após o arredondamento inteiro', () => {
+      const fractionalWeights = [45.3, 55.45, 61.2, 68.3, 72.7, 77.5, 84.1, 90.9, 95.45, 113.6];
+
+      for (const weightKg of fractionalWeights) {
+        const targets = calculateDailyTargets(
+          createTestProfile({ weightKg, goal: 'fat_loss_aggressive' })
+        );
+
+        expect(targets.targetProteinGrams).toBeLessThanOrEqual(weightKg * 2.2);
+        expect(targets.targetProteinGrams / weightKg).toBeLessThanOrEqual(2.2);
+        expect(targets.effectiveProteinGramsPerKg).toBeLessThanOrEqual(2.2);
+      }
+    });
+
+    it('composição dos passos puros reproduz exatamente calculateDailyTargets', () => {
+      const profile = createTestProfile({ weightKg: 82, goal: 'hypertrophy_lean' });
+      const config = resolveCalculationConfig();
+
+      const { bmrKcal } = computeBmr(profile, config);
+      const { tdeeKcal } = computeTdee(bmrKcal, profile, config);
+      const { targetCalories } = computeTargetCalories(bmrKcal, tdeeKcal, profile, config);
+      const macros = computeMacros(targetCalories, profile, config);
+      const waterMl = computeHydration(profile, config);
+
+      const targets = calculateDailyTargets(profile);
+      expect(targets.bmrKcal).toBe(bmrKcal);
+      expect(targets.tdeeKcal).toBe(tdeeKcal);
+      expect(targets.targetCalories).toBe(targetCalories);
+      expect(targets.targetProteinGrams).toBe(macros.targetProteinGrams);
+      expect(targets.targetCarbsGrams).toBe(macros.targetCarbsGrams);
+      expect(targets.targetFatGrams).toBe(macros.targetFatGrams);
+      expect(targets.targetWaterMl).toBe(waterMl);
+      expect(resolveEngineConfig().engineVersion).toBe(DEFAULT_ENGINE_CONFIG.engineVersion);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 36. TOLERÂNCIA EXPLÍCITA DE +/- 15% PARA UNSPECIFIED
+  // --------------------------------------------------------------------------
+  describe('36. tolerância ampliada tipada para biologicalSexForCalcs unspecified', () => {
+    it('declara +/- 15% sem transformar a tolerância em ajuste do alvo', () => {
+      const profile = createTestProfile({ biologicalSexForCalcs: 'unspecified', weightKg: 80 });
+      const targets = calculateDailyTargets(profile);
+      const tolerance = targets.estimationTolerance;
+
+      expect(tolerance.relative).toBe(0.15);
+      expect(tolerance.reason).toBe('BIOLOGICAL_SEX_UNSPECIFIED');
+      expect(tolerance.targetCaloriesLowerKcal).toBe(Math.round(targets.targetCalories * 0.85));
+      expect(tolerance.targetCaloriesUpperKcal).toBe(Math.round(targets.targetCalories * 1.15));
+
+      // O alvo permanece o valor determinístico do pipeline energético, sem escalonamento
+      expect(targets.targetCalories).toBe(targets.tdeeKcal + targets.energyBalanceKcal);
+      expect(targets.targetCalories).toBeGreaterThan(tolerance.targetCaloriesLowerKcal);
+      expect(targets.targetCalories).toBeLessThan(tolerance.targetCaloriesUpperKcal);
+      expect(targets.isLimitedGuidance).toBe(true);
+    });
+
+    it('sexos especificados não recebem tolerância ampliada', () => {
+      for (const biologicalSexForCalcs of ['female', 'male'] as BiologicalSexForCalcs[]) {
+        const targets = calculateDailyTargets(createTestProfile({ biologicalSexForCalcs }));
+        const tolerance = targets.estimationTolerance;
+
+        expect(tolerance.relative).toBe(0);
+        expect(tolerance.reason).toBe('NONE');
+        expect(tolerance.targetCaloriesLowerKcal).toBe(targets.targetCalories);
+        expect(tolerance.targetCaloriesUpperKcal).toBe(targets.targetCalories);
+      }
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 37. CAMPOS DE CONFIG MORTOS RESOLVIDOS
+  // --------------------------------------------------------------------------
+  describe('37. contrato de config sem campos mortos', () => {
+    it('não declara percentuais calóricos de gordura que o algoritmo não usa', () => {
+      const keys = Object.keys(DEFAULT_ENGINE_CONFIG);
+
+      expect(keys).not.toContain('minFatCaloriePercentage');
+      expect(keys).not.toContain('ketogenicFatCaloriePercentage');
+      // Renomeado para refletir a semântica real (preferência, não piso garantido)
+      expect(keys).not.toContain('nonKetoCarbsFloorGrams');
+      expect(keys).toContain('nonKetoCarbsPreferenceGrams');
+    });
+
+    it('a preferência de carboidratos é respeitada quando há energia disponível', () => {
+      const profile = createTestProfile({ weightKg: 75, goal: 'maintenance' });
+
+      const lowPreference = calculateDailyTargets(profile, { nonKetoCarbsPreferenceGrams: 100 });
+      const highPreference = calculateDailyTargets(profile, { nonKetoCarbsPreferenceGrams: 130 });
+
+      expect(lowPreference.targetCarbsGrams).toBeGreaterThanOrEqual(100);
+      expect(highPreference.targetCarbsGrams).toBeGreaterThanOrEqual(130);
+      expect(lowPreference.macroReconciliation.unmetConstraints).toHaveLength(0);
+      expect(highPreference.macroReconciliation.unmetConstraints).toHaveLength(0);
+    });
   });
 });
