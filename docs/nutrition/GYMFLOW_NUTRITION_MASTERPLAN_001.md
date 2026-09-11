@@ -275,7 +275,12 @@ export interface DailyTargets {
   engineVersion: string;   // ex: '1.0.0'
   formulaVersion: string;  // ex: 'mifflin-st-jeor-v1'
   inputSnapshotHash: string; // Hash SHA-256 dos campos de entrada
-  computedAt: string;      // ISO 8601 UTC
+
+  // O motor é puro: não lê relógio. Sem instante explícito do chamador, `computedAt`
+  // permanece `null` e a origem é declarada — nunca se deriva data de `profile.updatedAt`,
+  // de mtime de arquivo ou de literal hardcoded.
+  computedAt: string | null;              // ISO 8601 UTC quando fornecido; null caso contrário
+  computedAtSource: 'explicit_context' | 'absent';
   computedReason: 'initial_setup' | 'profile_update' | 'weight_checkin' | 'manual_override';
 
   // Alvos Diários
@@ -301,9 +306,11 @@ export interface DailyTargets {
   $$\text{BMR}_{\text{mulher}} = (10 \times \text{peso}_{\text{kg}}) + (6.25 \times \text{altura}_{\text{cm}}) - (5 \times \text{idade}) - 161$$
 * **Gasto Energético Total (TDEE):** Produto de BMR pelo Fator de Atividade Física (PAL: 1.2 a 1.75) somado ao custo calórico estimado dos treinos programados.
 * **Marcação Obrigatória de Revisão Científica:** Os seguintes parâmetros de proteção são marcados explicitamente no código como `PROFESSIONAL_REVIEW_REQUIRED`:
-  - Piso calórico absoluto de emergência: $1200\text{ kcal}$ para mulheres e $1500\text{ kcal}$ para homens;
+  - Piso calórico absoluto de emergência: $1200\text{ kcal}$ para mulheres, $1500\text{ kcal}$ para homens e $1200\text{ kcal}$ para `unspecified` (D-NUT-02: jamais o piso masculino). Estes três pisos são **invariantes internos, não configuráveis** por `EngineConfig`: o único valor justificável por documento canônico é o próprio valor canônico, de modo que um override público não teria liberdade semântica real e serviria apenas como via para alvos arbitrariamente altos;
   - Restrição de déficit calórico: ingestão planejada não deve descer abaixo de $\text{BMR} \times 0.9$ sem indicação profissional;
   - Limite máximo de déficit programado: $500\text{ a }750\text{ kcal/dia}$;
+  - Limite máximo de **superávit** programado: $+400\text{ kcal/dia}$ — o maior ajuste positivo já canonizado (`hypertrophy_aggressive`). Não é um número clínico novo: é a formalização do teto que o contrato já praticava, necessária para que a trava dura seja simétrica nas duas direções e overrides públicos não produzam metas hipercalóricas arbitrárias;
+  - Custo energético de treino: $6\text{ kcal/min}$ como valor canônico e simultaneamente teto duro, impedindo que o componente de treino do TDEE vire via alternativa de superávit ilimitado;
   - Fator base de hidratação: $35\text{ ml/kg/dia}$;
   - Adicional hídrico por sessão de treino: $500\text{ a }750\text{ ml}$ por hora de esforço moderado a intenso.
 
@@ -330,7 +337,9 @@ Para indivíduos adultos saudáveis submetidos a treinamento resistido, a sínte
    O saldo restante das calorias alvo é integralmente distribuído para carboidratos, otimizando estoques de glicogênio muscular para performance no treino.
    $$\text{Kcal}_{\text{carbo}} = \text{TargetCalories} - (\text{Kcal}_{\text{proteína}} + \text{Kcal}_{\text{gordura}})$$
    $$\text{Meta}_{\text{carbo}}(\text{g}) = \frac{\text{Kcal}_{\text{carbo}}}{4}$$
-* **Piso de Segurança de Carboidratos:** Em dietas não cetogênicas, preservar no mínimo $100\text{ a }130\text{ g/dia}$ para suporte glicolítico do sistema nervoso central.
+* **Preferência de Carboidratos (best-effort, não é piso garantido):** Em dietas não cetogênicas o motor *tenta* alcançar a faixa de $100\text{ a }130\text{ g/dia}$ (parâmetro `nonKetoCarbsPreferenceGrams`, canônico em $120\text{ g/dia}$) para suporte glicolítico do sistema nervoso central, deslocando lipídio até o piso essencial `minFatGramsPerKg`.
+  Esta é uma **preferência**, não um invariante: proteína e lipídio essencial têm prioridade e, quando a energia alvo disponível não comporta a faixa, a preferência cede. Nesse caso o motor não finge reconciliação — sinaliza explicitamente `NON_KETO_CARBS_PREFERENCE_UNMET` em `DailyTargets.macroReconciliation.unmetConstraints`.
+  Um piso clínico absoluto de carboidratos exigiria decisão nutricional formal (ainda não tomada) e não está implementado.
 
 ---
 

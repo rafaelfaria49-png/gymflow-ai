@@ -94,14 +94,29 @@ export type ScientificStatus = 'PROVISIONAL_PENDING_PROFESSIONAL_REVIEW';
  * - Déficit máximo, piso BMR * 0.90 e pisos calóricos: Masterplan 7.2.
  * - Teto de proteína 2.2 g/kg: Masterplan 8.1 / D-NUT-04.
  * - Faixa de PAL 1.2 a 1.75: Masterplan 7.2.
+ * - Faixa de lipídios 0.7 a 1.0 g/kg/dia: Masterplan 8.2.
  * - Teto de hidratação 4500 ml/dia: Masterplan 9.2.
  * - Offsets de BMR por sexo (Mifflin-St Jeor) e proibição de default masculino: D-NUT-02.
+ * - Teto de superávit e de custo de treino: maior valor positivo já canonizado em
+ *   `DEFAULT_CALCULATION_CONFIG` (nenhum número clínico novo foi introduzido).
+ *
+ * Simetria de direção: os limites cobrem tanto a direção hipocalórica (déficit, pisos)
+ * quanto a hipercalórica (superávit, custo de treino). Nenhum override público pode
+ * empurrar o alvo para fora do envelope canônico em qualquer das duas direções.
  *
  * PROFESSIONAL_REVIEW_REQUIRED (valores provisórios pendentes de revisão profissional).
  */
 export const ENGINE_HARD_SAFETY_LIMITS = Object.freeze({
   /** Déficit calórico absoluto programado nunca pode passar de 750 kcal/dia. */
   MAX_ABSOLUTE_DEFICIT_KCAL: 750,
+
+  /**
+   * Superávit calórico programado nunca pode passar do maior ajuste positivo canônico
+   * (`hypertrophy_aggressive: +400` em `DEFAULT_CALCULATION_CONFIG.goalAdjustments`).
+   * Não é um número clínico novo: é a formalização do teto já praticado pelo contrato.
+   * PROFESSIONAL_REVIEW_REQUIRED
+   */
+  MAX_GOAL_SURPLUS_KCAL: 400,
 
   /** Em déficit, o alvo nunca pode descer abaixo de BMR * 0.90. */
   MIN_BMR_MULTIPLIER_IN_DEFICIT: 0.9,
@@ -112,17 +127,32 @@ export const ENGINE_HARD_SAFETY_LIMITS = Object.freeze({
    */
   MAX_BMR_MULTIPLIER_IN_DEFICIT: 1.0,
 
-  /** Piso calórico absoluto feminino: nunca abaixo de 1200 kcal. */
-  MIN_FEMALE_CALORIC_FLOOR_KCAL: 1200,
-
-  /** Piso calórico absoluto masculino: nunca abaixo de 1500 kcal. */
-  MIN_MALE_CALORIC_FLOOR_KCAL: 1500,
-
-  /** Piso calórico absoluto para `unspecified`: nunca abaixo de 1200 kcal. */
-  MIN_UNSPECIFIED_CALORIC_FLOOR_KCAL: 1200,
+  /**
+   * Pisos calóricos absolutos de emergência (Masterplan 7.2). Deixaram de ser
+   * configuráveis: como o único valor justificável por documento canônico é o próprio
+   * valor canônico, o override público não teria liberdade semântica real e só servia
+   * como caminho para alvos arbitrariamente altos.
+   * PROFESSIONAL_REVIEW_REQUIRED
+   */
+  FEMALE_CALORIC_FLOOR_KCAL: 1200,
+  MALE_CALORIC_FLOOR_KCAL: 1500,
+  /** D-NUT-02: `unspecified` nunca recebe o piso masculino. */
+  UNSPECIFIED_CALORIC_FLOOR_KCAL: 1200,
 
   /** D-NUT-04: automação nunca acima de 2.2 g/kg/dia de proteína. */
   MAX_PROTEIN_GRAMS_PER_KG: 2.2,
+
+  /** Faixa canônica de lipídios de suporte essencial (Masterplan 8.2). */
+  MIN_FAT_GRAMS_PER_KG: 0.7,
+  MAX_FAT_GRAMS_PER_KG: 1.0,
+
+  /**
+   * Custo energético máximo por minuto de treino: o próprio valor canônico vigente
+   * (`trainingKcalPerMinute: 6`). Impede que o componente de treino do TDEE seja
+   * usado como via alternativa de superávit arbitrário.
+   * PROFESSIONAL_REVIEW_REQUIRED
+   */
+  MAX_TRAINING_KCAL_PER_MINUTE: 6,
 
   /** Faixa canônica vigente de PAL (Masterplan 7.2). */
   MIN_PAL_FACTOR: 1.2,
@@ -304,13 +334,19 @@ export interface EngineCalculationConfig {
 
   /**
    * Custo energético estimado por minuto de treino moderado/intenso (kcal/min).
+   * Faixa dura: [0, 6] — o teto é o próprio valor canônico vigente, de modo que o
+   * componente de treino do TDEE não vire via alternativa de superávit arbitrário.
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   trainingKcalPerMinute?: number; // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
    * Ajuste de balanço energético diário por NutritionGoal (kcal/dia).
-   * Déficits configurados são limitados por `maxAbsoluteDeficitKcal` (trava de algoritmo).
+   *
+   * Envelope duro, verificado sem clamp silencioso:
+   * `-maxAbsoluteDeficitKcal <= ajuste <= MAX_GOAL_SURPLUS_KCAL` (+400).
+   * Déficit fora do envelope e superávit acima do teto canônico são rejeitados
+   * com `NutritionEngineConfigError`, não corrigidos em silêncio.
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   goalAdjustments?: Record<NutritionGoal, number>;
@@ -327,25 +363,6 @@ export interface EngineCalculationConfig {
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   minBmrMultiplierInDeficit?: number; // PROFESSIONAL_REVIEW_REQUIRED
-
-  /**
-   * Piso calórico absoluto de emergência feminino. Invariante dura: nunca abaixo de 1200 kcal.
-   * PROFESSIONAL_REVIEW_REQUIRED
-   */
-  femaleCaloricFloorKcal?: number; // PROFESSIONAL_REVIEW_REQUIRED
-
-  /**
-   * Piso calórico absoluto de emergência masculino. Invariante dura: nunca abaixo de 1500 kcal.
-   * PROFESSIONAL_REVIEW_REQUIRED
-   */
-  maleCaloricFloorKcal?: number; // PROFESSIONAL_REVIEW_REQUIRED
-
-  /**
-   * Piso calórico absoluto para sexo unspecified.
-   * Invariante dura: nunca abaixo de 1200 kcal e estritamente abaixo do piso masculino (D-NUT-02).
-   * PROFESSIONAL_REVIEW_REQUIRED
-   */
-  unspecifiedCaloricFloorKcal?: number; // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
    * Faixa de proteína conservadora automática por objetivo (g/kg/dia).
@@ -367,20 +384,21 @@ export interface EngineCalculationConfig {
   maxProteinGramsPerKg?: number; // 2.2
 
   /**
-   * Lipídios de suporte essencial padrão (g/kg/dia). Faixa de projeto: 0.7 a 1.0 g/kg/dia.
+   * Lipídios de suporte essencial padrão (g/kg/dia).
+   * Faixa dura canônica (Masterplan 8.2): [0.7, 1.0].
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   defaultFatGramsPerKg?: number; // 0.85 // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
    * Piso mínimo de lipídios essenciais (g/kg/dia). O motor nunca reduz lipídio abaixo
-   * deste piso para financiar carboidratos.
+   * deste piso para financiar carboidratos. Faixa dura canônica: [0.7, 1.0].
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   minFatGramsPerKg?: number; // 0.70 // PROFESSIONAL_REVIEW_REQUIRED
 
   /**
-   * Teto superior padrão de lipídios (g/kg/dia).
+   * Teto superior padrão de lipídios (g/kg/dia). Faixa dura canônica: [0.7, 1.0].
    * PROFESSIONAL_REVIEW_REQUIRED
    */
   maxFatGramsPerKg?: number; // 1.00 // PROFESSIONAL_REVIEW_REQUIRED
@@ -458,8 +476,58 @@ export type EngineConfig = EngineCalculationConfig &
   EngineComputationContext &
   EngineVersionConfig;
 
+/**
+ * Pisos calóricos de emergência resolvidos.
+ *
+ * Não são configuráveis por `EngineCalculationConfig` (ver `ENGINE_HARD_SAFETY_LIMITS`),
+ * mas continuam participando do cálculo e, por isso, do `inputSnapshotHash`:
+ * proveniência cobre todo input efetivo, configurável ou não.
+ */
+export interface ResolvedCaloricFloors {
+  femaleCaloricFloorKcal: number;
+  maleCaloricFloorKcal: number;
+  unspecifiedCaloricFloorKcal: number;
+}
+
 /** Configuração de cálculo totalmente resolvida (todos os campos presentes). */
-export type ResolvedCalculationConfig = Required<EngineCalculationConfig>;
+export type ResolvedCalculationConfig = Required<EngineCalculationConfig> &
+  ResolvedCaloricFloors;
+
+/**
+ * Chaves canônicas aceitas em `EngineConfig`.
+ *
+ * Qualquer outra chave é rejeitada com `UNKNOWN_CONFIG_KEY`: um override removido do
+ * contrato (por exemplo os antigos pisos calóricos ou os percentuais de gordura) nunca
+ * é silenciosamente ignorado — o chamador é informado de que o parâmetro não existe
+ * mais, em vez de seguir acreditando que ele está em vigor.
+ */
+export const ENGINE_CONFIG_KEYS: readonly string[] = Object.freeze([
+  // EngineCalculationConfig
+  'bmrUnspecifiedOffset',
+  'palFactors',
+  'trainingKcalPerMinute',
+  'goalAdjustments',
+  'maxAbsoluteDeficitKcal',
+  'minBmrMultiplierInDeficit',
+  'proteinGramsPerKgByGoal',
+  'minProteinGramsPerKg',
+  'maxProteinGramsPerKg',
+  'defaultFatGramsPerKg',
+  'minFatGramsPerKg',
+  'maxFatGramsPerKg',
+  'nonKetoCarbsPreferenceGrams',
+  'ketogenicCarbsGrams',
+  'baseHydrationMlPerKg',
+  'trainingHydrationMlPerHour',
+  'maxHydrationMlPerDay',
+  'minHydrationMlPerDay',
+  // EngineComputationContext
+  'computedAt',
+  'computedReason',
+  // EngineVersionConfig
+  'engineVersion',
+  'formulaVersion',
+]);
 
 /** Contexto de evento totalmente resolvido. */
 export interface ResolvedComputationContext {
@@ -519,11 +587,13 @@ export const DEFAULT_CALCULATION_CONFIG: Readonly<ResolvedCalculationConfig> = O
   // PROFESSIONAL_REVIEW_REQUIRED
   minBmrMultiplierInDeficit: 0.9,
 
-  // Pisos de segurança absoluta
-  // PROFESSIONAL_REVIEW_REQUIRED
-  femaleCaloricFloorKcal: 1200,
-  maleCaloricFloorKcal: 1500,
-  unspecifiedCaloricFloorKcal: 1200, // Proibido piso masculino a unspecified (D-NUT-02)
+  // Pisos de segurança absoluta — invariantes, não configuráveis.
+  // Derivados diretamente de ENGINE_HARD_SAFETY_LIMITS para que exista uma única
+  // fonte de verdade e nenhuma cópia possa divergir silenciosamente.
+  femaleCaloricFloorKcal: ENGINE_HARD_SAFETY_LIMITS.FEMALE_CALORIC_FLOOR_KCAL,
+  maleCaloricFloorKcal: ENGINE_HARD_SAFETY_LIMITS.MALE_CALORIC_FLOOR_KCAL,
+  // Proibido piso masculino a unspecified (D-NUT-02)
+  unspecifiedCaloricFloorKcal: ENGINE_HARD_SAFETY_LIMITS.UNSPECIFIED_CALORIC_FLOOR_KCAL,
 
   // Proteína conservadora por objetivo (1.6 a 2.2 g/kg/dia)
   // D-NUT-04: Proibida automação acima de 2.2 g/kg
@@ -589,6 +659,7 @@ export type EngineViolationCode =
   | 'INVALID_ENUM'
   | 'INVALID_NESTED_CONFIG'
   | 'UNKNOWN_NESTED_KEY'
+  | 'UNKNOWN_CONFIG_KEY'
   | 'INVALID_TIMESTAMP'
   | 'EMPTY_STRING'
   | 'MALE_DEFAULT_FORBIDDEN';

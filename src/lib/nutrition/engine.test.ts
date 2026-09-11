@@ -31,7 +31,11 @@ import {
 import {
   DEFAULT_CALCULATION_CONFIG,
   DEFAULT_ENGINE_CONFIG,
+  ENGINE_CONFIG_KEYS,
+  ENGINE_HARD_SAFETY_LIMITS,
+  NUTRITION_GOALS,
   EngineConfig,
+  MACRO_ROUNDING_TOLERANCE_KCAL,
   NutritionEngineConfigError,
   NutritionEngineGateError,
   NutritionEngineInputError,
@@ -405,8 +409,8 @@ describe('NutritionEngine (NUT-003)', () => {
       heightCm: 185,
     });
 
-    // Forçar ajuste configurado agressivo de -1200 kcal
-    const customConfig: EngineConfig = {
+    // Ajuste configurado de -1200 kcal está fora do envelope: rejeitado, não clampeado.
+    const outOfEnvelope: EngineConfig = {
       goalAdjustments: {
         fat_loss_aggressive: -1200,
         fat_loss_moderate: -500,
@@ -417,8 +421,24 @@ describe('NutritionEngine (NUT-003)', () => {
       },
       maxAbsoluteDeficitKcal: 750,
     };
+    const err = captureEngineError(profile, outOfEnvelope);
+    expect(err).toBeInstanceOf(NutritionEngineConfigError);
+    expect(violationFields(err)).toContain('goalAdjustments.fat_loss_aggressive');
+    expect(violationCodes(err)).toContain('BELOW_HARD_LIMIT');
 
-    const targets = calculateDailyTargets(profile, customConfig);
+    // No limite do envelope o cálculo prossegue e o déficit efetivo respeita 750 kcal.
+    const atEnvelope: EngineConfig = {
+      goalAdjustments: {
+        fat_loss_aggressive: -750,
+        fat_loss_moderate: -500,
+        maintenance: 0,
+        hypertrophy_lean: 200,
+        hypertrophy_aggressive: 400,
+        strength_performance: 150,
+      },
+      maxAbsoluteDeficitKcal: 750,
+    };
+    const targets = calculateDailyTargets(profile, atEnvelope);
     const actualDeficit = targets.tdeeKcal - targets.targetCalories;
 
     expect(actualDeficit).toBeLessThanOrEqual(750);
@@ -552,8 +572,15 @@ describe('NutritionEngine (NUT-003)', () => {
     const carbsCalories = targets.targetCarbsGrams * 4;
     const totalMacroCalories = proteinCalories + fatCalories + carbsCalories;
 
-    // Diferença máxima por arredondamentos inteiros <= 15 kcal
-    expect(Math.abs(totalMacroCalories - targets.targetCalories)).toBeLessThanOrEqual(15);
+    // Tolerância real declarada pelo contrato: o macro residual em dieta não cetogênica
+    // é o carboidrato, logo meio grama = 2 kcal. Nada de folga genérica.
+    expect(targets.macroReconciliation.roundingToleranceKcal).toBe(
+      MACRO_ROUNDING_TOLERANCE_KCAL.CARBS_RESIDUAL
+    );
+    expect(Math.abs(totalMacroCalories - targets.targetCalories)).toBeLessThanOrEqual(
+      MACRO_ROUNDING_TOLERANCE_KCAL.CARBS_RESIDUAL
+    );
+    expect(targets.macroReconciliation.isReconciled).toBe(true);
   });
 
   // --------------------------------------------------------------------------
@@ -810,11 +837,29 @@ describe('NutritionEngine (NUT-003)', () => {
       );
     });
 
-    it('déficit efetivo nunca passa de 750 kcal mesmo com ajuste extremo configurado', () => {
-      const extremeConfig: EngineConfig = {
+    it('rejeita ajuste extremo configurado em vez de clampear silenciosamente', () => {
+      const profile = createTestProfile({ goal: 'fat_loss_aggressive' });
+      const err = captureEngineError(profile, {
         goalAdjustments: {
           fat_loss_aggressive: -5000,
           fat_loss_moderate: -4000,
+          maintenance: 0,
+          hypertrophy_lean: 200,
+          hypertrophy_aggressive: 400,
+          strength_performance: 150,
+        },
+      });
+      expect(err).toBeInstanceOf(NutritionEngineConfigError);
+      expect(violationFields(err)).toContain('goalAdjustments.fat_loss_aggressive');
+      expect(violationFields(err)).toContain('goalAdjustments.fat_loss_moderate');
+      expect(violationCodes(err)).toContain('BELOW_HARD_LIMIT');
+    });
+
+    it('déficit efetivo nunca passa de 750 kcal no limite do envelope', () => {
+      const extremeConfig: EngineConfig = {
+        goalAdjustments: {
+          fat_loss_aggressive: -750,
+          fat_loss_moderate: -750,
           maintenance: 0,
           hypertrophy_lean: 200,
           hypertrophy_aggressive: 400,
@@ -850,35 +895,55 @@ describe('NutritionEngine (NUT-003)', () => {
       ).not.toThrow();
     });
 
-    it('rejeita pisos calóricos abaixo dos mínimos canônicos por sexo metabólico', () => {
+    it('pisos calóricos deixaram de ser overrides públicos e são rejeitados como chave', () => {
       const profile = createTestProfile();
 
-      const female = captureEngineError(profile, { femaleCaloricFloorKcal: 1199 });
-      expect(violationFields(female)).toContain('femaleCaloricFloorKcal');
-      expect(violationCodes(female)).toContain('BELOW_HARD_LIMIT');
-
-      const male = captureEngineError(profile, { maleCaloricFloorKcal: 1499 });
-      expect(violationFields(male)).toContain('maleCaloricFloorKcal');
-
-      const unspecified = captureEngineError(profile, { unspecifiedCaloricFloorKcal: 1199 });
-      expect(violationFields(unspecified)).toContain('unspecifiedCaloricFloorKcal');
-
-      expect(() =>
-        calculateDailyTargets(profile, {
-          femaleCaloricFloorKcal: 1200,
-          maleCaloricFloorKcal: 1500,
-          unspecifiedCaloricFloorKcal: 1200,
-        })
-      ).not.toThrow();
+      for (const key of [
+        'femaleCaloricFloorKcal',
+        'maleCaloricFloorKcal',
+        'unspecifiedCaloricFloorKcal',
+      ]) {
+        for (const value of [1199, 1200, 1500, 100000]) {
+          const err = captureEngineError(profile, {
+            [key]: value,
+          } as unknown as EngineConfig);
+          expect(err).toBeInstanceOf(NutritionEngineConfigError);
+          expect(violationFields(err)).toContain(key);
+          expect(violationCodes(err)).toContain('UNKNOWN_CONFIG_KEY');
+        }
+      }
     });
 
-    it('proíbe que unspecified herde o piso masculino (D-NUT-02)', () => {
-      const profile = createTestProfile({ biologicalSexForCalcs: 'unspecified' });
-      const err = captureEngineError(profile, { unspecifiedCaloricFloorKcal: 1500 });
+    it('pisos canônicos continuam vigentes como invariantes internos', () => {
+      expect(ENGINE_HARD_SAFETY_LIMITS.FEMALE_CALORIC_FLOOR_KCAL).toBe(1200);
+      expect(ENGINE_HARD_SAFETY_LIMITS.MALE_CALORIC_FLOOR_KCAL).toBe(1500);
+      expect(ENGINE_HARD_SAFETY_LIMITS.UNSPECIFIED_CALORIC_FLOOR_KCAL).toBe(1200);
 
-      expect(err).toBeInstanceOf(NutritionEngineConfigError);
-      expect(violationFields(err)).toContain('unspecifiedCaloricFloorKcal');
-      expect(violationCodes(err)).toContain('MALE_DEFAULT_FORBIDDEN');
+      const female = calculateDailyTargets(
+        createTestProfile({ biologicalSexForCalcs: 'female' })
+      );
+      const male = calculateDailyTargets(createTestProfile({ biologicalSexForCalcs: 'male' }));
+      const unspecified = calculateDailyTargets(
+        createTestProfile({ biologicalSexForCalcs: 'unspecified' })
+      );
+      expect(female.appliedCaloricFloor).toBe(1200);
+      expect(male.appliedCaloricFloor).toBe(1500);
+      expect(unspecified.appliedCaloricFloor).toBe(1200);
+    });
+
+    it('proíbe estruturalmente que unspecified herde o piso masculino (D-NUT-02)', () => {
+      // Com pisos constantes, D-NUT-02 deixa de depender de uma regra relativa por analogia:
+      // a separação é estrutural e verificável diretamente sobre os invariantes.
+      expect(ENGINE_HARD_SAFETY_LIMITS.UNSPECIFIED_CALORIC_FLOOR_KCAL).toBeLessThan(
+        ENGINE_HARD_SAFETY_LIMITS.MALE_CALORIC_FLOOR_KCAL
+      );
+
+      const unspecified = calculateDailyTargets(
+        createTestProfile({ biologicalSexForCalcs: 'unspecified' })
+      );
+      const male = calculateDailyTargets(createTestProfile({ biologicalSexForCalcs: 'male' }));
+      expect(unspecified.appliedCaloricFloor).toBeLessThan(male.appliedCaloricFloor);
+      expect(unspecified.isLimitedGuidance).toBe(true);
     });
 
     it('proíbe que o offset de BMR unspecified adote o offset masculino (+5)', () => {
@@ -1097,7 +1162,7 @@ describe('NutritionEngine (NUT-003)', () => {
       const baseHash = calculateDailyTargets(profile).inputSnapshotHash;
 
       // trainingKcalPerMinute: altera TDEE e, portanto, o output
-      const training = calculateDailyTargets(profile, { trainingKcalPerMinute: 9 });
+      const training = calculateDailyTargets(profile, { trainingKcalPerMinute: 3 });
       expect(training.inputSnapshotHash).not.toBe(baseHash);
 
       // minHydrationMlPerDay: para perfil leve sem treino, altera diretamente a meta hídrica
@@ -1140,7 +1205,7 @@ describe('NutritionEngine (NUT-003)', () => {
       const profile = createTestProfile({ weightKg: 40, trainingFrequencyDaysPerWeek: 4 });
       const configs: EngineConfig[] = [
         {},
-        { trainingKcalPerMinute: 9 },
+        { trainingKcalPerMinute: 3 },
         { minHydrationMlPerDay: 1600 },
         { baseHydrationMlPerKg: 40 },
         { defaultFatGramsPerKg: 0.7 },
@@ -1492,6 +1557,286 @@ describe('NutritionEngine (NUT-003)', () => {
       expect(highPreference.targetCarbsGrams).toBeGreaterThanOrEqual(130);
       expect(lowPreference.macroReconciliation.unmetConstraints).toHaveLength(0);
       expect(highPreference.macroReconciliation.unmetConstraints).toHaveLength(0);
+    });
+  });
+
+  // ==========================================================================
+  // REGRESSÕES CORRETIVAS (revisão 065) — SIMETRIA HIPERCALÓRICA
+  // P1: overrides públicos não podem produzir metas hipercalóricas arbitrárias.
+  // ==========================================================================
+
+  // --------------------------------------------------------------------------
+  // 38. TETO DE SUPERÁVIT POR OBJETIVO
+  // --------------------------------------------------------------------------
+  describe('38. envelope duro de goalAdjustments (revisão 065)', () => {
+    const withSurplus = (value: number): EngineConfig => ({
+      goalAdjustments: {
+        ...DEFAULT_CALCULATION_CONFIG.goalAdjustments,
+        hypertrophy_aggressive: value,
+      },
+    });
+
+    it('rejeita os ataques hipercalóricos exatos da revisão 065', () => {
+      const profile = createTestProfile({ goal: 'hypertrophy_aggressive' });
+
+      for (const attack of [10000, 100000, 1e9]) {
+        const err = captureEngineError(profile, withSurplus(attack));
+        expect(err).toBeInstanceOf(NutritionEngineConfigError);
+        expect(violationFields(err)).toContain('goalAdjustments.hypertrophy_aggressive');
+        expect(violationCodes(err)).toContain('ABOVE_HARD_LIMIT');
+      }
+    });
+
+    it('aceita exatamente o máximo canônico (+400) e rejeita o valor imediatamente acima', () => {
+      const profile = createTestProfile({ goal: 'hypertrophy_aggressive' });
+
+      expect(() =>
+        calculateDailyTargets(profile, withSurplus(ENGINE_HARD_SAFETY_LIMITS.MAX_GOAL_SURPLUS_KCAL))
+      ).not.toThrow();
+
+      const err = captureEngineError(
+        profile,
+        withSurplus(ENGINE_HARD_SAFETY_LIMITS.MAX_GOAL_SURPLUS_KCAL + 1)
+      );
+      expect(err).toBeInstanceOf(NutritionEngineConfigError);
+      expect(violationCodes(err)).toContain('ABOVE_HARD_LIMIT');
+    });
+
+    it('o teto de superávit é o maior positivo já canonizado, não um número novo', () => {
+      const canonicalMaxPositive = Math.max(
+        ...Object.values(DEFAULT_CALCULATION_CONFIG.goalAdjustments)
+      );
+      expect(ENGINE_HARD_SAFETY_LIMITS.MAX_GOAL_SURPLUS_KCAL).toBe(canonicalMaxPositive);
+      expect(canonicalMaxPositive).toBe(400);
+    });
+
+    it('rejeita déficit fora do envelope protegido, sem clamp silencioso', () => {
+      const profile = createTestProfile({ goal: 'fat_loss_aggressive' });
+
+      // Fora do hard cap absoluto de déficit (750).
+      const beyondHardCap = captureEngineError(profile, {
+        goalAdjustments: {
+          ...DEFAULT_CALCULATION_CONFIG.goalAdjustments,
+          fat_loss_aggressive: -751,
+        },
+      });
+      expect(violationCodes(beyondHardCap)).toContain('BELOW_HARD_LIMIT');
+
+      // Fora do envelope efetivamente configurado (mais restritivo que o hard cap).
+      const beyondConfigured = captureEngineError(profile, {
+        maxAbsoluteDeficitKcal: 300,
+        goalAdjustments: {
+          ...DEFAULT_CALCULATION_CONFIG.goalAdjustments,
+          fat_loss_aggressive: -500,
+        },
+      });
+      expect(violationFields(beyondConfigured)).toContain('goalAdjustments.fat_loss_aggressive');
+      expect(violationCodes(beyondConfigured)).toContain('BELOW_HARD_LIMIT');
+
+      // Exatamente no envelope configurado: aceito.
+      // O envelope vale para TODOS os objetivos, não só o do perfil — um config só é
+      // válido como um todo, independentemente de qual objetivo venha a consumi-lo.
+      expect(() =>
+        calculateDailyTargets(profile, {
+          maxAbsoluteDeficitKcal: 300,
+          goalAdjustments: {
+            ...DEFAULT_CALCULATION_CONFIG.goalAdjustments,
+            fat_loss_aggressive: -300,
+            fat_loss_moderate: -300,
+          },
+        })
+      ).not.toThrow();
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 39. PISOS CALÓRICOS NÃO SÃO VIA DE ABUSO HIPERCALÓRICO
+  // --------------------------------------------------------------------------
+  describe('39. pisos calóricos como invariantes (revisão 065)', () => {
+    it('rejeita os três ataques de piso da revisão 065 antes de produzir DailyTargets', () => {
+      const attacks: Array<[string, number]> = [
+        ['femaleCaloricFloorKcal', 100000],
+        ['maleCaloricFloorKcal', 100000],
+        ['unspecifiedCaloricFloorKcal', 99999],
+      ];
+
+      for (const [key, value] of attacks) {
+        for (const biologicalSexForCalcs of [
+          'female',
+          'male',
+          'unspecified',
+        ] as BiologicalSexForCalcs[]) {
+          const profile = createTestProfile({ biologicalSexForCalcs });
+          const err = captureEngineError(profile, { [key]: value } as unknown as EngineConfig);
+          expect(err).toBeInstanceOf(NutritionEngineConfigError);
+          expect(violationCodes(err)).toContain('UNKNOWN_CONFIG_KEY');
+        }
+      }
+    });
+
+    it('overrides removidos do contrato falham em vez de serem ignorados em silêncio', () => {
+      const profile = createTestProfile();
+
+      for (const key of [
+        'minFatCaloriePercentage',
+        'ketogenicFatCaloriePercentage',
+        'nonKetoCarbsFloorGrams',
+        'chaveInexistente',
+      ]) {
+        const err = captureEngineError(profile, { [key]: 1 } as unknown as EngineConfig);
+        expect(err).toBeInstanceOf(NutritionEngineConfigError);
+        expect(violationFields(err)).toContain(key);
+        expect(violationCodes(err)).toContain('UNKNOWN_CONFIG_KEY');
+      }
+    });
+
+    it('a allowlist de chaves não pode divergir do contrato resolvido', () => {
+      // Guarda estrutural: um parâmetro novo em EngineCalculationConfig que esqueça de
+      // entrar em ENGINE_CONFIG_KEYS passaria a ser rejeitado como chave desconhecida.
+      const invariantOnly = [
+        'femaleCaloricFloorKcal',
+        'maleCaloricFloorKcal',
+        'unspecifiedCaloricFloorKcal',
+      ];
+      const expected = Object.keys(DEFAULT_ENGINE_CONFIG)
+        .filter((k) => !invariantOnly.includes(k))
+        .concat('computedAt')
+        .filter((k, i, a) => a.indexOf(k) === i)
+        .sort();
+
+      expect([...ENGINE_CONFIG_KEYS].sort()).toEqual(expected);
+
+      // E toda chave da allowlist, com seu próprio valor canônico, é aceita pelo motor.
+      for (const key of ENGINE_CONFIG_KEYS) {
+        expect(() =>
+          calculateDailyTargets(createTestProfile(), {
+            [key]: (DEFAULT_ENGINE_CONFIG as Record<string, unknown>)[key],
+          } as unknown as EngineConfig)
+        ).not.toThrow();
+      }
+    });
+
+    it('pisos invariantes continuam íntegros na proveniência', () => {
+      const profile = createTestProfile();
+      const snapshot = buildInputSnapshot(
+        profile,
+        resolveCalculationConfig(),
+        DEFAULT_ENGINE_CONFIG
+      );
+
+      expect(snapshot.effectiveParameters.femaleCaloricFloorKcal).toBe(1200);
+      expect(snapshot.effectiveParameters.maleCaloricFloorKcal).toBe(1500);
+      expect(snapshot.effectiveParameters.unspecifiedCaloricFloorKcal).toBe(1200);
+      expect(canonicalSerialize(snapshot)).toContain('femaleCaloricFloorKcal');
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 40. NENHUMA CONFIG PÚBLICA VÁLIDA PRODUZ ALVO HIPERCALÓRICO ARBITRÁRIO
+  // --------------------------------------------------------------------------
+  describe('40. sweep de segurança hipercalórica (revisão 065)', () => {
+    it('rejeita custo de treino acima do valor canônico vigente', () => {
+      const profile = createTestProfile();
+
+      expect(() =>
+        calculateDailyTargets(profile, {
+          trainingKcalPerMinute: ENGINE_HARD_SAFETY_LIMITS.MAX_TRAINING_KCAL_PER_MINUTE,
+        })
+      ).not.toThrow();
+
+      for (const attack of [6.1, 100, 100000]) {
+        const err = captureEngineError(profile, { trainingKcalPerMinute: attack });
+        expect(err).toBeInstanceOf(NutritionEngineConfigError);
+        expect(violationFields(err)).toContain('trainingKcalPerMinute');
+        expect(violationCodes(err)).toContain('ABOVE_HARD_LIMIT');
+      }
+    });
+
+    it('rejeita lipídios fora da faixa canônica 0.7 a 1.0 g/kg/dia (Masterplan 8.2)', () => {
+      const profile = createTestProfile();
+
+      for (const field of ['minFatGramsPerKg', 'maxFatGramsPerKg', 'defaultFatGramsPerKg']) {
+        for (const attack of [0.69, 1.01, 1000]) {
+          const err = captureEngineError(profile, {
+            [field]: attack,
+          } as unknown as EngineConfig);
+          expect(err).toBeInstanceOf(NutritionEngineConfigError);
+          expect(violationFields(err)).toContain(field);
+        }
+      }
+    });
+
+    it('nenhuma configuração pública válida escapa do envelope calórico derivado', () => {
+      // Invariante derivado exclusivamente de regras canônicas já existentes:
+      // alvo <= max(piso masculino, TDEE + superávit canônico máximo).
+      // Não é um teto global novo de targetCalories — é a consequência dos componentes.
+      const configs: EngineConfig[] = [
+        {},
+        { palFactors: { ...DEFAULT_CALCULATION_CONFIG.palFactors, very_active: 1.75 } },
+        { trainingKcalPerMinute: ENGINE_HARD_SAFETY_LIMITS.MAX_TRAINING_KCAL_PER_MINUTE },
+        { trainingKcalPerMinute: 0 },
+        {
+          goalAdjustments: Object.fromEntries(
+            NUTRITION_GOALS.map((g) => [g, ENGINE_HARD_SAFETY_LIMITS.MAX_GOAL_SURPLUS_KCAL])
+          ) as Record<NutritionGoal, number>,
+        },
+        {
+          goalAdjustments: Object.fromEntries(
+            NUTRITION_GOALS.map((g) => [g, -750])
+          ) as Record<NutritionGoal, number>,
+        },
+        { minProteinGramsPerKg: 1.6, maxProteinGramsPerKg: 2.2 },
+        { minFatGramsPerKg: 0.7, maxFatGramsPerKg: 1.0, defaultFatGramsPerKg: 1.0 },
+        { maxHydrationMlPerDay: 4500, minHydrationMlPerDay: 1500 },
+        { baseHydrationMlPerKg: 35, trainingHydrationMlPerHour: 500 },
+      ];
+
+      let evaluated = 0;
+      for (const config of configs) {
+        for (const goal of NUTRITION_GOALS) {
+          for (const biologicalSexForCalcs of [
+            'female',
+            'male',
+            'unspecified',
+          ] as BiologicalSexForCalcs[]) {
+            for (const weightKg of [40, 62, 95, 180]) {
+              for (const nonExerciseActivity of [
+                'sedentary',
+                'very_active',
+              ] as ActivityLevel[]) {
+                const profile = createTestProfile({
+                  goal,
+                  biologicalSexForCalcs,
+                  weightKg,
+                  nonExerciseActivity,
+                  trainingFrequencyDaysPerWeek: 7,
+                  averageTrainingDurationMinutes: 180,
+                });
+
+                const targets = calculateDailyTargets(profile, config);
+                evaluated++;
+
+                const derivedCeiling = Math.max(
+                  ENGINE_HARD_SAFETY_LIMITS.MALE_CALORIC_FLOOR_KCAL,
+                  targets.tdeeKcal + ENGINE_HARD_SAFETY_LIMITS.MAX_GOAL_SURPLUS_KCAL
+                );
+                expect(targets.targetCalories).toBeLessThanOrEqual(derivedCeiling);
+                expect(targets.targetCalories).toBeGreaterThan(0);
+                expect(targets.targetWaterMl).toBeLessThanOrEqual(
+                  ENGINE_HARD_SAFETY_LIMITS.MAX_HYDRATION_ML_PER_DAY
+                );
+                expect(targets.targetProteinGrams).toBeLessThanOrEqual(
+                  weightKg * ENGINE_HARD_SAFETY_LIMITS.MAX_PROTEIN_GRAMS_PER_KG
+                );
+                expect(targets.targetCarbsGrams).toBeGreaterThanOrEqual(0);
+                expect(targets.targetFatGrams).toBeGreaterThanOrEqual(0);
+              }
+            }
+          }
+        }
+      }
+
+      expect(evaluated).toBeGreaterThan(500);
     });
   });
 });

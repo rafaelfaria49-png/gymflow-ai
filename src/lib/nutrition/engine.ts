@@ -24,6 +24,7 @@ import { evaluateNutritionGate } from './profile-gates';
 import {
   DEFAULT_CALCULATION_CONFIG,
   DEFAULT_ENGINE_CONFIG,
+  ENGINE_HARD_SAFETY_LIMITS,
   MACRO_ROUNDING_TOLERANCE_KCAL,
   NutritionEngineConfigError,
   NutritionEngineGateError,
@@ -44,6 +45,7 @@ import {
   isFiniteNumber,
   validateDailyTargetsOutput,
   validateEngineConfig,
+  validateEngineConfigKeys,
   validateProfileInputs,
 } from './engine-validation';
 
@@ -236,12 +238,11 @@ export function resolveCalculationConfig(config?: EngineConfig): ResolvedCalcula
       config.minBmrMultiplierInDeficit,
       d.minBmrMultiplierInDeficit
     ),
-    femaleCaloricFloorKcal: pick(config.femaleCaloricFloorKcal, d.femaleCaloricFloorKcal),
-    maleCaloricFloorKcal: pick(config.maleCaloricFloorKcal, d.maleCaloricFloorKcal),
-    unspecifiedCaloricFloorKcal: pick(
-      config.unspecifiedCaloricFloorKcal,
-      d.unspecifiedCaloricFloorKcal
-    ),
+    // Pisos calóricos são invariantes: vêm sempre da constante canônica, nunca do
+    // config do chamador. Continuam no snapshot por serem input efetivo do cálculo.
+    femaleCaloricFloorKcal: d.femaleCaloricFloorKcal,
+    maleCaloricFloorKcal: d.maleCaloricFloorKcal,
+    unspecifiedCaloricFloorKcal: d.unspecifiedCaloricFloorKcal,
     proteinGramsPerKgByGoal: pickRecord(config.proteinGramsPerKgByGoal, d.proteinGramsPerKgByGoal),
     minProteinGramsPerKg: pick(config.minProteinGramsPerKg, d.minProteinGramsPerKg),
     maxProteinGramsPerKg: pick(config.maxProteinGramsPerKg, d.maxProteinGramsPerKg),
@@ -444,9 +445,15 @@ export function computeTargetCalories(
     config.goalAdjustments[profile.goal]
   );
 
-  // Trava 1: Déficit máximo absoluto limitado (teto duro de 750 kcal/dia no config validado)
+  // Trava 1: envelope de ajuste por objetivo.
+  // `validateEngineConfig` já rejeita (fail-closed) qualquer ajuste fora de
+  // [-maxAbsoluteDeficitKcal, MAX_GOAL_SURPLUS_KCAL], então estes clamps são
+  // redundantes por contrato e mantidos apenas como defesa para chamadas diretas
+  // desta etapa pura. Nenhum caminho validado depende deles.
   if (rawAdjustment < 0) {
     rawAdjustment = Math.max(rawAdjustment, -config.maxAbsoluteDeficitKcal);
+  } else {
+    rawAdjustment = Math.min(rawAdjustment, ENGINE_HARD_SAFETY_LIMITS.MAX_GOAL_SURPLUS_KCAL);
   }
 
   let rawTarget = tdeeKcal + rawAdjustment;
@@ -686,7 +693,13 @@ export function calculateDailyTargets(
   profile: NutritionProfile,
   config?: EngineConfig
 ): DailyTargets {
-  // 1. CONFIGURAÇÃO: resolução pura seguida de validação fail-closed dos invariantes absolutos
+  // 1. CONFIGURAÇÃO: chaves canônicas, resolução pura e validação fail-closed dos invariantes.
+  //    A checagem de chaves vem primeiro para que um override removido do contrato seja
+  //    reportado como inexistente, e não silenciosamente descartado na resolução.
+  const keyViolations = validateEngineConfigKeys(config);
+  if (keyViolations.length > 0) {
+    throw new NutritionEngineConfigError(keyViolations);
+  }
   const calculationConfig = resolveCalculationConfig(config);
   const context = resolveComputationContext(config);
   const configViolations = validateEngineConfig({

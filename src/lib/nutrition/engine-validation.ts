@@ -25,6 +25,7 @@ import {
   BIOLOGICAL_SEXES_FOR_CALCS,
   COMPUTED_REASONS,
   DIETARY_PATTERNS,
+  ENGINE_CONFIG_KEYS,
   ENGINE_HARD_SAFETY_LIMITS,
   NUTRITION_GOALS,
   type DailyTargets,
@@ -231,6 +232,42 @@ export function isStrictIsoUtcTimestamp(value: unknown): value is string {
 // ============================================================================
 
 /**
+ * Valida as CHAVES da configuração crua, antes de qualquer resolução.
+ *
+ * Um override que saiu do contrato (os antigos pisos calóricos, `minFatCaloriePercentage`,
+ * `ketogenicFatCaloriePercentage`) não pode ser silenciosamente ignorado: o chamador
+ * ficaria acreditando que o parâmetro está em vigor. Chave desconhecida falha fechada.
+ */
+export function validateEngineConfigKeys(config: unknown): EngineViolation[] {
+  const violations: EngineViolation[] = [];
+  if (config === undefined || config === null) {
+    return violations;
+  }
+  if (!isPlainRecord(config)) {
+    violations.push(
+      violation(
+        'config',
+        'INVALID_NESTED_CONFIG',
+        `esperado objeto simples de configuração, recebido ${String(config)}`
+      )
+    );
+    return violations;
+  }
+  for (const key of Object.keys(config)) {
+    if (!ENGINE_CONFIG_KEYS.includes(key)) {
+      violations.push(
+        violation(
+          key,
+          'UNKNOWN_CONFIG_KEY',
+          'parâmetro fora do contrato canônico de EngineConfig (removido ou inexistente)'
+        )
+      );
+    }
+  }
+  return violations;
+}
+
+/**
  * Valida a configuração já resolvida contra os invariantes duros de `ENGINE_HARD_SAFETY_LIMITS`.
  *
  * Política: fail-closed. Nenhum valor é corrigido/clampeado silenciosamente; o chamador
@@ -289,16 +326,26 @@ export function validateEngineConfig(config: ResolvedEngineConfig): EngineViolat
     }
   }
 
-  // --- Custo energético de treino ---
+  // --- Custo energético de treino: faixa dura [0, valor canônico vigente] ---
+  // O teto impede que o componente de treino do TDEE seja usado como via alternativa
+  // de superávit arbitrário (revisão 065, P1).
   if (requireFinite('trainingKcalPerMinute', config.trainingKcalPerMinute, violations)) {
     requireNonNegative('trainingKcalPerMinute', config.trainingKcalPerMinute, violations);
+    requireAtMost(
+      'trainingKcalPerMinute',
+      config.trainingKcalPerMinute,
+      limits.MAX_TRAINING_KCAL_PER_MINUTE,
+      violations
+    );
   }
 
-  // --- Ajustes por objetivo ---
-  validateNumericRecord('goalAdjustments', config.goalAdjustments, NUTRITION_GOALS, violations);
-
   // --- Déficit máximo absoluto ---
-  if (requireFinite('maxAbsoluteDeficitKcal', config.maxAbsoluteDeficitKcal, violations)) {
+  const maxDeficitFinite = requireFinite(
+    'maxAbsoluteDeficitKcal',
+    config.maxAbsoluteDeficitKcal,
+    violations
+  );
+  if (maxDeficitFinite) {
     requirePositive('maxAbsoluteDeficitKcal', config.maxAbsoluteDeficitKcal, violations);
     requireAtMost(
       'maxAbsoluteDeficitKcal',
@@ -306,6 +353,38 @@ export function validateEngineConfig(config: ResolvedEngineConfig): EngineViolat
       limits.MAX_ABSOLUTE_DEFICIT_KCAL,
       violations
     );
+  }
+
+  // --- Ajustes por objetivo: envelope duro nas DUAS direções ---
+  // Superávit acima do maior ajuste positivo canônico (+400) é rejeitado; déficit fora do
+  // envelope já protegido por `maxAbsoluteDeficitKcal` também é rejeitado, em vez de
+  // depender do clamp silencioso que antes deixava o superávit passar sem limite algum.
+  const goalAdjustments = validateNumericRecord(
+    'goalAdjustments',
+    config.goalAdjustments,
+    NUTRITION_GOALS,
+    violations
+  );
+  if (goalAdjustments) {
+    for (const goal of NUTRITION_GOALS) {
+      const field = `goalAdjustments.${goal}`;
+      requireAtMost(
+        field,
+        goalAdjustments[goal],
+        limits.MAX_GOAL_SURPLUS_KCAL,
+        violations,
+        'ABOVE_HARD_LIMIT'
+      );
+      if (maxDeficitFinite && config.maxAbsoluteDeficitKcal > 0) {
+        requireAtLeast(
+          field,
+          goalAdjustments[goal],
+          -config.maxAbsoluteDeficitKcal,
+          violations,
+          'BELOW_HARD_LIMIT'
+        );
+      }
+    }
   }
 
   // --- Piso relativo de BMR em déficit ---
@@ -325,44 +404,42 @@ export function validateEngineConfig(config: ResolvedEngineConfig): EngineViolat
   }
 
   // --- Pisos calóricos absolutos por sexo metabólico ---
-  if (requireFinite('femaleCaloricFloorKcal', config.femaleCaloricFloorKcal, violations)) {
-    requireAtLeast(
-      'femaleCaloricFloorKcal',
-      config.femaleCaloricFloorKcal,
-      limits.MIN_FEMALE_CALORIC_FLOOR_KCAL,
-      violations
-    );
-  }
-  const maleFloorFinite = requireFinite(
-    'maleCaloricFloorKcal',
-    config.maleCaloricFloorKcal,
-    violations
-  );
-  if (maleFloorFinite) {
-    requireAtLeast(
-      'maleCaloricFloorKcal',
-      config.maleCaloricFloorKcal,
-      limits.MIN_MALE_CALORIC_FLOOR_KCAL,
-      violations
-    );
-  }
-  if (requireFinite('unspecifiedCaloricFloorKcal', config.unspecifiedCaloricFloorKcal, violations)) {
-    requireAtLeast(
+  // Deixaram de ser configuráveis: a resolução os copia de `ENGINE_HARD_SAFETY_LIMITS`.
+  // A verificação restante é estrutural — garante que o valor efetivamente usado no
+  // cálculo é exatamente o invariante canônico, e não uma cópia que divergiu.
+  // A antiga regra relativa `unspecified >= male -> MALE_DEFAULT_FORBIDDEN` foi removida:
+  // com pisos constantes ela é inalcançável, e D-NUT-02 fala de fallback de fórmula/alvo,
+  // não de uma comparação entre pisos configuráveis. A garantia de D-NUT-02 passa a ser
+  // estrutural (1200 != 1500, verificado abaixo) em vez de analógica.
+  const canonicalFloors: Array<[string, number, number]> = [
+    ['femaleCaloricFloorKcal', config.femaleCaloricFloorKcal, limits.FEMALE_CALORIC_FLOOR_KCAL],
+    ['maleCaloricFloorKcal', config.maleCaloricFloorKcal, limits.MALE_CALORIC_FLOOR_KCAL],
+    [
       'unspecifiedCaloricFloorKcal',
       config.unspecifiedCaloricFloorKcal,
-      limits.MIN_UNSPECIFIED_CALORIC_FLOOR_KCAL,
-      violations
-    );
-    // D-NUT-02: unspecified nunca herda o piso masculino.
-    if (maleFloorFinite && config.unspecifiedCaloricFloorKcal >= config.maleCaloricFloorKcal) {
+      limits.UNSPECIFIED_CALORIC_FLOOR_KCAL,
+    ],
+  ];
+  for (const [field, value, canonical] of canonicalFloors) {
+    if (requireFinite(field, value, violations) && value !== canonical) {
       violations.push(
         violation(
-          'unspecifiedCaloricFloorKcal',
-          'MALE_DEFAULT_FORBIDDEN',
-          `piso de unspecified (${config.unspecifiedCaloricFloorKcal}) nunca pode alcançar o piso masculino (${config.maleCaloricFloorKcal})`
+          field,
+          'ABOVE_HARD_LIMIT',
+          `piso calórico é invariante não configurável: esperado exatamente ${canonical}, recebido ${value}`
         )
       );
     }
+  }
+  // D-NUT-02 estrutural: o piso de `unspecified` nunca pode coincidir com o masculino.
+  if (limits.UNSPECIFIED_CALORIC_FLOOR_KCAL >= limits.MALE_CALORIC_FLOOR_KCAL) {
+    violations.push(
+      violation(
+        'unspecifiedCaloricFloorKcal',
+        'MALE_DEFAULT_FORBIDDEN',
+        `piso de unspecified (${limits.UNSPECIFIED_CALORIC_FLOOR_KCAL}) nunca pode alcançar o piso masculino (${limits.MALE_CALORIC_FLOOR_KCAL})`
+      )
+    );
   }
 
   // --- Proteína: teto duro 2.2 g/kg (D-NUT-04) ---
@@ -424,13 +501,19 @@ export function validateEngineConfig(config: ResolvedEngineConfig): EngineViolat
   }
 
   // --- Lipídios ---
+  // Faixa dura canônica de lipídios (Masterplan 8.2): 0.7 a 1.0 g/kg/dia.
+  const requireCanonicalFatRate = (field: string, value: number): void => {
+    requirePositive(field, value, violations);
+    requireAtLeast(field, value, limits.MIN_FAT_GRAMS_PER_KG, violations);
+    requireAtMost(field, value, limits.MAX_FAT_GRAMS_PER_KG, violations);
+  };
   const minFatFinite = requireFinite('minFatGramsPerKg', config.minFatGramsPerKg, violations);
   if (minFatFinite) {
-    requirePositive('minFatGramsPerKg', config.minFatGramsPerKg, violations);
+    requireCanonicalFatRate('minFatGramsPerKg', config.minFatGramsPerKg);
   }
   const maxFatFinite = requireFinite('maxFatGramsPerKg', config.maxFatGramsPerKg, violations);
   if (maxFatFinite) {
-    requirePositive('maxFatGramsPerKg', config.maxFatGramsPerKg, violations);
+    requireCanonicalFatRate('maxFatGramsPerKg', config.maxFatGramsPerKg);
   }
   const defaultFatFinite = requireFinite(
     'defaultFatGramsPerKg',
@@ -438,7 +521,7 @@ export function validateEngineConfig(config: ResolvedEngineConfig): EngineViolat
     violations
   );
   if (defaultFatFinite) {
-    requirePositive('defaultFatGramsPerKg', config.defaultFatGramsPerKg, violations);
+    requireCanonicalFatRate('defaultFatGramsPerKg', config.defaultFatGramsPerKg);
   }
   if (minFatFinite && maxFatFinite && config.minFatGramsPerKg > config.maxFatGramsPerKg) {
     violations.push(

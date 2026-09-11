@@ -2,16 +2,36 @@
 
 ## NUT-003 — Corretivo de Safety e Proveniência (2026-09-11)
 
-- **Superávit calórico não possui teto duro.** *Aberto · P3.* As travas absolutas
-  implementadas cobrem a direção hipocalórica (déficit, pisos, proteína, hidratação).
-  `goalAdjustments` positivos e os pisos calóricos por sexo só são validados como
-  números finitos/acima do mínimo canônico: não existe limite superior canônico
-  documentado no Masterplan, e criar um seria inventar regra clínica. Fica reservado
-  ao gate D-NUT-08 (homologação nutricionista).
+- ~~**Superávit calórico não possui teto duro.**~~ Fechada no corretivo de simetria
+  hipercalórica (revisão 065): `MAX_GOAL_SURPLUS_KCAL: 400` e `MAX_TRAINING_KCAL_PER_MINUTE: 6`
+  formalizam os tetos já canônicos, os pisos calóricos viraram invariantes não
+  configuráveis e chave desconhecida em `EngineConfig` falha fechada.
 - **`minProteinGramsPerKg` deixou de influenciar números.** *Aberto · P3.* Com a
   rejeição fail-closed de taxas por objetivo fora da faixa, o piso virou apenas
   critério de validação (e continua no hash de proveniência). Se a revisão profissional
   quiser um piso que *eleve* taxas configuradas, a semântica precisa ser redecidida.
+- **Clamp de hidratação não é sinalizado no output.** *Aberto · P3.* `computeHydration`
+  aplica `min(max, max(min, raw))` sem expor que houve clamp: 200 kg com treino pesado
+  vai de ~9500 ml para o teto de 4500 ml, e 30 kg sem treino sobe de 1050 ml para o piso
+  de 1500 ml, ambos em silêncio. O valor emitido é seguro e permanece em `(0, 4500]`, mas
+  falta honestidade de proveniência. Deve ser sinalizado antes do ledger NUT-004 registrar
+  alvos cujo valor bruto divergia do emitido.
+- **Semântica de config aninhado parcial é merge, não substituição.** *Aberto · P3.*
+  `palFactors: { sedentary: 1.2 }` herda os três níveis restantes do default em vez de
+  exigir o registro completo. Não há mentira de proveniência (o config resolvido inteiro
+  entra no hash) nem risco de segurança (todo valor segue validado por faixa), mas um
+  chamador que pretendia substituir a tabela inteira recebe uma mesclagem. Decidir se o
+  contrato quer merge explícito ou substituição estrita.
+- **`DailyTargets.id` usa SHA-256 truncado em 64 bits.** *Aberto · P3.* `sha256(...).slice(0, 16)`
+  dá colisão de aniversário na ordem de 2^32 eventos — irrelevante na escala por usuário,
+  mas o ledger NUT-004 deve decidir conscientemente se 64 bits bastam como identidade de
+  evento persistida.
+- **Biometria do perfil não tem teto superior canônico.** *Aberto · P3.* O corretivo 065
+  fechou a via de *configuração*; `profile.weightKg`/`heightCm` seguem validados apenas
+  como finitos e positivos. Um peso absurdo (10^6 kg) ainda produz BMR e alvo absurdos por
+  via de *dado*, não de override. O Masterplan não define faixa biométrica plausível e
+  inventá-la seria criar regra clínica — fica para a homologação nutricionista (D-NUT-08),
+  junto com a decisão sobre faixa de `ketogenicCarbsGrams`, hoje sem número canônico.
 
 ## GOAL-17B-002E-E7A6 — correlação de executor readiness
 
