@@ -19,6 +19,8 @@ describe('Cadeia de Fallback e QA Gate (GOAL-34 & LIBRARY §2–4)', () => {
         approval: {
           approvedBy: 'catalog_lead',
           approvedAt: '2026-09-02T18:00:00Z',
+          approvedAtPrecision: 'exact',
+          approvalEvidenceRef: 'catalog-review-log 2026-09-02 (thumbnail aprovada)',
         },
       },
     },
@@ -68,6 +70,8 @@ describe('Cadeia de Fallback e QA Gate (GOAL-34 & LIBRARY §2–4)', () => {
         approval: {
           approvedBy: 'coach_lead_human',
           approvedAt: '2026-09-02T19:00:00Z',
+          approvedAtPrecision: 'exact',
+          approvalEvidenceRef: 'human-review-log 2026-09-02 (biomechanical review)',
         },
       },
     },

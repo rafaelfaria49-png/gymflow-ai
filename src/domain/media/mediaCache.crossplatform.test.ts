@@ -91,6 +91,8 @@ describe('Media Storage Cross-Platform Abstraction (GOAL-MOBILE-CROSS-PLATFORM-0
       approval: {
         approvedBy: 'coach_lead',
         approvedAt: '2026-09-02T19:00:00.000Z',
+        approvedAtPrecision: 'exact',
+        approvalEvidenceRef: 'human-review-log 2026-09-02 (cache fixture)',
       },
     },
   };

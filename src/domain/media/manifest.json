@@ -1,7 +1,7 @@
 {
-  "version": 2,
-  "schemaVersion": "1.0.0",
-  "updatedAt": "2026-09-10T18:18:20.000Z",
+  "version": 3,
+  "schemaVersion": "1.1.0",
+  "updatedAt": "2026-09-10T23:37:17.000Z",
   "cdnBaseUrl": "https://jmnpdtxahhb8xobk.public.blob.vercel-storage.com",
   "assets": {
     "chest_supino_reto": {
@@ -447,12 +447,12 @@
         "codec": "h264",
         "provenance": {
           "provider": "grok",
-          "termsOrLicenseRef": "X.AI Grok Terms of Service (commercial generation) — produção interna GymFlow, lote técnico de exercícios",
-          "provenanceNotes": "Video tecnico real aprovado pelo operador e ingerido no GOAL-053. Fonte original: Remada sentada com triangulo na polia baixa..mp4 (720x1264, 145 frames @24fps, sha256 238e4257732abf7602bf21488bda16867789489eddf7f06ba18a47533a89e72e). Normalizado deterministico ffmpeg scale=1094:1920 lanczos + crop=1080:1920 (corte de ~7px por lado), sem audio, +faststart, duracao preservada (6.042s).",
+          "provenanceNotes": "Video tecnico real aprovado pelo operador e ingerido no GOAL-053. Fonte original: Remada sentada com triangulo na polia baixa..mp4 (720x1264, 145 frames @24fps, sha256 238e4257732abf7602bf21488bda16867789489eddf7f06ba18a47533a89e72e). Normalizado deterministico ffmpeg scale=1094:1920 lanczos + crop=1080:1920 (corte de ~7px por lado), sem audio, +faststart, duracao preservada (6.042s). Direitos/licenca comercial nao atestados por este manifest (GOAL-056).",
           "approval": {
             "approvedBy": "rafaelfaria49-png",
-            "approvedAt": "2026-08-14T18:26:08.526Z",
-            "notes": "Aprovacao humana registrada no pacote de producao GymFlow: GYMFLOW_VIDEO_SKILL (1).md, secao 8, declara \"O video aprovado conseguiu duas repeticoes completas em 6 segundos\" para a Remada Sentada com Triangulo na Polia Baixa. approvedAt = timestamp de modificacao do proprio documento de evidencia (2026-08-14T15:26:08-03:00); nenhuma data inventada."
+            "approvedAtPrecision": "unknown",
+            "approvalEvidenceRef": "GYMFLOW_VIDEO_SKILL (1).md, secao 8 (\"video aprovado\" da Remada Sentada com Triangulo)",
+            "notes": "Aprovacao humana comprovada no pacote de producao GymFlow: GYMFLOW_VIDEO_SKILL (1).md, secao 8, declara \"O video aprovado conseguiu duas repeticoes completas em 6 segundos\" para a Remada Sentada com Triangulo na Polia Baixa. Timestamp exato do evento de aprovacao desconhecido; nenhum mtime de arquivo e usado como timestamp do evento (GOAL-056)."
           }
         }
       }
