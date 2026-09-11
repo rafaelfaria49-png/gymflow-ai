@@ -1,7 +1,7 @@
 {
-  "version": 3,
+  "version": 4,
   "schemaVersion": "1.1.0",
-  "updatedAt": "2026-09-10T23:37:17.000Z",
+  "updatedAt": "2026-09-11T02:46:47.000Z",
   "cdnBaseUrl": "https://jmnpdtxahhb8xobk.public.blob.vercel-storage.com",
   "assets": {
     "chest_supino_reto": {
@@ -357,23 +357,27 @@
       },
       "video": {
         "id": "vid_back_puxada_pulley_v1",
-        "url": "https://assets.gymflow.ai/media/videos/back_puxada_pulley_v1.mp4",
-        "bytes": 1630000,
-        "width": 720,
-        "height": 1280,
+        "url": "https://jmnpdtxahhb8xobk.public.blob.vercel-storage.com/back_puxada_pulley_v1.mp4",
+        "bytes": 4148838,
+        "width": 1080,
+        "height": 1920,
         "version": 1,
-        "status": "draft",
+        "status": "approved",
+        "checksum": "sha256:3a995473ccf46d2addc6a9a7a236c684aa5b1b8a417406bfd4624438b2d0bbdf",
         "contentType": "video/mp4",
         "durationSeconds": 6,
         "repCount": 2,
         "fps": 24,
         "codec": "h264",
         "provenance": {
-          "provider": "higgsfield",
-          "modelOrWorkflow": "character_soul_kai_v2",
-          "generatedAt": "2026-09-02T18:00:00.000Z",
-          "termsOrLicenseRef": "Higgsfield Terms of Service (Commercial Generation)",
-          "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
+          "provider": "grok",
+          "provenanceNotes": "Video tecnico real aprovado pelo operador e ingerido no GOAL-059. Fonte original: Puxada alta aberta.mp4 (720x1264, 145 frames @24fps, sha256 7101a20bc23001635c43c9fec3db2190de32ae632d88f39c6ec8aefa3a7171da). Normalizado deterministico ffmpeg scale=1094:1920 lanczos + crop=1080:1920 (corte de ~7px por lado), sem audio, +faststart, duracao preservada (6.042s). Ferramenta identificada pela frente de producao (comandos tecnicos para o Grok e inventario com 'Puxada alta frontal / puxada aberta no pulley' em GYMFLOW_VIDEO_SKILL (1).md); nenhum model/workflow atestado. Direitos/licenca comercial nao atestados por este manifest (GOAL-056).",
+          "approval": {
+            "approvedBy": "rafaelfaria49-png",
+            "approvedAtPrecision": "unknown",
+            "approvalEvidenceRef": "docs/GYMFLOW_VIDEO_INGEST_059.md#operator-approval",
+            "notes": "Aprovacao humana explicita do operador neste handoff de coordenacao (GOAL-059): Puxada alta aberta.mp4 aprovado para back_puxada_pulley. Timestamp exato do evento de aprovacao desconhecido; nenhum mtime de arquivo e usado como timestamp do evento (GOAL-056)."
+          }
         }
       }
     },

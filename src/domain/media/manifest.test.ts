@@ -13,9 +13,9 @@ describe('Manifest de Mídia (GOAL-34)', () => {
     resetToDefaultManifest();
   });
 
-  it('carrega o manifest baseline com version 3, schema 1.1.0, cdn real (Vercel Blob) e 1 vídeo aprovado real', () => {
+  it('carrega o manifest baseline com version 4, schema 1.1.0, cdn real (Vercel Blob) e 2 vídeos aprovados reais', () => {
     const manifest = getActiveManifest();
-    expect(manifest.version).toBe(3);
+    expect(manifest.version).toBe(4);
     expect(manifest.schemaVersion).toBe('1.1.0');
     // GOAL-053: cdnBaseUrl passou a apontar para a origem REAL (Vercel Blob public storage)
     expect(manifest.cdnBaseUrl).toBe('https://jmnpdtxahhb8xobk.public.blob.vercel-storage.com');
@@ -23,27 +23,47 @@ describe('Manifest de Mídia (GOAL-34)', () => {
     const approvedVideos = Object.values(manifest.assets).filter(
       (a) => a.video && a.video.status === 'approved'
     );
-    // GOAL-053: exatamente 1 vídeo com aprovação humana comprovada (back_remada_baixa)
-    expect(approvedVideos.length).toBe(1);
-    expect(approvedVideos[0].exerciseId).toBe('back_remada_baixa');
-    expect(approvedVideos[0].video?.url).toBe(
+    // GOAL-059: exatamente 2 vídeos com aprovação humana comprovada (back_remada_baixa + back_puxada_pulley)
+    expect(approvedVideos.length).toBe(2);
+    expect(approvedVideos.map((a) => a.exerciseId).sort()).toEqual(['back_puxada_pulley', 'back_remada_baixa']);
+    const remada = approvedVideos.find((a) => a.exerciseId === 'back_remada_baixa')!;
+    expect(remada.video?.url).toBe(
       'https://jmnpdtxahhb8xobk.public.blob.vercel-storage.com/back_remada_baixa_v1.mp4'
     );
-    expect(approvedVideos[0].video?.checksum).toBe(
+    expect(remada.video?.checksum).toBe(
       'sha256:93fc1fa4cb1a68f266c7d98e2b09229194e238ce91dd063ce239c41fdd161732'
     );
-    expect(approvedVideos[0].video?.provenance?.approval?.approvedBy).toBe('rafaelfaria49-png');
+    expect(remada.video?.provenance?.approval?.approvedBy).toBe('rafaelfaria49-png');
     // GOAL-056: aprovação comprovada sem timestamp falso — precisão 'unknown',
     // sem approvedAt (mtime não é timestamp do evento), evidência rastreável
-    expect(approvedVideos[0].video?.provenance?.approval?.approvedAt).toBeUndefined();
-    expect(approvedVideos[0].video?.provenance?.approval?.approvedAtPrecision).toBe('unknown');
-    expect(approvedVideos[0].video?.provenance?.approval?.approvalEvidenceRef).toContain('GYMFLOW_VIDEO_SKILL');
+    expect(remada.video?.provenance?.approval?.approvedAt).toBeUndefined();
+    expect(remada.video?.provenance?.approval?.approvedAtPrecision).toBe('unknown');
+    expect(remada.video?.provenance?.approval?.approvalEvidenceRef).toContain('GYMFLOW_VIDEO_SKILL');
     // GOAL-056: provider preservado sem model/run inventado; nenhum claim comercial
-    expect(approvedVideos[0].video?.provenance?.provider).toBe('grok');
-    expect(approvedVideos[0].video?.provenance?.modelOrWorkflow).toBeUndefined();
-    expect(approvedVideos[0].video?.provenance?.termsOrLicenseRef).toBeUndefined();
-    // GOAL-056: Puxada Alta permanece draft, sem publicação nova
-    expect(getExerciseMedia('back_puxada_pulley')?.video?.status).toBe('draft');
+    expect(remada.video?.provenance?.provider).toBe('grok');
+    expect(remada.video?.provenance?.modelOrWorkflow).toBeUndefined();
+    expect(remada.video?.provenance?.termsOrLicenseRef).toBeUndefined();
+    // GOAL-059: Puxada Alta publicada como approved v1, sem timestamp falso
+    const puxada = getExerciseMedia('back_puxada_pulley');
+    expect(puxada?.video?.status).toBe('approved');
+    expect(puxada?.video?.url).toBe(
+      'https://jmnpdtxahhb8xobk.public.blob.vercel-storage.com/back_puxada_pulley_v1.mp4'
+    );
+    expect(puxada?.video?.checksum).toBe(
+      'sha256:3a995473ccf46d2addc6a9a7a236c684aa5b1b8a417406bfd4624438b2d0bbdf'
+    );
+    expect(puxada?.video?.width).toBe(1080);
+    expect(puxada?.video?.height).toBe(1920);
+    expect(puxada?.video?.fps).toBe(24);
+    expect(puxada?.video?.codec).toBe('h264');
+    expect(puxada?.video?.bytes).toBe(4148838);
+    expect(puxada?.video?.provenance?.provider).toBe('grok');
+    expect(puxada?.video?.provenance?.modelOrWorkflow).toBeUndefined();
+    expect(puxada?.video?.provenance?.termsOrLicenseRef).toBeUndefined();
+    expect(puxada?.video?.provenance?.approval?.approvedBy).toBe('rafaelfaria49-png');
+    expect(puxada?.video?.provenance?.approval?.approvedAt).toBeUndefined();
+    expect(puxada?.video?.provenance?.approval?.approvedAtPrecision).toBe('unknown');
+    expect(puxada?.video?.provenance?.approval?.approvalEvidenceRef).toContain('GYMFLOW_VIDEO_INGEST_059');
 
     const draftVideos = Object.values(manifest.assets).filter(
       (a) => a.video && a.video.status === 'draft'
@@ -168,7 +188,7 @@ describe('Manifest de Mídia (GOAL-34)', () => {
       const manifest = manifestWithRemadaProvenance();
       const res = validateMediaManifest(manifest);
       expect(res.valid).toBe(true);
-      expect(res.approvedVideoCount).toBe(1);
+      expect(res.approvedVideoCount).toBe(2);
     });
 
     it('rejeita approved sem evidência rastreável', () => {
