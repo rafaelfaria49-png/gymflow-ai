@@ -1,4 +1,4 @@
-# GOALS Log
+﻿# GOALS Log
 
 Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, validações e como testar.
 
@@ -4468,3 +4468,19 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
 - **Arquivos:** `src/domain/media/manifest.json` + `public/media-manifest.json` (somente asset `back_puxada_pulley`), `src/domain/media/manifest.test.ts`, `scripts/media/manifest-validator.test.ts` (baseline: 2 approved / 25 draft / 1 retired), `docs/GYMFLOW_VIDEO_INGEST_059.md`, `docs/DECISOES.md`, `docs/GOALS_LOG.md`.
 - **Preservado:** `back_remada_baixa` (URL/blob/bytes/checksum intactos), Agachamento Sumo (sem exerciseId novo, sem upload), player, cache/fallback engines, catalogo, Nutrition, session runtime; D14 (zero binarios no Git); nenhum secret commitado (upload via token de projeto, arquivos `.env*`/`.vercel` ignorados).
 - **Validacao:** `npm run media:validate` 10/10 PASS; media tests 11/11 PASS; smoke A–E 5/5 PASS (puxada Tier1 video remoto; remada normal; draft fora do Tier1; fallback em falha forcada; offline com cache reproduz); `npx tsc --noEmit` PASS; `npm run build` PASS; `npm run build:mobile` PASS; `git diff --check` PASS; `npm test` 2879/2880 — 1 falha pre-existente no flake conhecido de fronteira UTC (`GymFlowContext.storage.test.tsx`, `lastWorkoutDate`: esperado `2026-09-11` vs `2026-09-10`), reproduzida em base limpa (stashed) e classificada como nao relacionada a este GOAL (diff cobre apenas midia).
+## GOAL-077 - NUT-004A fundacao persistente do NutritionLedger (2026-09-12)
+
+- **Contexto:** slice NUT-004A sobre a base canonica 08588d9 (auditoria NUT-004/GOAL-076 aprovada). Somente dominio puro + migracao pura + rollover idempotente + IndexedDB aditivo. Sem wiring (sem Context/UI/lifecycle/backup/restore/reset).
+- **Antes:** sem NutritionDay/Meal/FoodEntry/HydrationEntry; sem rollover; sem migrador; IDB v4 com 6 stores.
+- **Depois:** src/lib/nutrition/ledger-types+ledger+migration+rollover (puros, imutaveis, IDs explicitos, targets validados, dia fechado bloqueia edicao, actuals/remaining sempre derivados); classify/migrateLegacyNutrition (DEMO descartado, REAL consolidado, UNKNOWN quarentenado com prioridade, hidratacao max sem soma, replay idempotente); ensureTodayNutritionDay sobre NutritionDayRepository (put-if-absent transacional, sem singleFlight); IDB v5 com nutritionDays (chave date) + nutritionMetadata (activeDate/marker).
+- **Arquivos:** 4 novos de dominio + 4 novos de teste; storage-indexeddb.ts aditivo; nutrition/index.ts (barrel); 4 testes existentes atualizados (pins v4 para v5 + lista de stores); docs/DECISOES.md (D77-001 a D77-005).
+- **Preservado:** HYBRID_STORAGE_VERSION=2, CURRENT_STORAGE_VERSION=1, sem cutover, sem parsePhysicalEnvelope novo; GymFlowContext/NutritionPage/NativeAppBridge intocados; backup/restore/reset/logical intocados.
+- **Validacao:** novos 77/77; dirigidos 366/366; afetados 769/769; npm test 3038/3055 (17 falhas so em logical-restore.real, timeout de mount sob carga; 17/17 verde isolado; fora do dominio do GOAL); tsc 0 erros; build OK; build:mobile OK; diff check OK.
+## GOAL-079 - NUT-004A corretivos de integridade da revisao independente 078 (2026-09-12)
+
+- **Contexto:** corrige P0+P1 da revisao 078 no mesmo branch do PR #43, sem ampliar o NUT-004A e sem wiring do NUT-004B.
+- **Antes:** isDailyTargets aceitava 9 campos (TypeError nao-tipado / snapshot oco); data civil so formato; DEMO ignorava waterIntake; fora-de-teto classificava REAL e explodia no migrate; leitura aceitava entry negativa; crash-D assumido reparavel sem prova.
+- **Depois:** isDailyTargets exige contrato REAL completo + aninhados (COMPUTED_REASONS/literais canonicos); data civil com calendario (leitura/escrita de activeDate); DEMO so com intake ausente/0/1200; fora-de-teto calorico/macro vira UNKNOWN; leitura rejeita NaN/Infinity/negativo; crash A/B/C com recovery provado e D provado inalcançavel (ordem W1→W2→W3); P2 loggedAt-aproximacao e agua-sem-teto registradas sem numero arbitrario.
+- **Arquivos:** ledger-types.ts (guards), migration.ts (DEMO/UNKNOWN/P2), storage-indexeddb.ts (activeDate leitura), rollover.ts (ordem A-D); regressoes em ledger/migration/rollover/storage-indexeddb-nutrition.test.ts; docs/DECISOES.md (D79), PENDENCIAS.md (P2), GOALS_LOG.md.
+- **Preservado:** IDB v5, HYBRID=2, CURRENT=1, sem cutover; GymFlowContext/NutritionPage/NativeAppBridge/backup/restore/reset intocados.
+- **Validacao:** dirigidos 547/547 (ledger+migration+rollover+idb-nutrition 160/160; demais gates 387/387); npm test 3138/3138 zero falhas; tsc 0 erros; build OK; build:mobile OK; diff check OK.

@@ -1188,3 +1188,17 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   em GOAL próprio, tornar o teste independente do TZ do processo — passar `timeZone`
   explícito no caminho testado ou construir os instantes com o construtor local, como o
   GOAL-069 fez em `GymFlowContext.storage.test.tsx`.
+
+## GOAL-079 — dívidas P2 do NUT-004A (decisão estrutural no próximo gate do NUT-004)
+
+- **LEGACY_LOGGED_AT_APPROXIMATION.** *Aberto · P2.* A migração legada usa o default
+  determinístico `${date}T12:00:00.000Z` (meio-dia UTC) para `loggedAt` das entradas
+  consolidadas e para `closedAt`. O legado não guarda hora: o valor é APROXIMAÇÃO para
+  ordenação, nunca horário histórico conhecido (documentado em `migration.ts`).
+  Redesenho do contrato (ex.: `loggedAt` obrigatório sem default, `closedAt` nulo com
+  flag de tempo aproximado) fica para o próximo gate do NUT-004.
+- **LEGACY_WATER_NO_CEILING.** *Aberto · P2.* O NUT-001 (`isValidWaterInput`) não define
+  teto de água e nenhum número arbitrário foi inventado na migração: `water`/`waterIntake`
+  fora de qualquer plausibilidade biológica (ex.: 12000 ml) ainda migra via `max()`.
+  O teto de 4500 ml do motor (`MAX_HYDRATION_ML_PER_DAY`) cobre metas automatizadas, não
+  ingestão legada declarada — estendê-lo à migração seria criar regra clínica nova.
