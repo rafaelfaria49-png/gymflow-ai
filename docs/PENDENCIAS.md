@@ -1094,7 +1094,18 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   fora do escopo deste GOAL (não altera itens não publicados). Correção sugerida: apontar os
   frames do manifest para `sequence/step-01..05.jpg` em um GOAL próprio.
 
-- **CIVIL-DATE-069-P2 — datas civis residuais em UTC fora do fluxo de treino.** *Aberto · P2.*
+- **CIVIL-DATE-069-P2 — datas civis residuais em UTC fora do fluxo de treino.** *RESOLVIDO no GOAL-071 (2026-09-12).*
+  Os três call sites passaram a derivar a data civil de `getCivilDateString()`
+  (`addWeightLog`, `addMeasurementLog` e o `unlockedAt` de `unlockAchievement` em
+  `src/providers/GymFlowContext.tsx`). A divergência entre o caminho imperativo e o
+  caminho puro (`deriveWorkoutCompletion`, que já usava `input.todayIso`) foi eliminada.
+  Regressão determinística em `GymFlowContext.storage.test.tsx` (8 testes, relógio
+  congelado com `vi.useFakeTimers({ toFake: ['Date'] })` e instantes do construtor local),
+  cobrindo estado em memória, core persistido e reidratação. Prova de não vacuidade: com a
+  produção revertida para `toISOString()`, 4 testes falham em `America/Sao_Paulo` (caso
+  23:30, offset negativo) e 3 em `Asia/Tokyo` (caso 00:30, offset positivo). Nenhum resíduo
+  de `toISOString().split('T')[0]` restou no arquivo. Registro original abaixo.
+
   A auditoria do GOAL-069 confirmou que o fluxo de finalização de treino usa
   `getCivilDateString()` corretamente (`lastWorkoutDate` é data civil local), mas
   três call sites de `src/providers/GymFlowContext.tsx` ainda derivam data civil de
@@ -1108,6 +1119,40 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   tratou apenas do flake de asserção em `GymFlowContext.storage.test.tsx`. *Próximo
   passo:* trocar os três call sites por `getCivilDateString()` em GOAL próprio, com
   regressão determinística de fronteira como a do GOAL-069.
+
+- **CIVIL-DATE-071-P2 — `TZ=<fuso> <comando>` não troca o fuso do Node no Git Bash do Windows.** *Aberto · P2.*
+  Detectado no GOAL-071 ao tentar executar as regressões em dois fusos. No Git Bash deste
+  ambiente, `TZ=Asia/Tokyo node -e "..."` continua resolvendo `America/Sao_Paulo`: o prefixo
+  de variável é aceito pelo shell mas não chega a alterar o fuso efetivo do runtime. Só
+  `$env:TZ = '<fuso>'` no PowerShell troca de fato (`Intl.DateTimeFormat().resolvedOptions().timeZone`
+  confirma). Consequência: qualquer validação multi-fuso feita via `TZ=... npm test` no Git
+  Bash roda, na prática, apenas no fuso da máquina — inclusive a execução `TZ=America/Bogota`
+  citada na mensagem do commit `5626eb5` (GOAL-069), que portanto não deve ser tratada como
+  evidência de cobertura em offset diferente. As suítes em si seguem válidas: o GOAL-071
+  reexecutou `GymFlowContext.storage.test.tsx`, `nutrition-civil-date.test.ts` e
+  `storage-completion-receipt.test.ts` verdes em `America/Sao_Paulo`, `Asia/Tokyo`, `UTC` e
+  `America/Bogota` usando `$env:TZ`. Fora do escopo do GOAL-071 (não altera produção nem
+  testes). *Próximo passo:* padronizar o comando multi-fuso do projeto via PowerShell
+  (`$env:TZ`) ou `cross-env`, e corrigir a evidência registrada no GOAL-069.
+
+- **SUITE-071-P2 — flake dependente de carga nas suítes `*.real.test.tsx` de storage lógico.** *Aberto · P2.*
+  Detectado no GOAL-071 e confirmado **pré-existente na base `8682475`** (medido com as
+  alterações do GOAL-071 em `git stash`, ou seja, árvore idêntica à base). `npm test`
+  completo não é determinístico nesta máquina: em 5 execuções da base, 3 ficaram verdes,
+  1 falhou com 2 testes (`GymFlowContext.logical-reset.real.test.tsx > pagehide durante o
+  reset não sobrescreve Z` e `GymFlowContext.logical-restore.real.test.tsx > hidratação
+  normal após reload mantém available`) e 1 terminou parcial (121 de 123 arquivos, 2664 de
+  2970 testes). Na branch do GOAL-071, 4 execuções: 2 verdes, 1 com 2 falhas no mesmo
+  `logical-restore.real.test.tsx`, 1 com falha no guard `storage-retention.test.ts`.
+  Todos os testes afetados passam **isoladamente** e nenhum deles é tocado pelo GOAL-071.
+  Mecanismo provável: os testes `*.real` afirmam ausência de escrita comparando o envelope
+  antes/depois (`expected savedAt ...14:35:50 to be ...14:35:47`), mas o debounce de
+  persistência de 500 ms roda em temporizador real — sob contenção o caso leva mais de
+  500 ms e o debounce dispara dentro da janela afirmada; o guard de retenção varre todo o
+  repositório lendo cada `.ts/.tsx/.md` e é sensível ao `testTimeout` de 15 s. Fora do
+  escopo do GOAL-071. *Próximo passo:* em GOAL próprio, tornar esses testes independentes
+  de tempo real — congelar o relógio e controlar o debounce explicitamente, em vez de
+  depender de o caso terminar em menos de 500 ms.
 
 - **CIVIL-DATE-069-P3 — `GymFlowContext.nutrition.test.tsx` só passa em fuso UTC-3.** *Aberto · P3.*
   Pré-existente na base `1e851d8` (verificado por `git stash` + execução no commit base),

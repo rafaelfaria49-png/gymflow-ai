@@ -1126,3 +1126,212 @@ describe('GymFlowProvider real — capacidades honestas de recuperação', () =>
     });
   });
 });
+
+// GOAL-071: os três call sites residuais que derivavam data civil de
+// `new Date().toISOString().split('T')[0]` (projeção UTC) e agora usam
+// `getCivilDateString()`. A prova roda no caminho REAL do provider — estado em
+// memória, core persistido e reidratação — e não apenas no helper isolado.
+//
+// Determinismo: mesmo esquema validado no GOAL-069. Os instantes são congelados
+// com `freezeClockAt` e construídos pelo construtor LOCAL, então a data civil
+// esperada é o mesmo literal em qualquer fuso onde a suíte rodar. Em offset
+// negativo o instante das 23:30 locais já está no dia seguinte em UTC; em offset
+// positivo é o das 00:30 locais que está no dia anterior em UTC. O par cobre os
+// dois sinais de offset sem condicional de horário e sem expectativa dupla.
+describe('GymFlowProvider real — data civil em peso, medidas e conquistas (GOAL-071)', () => {
+  // Flush determinístico do core: o debounce de persistência é de 500 ms em
+  // temporizador REAL (o relógio congelado só afeta Date), então esperar por ele
+  // seria lento e frágil. O `pagehide` grava o core de forma síncrona.
+  async function flushCore(handle: Mounted): Promise<void> {
+    expect(handle.context().storageMode).toBe('hybrid-v2');
+    await act(async () => {
+      windowStub.dispatchEvent(new Event('pagehide'));
+    });
+    await settle(10);
+  }
+
+  describe('addWeightLog', () => {
+    it('registra o peso na data civil LOCAL às 23:30, mesmo com UTC já no dia seguinte', async () => {
+      freezeClockAt(CIVIL_EVE_LOCAL);
+      seedV1Envelope();
+      const handle = await mountHydrated();
+      const xpBefore = handle.context().user?.xp ?? 0;
+      const pointsBefore = handle.context().user?.points ?? 0;
+
+      await act(async () => {
+        handle.context().addWeightLog(82.4);
+      });
+
+      // Só a derivação da data mudou: registro, peso do perfil e XP intactos.
+      expect(handle.context().weightHistory).toEqual([{ date: CIVIL_EVE_ISO, value: 82.4 }]);
+      expect(handle.context().user?.weight).toBe(82.4);
+      expect(handle.context().user?.xp).toBe(xpBefore + 30);
+      expect(handle.context().user?.points).toBe(pointsBefore + 30);
+
+      // A gravação durável concorda com a memória e sobrevive à reidratação.
+      await flushCore(handle);
+      expect(persistedCore().weightHistory).toEqual([{ date: CIVIL_EVE_ISO, value: 82.4 }]);
+
+      await handle.unmount();
+      const next = await mountHydrated();
+      expect(next.context().weightHistory).toEqual([{ date: CIVIL_EVE_ISO, value: 82.4 }]);
+      expect(next.context().user?.weight).toBe(82.4);
+    });
+
+    it('registra o peso na data civil LOCAL às 00:30 após a virada civil real', async () => {
+      freezeClockAt(CIVIL_NEXT_DAY_LOCAL);
+      seedV1Envelope();
+      const handle = await mountHydrated();
+
+      await act(async () => {
+        handle.context().addWeightLog(79.1);
+      });
+
+      expect(handle.context().weightHistory).toEqual([{ date: CIVIL_NEXT_DAY_ISO, value: 79.1 }]);
+      expect(handle.context().user?.weight).toBe(79.1);
+
+      await flushCore(handle);
+      expect(persistedCore().weightHistory).toEqual([{ date: CIVIL_NEXT_DAY_ISO, value: 79.1 }]);
+    });
+
+    it('preserva a ordem mais-recente-primeiro do histórico já persistido', async () => {
+      freezeClockAt(CIVIL_EVE_LOCAL);
+      seedV1Envelope({ weightHistory: [{ date: '2026-09-04', value: 84 }] });
+      const handle = await mountHydrated();
+
+      await act(async () => {
+        handle.context().addWeightLog(83.2);
+      });
+
+      expect(handle.context().weightHistory).toEqual([
+        { date: CIVIL_EVE_ISO, value: 83.2 },
+        { date: '2026-09-04', value: 84 },
+      ]);
+    });
+  });
+
+  describe('addMeasurementLog', () => {
+    it('registra as medidas na data civil LOCAL às 23:30, mesmo com UTC já no dia seguinte', async () => {
+      freezeClockAt(CIVIL_EVE_LOCAL);
+      seedV1Envelope();
+      const handle = await mountHydrated();
+      const xpBefore = handle.context().user?.xp ?? 0;
+      const pointsBefore = handle.context().user?.points ?? 0;
+
+      await act(async () => {
+        handle.context().addMeasurementLog(104.5, 82, 98.5, 39);
+      });
+
+      // chest/waist/hips/arms passam intactos; apenas `date` muda de derivação.
+      expect(handle.context().measurementsHistory).toEqual([
+        { date: CIVIL_EVE_ISO, chest: 104.5, waist: 82, hips: 98.5, arms: 39 },
+      ]);
+      expect(handle.context().user?.xp).toBe(xpBefore + 40);
+      expect(handle.context().user?.points).toBe(pointsBefore + 40);
+
+      await flushCore(handle);
+      expect(persistedCore().measurementsHistory).toEqual([
+        { date: CIVIL_EVE_ISO, chest: 104.5, waist: 82, hips: 98.5, arms: 39 },
+      ]);
+
+      await handle.unmount();
+      const next = await mountHydrated();
+      expect(next.context().measurementsHistory).toEqual([
+        { date: CIVIL_EVE_ISO, chest: 104.5, waist: 82, hips: 98.5, arms: 39 },
+      ]);
+    });
+
+    it('registra as medidas na data civil LOCAL às 00:30 após a virada civil real', async () => {
+      freezeClockAt(CIVIL_NEXT_DAY_LOCAL);
+      seedV1Envelope();
+      const handle = await mountHydrated();
+
+      await act(async () => {
+        handle.context().addMeasurementLog(101, 79.5, 96, 38.5);
+      });
+
+      expect(handle.context().measurementsHistory).toEqual([
+        { date: CIVIL_NEXT_DAY_ISO, chest: 101, waist: 79.5, hips: 96, arms: 38.5 },
+      ]);
+
+      await flushCore(handle);
+      expect(persistedCore().measurementsHistory).toEqual([
+        { date: CIVIL_NEXT_DAY_ISO, chest: 101, waist: 79.5, hips: 96, arms: 38.5 },
+      ]);
+    });
+  });
+
+  describe('unlockAchievement', () => {
+    it('grava unlockedAt na data civil LOCAL às 23:30, mesmo com UTC já no dia seguinte', async () => {
+      freezeClockAt(CIVIL_EVE_LOCAL);
+      seedV1Envelope();
+      const handle = await mountHydrated();
+      const xpBefore = handle.context().user?.xp ?? 0;
+
+      await act(async () => {
+        handle.context().unlockAchievement('ach_1');
+      });
+
+      const unlocked = handle.context().achievements.find((a) => a.id === 'ach_1');
+      expect(unlocked?.unlocked).toBe(true);
+      expect(unlocked?.unlockedAt).toBe(CIVIL_EVE_ISO);
+      // Regra de desbloqueio e XP inalterados; as demais conquistas não são tocadas.
+      expect(handle.context().user?.xp).toBe(xpBefore + 150);
+      const untouched = handle.context().achievements.find((a) => a.id === 'ach_18');
+      expect(untouched?.unlocked).toBe(false);
+      expect(untouched?.unlockedAt).toBeUndefined();
+
+      await flushCore(handle);
+      expect(persistedCore().achievements.find((a) => a.id === 'ach_1')?.unlockedAt)
+        .toBe(CIVIL_EVE_ISO);
+
+      await handle.unmount();
+      const next = await mountHydrated();
+      expect(next.context().achievements.find((a) => a.id === 'ach_1')?.unlockedAt)
+        .toBe(CIVIL_EVE_ISO);
+    });
+
+    it('grava unlockedAt na data civil LOCAL às 00:30 após a virada civil real', async () => {
+      freezeClockAt(CIVIL_NEXT_DAY_LOCAL);
+      seedV1Envelope();
+      const handle = await mountHydrated();
+
+      await act(async () => {
+        handle.context().unlockAchievement('ach_18');
+      });
+
+      expect(handle.context().achievements.find((a) => a.id === 'ach_18')?.unlockedAt)
+        .toBe(CIVIL_NEXT_DAY_ISO);
+
+      await flushCore(handle);
+      expect(persistedCore().achievements.find((a) => a.id === 'ach_18')?.unlockedAt)
+        .toBe(CIVIL_NEXT_DAY_ISO);
+    });
+
+    it('não reescreve unlockedAt de conquista já desbloqueada em outro dia civil', async () => {
+      freezeClockAt(CIVIL_NEXT_DAY_LOCAL);
+      seedV1Envelope({
+        achievements: [
+          {
+            id: 'ach_1',
+            name: 'Primeiro Treino',
+            description: '',
+            icon: '🏅',
+            unlocked: true,
+            unlockedAt: CIVIL_EVE_ISO,
+          },
+        ],
+      });
+      const handle = await mountHydrated();
+      const xpBefore = handle.context().user?.xp ?? 0;
+
+      await act(async () => {
+        handle.context().unlockAchievement('ach_1');
+      });
+
+      expect(handle.context().achievements.find((a) => a.id === 'ach_1')?.unlockedAt)
+        .toBe(CIVIL_EVE_ISO);
+      expect(handle.context().user?.xp).toBe(xpBefore);
+    });
+  });
+});

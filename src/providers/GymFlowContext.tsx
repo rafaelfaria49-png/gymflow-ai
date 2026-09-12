@@ -3143,7 +3143,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
 
   // Evolution Metric Loggers
   const addWeightLog = (weight: number) => {
-    const today = new Date().toISOString().split('T')[0];
+    // GOAL-071: `date` do histórico é data civil local, não instante UTC.
+    const today = getCivilDateString();
     setWeightHistory((prev) => [{ date: today, value: weight }, ...prev]);
     if (user) {
       setUser((prev) => prev ? { ...prev, weight } : null);
@@ -3152,7 +3153,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addMeasurementLog = (chest: number, waist: number, hips: number, arms: number) => {
-    const today = new Date().toISOString().split('T')[0];
+    // GOAL-071: idem addWeightLog — a medida pertence ao dia civil do usuário.
+    const today = getCivilDateString();
     setMeasurementsHistory((prev) => [{ date: today, chest, waist, hips, arms }, ...prev]);
     addXp(40, 'Medidas corporais atualizadas');
   };
@@ -3313,7 +3315,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
           return {
             ...a,
             unlocked: true,
-            unlockedAt: new Date().toISOString().split('T')[0]
+            // GOAL-071: alinha o caminho imperativo à mesma semântica civil que
+            // deriveWorkoutCompletion já aplica via `input.todayIso`.
+            unlockedAt: getCivilDateString()
           };
         }
         return a;
