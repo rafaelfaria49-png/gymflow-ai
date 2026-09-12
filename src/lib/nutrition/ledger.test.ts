@@ -98,8 +98,8 @@ describe('createNutritionDay', () => {
     targets.targetCalories = 9999;
     targets.macroReconciliation.unmetConstraints.push('ENERGY_BELOW_MACRO_MINIMUMS');
 
-    expect(day.targets.targetCalories).toBe(2500);
-    expect(day.targets.macroReconciliation.unmetConstraints).toEqual([]);
+    expect(day.targets!.targetCalories).toBe(2500);
+    expect(day.targets!.macroReconciliation.unmetConstraints).toEqual([]);
   });
 
   it.each([

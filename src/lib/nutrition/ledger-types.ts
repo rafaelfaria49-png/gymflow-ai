@@ -104,21 +104,55 @@ export interface Remaining {
 /**
  * Dia nutricional: unidade atômica do ledger, chaveada pela data civil
  * (YYYY-MM-DD) no fuso horário do usuário.
+ *
+ * NUT-004B: estado discriminado de metas.
+ * - AUTOMATED: snapshot completo de DailyTargets vigente na criação.
+ * - MANUAL_ONLY: sem meta implícita; targets === null e motivo explícito.
  */
-export interface NutritionDay {
+export type NutritionTargetState = 'AUTOMATED' | 'MANUAL_ONLY';
+
+export const NUTRITION_TARGET_STATES: readonly NutritionTargetState[] = Object.freeze([
+  'AUTOMATED',
+  'MANUAL_ONLY',
+]);
+
+export type NutritionTargetUnavailableReason =
+  | 'PROFILE_ABSENT'
+  | 'AUTOMATION_BLOCKED'
+  | 'TARGET_RESOLUTION_ERROR';
+
+export const NUTRITION_TARGET_UNAVAILABLE_REASONS: readonly NutritionTargetUnavailableReason[] =
+  Object.freeze(['PROFILE_ABSENT', 'AUTOMATION_BLOCKED', 'TARGET_RESOLUTION_ERROR']);
+
+interface NutritionDayBase {
   id: string;
   /** Data civil no formato ISO 'YYYY-MM-DD' (ver `getCivilDateString`). */
   date: string;
   /** Fuso IANA vigente na criação (ex.: 'America/Sao_Paulo'). Nunca hardcodado. */
   timezone: string;
-  /** Snapshot completo e imutável dos alvos vigentes na criação do dia. */
-  targets: DailyTargets;
   meals: Meal[];
   hydrationEntries: HydrationEntry[];
   isClosed: boolean;
   /** Instante ISO do fechamento; null enquanto o dia está aberto. */
   closedAt: string | null;
 }
+
+/** Dia com metas automatizadas: snapshot completo e imutável, nunca null. */
+export interface AutomatedNutritionDay extends NutritionDayBase {
+  targetState: 'AUTOMATED';
+  /** Snapshot completo e imutável dos alvos vigentes na criação do dia. */
+  targets: DailyTargets;
+  targetUnavailableReason?: never;
+}
+
+/** Dia de rastreio manual: sem meta implícita; remaining indisponível. */
+export interface ManualNutritionDay extends NutritionDayBase {
+  targetState: 'MANUAL_ONLY';
+  targets: null;
+  targetUnavailableReason: NutritionTargetUnavailableReason;
+}
+
+export type NutritionDay = AutomatedNutritionDay | ManualNutritionDay;
 
 /**
  * Contêiner do livro contábil. A persistência desta slice usa o repositório
@@ -140,6 +174,10 @@ export type LegacyDataClassification =
 /**
  * Marcador de migração legada: prova durável de que a migração NUT-004
  * já foi avaliada, impedindo reclassificação e duplicatas em replays.
+ *
+ * NUT-004B: `reasons` preserva a quarentena UNKNOWN (classificação + motivos)
+ * sem consumo, sem XP e sem inventar metas. Opcional para compatibilidade
+ * com marcadores v1 já persistidos (ausência continua válida).
  */
 export interface LedgerMigrationMarker {
   version: 1;
@@ -147,6 +185,7 @@ export interface LedgerMigrationMarker {
   classification: LegacyDataClassification;
   migratedAt: string;
   source: 'legacy-nutrition-log';
+  reasons?: string[];
 }
 
 // ============================================================================
@@ -347,13 +386,41 @@ function isMealLike(value: unknown): boolean {
 /**
  * Guarda estrutural de NutritionDay para leitura de storage: rejeita payload
  * malformado em vez de promovê-lo a dia válido.
+ *
+ * NUT-004B: valida todas as combinações do estado discriminado.
+ * - AUTOMATED: targets obrigatório e válido; reason ausente.
+ * - MANUAL_ONLY: targets === null; reason em PROFILE_ABSENT |
+ *   AUTOMATION_BLOCKED | TARGET_RESOLUTION_ERROR.
+ * - Legado sem targetState mas com targets válido: aceito como AUTOMATED
+ *   (compatibilidade IDB v5 pré-004B); nunca promove null silencioso.
  */
 export function isNutritionDay(value: unknown): value is NutritionDay {
   if (!isRecord(value)) return false;
   if (!isNonEmptyString(value['id'])) return false;
   if (!isCivilDateString(value['date'])) return false;
   if (!isNonEmptyString(value['timezone'])) return false;
-  if (!isDailyTargets(value['targets'])) return false;
+  const targetState = value['targetState'];
+  const targets = value['targets'];
+  const reason = value['targetUnavailableReason'];
+  if (targetState === 'AUTOMATED') {
+    if (!isDailyTargets(targets)) return false;
+    if (reason !== undefined) return false;
+  } else if (targetState === 'MANUAL_ONLY') {
+    if (targets !== null) return false;
+    if (
+      reason !== 'PROFILE_ABSENT'
+      && reason !== 'AUTOMATION_BLOCKED'
+      && reason !== 'TARGET_RESOLUTION_ERROR'
+    ) {
+      return false;
+    }
+  } else if (targetState === undefined) {
+    // Legado NUT-004A: sem targetState, com snapshot completo válido.
+    if (!isDailyTargets(targets)) return false;
+    if (reason !== undefined) return false;
+  } else {
+    return false;
+  }
   if (!Array.isArray(value['meals']) || !(value['meals'] as unknown[]).every(isMealLike)) return false;
   if (
     !Array.isArray(value['hydrationEntries'])
@@ -364,6 +431,18 @@ export function isNutritionDay(value: unknown): value is NutritionDay {
   if (typeof value['isClosed'] !== 'boolean') return false;
   if (value['closedAt'] !== null && !isNonEmptyString(value['closedAt'])) return false;
   return true;
+}
+
+/** Guarda de dia automatizado (targets obrigatório e válido). */
+export function isAutomatedNutritionDay(day: NutritionDay): boolean {
+  const state = (day as unknown as Record<string, unknown>)['targetState'];
+  if (state === undefined) return isDailyTargets(day.targets);
+  return state === 'AUTOMATED' && isDailyTargets(day.targets);
+}
+
+/** Guarda de dia manual (sem meta implícita; remaining indisponível). */
+export function isManualNutritionDay(day: NutritionDay): boolean {
+  return (day as unknown as Record<string, unknown>)['targetState'] === 'MANUAL_ONLY' && day.targets === null;
 }
 
 /** Guarda estrutural do marcador de migração para round-trip de storage. */
@@ -380,5 +459,10 @@ export function isLedgerMigrationMarker(value: unknown): value is LedgerMigratio
     return false;
   }
   if (!isNonEmptyString(value['migratedAt'])) return false;
-  return value['source'] === 'legacy-nutrition-log';
+  if (value['source'] !== 'legacy-nutrition-log') return false;
+  if (value['reasons'] !== undefined) {
+    if (!Array.isArray(value['reasons'])) return false;
+    if (!(value['reasons'] as unknown[]).every((entry) => typeof entry === 'string')) return false;
+  }
+  return true;
 }

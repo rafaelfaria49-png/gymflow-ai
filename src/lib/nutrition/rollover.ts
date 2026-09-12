@@ -24,6 +24,7 @@ import {
   NutritionLedgerError,
   type LedgerMigrationMarker,
   type NutritionDay,
+  type NutritionTargetUnavailableReason,
 } from './ledger-types';
 
 // ============================================================================
@@ -122,8 +123,13 @@ export interface EnsureTodayNutritionDayInput {
   now: Date;
   /** Fuso IANA explícito do usuário (sem default, sem hardcode). */
   timezone: string;
-  /** Targets vigentes para o snapshot do novo dia (obrigatório na criação). */
-  targets: DailyTargets;
+  /**
+   * Targets vigentes para o snapshot do novo dia.
+   * AUTOMATED exige DailyTargets válido; MANUAL_ONLY exige null + motivo.
+   */
+  targets: DailyTargets | null;
+  targetState?: 'AUTOMATED' | 'MANUAL_ONLY';
+  targetUnavailableReason?: NutritionTargetUnavailableReason;
   repository: NutritionDayRepository;
   /** Factory de id do dia; default determinístico `nutrition-day-${date}`. */
   dayIdFactory?: (date: string) => string;
@@ -190,14 +196,23 @@ export async function ensureTodayNutritionDay(
   if (existingToday) {
     day = existingToday;
   } else {
-    // Sem targets válidos, createNutritionDay falha tipada (INVALID_TARGETS):
-    // nenhum alvo artificial é inventado pelo rollover.
-    const candidate = createNutritionDay({
-      id: (input.dayIdFactory ?? defaultDayId)(today),
-      date: today,
-      timezone,
-      targets,
-    });
+    // NUT-004B: AUTOMATED exige targets válido; MANUAL_ONLY exige motivo
+    // explícito. Nenhum alvo artificial é inventado pelo rollover.
+    const candidate = input.targets === null
+      ? createNutritionDay({
+        id: (input.dayIdFactory ?? defaultDayId)(today),
+        date: today,
+        timezone,
+        targets: null,
+        targetState: 'MANUAL_ONLY',
+        targetUnavailableReason: input.targetUnavailableReason,
+      })
+      : createNutritionDay({
+        id: (input.dayIdFactory ?? defaultDayId)(today),
+        date: today,
+        timezone,
+        targets: input.targets,
+      });
     const placed = await repository.putNutritionDayIfAbsent(candidate);
     day = placed.day;
     created = placed.created;

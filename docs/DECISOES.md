@@ -2047,3 +2047,7 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - D79-002: isCivilDateString com calendário real (bissexto, sem Date/timezone); activeDate validado na escrita e na leitura.
 - D79-003: DEMO só com waterIntake ausente/0/1200; outro valor válido vira REAL e preserva a hidratação; fora de teto calórico/macro vira UNKNOWN (quarentena), sem teto novo de água (P2).
 - D79-004: crash A/B/C recuperados pelo próximo ensure; D inalcançável por ordem W1→W2→W3 com propagação de erro (provado em teste), sem varredura O(n); loggedAt meio-dia registrado como aproximação P2.
+
+## GOAL-083 - NUT-004B cold boot provider bridge (sem lifecycle/timer/backup)
+
+- D83-001: dia legado sem targetState lido como AUTOMATED (compat IDB v5); migração REAL de hoje usa markClosed false com putIfAbsent pela chave natural e marker só após confirmação; backup lógico aceita nutritionProfile opcional sem versionar envelope.

@@ -163,11 +163,12 @@ export interface MigrateLegacyNutritionInput {
   date: string;
   timezone: string;
   /**
-   * Targets vigentes para o snapshot do dia. Obrigatório no caminho REAL:
-   * sem DailyTargets válido a criação falha de forma tipada (sem fallback,
-   * sem default masculino, sem target null silencioso).
+   * Targets vigentes para o snapshot do dia REAL.
+   * Com targets válido => AUTOMATED; sem targets (null/undefined) exige
+   * targetUnavailableReason => MANUAL_ONLY. Nunca inventar metas.
    */
   targets: DailyTargets | null | undefined;
+  targetUnavailableReason?: import('./ledger-types').NutritionTargetUnavailableReason;
   /** IDs determinísticos por data (idempotência de replay); sobrescrevíveis. */
   dayId?: string;
   mealId?: string;
@@ -246,8 +247,8 @@ export function migrateLegacyNutrition(input: MigrateLegacyNutritionInput): Migr
   if (typeof input.timezone !== 'string' || input.timezone.trim().length === 0) {
     throw new NutritionLedgerError('INVALID_DAY', 'Migração exige um timezone IANA explícito.');
   }
-  // Sem targets válidos a criação falha tipada dentro de createNutritionDay
-  // (INVALID_TARGETS) — nenhum alvo artificial é inventado aqui.
+  // NUT-004B: com targets válidos => AUTOMATED; sem targets => MANUAL_ONLY
+  // com motivo explícito. Nunca inventar metas para preservar consumo legado.
   const loggedAt = input.loggedAt ?? `${input.date}T12:00:00.000Z`;
   if (typeof loggedAt !== 'string' || loggedAt.trim().length === 0) {
     throw new NutritionLedgerError('INVALID_INPUT', 'Migração exige um loggedAt textual não vazio.');
@@ -268,12 +269,35 @@ export function migrateLegacyNutrition(input: MigrateLegacyNutritionInput): Migr
   // (dívida P2 LEGACY_WATER_NO_CEILING). A reconciliação abaixo exige apenas
   // hidratação finita e > 0 via isValidWaterInput.
 
-  let day = createNutritionDay({
-    id: input.dayId ?? `legacy-nutrition-day-${input.date}`,
-    date: input.date,
-    timezone: input.timezone,
-    targets: input.targets as DailyTargets,
-  });
+  let day: import('./ledger-types').NutritionDay;
+  if (input.targets === null || input.targets === undefined) {
+    const reason = (input as { targetUnavailableReason?: unknown }).targetUnavailableReason;
+    if (
+      reason !== 'PROFILE_ABSENT'
+      && reason !== 'AUTOMATION_BLOCKED'
+      && reason !== 'TARGET_RESOLUTION_ERROR'
+    ) {
+      throw new NutritionLedgerError(
+        'INVALID_TARGETS',
+        'Migração REAL sem targets exige targetUnavailableReason explícito (MANUAL_ONLY, sem metas inventadas).',
+      );
+    }
+    day = createNutritionDay({
+      id: input.dayId ?? `legacy-nutrition-day-${input.date}`,
+      date: input.date,
+      timezone: input.timezone,
+      targets: null,
+      targetState: 'MANUAL_ONLY',
+      targetUnavailableReason: reason,
+    });
+  } else {
+    day = createNutritionDay({
+      id: input.dayId ?? `legacy-nutrition-day-${input.date}`,
+      date: input.date,
+      timezone: input.timezone,
+      targets: input.targets as DailyTargets,
+    });
+  }
 
   const mealId = input.mealId ?? `legacy-consolidated-meal-${input.date}`;
   const hasMacros = legacy['calories'] > 0 || legacy['protein'] > 0 || legacy['carbs'] > 0 || legacy['fat'] > 0;

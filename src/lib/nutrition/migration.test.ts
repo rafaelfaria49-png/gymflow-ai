@@ -221,7 +221,7 @@ describe('migrateLegacyNutrition — REAL', () => {
     const { day } = result;
     expect(day.date).toBe(DATE);
     expect(day.timezone).toBe(TIMEZONE);
-    expect(day.targets.targetCalories).toBe(2500);
+    expect(day.targets!.targetCalories).toBe(2500);
     expect(day.meals).toHaveLength(1);
     expect(day.meals[0]?.type).toBe('custom');
     expect(day.meals[0]?.name).toBe(LEGACY_CONSOLIDATED_MEAL_NAME);

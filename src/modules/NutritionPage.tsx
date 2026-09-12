@@ -17,10 +17,10 @@ export const NutritionPage = () => {
 
   const handleWaterLog = (amount: number) => {
     if (!isValidWaterInput(amount)) return;
-    logWater(amount);
+    void logWater(amount);
   };
 
-  const handleCustomWaterLog = (e: React.FormEvent) => {
+  const handleCustomWaterLog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!waterInput.trim()) {
       toast.error('Informe uma quantidade de água.');
@@ -31,7 +31,7 @@ export const NutritionPage = () => {
       toast.error('Informe uma quantidade positiva de água em ml (> 0).');
       return;
     }
-    const success = logWater(amount);
+    const success = await logWater(amount);
     if (success) {
       setWaterInput('');
       toast.success(`${amount}ml de água registrados!`);
@@ -40,7 +40,7 @@ export const NutritionPage = () => {
     }
   };
 
-  const handleMacroSubmit = (e: React.FormEvent) => {
+  const handleMacroSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = parseMacroFormInputs(kcalInput, protInput, carbInput, fatInput);
     if (!parsed.valid) {
@@ -48,7 +48,7 @@ export const NutritionPage = () => {
       return;
     }
     const { calories, protein, carbs, fat } = parsed.values;
-    const success = logMacros(calories, protein, carbs, fat);
+    const success = await logMacros(calories, protein, carbs, fat);
     if (success) {
       setKcalInput('');
       setProtInput('');

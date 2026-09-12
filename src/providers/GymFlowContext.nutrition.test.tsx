@@ -1,3 +1,4 @@
+import { IDBFactory } from 'fake-indexeddb';
 import React, { StrictMode } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -30,6 +31,11 @@ let windowStub: EventTarget & { localStorage: MemoryLocalStorage; location: { re
 let documentStub: EventTarget & { visibilityState: string };
 const originalWindow = Reflect.getOwnPropertyDescriptor(globalThis, 'window');
 const originalDocument = Reflect.getOwnPropertyDescriptor(globalThis, 'document');
+const originalIndexedDb = Reflect.getOwnPropertyDescriptor(globalThis, 'indexedDB');
+
+function freezeClockAt(instant: Date): void {
+  vi.useFakeTimers({ toFake: ['Date'], now: instant });
+}
 
 function makeUser(overrides: Partial<UserProfile> = {}): UserProfile {
   return {
@@ -116,6 +122,11 @@ async function mountProvider(): Promise<Mounted> {
   await act(async () => {
     renderer = TestRenderer.create(<StrictMode>{tree}</StrictMode>);
   });
+  // NUT-004B: o cold boot (IDB + migração + ensureToday) assenta em microtasks
+  // e eventos do fake-indexeddb; timers seguem reais para não travar o IDB.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  });
 
   const handle: Mounted = {
     renderer: renderer as unknown as TestRenderer.ReactTestRenderer,
@@ -162,6 +173,11 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
       configurable: true,
       writable: true,
     });
+    Reflect.defineProperty(globalThis, 'indexedDB', {
+      value: new IDBFactory(),
+      configurable: true,
+      writable: true,
+    });
   });
 
   afterEach(async () => {
@@ -179,6 +195,11 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
       Reflect.defineProperty(globalThis, 'document', originalDocument);
     } else {
       Reflect.deleteProperty(globalThis, 'document');
+    }
+    if (originalIndexedDb) {
+      Reflect.defineProperty(globalThis, 'indexedDB', originalIndexedDb);
+    } else {
+      Reflect.deleteProperty(globalThis, 'indexedDB');
     }
   });
 
@@ -223,7 +244,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     let accepted = false;
     await act(async () => {
-      accepted = ctx.logMacros(500, 40, 60, 10);
+      accepted = await ctx.logMacros(500, 40, 60, 10);
     });
 
     expect(accepted).toBe(true);
@@ -234,7 +255,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     // Segundo registro válido soma
     await act(async () => {
-      accepted = app.context().logMacros(300, 20, 30, 5);
+      accepted = await app.context().logMacros(300, 20, 30, 5);
     });
 
     expect(accepted).toBe(true);
@@ -256,25 +277,25 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     // Calorias zero
     let result = false;
     await act(async () => {
-      result = app.context().logMacros(0, 30, 50, 10);
+      result = await app.context().logMacros(0, 30, 50, 10);
     });
     expect(result).toBe(false);
 
     // Calorias negativas
     await act(async () => {
-      result = app.context().logMacros(-100, 30, 50, 10);
+      result = await app.context().logMacros(-100, 30, 50, 10);
     });
     expect(result).toBe(false);
 
     // Calorias NaN
     await act(async () => {
-      result = app.context().logMacros(Number.NaN, 30, 50, 10);
+      result = await app.context().logMacros(Number.NaN, 30, 50, 10);
     });
     expect(result).toBe(false);
 
     // Calorias >= 15000
     await act(async () => {
-      result = app.context().logMacros(15000, 30, 50, 10);
+      result = await app.context().logMacros(15000, 30, 50, 10);
     });
     expect(result).toBe(false);
 
@@ -294,19 +315,19 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     // Proteína negativa
     let result = false;
     await act(async () => {
-      result = app.context().logMacros(400, -5, 50, 10);
+      result = await app.context().logMacros(400, -5, 50, 10);
     });
     expect(result).toBe(false);
 
     // Carbos >= 1000
     await act(async () => {
-      result = app.context().logMacros(400, 30, 1000, 10);
+      result = await app.context().logMacros(400, 30, 1000, 10);
     });
     expect(result).toBe(false);
 
     // Gordura NaN
     await act(async () => {
-      result = app.context().logMacros(400, 30, 50, Number.NaN);
+      result = await app.context().logMacros(400, 30, 50, Number.NaN);
     });
     expect(result).toBe(false);
 
@@ -328,14 +349,14 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     // 1º registro válido do dia -> +20 XP
     let success = false;
     await act(async () => {
-      success = app.context().logMacros(400, 30, 50, 10);
+      success = await app.context().logMacros(400, 30, 50, 10);
     });
     expect(success).toBe(true);
     expect(app.context().user!.xp).toBe(initialXp + 20);
 
     // 2º registro válido no mesmo dia -> 0 XP adicional
     await act(async () => {
-      success = app.context().logMacros(350, 25, 40, 8);
+      success = await app.context().logMacros(350, 25, 40, 8);
     });
     expect(success).toBe(true);
     expect(app.context().user!.xp).toBe(initialXp + 20); // Continua 220 XP
@@ -367,7 +388,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     // Tentativa de novo registro no mesmo dia após reload
     let success = false;
     await act(async () => {
-      success = app.context().logMacros(300, 25, 30, 5);
+      success = await app.context().logMacros(300, 25, 30, 5);
     });
 
     expect(success).toBe(true);
@@ -379,8 +400,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
   });
 
   it('no dia seguinte civil, o primeiro registro válido volta a conceder até 20 XP', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-09-07T12:00:00Z'));
+    freezeClockAt(new Date('2026-09-07T12:00:00Z'));
 
     // Estado com último registro em dia anterior
     seedPersistedStorage({
@@ -400,7 +420,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     // Hoje é outro dia civil (2026-09-07)
     let success = false;
     await act(async () => {
-      success = app.context().logMacros(450, 35, 50, 12);
+      success = await app.context().logMacros(450, 35, 50, 12);
     });
 
     expect(success).toBe(true);
@@ -408,8 +428,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
   });
 
   it('mudança de data civil permite nova concessão diária de forma determinística (fake timers)', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-09-07T12:00:00Z'));
+    freezeClockAt(new Date('2026-09-07T12:00:00Z'));
 
     seedPersistedStorage({
       user: makeUser({ xp: 200 }),
@@ -421,14 +440,14 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     // Dia 1 (2026-09-07): 1º registro -> +20 XP
     let success = false;
     await act(async () => {
-      success = app.context().logMacros(400, 30, 50, 10);
+      success = await app.context().logMacros(400, 30, 50, 10);
     });
     expect(success).toBe(true);
     expect(app.context().user!.xp).toBe(initialXp + 20);
 
     // Dia 1 (2026-09-07): 2º registro no mesmo dia -> 0 XP adicional
     await act(async () => {
-      success = app.context().logMacros(300, 20, 30, 5);
+      success = await app.context().logMacros(300, 20, 30, 5);
     });
     expect(success).toBe(true);
     expect(app.context().user!.xp).toBe(initialXp + 20);
@@ -438,14 +457,14 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     // Dia 2: 1º registro -> +20 XP adicional
     await act(async () => {
-      success = app.context().logMacros(500, 35, 60, 15);
+      success = await app.context().logMacros(500, 35, 60, 15);
     });
     expect(success).toBe(true);
     expect(app.context().user!.xp).toBe(initialXp + 40);
 
     // Dia 2: 2º registro -> 0 XP adicional
     await act(async () => {
-      success = app.context().logMacros(200, 15, 20, 5);
+      success = await app.context().logMacros(200, 15, 20, 5);
     });
     expect(success).toBe(true);
     expect(app.context().user!.xp).toBe(initialXp + 40);
@@ -457,8 +476,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     // America/Sao_Paulo 20:59/21:01 atravessando UTC já é provada em
     // src/lib/nutrition-civil-date.test.ts; aqui o contrato é a deduplicação de XP
     // por DATA CIVIL LOCAL do provider (logMacros -> getCivilDateString()).
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 8, 8, 20, 59));
+    freezeClockAt(new Date(2026, 8, 8, 20, 59));
 
     seedPersistedStorage({
       user: makeUser({ xp: 100 }),
@@ -470,7 +488,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     // 1º registro do dia civil local -> +20 XP concedido
     let success = false;
     await act(async () => {
-      success = app.context().logMacros(400, 30, 50, 10);
+      success = await app.context().logMacros(400, 30, 50, 10);
     });
     expect(success).toBe(true);
     expect(app.context().user!.xp).toBe(initialXp + 20);
@@ -480,7 +498,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     // 2º registro no mesmo dia civil local -> 0 XP adicional
     await act(async () => {
-      success = app.context().logMacros(300, 20, 30, 5);
+      success = await app.context().logMacros(300, 20, 30, 5);
     });
     expect(success).toBe(true);
     expect(app.context().user!.xp).toBe(initialXp + 20); // Permanece 120 XP!
@@ -490,7 +508,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     // 1º registro do novo dia civil -> +20 XP concedido
     await act(async () => {
-      success = app.context().logMacros(450, 35, 50, 12);
+      success = await app.context().logMacros(450, 35, 50, 12);
     });
     expect(success).toBe(true);
     expect(app.context().user!.xp).toBe(initialXp + 40); // 140 XP!
@@ -514,17 +532,17 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     let accepted = false;
     await act(async () => {
-      accepted = app.context().logWater(0);
+      accepted = await app.context().logWater(0);
     });
     expect(accepted).toBe(false);
 
     await act(async () => {
-      accepted = app.context().logWater(-250);
+      accepted = await app.context().logWater(-250);
     });
     expect(accepted).toBe(false);
 
     await act(async () => {
-      accepted = app.context().logWater(Number.NaN);
+      accepted = await app.context().logWater(Number.NaN);
     });
     expect(accepted).toBe(false);
 
@@ -542,7 +560,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     let accepted = false;
     await act(async () => {
-      accepted = app.context().logWater(250);
+      accepted = await app.context().logWater(250);
     });
 
     expect(accepted).toBe(true);
@@ -564,7 +582,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     // 1. Atinge a meta de água (2800 + 250 = 3050 >= 3000) -> concede 40 XP
     let acceptedWater = false;
     await act(async () => {
-      acceptedWater = app.context().logWater(250);
+      acceptedWater = await app.context().logWater(250);
     });
     expect(acceptedWater).toBe(true);
     const xpAfterWater = app.context().user!.xp;
@@ -573,7 +591,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     // 2. Registra macros no mesmo dia -> concede 20 XP
     let acceptedMacro = false;
     await act(async () => {
-      acceptedMacro = app.context().logMacros(450, 30, 45, 12);
+      acceptedMacro = await app.context().logMacros(450, 30, 45, 12);
     });
     expect(acceptedMacro).toBe(true);
     const xpAfterMacro = app.context().user!.xp;
@@ -584,13 +602,13 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     // 3. Segundo registro de macros no mesmo dia: não concede novo XP
     await act(async () => {
-      app.context().logMacros(300, 20, 30, 8);
+      await app.context().logMacros(300, 20, 30, 8);
     });
     expect(app.context().user!.xp - initialXp).toBe(60);
 
     // 4. Registro adicional de água quando já acima da meta: não re-concede XP
     await act(async () => {
-      app.context().logWater(250);
+      await app.context().logWater(250);
     });
     expect(app.context().user!.xp - initialXp).toBe(60);
   });
@@ -605,7 +623,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     const app = await mountProvider();
 
     await act(async () => {
-      app.context().logWater(250);
+      await app.context().logWater(250);
     });
 
     const ach4 = app.context().achievements.find((a) => a.id === 'ach_4');
@@ -613,8 +631,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
   });
 
   it('a concessão de XP de água é idempotente após reload no mesmo dia e persiste lastWaterXpDate', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-09-08T14:00:00.000Z'));
+    freezeClockAt(new Date('2026-09-08T14:00:00.000Z'));
     const today = getCivilDateString();
 
     seedPersistedStorage({
@@ -628,12 +645,20 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     // Atinge meta de água pela primeira vez hoje -> +40 XP
     await act(async () => {
-      app.context().logWater(300); // 2800 + 300 = 3100 >= 3000
+      await app.context().logWater(300); // 2800 + 300 = 3100 >= 3000
     });
     expect(app.context().user!.xp - initialXp).toBe(40);
     expect(app.context().nutrition.lastWaterXpDate).toBe(today);
 
     // Simula reload/hidratação com o estado persistido contendo lastWaterXpDate
+    // NUT-004B: isola o IDB do segundo boot (reload real parte de storage
+    // local persistido, sem carregar o ledger em memória do boot anterior).
+    await app.unmount();
+    Reflect.defineProperty(globalThis, 'indexedDB', {
+      value: new IDBFactory(),
+      configurable: true,
+      writable: true,
+    });
     seedPersistedStorage({
       user: makeUser({ xp: 140, points: 140, waterIntake: 3100, waterGoal: 3000 }),
       nutrition: { calories: 0, protein: 0, carbs: 0, fat: 0, water: 3100, lastWaterXpDate: today },
@@ -646,7 +671,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     // Nova chamada no mesmo dia não re-concede XP
     await act(async () => {
-      reloadedApp.context().logWater(200);
+      await reloadedApp.context().logWater(200);
     });
     expect(reloadedApp.context().user!.xp).toBe(140);
   });
@@ -670,15 +695,14 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     // Pode atingir a meta e registrar o marcador pela primeira vez
     await act(async () => {
-      ctx.logWater(1000); // 1500 + 1000 = 2500 >= 2500
+      await ctx.logWater(1000); // 1500 + 1000 = 2500 >= 2500
     });
     expect(app.context().user!.xp).toBe(340); // +40 XP
     expect(app.context().nutrition.lastWaterXpDate).toBe(getCivilDateString());
   });
 
   it('nova transição de limiar no mesmo dia não concede recompensa duplicada', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-09-08T10:00:00.000Z'));
+    freezeClockAt(new Date('2026-09-08T10:00:00.000Z'));
     const today = getCivilDateString();
 
     seedPersistedStorage({
@@ -692,14 +716,14 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
 
     // 1ª vez cruza 2000ml -> +40 XP
     await act(async () => {
-      app.context().logWater(200); // 2100 >= 2000
+      await app.context().logWater(200); // 2100 >= 2000
     });
     expect(app.context().user!.xp).toBe(140);
     expect(app.context().nutrition.lastWaterXpDate).toBe(today);
 
     // Usuário já com lastWaterXpDate registrado para hoje
     await act(async () => {
-      app.context().logWater(500);
+      await app.context().logWater(500);
     });
     expect(app.context().user!.xp).toBe(140);
   });

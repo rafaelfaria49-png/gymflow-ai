@@ -1882,6 +1882,57 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     }
   }
 
+  /**
+   * NUT-004B: primitiva transacional read → mutate puro → validate → put em
+   * uma única transação readwrite por date.
+   *
+   * O mutador é síncrono e puro (IDs já criados pelo chamador, nunca dentro
+   * do ledger). A validação `isNutritionDay` roda antes do put; dia inválido
+   * aborta sem persistir nada. Chamadas concorrentes nunca perdem updates:
+   * cada mutação lê o vencedor anterior dentro da sua transação.
+   */
+  async mutateNutritionDay(
+    date: string,
+    mutator: (current: NutritionDay | null) => NutritionDay,
+  ): Promise<NutritionDay> {
+    if (!isCivilDateString(date)) {
+      throw new NutritionDayIntegrityError(`A mutação nutricional exige data civil válida (${String(date)}).`);
+    }
+    if (typeof mutator !== 'function') {
+      throw new NutritionDayIntegrityError('A mutação nutricional exige um mutador puro síncrono.');
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(NUTRITION_DAYS_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+    try {
+      const store = transaction.objectStore(NUTRITION_DAYS_STORE);
+      const raw = await requestResult(store.get(date)) as unknown;
+      let current: NutritionDay | null = null;
+      if (raw !== undefined && raw !== null) {
+        if (!isNutritionDay(raw)) {
+          throw new NutritionDayIntegrityError(
+            `O dia nutricional ${date} está com formato inválido no armazenamento.`,
+          );
+        }
+        current = raw;
+      }
+      const next = mutator(current);
+      if (!isNutritionDay(next)) {
+        throw new NutritionDayIntegrityError('O resultado da mutação nutricional está com formato inválido.');
+      }
+      if (next.date !== date) {
+        throw new NutritionDayIntegrityError('A mutação nutricional não pode alterar a chave natural (date).');
+      }
+      await requestResult(store.put(next));
+      await completed;
+      return next;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
   private async readNutritionMetadataValue(
     transaction: IDBTransaction,
     key: string,

@@ -21,6 +21,7 @@ import {
   type MealType,
   type NutritionDay,
   type NutritionLedger,
+  type NutritionTargetUnavailableReason,
   type Remaining,
 } from './ledger-types';
 import { isValidMacroInput, isValidWaterInput } from '../nutrition-validation';
@@ -98,12 +99,23 @@ export interface CreateNutritionDayInput {
   id: string;
   date: string;
   timezone: string;
-  targets: DailyTargets;
+  targets: DailyTargets | null;
+  targetState?: 'AUTOMATED' | 'MANUAL_ONLY';
+  targetUnavailableReason?: NutritionTargetUnavailableReason;
 }
 
+const VALID_UNAVAILABLE_REASONS: readonly NutritionTargetUnavailableReason[] = Object.freeze([
+  'PROFILE_ABSENT',
+  'AUTOMATION_BLOCKED',
+  'TARGET_RESOLUTION_ERROR',
+]);
+
 /**
- * Cria um NutritionDay aberto com snapshot completo dos targets.
- * Falha de forma tipada quando os targets são inválidos/ausentes.
+ * Cria um NutritionDay aberto.
+ * - AUTOMATED: snapshot completo dos targets (cópia explícita, nunca referência
+ *   viva). Falha tipada quando os targets são inválidos/ausentes.
+ * - MANUAL_ONLY: targets === null, sem meta implícita, com motivo explícito.
+ *   Nenhum fallback numérico é inventado para preservar consumo.
  */
 export function createNutritionDay(input: CreateNutritionDayInput): NutritionDay {
   assertNonEmptyId(input.id, 'NutritionDay');
@@ -116,12 +128,61 @@ export function createNutritionDay(input: CreateNutritionDayInput): NutritionDay
   if (typeof input.timezone !== 'string' || input.timezone.trim().length === 0) {
     throw new NutritionLedgerError('INVALID_DAY', 'NutritionDay exige um timezone IANA explícito.');
   }
+
+  if (input.targets === null) {
+    if (input.targetState !== 'MANUAL_ONLY') {
+      throw new NutritionLedgerError(
+        'INVALID_TARGETS',
+        'Dia MANUAL_ONLY exige targetState MANUAL_ONLY explícito (sem meta implícita).',
+      );
+    }
+    const reason = (input as { targetUnavailableReason?: unknown }).targetUnavailableReason;
+    if (
+      reason !== 'PROFILE_ABSENT'
+      && reason !== 'AUTOMATION_BLOCKED'
+      && reason !== 'TARGET_RESOLUTION_ERROR'
+    ) {
+      throw new NutritionLedgerError(
+        'INVALID_TARGETS',
+        'Dia MANUAL_ONLY exige targetUnavailableReason em PROFILE_ABSENT | AUTOMATION_BLOCKED | TARGET_RESOLUTION_ERROR.',
+      );
+    }
+    return {
+      id: input.id,
+      date: input.date,
+      timezone: input.timezone,
+      targetState: 'MANUAL_ONLY',
+      targets: null,
+      targetUnavailableReason: reason,
+      meals: [],
+      hydrationEntries: [],
+      isClosed: false,
+      closedAt: null,
+    };
+  }
+
+  if (
+    (input as { targetState?: unknown }).targetState !== undefined
+    && (input as { targetState?: unknown }).targetState !== 'AUTOMATED'
+  ) {
+    throw new NutritionLedgerError(
+      'INVALID_TARGETS',
+      'Dia AUTOMATED exige targetState AUTOMATED ou ausente (legado) — nunca MANUAL_ONLY com targets.',
+    );
+  }
+  if ((input as { targetUnavailableReason?: unknown }).targetUnavailableReason !== undefined) {
+    throw new NutritionLedgerError(
+      'INVALID_TARGETS',
+      'Dia AUTOMATED nunca carrega targetUnavailableReason.',
+    );
+  }
   assertValidTargets(input.targets);
 
   return {
     id: input.id,
     date: input.date,
     timezone: input.timezone,
+    targetState: 'AUTOMATED',
     // Snapshot completo: cópia explícita (inclusive aninhados) para que o dia
     // nunca observe mutação posterior do objeto de targets do chamador.
     targets: {
@@ -362,6 +423,9 @@ const ZERO_ACTUALS: DailyActuals = Object.freeze({
 /**
  * Totais consumidos derivados: macros/calorias somam FoodEntry;
  * água soma exclusivamente hydrationEntries (fonte única — Masterplan 9.1).
+ *
+ * NUT-004B: válido nos dois modos (AUTOMATED e MANUAL_ONLY) — actuals nunca
+ * exigem metas.
  */
 export function calculateActuals(day: NutritionDay): DailyActuals {
   let calories = 0;
@@ -383,7 +447,13 @@ export function calculateActuals(day: NutritionDay): DailyActuals {
   return { calories, protein, carbs, fat, waterMl };
 }
 
-/** Saldo restante derivado: max(0, target - actual) por nutriente. */
+/**
+ * Saldo restante derivado: max(0, target - actual) por nutriente.
+ *
+ * NUT-004B: MANUAL_ONLY não possui meta implícita — nunca retornar
+ * remaining=0 como se fosse meta. Qualquer cálculo de Remaining exige
+ * targets !== null e válido; dia manual falha fechado (INVALID_TARGETS).
+ */
 export function calculateRemaining(targets: DailyTargets, actuals: DailyActuals): Remaining {
   assertValidTargets(targets);
   for (const [key, value] of Object.entries(actuals)) {
@@ -413,6 +483,20 @@ export function createEmptyNutritionLedger(): NutritionLedger {
 /** Seletor puro por data civil. */
 export function findNutritionDay(ledger: NutritionLedger, date: string): NutritionDay | null {
   return ledger.days.find((day) => day.date === date) ?? null;
+}
+
+/**
+ * Remaining de um dia: exige dia AUTOMATED com targets válido.
+ * Dia MANUAL_ONLY falha fechado — nunca devolve zeros como meta implícita.
+ */
+export function calculateRemainingForDay(day: NutritionDay, actuals: DailyActuals): Remaining {
+  if (day.targets === null) {
+    throw new NutritionLedgerError(
+      'INVALID_TARGETS',
+      `O dia ${day.date} é MANUAL_ONLY e não possui metas: remaining indisponível (sem meta implícita).`,
+    );
+  }
+  return calculateRemaining(day.targets, actuals);
 }
 
 export { ZERO_ACTUALS };

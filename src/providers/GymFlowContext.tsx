@@ -164,6 +164,22 @@ import {
   isValidWaterInput,
 } from '../lib/nutrition-validation';
 import { getCivilDateString } from '../lib/nutrition-civil-date';
+import {
+  addFoodEntry,
+  addHydrationEntry,
+  addMeal,
+  calculateActuals,
+} from '../lib/nutrition/ledger';
+import type { NutritionDay } from '../lib/nutrition/ledger-types';
+import { resolveEffectiveTimezone } from '../lib/nutrition/effective-timezone';
+import {
+  projectCompatMirrors,
+  runNutritionColdBoot,
+} from '../lib/nutrition/provider-bridge';
+import { normalizePersistedNutritionProfile } from '../lib/nutrition/profile-validation';
+import { ensureTodayNutritionDay } from '../lib/nutrition/rollover';
+import { resolveNutritionTargets } from '../lib/nutrition/target-resolution';
+import type { TargetResolution } from '../lib/nutrition/target-resolution';
 import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
 import {
   readPersistedGymProfile,
@@ -242,6 +258,8 @@ interface PersistedState {
   recentlyViewedVideoIds: string[];
   // Ausente em envelopes anteriores; a migração/hidratação expõe null ao domínio.
   gymProfile?: GymProfileState | null;
+  // NUT-004B: perfil nutricional opcional no core v2; ausente hidrata como null.
+  nutritionProfile?: import('../types/nutrition').NutritionProfile | null;
 }
 
 export type AppView =
@@ -548,13 +566,13 @@ interface GymFlowContextType {
 
   // Nutrition
   nutrition: NutritionLog;
-  logWater: (amountMl: number) => boolean;
+  logWater: (amountMl: number) => Promise<boolean>;
   logMacros: (
     calories: number,
     protein: number,
     carbs: number,
     fat: number
-  ) => boolean;
+  ) => Promise<boolean>;
 
   // Community
   communityPosts: CommunityPost[];
@@ -1033,6 +1051,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   ]);
 
   // Nutrition (NUT-001: estado inicial canônico em zero sem vazamento de demo)
+  // NUT-004B: espelhos derivados do ledger (fonte de verdade no IndexedDB).
   const [nutrition, setNutrition] = useState<NutritionLog>({
     calories: 0,
     protein: 0,
@@ -1040,8 +1059,16 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     fat: 0,
     water: 0
   });
+  const [nutritionProfile, setNutritionProfile] = useState<
+    import('../types/nutrition').NutritionProfile | null
+  >(null);
   const lastMacroLoggedDateRef = useRef<string | null>(null);
   const lastWaterXpDateRef = useRef<string | null>(null);
+  // NUT-004B: dia corrente do ledger + resolução vigente (targets/state).
+  const nutritionDayRef = useRef<NutritionDay | null>(null);
+  const nutritionResolutionRef = useRef<TargetResolution | null>(null);
+  const nutritionTimezoneRef = useRef<string | null>(null);
+  const nutritionBridgeFailedRef = useRef(false);
 
   // Achievements, XP notifications
   const [xpNotifications, setXpNotifications] = useState<XpNotification[]>([]);
@@ -1211,6 +1238,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     favoriteExercises,
     recentlyViewedVideoIds,
     gymProfile,
+    nutritionProfile,
   };
   const persistedStateRef = useRef<PersistedState>(persistedState);
   const initialPersistedStateRef = useRef<PersistedState>(persistedState);
@@ -1559,9 +1587,60 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         setWorkoutHistory(normalizedSession.workoutHistory);
         setWeightHistory(saved.weightHistory);
         setMeasurementsHistory(saved.measurementsHistory);
-        setNutrition(saved.nutrition);
-        lastMacroLoggedDateRef.current = saved.nutrition.lastMacroLoggedDate ?? saved.nutrition.lastMacroXpDate ?? null;
-        lastWaterXpDateRef.current = saved.nutrition.lastWaterXpDate ?? null;
+        const normalizedProfile = normalizePersistedNutritionProfile(saved.nutritionProfile);
+        const effectiveProfile = normalizedProfile.ok ? normalizedProfile.profile : null;
+        setNutritionProfile(effectiveProfile);
+        const preservedNutrition = saved.nutrition;
+        setNutrition(preservedNutrition);
+        lastMacroLoggedDateRef.current = preservedNutrition.lastMacroLoggedDate ?? preservedNutrition.lastMacroXpDate ?? null;
+        lastWaterXpDateRef.current = preservedNutrition.lastWaterXpDate ?? null;
+        if (hydration.mode === 'hybrid-v2') {
+          try {
+            const bridge = await runNutritionColdBoot({
+              repository: historyAdapter,
+              now: new Date(),
+              profile: effectiveProfile,
+              savedNutrition: saved.nutrition,
+              savedUserWaterIntake: saved.user?.waterIntake,
+            });
+            if (cancelled || !mountedRef.current) return;
+            if (bridge.ok) {
+              const projected = projectCompatMirrors(bridge.actuals, {
+                lastMacroLoggedDate: preservedNutrition.lastMacroLoggedDate,
+                lastMacroXpDate: preservedNutrition.lastMacroXpDate,
+                lastWaterXpDate: preservedNutrition.lastWaterXpDate,
+              });
+              setNutrition(projected);
+              nutritionDayRef.current = bridge.day;
+              nutritionResolutionRef.current = bridge.resolution;
+              nutritionTimezoneRef.current = bridge.timezone;
+              nutritionBridgeFailedRef.current = false;
+              const projectedWater = bridge.mirrors.waterIntake;
+              setUser((prev) => {
+                const base = prev ?? saved.user;
+                if (!base) return prev;
+                if (base.waterIntake === projectedWater) return prev;
+                return { ...base, waterIntake: projectedWater };
+              });
+            } else {
+              nutritionDayRef.current = null;
+              nutritionResolutionRef.current = null;
+              nutritionTimezoneRef.current = null;
+              nutritionBridgeFailedRef.current = true;
+            }
+          } catch {
+            if (cancelled || !mountedRef.current) return;
+            nutritionDayRef.current = null;
+            nutritionResolutionRef.current = null;
+            nutritionTimezoneRef.current = null;
+            nutritionBridgeFailedRef.current = true;
+          }
+        } else {
+          nutritionDayRef.current = null;
+          nutritionResolutionRef.current = null;
+          nutritionTimezoneRef.current = null;
+          nutritionBridgeFailedRef.current = true;
+        }
         setAchievements(saved.achievements);
         setChallenges(saved.challenges);
         setFavoriteExercises(saved.favoriteExercises);
@@ -1661,6 +1740,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     favoriteExercises,
     recentlyViewedVideoIds,
     gymProfile,
+    nutritionProfile,
   ]);
 
   useEffect(() => {
@@ -3159,79 +3239,185 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     addXp(40, 'Medidas corporais atualizadas');
   };
 
-  // Nutrition trackers (NUT-001)
-  const logWater = (amountMl: number): boolean => {
+  // Nutrition trackers (NUT-001 + NUT-004B ledger durável)
+  function newNutritionEntryId(prefix: string): string {
+    try {
+      const uuid = (globalThis.crypto as { randomUUID?: () => string } | undefined)?.randomUUID;
+      if (typeof uuid === 'function') return `${prefix}-${uuid.call(globalThis.crypto)}`;
+    } catch {
+      /* fallback abaixo */
+    }
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  const logWater = async (amountMl: number): Promise<boolean> => {
     if (!isValidWaterInput(amountMl)) {
       return false;
     }
-
-    const today = getCivilDateString();
-    let grantWaterXp = false;
-
-    if (user) {
-      const prevWater = user.waterIntake;
-      const newWater = prevWater + amountMl;
-      setUser((prev) => (prev ? { ...prev, waterIntake: newWater } : null));
-
-      if (newWater >= user.waterGoal && prevWater < user.waterGoal) {
-        unlockAchievement('ach_4');
-
-        const alreadyRewardedToday = (
-          lastWaterXpDateRef.current === today ||
-          nutrition.lastWaterXpDate === today
-        );
-
-        if (!alreadyRewardedToday) {
-          grantWaterXp = true;
-          lastWaterXpDateRef.current = today;
-          // NUT-001 (D-NUT-07): calibração para 40 XP para respeitar o teto diário de 60 XP em nutrição (20 XP macros + 40 XP água)
-          addXp(40, '💧 Meta Diária de Água Batida!');
+    const adapter = historyAdapterRef.current;
+    if (!adapter || storageBlockedRef.current) {
+      toast.error('Não foi possível registrar a água agora.');
+      return false;
+    }
+    const now = new Date();
+    const loggedAt = now.toISOString();
+    try {
+      const profileForWrite = nutritionProfile;
+      const tzFallback = nutritionTimezoneRef.current ?? profileForWrite?.timezone ?? null;
+      const tz = resolveEffectiveTimezone(tzFallback);
+      if (!tz.ok) {
+        toast.error('Não foi possível registrar a água agora.');
+        return false;
+      }
+      const resolution = nutritionResolutionRef.current
+        ?? resolveNutritionTargets({ profile: profileForWrite, evaluatedAt: loggedAt });
+      const ensured = resolution.targetState === 'AUTOMATED'
+        ? await ensureTodayNutritionDay({ now, timezone: tz.timezone, targets: resolution.targets, repository: adapter })
+        : await ensureTodayNutritionDay({
+          now,
+          timezone: tz.timezone,
+          targets: null,
+          targetState: 'MANUAL_ONLY',
+          targetUnavailableReason: resolution.targetUnavailableReason,
+          repository: adapter,
+        });
+      const entryId = newNutritionEntryId('hydration');
+      const nextDay = await adapter.mutateNutritionDay(ensured.today, (current) => {
+        const base = current ?? ensured.day;
+        return addHydrationEntry(base, { id: entryId, amountMl, loggedAt });
+      });
+      nutritionDayRef.current = nextDay;
+      nutritionResolutionRef.current = resolution;
+      nutritionTimezoneRef.current = tz.timezone;
+      nutritionBridgeFailedRef.current = false;
+      const actuals = calculateActuals(nextDay);
+      const civilToday = ensured.today;
+      const prevWater = actuals.waterMl - amountMl;
+      let grantWaterXp = false;
+      const currentUser = persistedStateRef.current.user ?? user;
+      if (currentUser) {
+        const goal = currentUser.waterGoal;
+        if (actuals.waterMl >= goal && prevWater < goal) {
+          const alreadyRewarded = lastWaterXpDateRef.current === civilToday
+            || persistedStateRef.current.nutrition.lastWaterXpDate === civilToday;
+          if (!alreadyRewarded) {
+            grantWaterXp = true;
+          }
         }
       }
+      if (grantWaterXp) {
+        lastWaterXpDateRef.current = civilToday;
+      }
+      setNutrition((prev) => ({
+        ...prev,
+        calories: actuals.calories,
+        protein: actuals.protein,
+        carbs: actuals.carbs,
+        fat: actuals.fat,
+        water: actuals.waterMl,
+        ...(grantWaterXp ? { lastWaterXpDate: civilToday } : {}),
+      }));
+      setUser((prev) => {
+        const base = prev ?? persistedStateRef.current.user;
+        if (!base) return prev;
+        if (base.waterIntake === actuals.waterMl) return prev;
+        return { ...base, waterIntake: actuals.waterMl };
+      });
+      if (grantWaterXp) {
+        unlockAchievement('ach_4');
+        addXp(40, '💧 Meta Diária de Água Batida!');
+      }
+      return true;
+    } catch {
+      toast.error('Não foi possível registrar a água agora.');
+      return false;
     }
-
-    setNutrition((prev) => ({
-      ...prev,
-      water: prev.water + amountMl,
-      ...(grantWaterXp ? { lastWaterXpDate: today } : {}),
-    }));
-
-    return true;
   };
 
-  const logMacros = (
+  const logMacros = async (
     calories: number,
     protein: number,
     carbs: number,
     fat: number
-  ): boolean => {
+  ): Promise<boolean> => {
     if (!isValidMacroInput(calories, protein, carbs, fat)) {
       return false;
     }
-
-    const today = getCivilDateString();
-    const alreadyGrantedToday = (
-      lastMacroLoggedDateRef.current === today ||
-      nutrition.lastMacroLoggedDate === today ||
-      nutrition.lastMacroXpDate === today
-    );
-
-    if (!alreadyGrantedToday) {
-      lastMacroLoggedDateRef.current = today;
-      addXp(20, 'Alimento registrado na dieta');
+    const adapter = historyAdapterRef.current;
+    if (!adapter || storageBlockedRef.current) {
+      toast.error('Não foi possível registrar a refeição agora.');
+      return false;
     }
-
-    setNutrition((prev) => ({
-      ...prev,
-      calories: prev.calories + calories,
-      protein: prev.protein + protein,
-      carbs: prev.carbs + carbs,
-      fat: prev.fat + fat,
-      lastMacroLoggedDate: today,
-      lastMacroXpDate: today,
-    }));
-
-    return true;
+    const now = new Date();
+    const loggedAt = now.toISOString();
+    try {
+      const profileForWrite = nutritionProfile;
+      const tzFallback = nutritionTimezoneRef.current ?? profileForWrite?.timezone ?? null;
+      const tz = resolveEffectiveTimezone(tzFallback);
+      if (!tz.ok) {
+        toast.error('Não foi possível registrar a refeição agora.');
+        return false;
+      }
+      const resolution = nutritionResolutionRef.current
+        ?? resolveNutritionTargets({ profile: profileForWrite, evaluatedAt: loggedAt });
+      const ensured = resolution.targetState === 'AUTOMATED'
+        ? await ensureTodayNutritionDay({ now, timezone: tz.timezone, targets: resolution.targets, repository: adapter })
+        : await ensureTodayNutritionDay({
+          now,
+          timezone: tz.timezone,
+          targets: null,
+          targetState: 'MANUAL_ONLY',
+          targetUnavailableReason: resolution.targetUnavailableReason,
+          repository: adapter,
+        });
+      const mealId = `manual-macros-${ensured.today}`;
+      const entryId = newNutritionEntryId('food');
+      const mealName = 'Registro manual de macros';
+      const nextDay = await adapter.mutateNutritionDay(ensured.today, (current) => {
+        let base = current ?? ensured.day;
+        if (!base.meals.some((meal) => meal.id === mealId)) {
+          base = addMeal(base, { id: mealId, type: 'custom', name: mealName });
+        }
+        return addFoodEntry(base, mealId, {
+          id: entryId,
+          name: mealName,
+          calories,
+          protein,
+          carbs,
+          fat,
+          loggedAt,
+        });
+      });
+      nutritionDayRef.current = nextDay;
+      nutritionResolutionRef.current = resolution;
+      nutritionTimezoneRef.current = tz.timezone;
+      nutritionBridgeFailedRef.current = false;
+      const actuals = calculateActuals(nextDay);
+      const civilToday = ensured.today;
+      const alreadyGranted = lastMacroLoggedDateRef.current === civilToday
+        || persistedStateRef.current.nutrition.lastMacroLoggedDate === civilToday
+        || persistedStateRef.current.nutrition.lastMacroXpDate === civilToday;
+      if (!alreadyGranted) {
+        lastMacroLoggedDateRef.current = civilToday;
+      }
+      setNutrition((prev) => ({
+        ...prev,
+        calories: actuals.calories,
+        protein: actuals.protein,
+        carbs: actuals.carbs,
+        fat: actuals.fat,
+        water: actuals.waterMl,
+        lastMacroLoggedDate: civilToday,
+        lastMacroXpDate: civilToday,
+      }));
+      if (!alreadyGranted) {
+        addXp(20, 'Alimento registrado na dieta');
+      }
+      return true;
+    } catch {
+      toast.error('Não foi possível registrar a refeição agora.');
+      return false;
+    }
   };
 
   // Community Feed
