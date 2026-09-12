@@ -6,6 +6,7 @@ import type {
   WeeklyWorkoutDay,
   WorkoutSession,
 } from '../types';
+import { getCivilDateString } from './nutrition-civil-date';
 import {
   COMPLETION_POST_AVATAR,
   COMPLETION_POST_FALLBACK_AUTHOR,
@@ -635,5 +636,68 @@ describe('GOAL-045: formatação honesta de duração longa no feed', () => {
       });
       expect(post).toBe('Treino parcial registrado! Realizei "Treino Parcial 75" em 1h 15min. Volume total: 1500kg.  🔥 #GymFlow #Fitness');
     });
+  });
+});
+
+// GOAL-069: fronteira UTC/local no caminho que grava lastWorkoutDate.
+// Determinístico por construção: os instantes são absolutos (sufixo Z) e o fuso é
+// explícito, então o resultado não depende do relógio nem do TZ da máquina.
+// Complementa nutrition-civil-date.test.ts, que prova o helper isolado; aqui a prova
+// é do efeito no estado do usuário (lastWorkoutDate + streak).
+describe('GOAL-069: data civil local na gravação de lastWorkoutDate', () => {
+  const SAO_PAULO = 'America/Sao_Paulo';
+  // 2026-09-11 21:01 BRT (UTC-3) — em UTC o dia JÁ virou para 12/09.
+  const AFTER_UTC_ROLLOVER = new Date('2026-09-12T00:01:00.000Z');
+  // 2026-09-12 00:01 BRT (UTC-3) — virada civil local real.
+  const AFTER_LOCAL_ROLLOVER = new Date('2026-09-12T03:01:00.000Z');
+
+  it('mantém o dia civil anterior quando só o calendário UTC virou', () => {
+    // A projeção UTC era exatamente a origem do flake.
+    expect(AFTER_UTC_ROLLOVER.toISOString().split('T')[0]).toBe('2026-09-12');
+
+    const todayIso = getCivilDateString(AFTER_UTC_ROLLOVER, SAO_PAULO);
+    expect(todayIso).toBe('2026-09-11');
+
+    const outcome = deriveWorkoutCompletion(makeInput({ todayIso }));
+    expect(outcome.state.user?.lastWorkoutDate).toBe('2026-09-11');
+    expect(outcome.state.user?.streak).toBe(6);
+  });
+
+  it('avança a data gravada após a virada civil local real', () => {
+    const todayIso = getCivilDateString(AFTER_LOCAL_ROLLOVER, SAO_PAULO);
+    expect(todayIso).toBe('2026-09-12');
+
+    const outcome = deriveWorkoutCompletion(makeInput({ todayIso }));
+    expect(outcome.state.user?.lastWorkoutDate).toBe('2026-09-12');
+    expect(outcome.state.user?.streak).toBe(6);
+  });
+
+  it('não concede streak duplo nos dois lados da virada UTC dentro do mesmo dia civil', () => {
+    const eveIso = getCivilDateString(AFTER_UTC_ROLLOVER, SAO_PAULO);
+    const primeiro = deriveWorkoutCompletion(makeInput({ todayIso: eveIso }));
+    expect(primeiro.state.user?.streak).toBe(6);
+
+    // Segundo treino no mesmo dia civil local, já depois da virada UTC.
+    const segundo = deriveWorkoutCompletion(makeInput({
+      state: makeState({ user: makeUser({ streak: 6, lastWorkoutDate: eveIso }) }),
+      finalSession: makeSession({ id: 'session-2' }),
+      todayIso: eveIso,
+    }));
+    expect(segundo.state.user?.streak).toBe(6);
+    expect(segundo.state.user?.lastWorkoutDate).toBe(eveIso);
+  });
+
+  it('a data gravada acompanha o fuso do usuário, sem hardcoding de Brasil', () => {
+    const esperados: ReadonlyArray<readonly [string, string]> = [
+      [SAO_PAULO, '2026-09-11'],
+      ['UTC', '2026-09-12'],
+      ['Asia/Tokyo', '2026-09-12'],
+    ];
+
+    for (const [timeZone, expected] of esperados) {
+      const todayIso = getCivilDateString(AFTER_UTC_ROLLOVER, timeZone);
+      const outcome = deriveWorkoutCompletion(makeInput({ todayIso }));
+      expect(outcome.state.user?.lastWorkoutDate).toBe(expected);
+    }
   });
 });

@@ -1093,3 +1093,34 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   e o modal termina com placeholder dentro do tier de frames. Detectado no smoke do GOAL-053;
   fora do escopo deste GOAL (não altera itens não publicados). Correção sugerida: apontar os
   frames do manifest para `sequence/step-01..05.jpg` em um GOAL próprio.
+
+- **CIVIL-DATE-069-P2 — datas civis residuais em UTC fora do fluxo de treino.** *Aberto · P2.*
+  A auditoria do GOAL-069 confirmou que o fluxo de finalização de treino usa
+  `getCivilDateString()` corretamente (`lastWorkoutDate` é data civil local), mas
+  três call sites de `src/providers/GymFlowContext.tsx` ainda derivam data civil de
+  `new Date().toISOString().split('T')[0]`, que projeta o instante em UTC:
+  `addWeightLog` (linha 3146), `addMeasurementLog` (linha 3155) e o `unlockedAt` de
+  `unlockAchievement` (linha 3316). Em offsets negativos, entre 21:00 e 23:59 locais
+  (UTC-3), esses registros recebem a data do dia seguinte — histórico de peso/medidas
+  e a data de conquista ficam um dia adiantados. Note que o `unlockedAt` do caminho
+  puro (`deriveWorkoutCompletion`) já usa `input.todayIso` civil, então há divergência
+  entre os dois caminhos que desbloqueiam conquistas. Fora do escopo do GOAL-069, que
+  tratou apenas do flake de asserção em `GymFlowContext.storage.test.tsx`. *Próximo
+  passo:* trocar os três call sites por `getCivilDateString()` em GOAL próprio, com
+  regressão determinística de fronteira como a do GOAL-069.
+
+- **CIVIL-DATE-069-P3 — `GymFlowContext.nutrition.test.tsx` só passa em fuso UTC-3.** *Aberto · P3.*
+  Pré-existente na base `1e851d8` (verificado por `git stash` + execução no commit base),
+  **não** introduzido pelo GOAL-069. O teste `boundary 20:59 -> 21:01 BRT pertence à mesma
+  data civil e NÃO concede segundo XP de macro` (linha 454) fixa instantes absolutos em UTC
+  (`2026-09-08T23:59:00.000Z` e `2026-09-09T00:01:00.000Z`) mas afirma comportamento de
+  data civil **de Brasília**, enquanto `logMacros` resolve a data pelo fuso do processo via
+  `getCivilDateString()` sem `timeZone`. Com `TZ=UTC` ou `TZ=Asia/Tokyo` os dois instantes
+  caem em dias civis locais diferentes e o segundo registro concede XP: falha com
+  `expected 140 to be 120`. Sob o fuso real da máquina (`America/Sao_Paulo`) e em qualquer
+  offset -03:00 a suíte fica verde, então isso não é o flake de janela horária tratado no
+  GOAL-069 — é dependência do TZ do processo, que só apareceria em CI configurada em UTC.
+  Fora do escopo do GOAL-069 (que proíbe tocar fora do flake auditado). *Próximo passo:*
+  em GOAL próprio, tornar o teste independente do TZ do processo — passar `timeZone`
+  explícito no caminho testado ou construir os instantes com o construtor local, como o
+  GOAL-069 fez em `GymFlowContext.storage.test.tsx`.
