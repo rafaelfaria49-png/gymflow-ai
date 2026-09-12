@@ -451,10 +451,14 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     expect(app.context().user!.xp).toBe(initialXp + 40);
   });
 
-  it('boundary 20:59 -> 21:01 BRT pertence à mesma data civil e NÃO concede segundo XP de macro', async () => {
+  it('dois logs no mesmo dia civil local concedem XP uma única vez; próximo dia civil concede novamente', async () => {
+    // TZ-independent: instantes construídos no calendário LOCAL do próprio processo
+    // (new Date(a, m, d, h, min)), sem pressupor offset UTC-3. A conversão específica
+    // America/Sao_Paulo 20:59/21:01 atravessando UTC já é provada em
+    // src/lib/nutrition-civil-date.test.ts; aqui o contrato é a deduplicação de XP
+    // por DATA CIVIL LOCAL do provider (logMacros -> getCivilDateString()).
     vi.useFakeTimers();
-    // 2026-09-08 20:59 BRT (-03:00) => 23:59:00Z UTC
-    vi.setSystemTime(new Date('2026-09-08T23:59:00.000Z'));
+    vi.setSystemTime(new Date(2026, 8, 8, 20, 59));
 
     seedPersistedStorage({
       user: makeUser({ xp: 100 }),
@@ -463,7 +467,7 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     const app = await mountProvider();
     const initialXp = app.context().user!.xp;
 
-    // 1º registro às 20:59 BRT -> +20 XP concedido
+    // 1º registro do dia civil local -> +20 XP concedido
     let success = false;
     await act(async () => {
       success = app.context().logMacros(400, 30, 50, 10);
@@ -471,18 +475,18 @@ describe('GymFlowContext — Nutrição e Idempotência de XP (NUT-001)', () => 
     expect(success).toBe(true);
     expect(app.context().user!.xp).toBe(initialXp + 20);
 
-    // Avança para 21:01 BRT (00:01Z UTC do dia seguinte)
-    vi.setSystemTime(new Date('2026-09-09T00:01:00.000Z'));
+    // Avança dentro do MESMO dia civil local (ainda 08/09 no calendário do processo)
+    vi.setSystemTime(new Date(2026, 8, 8, 21, 1));
 
-    // 2º registro às 21:01 BRT -> 0 XP adicional (mesma data civil local 08/09/2026)
+    // 2º registro no mesmo dia civil local -> 0 XP adicional
     await act(async () => {
       success = app.context().logMacros(300, 20, 30, 5);
     });
     expect(success).toBe(true);
     expect(app.context().user!.xp).toBe(initialXp + 20); // Permanece 120 XP!
 
-    // Avança relógio para o dia civil seguinte real em BRT: 09/09/2026 08:00 BRT (11:00Z UTC)
-    vi.setSystemTime(new Date('2026-09-09T11:00:00.000Z'));
+    // Avança relógio para o dia civil seguinte local: 09/09 08:00
+    vi.setSystemTime(new Date(2026, 8, 9, 8, 0));
 
     // 1º registro do novo dia civil -> +20 XP concedido
     await act(async () => {
