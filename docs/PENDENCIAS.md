@@ -1154,7 +1154,26 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   de tempo real — congelar o relógio e controlar o debounce explicitamente, em vez de
   depender de o caso terminar em menos de 500 ms.
 
-- **CIVIL-DATE-069-P3 — `GymFlowContext.nutrition.test.tsx` só passa em fuso UTC-3.** *Aberto · P3.*
+- **CIVIL-DATE-069-P3 — `GymFlowContext.nutrition.test.tsx` só passa em fuso UTC-3.** *RESOLVIDO no GOAL-074 (2026-09-12).*
+  Causa confirmada como `TEST_TIMEZONE_ASSUMPTION`, sem bug produtivo: `logMacros`
+  resolve a data por `getCivilDateString()` sem `timeZone` (data civil local do
+  processo). O teste renomeado para `dois logs no mesmo dia civil local concedem XP
+  uma única vez; próximo dia civil concede novamente` passou a construir os instantes
+  com o construtor local (`new Date(2026, 8, 8, 20, 59)`, `new Date(2026, 8, 8, 21, 1)`
+  e `new Date(2026, 8, 9, 8, 0)`), sem expectativa condicional por fuso. A prova da
+  conversão específica America/Sao_Paulo 20:59/21:01 atravessando UTC permanece nos
+  testes canônicos de `src/lib/nutrition-civil-date.test.ts` (preservados). Regressão
+  via `$env:TZ` no PowerShell (único mecanismo válido neste ambiente, ver
+  CIVIL-DATE-071-P2): `GymFlowContext.nutrition.test.tsx` (18 testes) verde em
+  `America/Sao_Paulo`, `UTC`, `Asia/Tokyo` e `America/Bogota`, com timezone efetivo do
+  Node confirmado antes de cada execução; `nutrition-civil-date.test.ts`,
+  `GymFlowContext.storage.test.tsx` e `storage-completion-receipt.test.ts` (82 testes)
+  verdes nos mesmos quatro fusos. Auditoria dos demais casos do arquivo: nenhum outro
+  confunde timestamp absoluto UTC com data civil local (os testes com
+  `vi.setSystemTime` em meio-dia UTC caem em dias civis consecutivos distintos nos
+  quatro fusos; os de água derivam `today` de `getCivilDateString()` dinamicamente).
+  Nenhuma linha de produção alterada. Registro original abaixo.
+
   Pré-existente na base `1e851d8` (verificado por `git stash` + execução no commit base),
   **não** introduzido pelo GOAL-069. O teste `boundary 20:59 -> 21:01 BRT pertence à mesma
   data civil e NÃO concede segundo XP de macro` (linha 454) fixa instantes absolutos em UTC
