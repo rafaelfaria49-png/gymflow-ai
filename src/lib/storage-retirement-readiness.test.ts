@@ -355,7 +355,7 @@ describe('correlação de executor readiness', () => {
     expectSanitized(result, world);
     expect(planStorageRetention(await world.adapter.readStorageAdministrationSnapshot()).delete)
       .toEqual([]);
-    expect(GYMFLOW_INDEXEDDB_VERSION).toBe(4);
+    expect(GYMFLOW_INDEXEDDB_VERSION).toBe(5);
     expect(genSpy).toHaveBeenCalled();
     expect(clearSpy).not.toHaveBeenCalled();
     expect(journalSpy).not.toHaveBeenCalled();
@@ -1110,9 +1110,9 @@ describe('guards da fundação de executor readiness', () => {
     expect(callers).toEqual(['src/lib/storage-retirement-readiness.ts']);
   });
 
-  it('IndexedDB permanece v4 e o planner continua sem delete', async () => {
+  it('IndexedDB permanece v5 e o planner continua sem delete', async () => {
     const world = await createThreeGenerationWorld();
-    expect(GYMFLOW_INDEXEDDB_VERSION).toBe(4);
+    expect(GYMFLOW_INDEXEDDB_VERSION).toBe(5);
     expect(planStorageRetention(await world.adapter.readStorageAdministrationSnapshot()).delete)
       .toEqual([]);
   });

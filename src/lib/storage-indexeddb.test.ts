@@ -18,6 +18,8 @@ import {
   LegacySnapshotCryptoUnavailableError,
   LegacySnapshotIntegrityError,
   METADATA_STORE,
+  NUTRITION_DAYS_STORE,
+  NUTRITION_METADATA_STORE,
   STORAGE_OPERATION_RECEIPTS_STORE,
   StorageCompletionPendingError,
   StorageOperationAlreadyInProgressError,
@@ -327,6 +329,8 @@ describe('fundação IndexedDB do workoutHistory', () => {
       GENERATION_MANIFESTS_STORE,
       LEGACY_SNAPSHOTS_STORE,
       METADATA_STORE,
+      NUTRITION_DAYS_STORE,
+      NUTRITION_METADATA_STORE,
       STORAGE_OPERATION_RECEIPTS_STORE,
       WORKOUT_HISTORY_STORE,
     ]);

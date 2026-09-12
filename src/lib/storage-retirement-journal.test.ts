@@ -664,7 +664,7 @@ describe('prova fisica e journal de retirement', () => {
     expect(verifiedA.manifest.verified).toBe(true);
     expect(verifiedB.manifest.verified).toBe(true);
     expect(verifiedZ.manifest.verified).toBe(true);
-    expect(GYMFLOW_INDEXEDDB_VERSION).toBe(4);
+    expect(GYMFLOW_INDEXEDDB_VERSION).toBe(5);
   });
 
   it('journal incompleto nao vira sucesso e recovery falha fechado sem delete', async () => {
@@ -720,7 +720,7 @@ describe('prova fisica e journal de retirement', () => {
     expect(denied.executionAuthorized).toBe(false);
   });
 
-  it('IndexedDB permanece v4 e o journal vive no metadata store', async () => {
+  it('IndexedDB permanece v5 e o journal vive no metadata store', async () => {
     const world = await createThreeGenerationWorld();
     const request = world.factory.open(world.databaseName, GYMFLOW_INDEXEDDB_VERSION);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -732,6 +732,8 @@ describe('prova fisica e journal de retirement', () => {
       'generationManifests',
       'legacySnapshots',
       'metadata',
+      'nutritionDays',
+      'nutritionMetadata',
       'storageOperationReceipts',
       'workoutHistory',
     ]);

@@ -1,4 +1,4 @@
-# Decisões
+﻿# Decisões
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 ## NUT-003 — Corretivo de Simetria Hipercalórica (2026-09-11, revisão 065)
@@ -2032,3 +2032,11 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - D71-004: o flush do core nos testes e feito por `pagehide` (gravacao sincrona) em vez de esperar o debounce de 500 ms — o relogio congelado so afeta `Date`, entao `setTimeout` continua real e aguardar o debounce seria lento e frágil.
 - D71-005: determinismo pelo padrao validado no GOAL-069 (relogio congelado + instantes do construtor local 23:30 e 00:30), sem expectativa que aceite duas datas. Nao vacuidade comprovada por mutacao: revertendo a producao para `toISOString()`, falham 4 testes em `America/Sao_Paulo` (caso 23:30, offset negativo) e 3 em `Asia/Tokyo` (caso 00:30, offset positivo).
 - D71-006: descoberto que `TZ=<fuso> <comando>` no Git Bash deste ambiente nao altera o fuso efetivo do Node (continua `America/Sao_Paulo`); somente `$env:TZ` no PowerShell funciona. Toda a validacao multi-fuso deste GOAL foi refeita por `$env:TZ`, e a limitacao ficou registrada em PENDENCIAS como CIVIL-DATE-071-P2 por afetar a evidencia multi-fuso citada no GOAL-069.
+
+## GOAL-077 - NUT-004A Ledger + Rollover + Migration (fundacao persistente, sem wiring) (2026-09-12)
+
+- D77-001: quantityGrams opcional no FoodEntry (legado sem gramagem omite, nunca inventa); via interativa exige isValidMacroInput estrito (kcal>0); migracao REAL preserva com limites (finito, >=0, tetos) sem exigir kcal>0 para nao perder dado real.
+- D77-002: dia migrado REAL nasce fechado por padrao (markClosed default true, dado historico); o wiring do NUT-004B passara false quando date==hoje.
+- D77-003: relogio retrocedido fecha somente em avanco real (activeDate<today); dia fechado com ativo no futuro e devolvido sem tocar no ponteiro; ativo move para tras so para dia aberto (nada apagado, nada fechado).
+- D77-004: sem singleFlight de memoria: atomicidade no putNutritionDayIfAbsent transacional (get+add pela chave natural na mesma transacao, fallback rele o vencedor); dayId default deterministico nutrition-day-<date>.
+- D77-005: hidratacao legada = max(nutrition.water, user.waterIntake) em UMA entrada (nunca soma); DEMO exige seed exato; qualquer divergencia nutricional vira REAL e qualquer corrupcao vira UNKNOWN com prioridade.

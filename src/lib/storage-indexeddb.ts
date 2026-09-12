@@ -56,12 +56,16 @@ import {
   type StorageRetirementJournalWriteResult,
 } from './storage-retirement-journal';
 
+import { isCivilDateString, isLedgerMigrationMarker, isNutritionDay } from './nutrition/ledger-types';
+import type { LedgerMigrationMarker, NutritionDay } from './nutrition/ledger-types';
+
 export const GYMFLOW_INDEXEDDB_NAME = 'gymflow-persistence';
 // v2 adicionou o manifest por geração; v3 adicionou os receipts duráveis da
-// finalização; v4 adiciona os receipts das operações administrativas. O upgrade
+// finalização; v4 adicionou os receipts das operações administrativas; v5
+// adiciona o ledger nutricional (`nutritionDays` + `nutritionMetadata`). O upgrade
 // é idempotente e preserva todos os stores e registros já existentes — cada
 // store novo só é criado quando ainda não existe.
-export const GYMFLOW_INDEXEDDB_VERSION = 4;
+export const GYMFLOW_INDEXEDDB_VERSION = 5;
 
 // Versão lógica do schema de histórico exposta em metadata e no core físico v2.
 // Continua 1: nenhum formato observável pelo envelope mudou.
@@ -73,6 +77,15 @@ export const LEGACY_SNAPSHOTS_STORE = 'legacySnapshots';
 export const GENERATION_MANIFESTS_STORE = 'generationManifests';
 export const COMPLETION_RECEIPTS_STORE = 'completionReceipts';
 export const STORAGE_OPERATION_RECEIPTS_STORE = 'storageOperationReceipts';
+// v5 (NUT-004A): ledger nutricional. `nutritionDays` usa a data civil como chave
+// natural; `nutritionMetadata` é chave/valor (activeDate + migration marker).
+export const NUTRITION_DAYS_STORE = 'nutritionDays';
+export const NUTRITION_METADATA_STORE = 'nutritionMetadata';
+
+// Chaves do store `nutritionMetadata` (NUT-004A). O store `metadata` do workoutHistory
+// não é tocado: o ledger nutricional tem seu próprio namespace chave/valor.
+const NUTRITION_ACTIVE_DATE_KEY = 'activeNutritionDate';
+const NUTRITION_MIGRATION_MARKER_KEY = 'nutritionMigrationMarker';
 
 const BY_GENERATION_INDEX = 'byGeneration';
 const BY_GENERATION_SESSION_INDEX = 'byGenerationSession';
@@ -387,6 +400,15 @@ export class HistoryMetadataIntegrityError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'HistoryMetadataIntegrityError';
+  }
+}
+
+// Dia nutricional ou metadado nutricional com formato inválido no storage.
+// Nada é reparado, convertido ou apagado: a leitura apenas se recusa a adivinhar.
+export class NutritionDayIntegrityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NutritionDayIntegrityError';
   }
 }
 
@@ -1000,6 +1022,16 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
         operationStore.createIndex(BY_RECEIPT_STATUS_INDEX, 'status', { unique: false });
         operationStore.createIndex(BY_OPERATION_KIND_INDEX, 'kind', { unique: false });
         operationStore.createIndex(BY_OPERATION_UPDATED_AT_INDEX, 'updatedAt', { unique: false });
+      }
+
+      // v5: ledger nutricional (NUT-004A). Estritamente aditivo: dois stores
+      // novos, nenhum registro anterior percorrido ou regravado, nenhum índice
+      // anterior tocado.
+      if (!database.objectStoreNames.contains(NUTRITION_DAYS_STORE)) {
+        database.createObjectStore(NUTRITION_DAYS_STORE, { keyPath: 'date' });
+      }
+      if (!database.objectStoreNames.contains(NUTRITION_METADATA_STORE)) {
+        database.createObjectStore(NUTRITION_METADATA_STORE, { keyPath: 'key' });
       }
     };
 
@@ -1647,6 +1679,217 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       await completed.catch(() => undefined);
       throw error;
     }
+  }
+
+  // ==========================================================================
+  // Ledger nutricional — NUT-004A (GOAL-077). Primitivas duráveis sobre os
+  // stores v5 (`nutritionDays` por data civil, `nutritionMetadata` chave/valor).
+  //
+  // Sem wiring no boot, sem backup/restore/reset lógico: só persistência
+  // aditiva. O rollover (`src/lib/nutrition/rollover.ts`) consome esta classe
+  // via o contrato `NutritionDayRepository` (mesmos nomes e assinaturas).
+  // ==========================================================================
+
+  async getNutritionDay(date: string): Promise<NutritionDay | null> {
+    if (typeof date !== 'string' || date.length === 0) {
+      throw new Error('A leitura do dia nutricional exige uma data civil.');
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(NUTRITION_DAYS_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    try {
+      const record = await requestResult(
+        transaction.objectStore(NUTRITION_DAYS_STORE).get(date),
+      ) as unknown;
+      await completed;
+      if (record === undefined || record === null) return null;
+      if (!isNutritionDay(record)) {
+        throw new NutritionDayIntegrityError(
+          `O dia nutricional ${date} está com formato inválido no armazenamento.`,
+        );
+      }
+      return record;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async putNutritionDay(day: NutritionDay): Promise<void> {
+    if (!isNutritionDay(day)) {
+      throw new NutritionDayIntegrityError('O dia nutricional a persistir está com formato inválido.');
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(NUTRITION_DAYS_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+    try {
+      await requestResult(transaction.objectStore(NUTRITION_DAYS_STORE).put(day));
+      await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  // Put-if-absent atômico pela chave natural (date): checagem e gravação com
+  // `add` (nunca `put`) vivem na MESMA transação readwrite — duas chamadas
+  // concorrentes nunca criam dois dias da mesma data. Se o `add` falhar por
+  // corrida real (ConstraintError), a transação é abortada e o vencedor é
+  // relido fora dela; só se não houver vencedor o erro original é relançado.
+  async putNutritionDayIfAbsent(day: NutritionDay): Promise<{ created: boolean; day: NutritionDay }> {
+    if (!isNutritionDay(day)) {
+      throw new NutritionDayIntegrityError('O dia nutricional a persistir está com formato inválido.');
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(NUTRITION_DAYS_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+    try {
+      const store = transaction.objectStore(NUTRITION_DAYS_STORE);
+      const existing = await requestResult(store.get(day.date)) as unknown;
+      if (existing !== undefined && existing !== null) {
+        await completed;
+        if (!isNutritionDay(existing)) {
+          throw new NutritionDayIntegrityError(
+            `O dia nutricional ${day.date} está com formato inválido no armazenamento.`,
+          );
+        }
+        return { created: false, day: existing };
+      }
+      try {
+        await requestResult(store.add(day));
+      } catch (addError) {
+        abortQuietly(transaction);
+        await completed.catch(() => undefined);
+        const winner = await this.getNutritionDay(day.date);
+        if (winner) return { created: false, day: winner };
+        throw addError;
+      }
+      await completed;
+      return { created: true, day };
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async listNutritionDays(options?: { from?: string; to?: string }): Promise<NutritionDay[]> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(NUTRITION_DAYS_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    try {
+      const records = await requestResult(
+        transaction.objectStore(NUTRITION_DAYS_STORE).getAll(),
+      ) as unknown[];
+      await completed;
+      const days: NutritionDay[] = [];
+      for (const record of records) {
+        if (!isNutritionDay(record)) {
+          throw new NutritionDayIntegrityError(
+            'Existe um dia nutricional com formato inválido no armazenamento.',
+          );
+        }
+        if (options?.from && record.date < options.from) continue;
+        if (options?.to && record.date > options.to) continue;
+        days.push(record);
+      }
+      days.sort((left, right) => (left.date < right.date ? -1 : left.date > right.date ? 1 : 0));
+      return days;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async getActiveNutritionDate(): Promise<string | null> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(NUTRITION_METADATA_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    try {
+      const value = await this.readNutritionMetadataValue(transaction, NUTRITION_ACTIVE_DATE_KEY);
+      await completed;
+      if (value === undefined || value === null) return null;
+      if (typeof value !== 'string') {
+        throw new NutritionDayIntegrityError('A data nutricional ativa está com formato inválido.');
+      }
+      return value;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async setActiveNutritionDate(date: string): Promise<void> {
+    if (!isCivilDateString(date)) {
+      throw new Error(`A data nutricional ativa exige data civil válida (recebido ${String(date)}).`);
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(NUTRITION_METADATA_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+    try {
+      await requestResult(transaction.objectStore(NUTRITION_METADATA_STORE).put({
+        key: NUTRITION_ACTIVE_DATE_KEY,
+        value: date,
+      } satisfies MetadataRecord));
+      await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async getNutritionMigrationMarker(): Promise<LedgerMigrationMarker | null> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(NUTRITION_METADATA_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    try {
+      const value = await this.readNutritionMetadataValue(transaction, NUTRITION_MIGRATION_MARKER_KEY);
+      await completed;
+      if (value === undefined || value === null) return null;
+      if (!isLedgerMigrationMarker(value)) {
+        throw new NutritionDayIntegrityError('O marcador de migração nutricional está com formato inválido.');
+      }
+      return value;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async setNutritionMigrationMarker(marker: LedgerMigrationMarker): Promise<void> {
+    if (!isLedgerMigrationMarker(marker)) {
+      throw new NutritionDayIntegrityError('O marcador de migração nutricional a persistir está inválido.');
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(NUTRITION_METADATA_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+    try {
+      await requestResult(transaction.objectStore(NUTRITION_METADATA_STORE).put({
+        key: NUTRITION_MIGRATION_MARKER_KEY,
+        value: marker,
+      } satisfies MetadataRecord));
+      await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  private async readNutritionMetadataValue(
+    transaction: IDBTransaction,
+    key: string,
+  ): Promise<unknown> {
+    const record = await requestResult(
+      transaction.objectStore(NUTRITION_METADATA_STORE).get(key),
+    ) as MetadataRecord | undefined;
+    return record?.value;
   }
 
   // ==========================================================================

@@ -1152,8 +1152,8 @@ describe('readVerifiedAdministrationGeneration', () => {
 });
 
 describe('regressões e ausência de call site real', () => {
-  it('o schema do IndexedDB do A1 continua na v4', () => {
-    expect(GYMFLOW_INDEXEDDB_VERSION).toBe(4);
+  it('o schema do IndexedDB do A1 continua na v5 (v4 + ledger nutricional aditivo)', () => {
+    expect(GYMFLOW_INDEXEDDB_VERSION).toBe(5);
   });
 
   it('o rollback físico do A1 continua acessível e correto no adapter de baixo nível', async () => {
