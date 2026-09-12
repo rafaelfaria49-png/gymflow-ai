@@ -144,6 +144,25 @@ function defaultDayId(date: string): string {
 /**
  * Garante o NutritionDay do dia civil corrente, de forma idempotente e segura
  * sob concorrência (a atomicidade vive no `putNutritionDayIfAbsent`).
+ *
+ * Ordem de escrita (estritamente sequenciada por `await`, sem captura de erro
+ * entre os passos — falha em W2 nunca alcança W3):
+ * - W1 `putNutritionDayIfAbsent(today)`;
+ * - W2 `putNutritionDay(close(previous))` (somente em avanço real de data);
+ * - W3 `setActiveNutritionDate(today)`.
+ *
+ * Estados de crash (GOAL-079, provados em `rollover.test.ts`):
+ * - A (today não persistido: crash antes de W1) → recuperado: próximo ensure
+ *   recria today, fecha o anterior e move o ponteiro.
+ * - B (today persistido, active antigo: crash entre W1 e W3) → recuperado via
+ *   caminho `reused`: fecha o anterior pendente e move o ponteiro.
+ * - C (previous fechado, active antigo: crash entre W2 e W3) → recuperado:
+ *   fechamento é idempotente (`!previous.isClosed`) e o ponteiro avança.
+ * - D (active já em today com previous aberto) → INALCANÇÁVEL por crash real:
+ *   W3 só executa após W2 ter sido confirmado (`await`), e erro em W2 propaga
+ *   antes de W3. Por isso não há varredura O(n): nenhum repair além do caminho
+ *   `reused` é necessário. A regra "dias anteriores terminam fechados" segue
+ *   íntegra sem relaxamento.
  */
 export async function ensureTodayNutritionDay(
   input: EnsureTodayNutritionDayInput,

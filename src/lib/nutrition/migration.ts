@@ -44,6 +44,14 @@ const LEGACY_MACRO_UPPER_BOUNDS = Object.freeze({
   macros: 1000,
 });
 
+/**
+ * `user.waterIntake` compatível com resíduo demo (GOAL-079):
+ * ausente, zerado ou o próprio espelho demo de 1200 ml. Qualquer outro valor
+ * válido indica hidratação real registrada pelo usuário e impede o descarte
+ * como DEMO (Masterplan 17: sem perda de informações reais).
+ */
+const DEMO_COMPATIBLE_WATER_INTAKES: readonly number[] = Object.freeze([0, 1200]);
+
 interface ClassifiedLegacy {
   classification: LegacyDataClassification;
   reasons: string[];
@@ -97,6 +105,25 @@ function classifyWithReasons(nutrition: unknown, userWaterIntake?: unknown): Cla
   // UNKNOWN tem prioridade sobre qualquer promoção.
   if (!sound) return { classification: 'UNKNOWN', reasons: problems };
 
+  // Fora dos tetos NUT-001 (calorias/macros) nunca é dado real migrável:
+  // UNKNOWN → quarentena, nunca LEGACY_REAL → exceção no migrate (GOAL-079).
+  // Água sem teto canônico: nenhum teto arbitrário é inventado aqui (dívida P2
+  // LEGACY_WATER_NO_CEILING); apenas finitude/>= 0 são exigidos acima.
+  if (values['calories'] >= LEGACY_MACRO_UPPER_BOUNDS.calories) {
+    return {
+      classification: 'UNKNOWN',
+      reasons: [...problems, `nutrition.calories: fora do teto NUT-001 (${String(values['calories'])})`],
+    };
+  }
+  for (const field of ['protein', 'carbs', 'fat'] as const) {
+    if (values[field] >= LEGACY_MACRO_UPPER_BOUNDS.macros) {
+      return {
+        classification: 'UNKNOWN',
+        reasons: [...problems, `nutrition.${field}: fora do teto NUT-001 (${String(values[field])})`],
+      };
+    }
+  }
+
   const intake = typeof userWaterIntake === 'number' ? userWaterIntake : 0;
   const allZero = values['calories'] === 0
     && values['protein'] === 0
@@ -110,7 +137,8 @@ function classifyWithReasons(nutrition: unknown, userWaterIntake?: unknown): Cla
     && values['protein'] === LEGACY_DEMO_SEED.protein
     && values['carbs'] === LEGACY_DEMO_SEED.carbs
     && values['fat'] === LEGACY_DEMO_SEED.fat
-    && values['water'] === LEGACY_DEMO_SEED.water;
+    && values['water'] === LEGACY_DEMO_SEED.water
+    && (DEMO_COMPATIBLE_WATER_INTAKES as readonly number[]).includes(intake);
   if (isDemo) return { classification: 'LEGACY_DEMO', reasons: [] };
 
   return { classification: 'LEGACY_REAL', reasons: [] };
@@ -145,7 +173,14 @@ export interface MigrateLegacyNutritionInput {
   mealId?: string;
   foodEntryId?: string;
   hydrationEntryId?: string;
-  /** Instante das entradas consolidadas; default determinístico `${date}T12:00:00.000Z`. */
+  /**
+   * Instante das entradas consolidadas; default determinístico
+   * `${date}T12:00:00.000Z`.
+   *
+   * Dívida P2 LEGACY_LOGGED_AT_APPROXIMATION: o legado não guarda hora, então
+   * este meio-dia UTC é uma APROXIMAÇÃO determinística para ordenação — nunca
+   * um horário histórico conhecido. Não redesenhar neste GOAL.
+   */
   loggedAt?: string;
   /**
    * Dia migrado nasce fechado (dado histórico). O chamador do wiring pode
@@ -222,13 +257,16 @@ export function migrateLegacyNutrition(input: MigrateLegacyNutritionInput): Migr
   const intake = typeof input.userWaterIntake === 'number' ? input.userWaterIntake : 0;
 
   // Preservação com limites NUT-001 (finito e >= 0 já garantidos pela
-  // classificação REAL; aqui só os tetos). Calorias zero com macros positivos
-  // são preservadas como estão: migração não revalida intenção do usuário.
+  // classificação REAL; aqui só os tetos, como rede de segurança tipada).
+  // Calorias zero com macros positivos são preservadas como estão: migração
+  // não revalida intenção do usuário.
   assertWithinLegacyBounds('nutrition.calories', legacy['calories'], LEGACY_MACRO_UPPER_BOUNDS.calories);
   for (const field of ['protein', 'carbs', 'fat'] as const) {
     assertWithinLegacyBounds(`nutrition.${field}`, legacy[field], LEGACY_MACRO_UPPER_BOUNDS.macros);
   }
-  assertWithinLegacyBounds('nutrition.water', legacy['water'], LEGACY_MACRO_UPPER_BOUNDS.calories);
+  // Água: sem teto canônico no NUT-001 — nenhum número arbitrário é inventado
+  // (dívida P2 LEGACY_WATER_NO_CEILING). A reconciliação abaixo exige apenas
+  // hidratação finita e > 0 via isValidWaterInput.
 
   let day = createNutritionDay({
     id: input.dayId ?? `legacy-nutrition-day-${input.date}`,

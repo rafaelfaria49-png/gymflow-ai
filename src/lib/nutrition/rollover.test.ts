@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { DailyTargets } from './engine-types';
-import { addFoodEntry, addMeal, calculateActuals } from './ledger';
+import { addFoodEntry, addMeal, calculateActuals, closeNutritionDay, createNutritionDay } from './ledger';
 import { NutritionLedgerError } from './ledger-types';
 import {
   createInMemoryNutritionDayRepository,
@@ -304,5 +304,146 @@ describe('ensureTodayNutritionDay — entradas inválidas', () => {
     const night = await ensure(repository, new Date('2026-09-12T23:59:59.000Z'));
     expect(night.status).toBe('existing-active');
     expect(night.day.id).toBe(noon.day.id);
+  });
+});
+
+describe('GOAL-079 — recuperação determinística dos pontos de crash A–D', () => {
+  const ADVANCE_NOW = new Date('2026-09-12T15:00:00.000Z');
+
+  function seedPrevious(repository: NutritionDayRepository, closed: boolean): Promise<void> {
+    const previous = createNutritionDay({
+      id: 'day-2026-09-11',
+      date: '2026-09-11',
+      timezone: SAO_PAULO,
+      targets: makeTargets(),
+    });
+    return repository.putNutritionDay(closed ? closeNutritionDay(previous, '2026-09-11T23:00:00.000Z') : previous)
+      .then(() => repository.setActiveNutritionDate('2026-09-11'));
+  }
+
+  /** Repositório que simula crash: lança antes da k-ésima escrita (W1/W2/W3). */
+  function crashingRepository(
+    base: NutritionDayRepository,
+    crashBeforeWrite: number,
+  ): { repository: NutritionDayRepository; writes: string[] } {
+    const writes: string[] = [];
+    let count = 0;
+    const crash = (label: string): void => {
+      count += 1;
+      writes.push(label);
+      if (count === crashBeforeWrite) throw new Error(`CRASH-SIMULADO-antes-${label}`);
+    };
+    return {
+      writes,
+      repository: {
+        ...base,
+        async putNutritionDayIfAbsent(day) {
+          crash('W1-putIfAbsent');
+          return base.putNutritionDayIfAbsent(day);
+        },
+        async putNutritionDay(day) {
+          crash('W2-putClose');
+          return base.putNutritionDay(day);
+        },
+        async setActiveNutritionDate(date) {
+          crash('W3-setActive');
+          return base.setActiveNutritionDate(date);
+        },
+      },
+    };
+  }
+
+  it('estado A (crash antes de W1): próximo ensure recria, fecha o anterior e ativa', async () => {
+    const base = createInMemoryNutritionDayRepository();
+    await seedPrevious(base, false);
+    const { repository } = crashingRepository(base, 1);
+    await expect(ensure(repository, ADVANCE_NOW)).rejects.toThrow('CRASH-SIMULADO');
+
+    const recovered = await ensure(base, ADVANCE_NOW);
+    expect(recovered.status).toBe('created');
+    expect((await base.getNutritionDay('2026-09-11'))?.isClosed).toBe(true);
+    expect(await base.getActiveNutritionDate()).toBe('2026-09-12');
+  });
+
+  it('estado B (crash entre W1 e W2, previous aberto): próximo ensure fecha o pendente e ativa', async () => {
+    const base = createInMemoryNutritionDayRepository();
+    await seedPrevious(base, false);
+    const { repository } = crashingRepository(base, 2);
+    await expect(ensure(repository, ADVANCE_NOW)).rejects.toThrow('CRASH-SIMULADO');
+    // Estado B real: today persistido, active antigo, previous aberto.
+    expect(await base.getNutritionDay('2026-09-12')).not.toBeNull();
+    expect(await base.getActiveNutritionDate()).toBe('2026-09-11');
+    expect((await base.getNutritionDay('2026-09-11'))?.isClosed).toBe(false);
+
+    const recovered = await ensure(base, ADVANCE_NOW);
+    expect(recovered.status).toBe('reused');
+    expect((await base.getNutritionDay('2026-09-11'))?.isClosed).toBe(true);
+    expect(await base.getActiveNutritionDate()).toBe('2026-09-12');
+    expect(await base.listNutritionDays()).toHaveLength(2);
+  });
+
+  it('estado C (previous já fechado, active antigo): próximo ensure só avança o ponteiro', async () => {
+    const base = createInMemoryNutritionDayRepository();
+    await seedPrevious(base, true);
+    const { repository } = crashingRepository(base, 2);
+    await expect(ensure(repository, ADVANCE_NOW)).rejects.toThrow('CRASH-SIMULADO');
+
+    const recovered = await ensure(base, ADVANCE_NOW);
+    expect(await base.getActiveNutritionDate()).toBe('2026-09-12');
+    expect((await base.getNutritionDay('2026-09-11'))?.isClosed).toBe(true);
+    expect((await base.getNutritionDay('2026-09-12'))?.isClosed).toBe(false);
+  });
+
+  it('estado D é inalcançável: ordem W1→W2→W3 confirmada no caminho de avanço', async () => {
+    const base = createInMemoryNutritionDayRepository();
+    await seedPrevious(base, false);
+    const order: string[] = [];
+    const recording: NutritionDayRepository = {
+      ...base,
+      async putNutritionDayIfAbsent(day) {
+        order.push('W1');
+        return base.putNutritionDayIfAbsent(day);
+      },
+      async putNutritionDay(day) {
+        order.push('W2');
+        return base.putNutritionDay(day);
+      },
+      async setActiveNutritionDate(date) {
+        order.push('W3');
+        return base.setActiveNutritionDate(date);
+      },
+    };
+    await ensure(recording, ADVANCE_NOW);
+    // W3 (ponteiro em today) jamais executa sem W2 (fechar anterior) confirmado.
+    expect(order).toEqual(['W1', 'W2', 'W3']);
+  });
+
+  it('estado D é inalcançável: falha em W2 propaga e W3 nunca executa', async () => {
+    const base = createInMemoryNutritionDayRepository();
+    await seedPrevious(base, false);
+    let setActiveCalls = 0;
+    const failing: NutritionDayRepository = {
+      ...base,
+      async putNutritionDay(day) {
+        throw new Error('W2-falhou');
+      },
+      async setActiveNutritionDate(date) {
+        setActiveCalls += 1;
+        return base.setActiveNutritionDate(date);
+      },
+    };
+    await expect(ensure(failing, ADVANCE_NOW)).rejects.toThrow('W2-falhou');
+    expect(setActiveCalls).toBe(0);
+    expect(await base.getActiveNutritionDate()).toBe('2026-09-11');
+  });
+
+  it('20 chamadas concorrentes para a mesma data: 1 dia, mesmo id', async () => {
+    const repository = createInMemoryNutritionDayRepository();
+    const results = await Promise.all(
+      Array.from({ length: 20 }, () => ensure(repository, ADVANCE_NOW)),
+    );
+    expect(new Set(results.map((result) => result.day.id)).size).toBe(1);
+    expect(await repository.listNutritionDays()).toHaveLength(1);
+    expect(await repository.getActiveNutritionDate()).toBe('2026-09-12');
   });
 });

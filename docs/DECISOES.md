@@ -2040,3 +2040,10 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - D77-003: relogio retrocedido fecha somente em avanco real (activeDate<today); dia fechado com ativo no futuro e devolvido sem tocar no ponteiro; ativo move para tras so para dia aberto (nada apagado, nada fechado).
 - D77-004: sem singleFlight de memoria: atomicidade no putNutritionDayIfAbsent transacional (get+add pela chave natural na mesma transacao, fallback rele o vencedor); dayId default deterministico nutrition-day-<date>.
 - D77-005: hidratacao legada = max(nutrition.water, user.waterIntake) em UMA entrada (nunca soma); DEMO exige seed exato; qualquer divergencia nutricional vira REAL e qualquer corrupcao vira UNKNOWN com prioridade.
+
+## GOAL-079 - NUT-004A corretivos de integridade (revisão 078, sem wiring)
+
+- D79-001: isDailyTargets valida o contrato REAL completo (22 campos + MacroReconciliation/EstimationTolerance com COMPUTED_REASONS e literais canônicos, sem estados novos); parcial falha INVALID_TARGETS antes de qualquer acesso aninhado.
+- D79-002: isCivilDateString com calendário real (bissexto, sem Date/timezone); activeDate validado na escrita e na leitura.
+- D79-003: DEMO só com waterIntake ausente/0/1200; outro valor válido vira REAL e preserva a hidratação; fora de teto calórico/macro vira UNKNOWN (quarentena), sem teto novo de água (P2).
+- D79-004: crash A/B/C recuperados pelo próximo ensure; D inalcançável por ordem W1→W2→W3 com propagação de erro (provado em teste), sem varredura O(n); loggedAt meio-dia registrado como aproximação P2.

@@ -413,4 +413,99 @@ describe('rollover concorrente sobre o adapter real', () => {
     expect((await reopened.getNutritionDay('2026-09-12'))?.id).toBe(left.day.id);
     await reopened.close();
   });
+
+  it('GOAL-079 — 20 ensureToday simultâneos: 1 dia, 1 activeDate, mesmo id', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+    const now = new Date('2026-09-12T14:00:00.000Z');
+
+    const results = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        ensureTodayNutritionDay({ now, timezone: 'America/Sao_Paulo', targets: makeTargets(), repository: adapter })),
+    );
+
+    expect(new Set(results.map((result) => result.day.id)).size).toBe(1);
+    expect(await adapter.listNutritionDays()).toHaveLength(1);
+    expect(await adapter.getActiveNutritionDate()).toBe('2026-09-12');
+    await adapter.close();
+  }, 60000);
+});
+
+describe('GOAL-079 — guards de leitura e escrita no adapter real', () => {
+  async function writeRawDay(factory: IDBFactory, name: string, record: unknown): Promise<void> {
+    const request = factory.open(name, GYMFLOW_INDEXEDDB_VERSION);
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const transaction = database.transaction(NUTRITION_DAYS_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+    await requestResult(transaction.objectStore(NUTRITION_DAYS_STORE).put(record));
+    await completed;
+    database.close();
+  }
+
+  async function writeRawMetadata(factory: IDBFactory, name: string, key: string, value: unknown): Promise<void> {
+    const request = factory.open(name, GYMFLOW_INDEXEDDB_VERSION);
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const transaction = database.transaction(NUTRITION_METADATA_STORE, 'readwrite');
+    const completed = transactionResult(transaction);
+    await requestResult(transaction.objectStore(NUTRITION_METADATA_STORE).put({ key, value }));
+    await completed;
+    database.close();
+  }
+
+  it('put rejeita snapshot parcial de targets sem persistir nada', async () => {
+    const { adapter } = createHarness();
+    await adapter.open();
+
+    const partial = { ...makeDay('2026-09-12'), targets: { targetCalories: 2000 } };
+    await expect(adapter.putNutritionDay(partial as never)).rejects.toBeInstanceOf(NutritionDayIntegrityError);
+    await expect(adapter.putNutritionDayIfAbsent(partial as never)).rejects.toBeInstanceOf(
+      NutritionDayIntegrityError,
+    );
+    expect(await adapter.listNutritionDays()).toEqual([]);
+    await adapter.close();
+  });
+
+  it('get rejeita dia persistido com entry negativa (fail-closed de leitura)', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    const day = JSON.parse(JSON.stringify(makeDay('2026-09-12'))) as unknown as Record<string, unknown>;
+    const meals = day['meals'] as Array<Record<string, unknown>>;
+    meals.push({
+      id: 'meal-corrupt',
+      type: 'custom',
+      name: 'corrompida',
+      entries: [{ id: 'e-1', name: 'x', calories: -50, protein: 0, carbs: 0, fat: 0, loggedAt: 't' }],
+    });
+    await writeRawDay(factory, name, day);
+    await expect(adapter.getNutritionDay('2026-09-12')).rejects.toBeInstanceOf(NutritionDayIntegrityError);
+    await expect(adapter.listNutritionDays()).rejects.toBeInstanceOf(NutritionDayIntegrityError);
+    await adapter.close();
+  });
+
+  it('get rejeita dia persistido com chave civil impossível', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+    await writeRawDay(factory, name, { ...makeDay('2026-02-28'), date: '2026-02-30' });
+    await expect(adapter.getNutritionDay('2026-02-30')).rejects.toBeInstanceOf(NutritionDayIntegrityError);
+    await adapter.close();
+  });
+
+  it('activeDate valida escrita e leitura (data impossível falha fechado)', async () => {
+    const { adapter, factory, name } = createHarness();
+    await adapter.open();
+
+    await expect(adapter.setActiveNutritionDate('2026-02-30')).rejects.toBeTruthy();
+    await expect(adapter.setActiveNutritionDate('12/09/2026')).rejects.toBeTruthy();
+    expect(await adapter.getActiveNutritionDate()).toBeNull();
+
+    await writeRawMetadata(factory, name, 'activeNutritionDate', '2026-02-30');
+    await expect(adapter.getActiveNutritionDate()).rejects.toBeInstanceOf(NutritionDayIntegrityError);
+    await adapter.close();
+  });
 });

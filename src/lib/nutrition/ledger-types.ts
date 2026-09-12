@@ -15,7 +15,13 @@
  *   sempre derivados por `calculateActuals` / `calculateRemaining` (ledger.ts).
  */
 
-import type { DailyTargets } from './engine-types';
+import { COMPUTED_REASONS } from './engine-types';
+import type {
+  DailyTargets,
+  EstimationToleranceReason,
+  MacroConstraintCode,
+} from './engine-types';
+import { isStrictIsoUtcTimestamp } from './engine-validation';
 
 // ============================================================================
 // TIPOS DE DOMÍNIO
@@ -182,9 +188,28 @@ export class NutritionLedgerError extends Error {
 
 const CIVIL_DATE_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
-/** Data civil estrita 'YYYY-MM-DD' com mês/dia em faixas válidas. */
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+function daysInMonth(year: number, month: number): number {
+  const lengths = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return lengths[month - 1] as number;
+}
+
+/**
+ * Data civil estrita 'YYYY-MM-DD' com existência real no calendário
+ * (ex.: 2026-02-30 e 2026-04-31 falham; 2024-02-29 passa).
+ * Aritmética pura de calendário — sem `Date`, sem timezone do runtime.
+ */
 export function isCivilDateString(value: unknown): value is string {
-  return typeof value === 'string' && CIVIL_DATE_PATTERN.test(value);
+  if (typeof value !== 'string') return false;
+  const match = CIVIL_DATE_PATTERN.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  return day <= daysInMonth(year, month);
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -199,10 +224,50 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+const MACRO_CONSTRAINT_CODES: readonly MacroConstraintCode[] = Object.freeze([
+  'ENERGY_BELOW_MACRO_MINIMUMS',
+  'NON_KETO_CARBS_PREFERENCE_UNMET',
+]);
+
+const ESTIMATION_TOLERANCE_REASONS: readonly EstimationToleranceReason[] = Object.freeze([
+  'BIOLOGICAL_SEX_UNSPECIFIED',
+  'NONE',
+]);
+
+function isMacroReconciliation(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  for (const key of ['macroCalories', 'targetCalories', 'deltaKcal', 'roundingToleranceKcal'] as const) {
+    if (!isFiniteNumber(value[key])) return false;
+  }
+  if (typeof value['isReconciled'] !== 'boolean') return false;
+  const unmet = value['unmetConstraints'];
+  if (!Array.isArray(unmet)) return false;
+  return (unmet as unknown[]).every((code): boolean =>
+    typeof code === 'string' && (MACRO_CONSTRAINT_CODES as readonly string[]).includes(code),
+  );
+}
+
+function isEstimationTolerance(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (!isFiniteNumber(value['relative']) || (value['relative'] as number) < 0) return false;
+  if (
+    typeof value['reason'] !== 'string'
+    || !(ESTIMATION_TOLERANCE_REASONS as readonly string[]).includes(value['reason'])
+  ) {
+    return false;
+  }
+  if (!isFiniteNumber(value['targetCaloriesLowerKcal'])) return false;
+  if (!isFiniteNumber(value['targetCaloriesUpperKcal'])) return false;
+  return true;
+}
+
 /**
- * DailyTargets válido para snapshot do dia: identidade/proveniência presente e
- * todos os alvos numéricos finitos (calorias > 0, demais >= 0).
- * null/undefined/objeto parcial falham de forma explícita — nunca silenciosa.
+ * DailyTargets válido para snapshot do dia: contrato REAL completo de
+ * `engine-types.ts` (identidade, proveniência temporal, alvos, decomposição
+ * bioenergética, marcadores científicos e formas aninhadas obrigatórias).
+ * null/undefined/objeto parcial ou com aninhado parcial falham de forma
+ * explícita — nunca silenciosa. Nenhum `TypeError` genérico escapa: todos os
+ * acessos aninhados são precedidos de guarda de registro.
  */
 export function isDailyTargets(value: unknown): value is DailyTargets {
   if (!isRecord(value)) return false;
@@ -210,15 +275,42 @@ export function isDailyTargets(value: unknown): value is DailyTargets {
   for (const key of ['id', 'engineVersion', 'formulaVersion', 'inputSnapshotHash'] as const) {
     if (!isNonEmptyString(candidate[key])) return false;
   }
+  const computedAt = candidate['computedAt'];
+  if (computedAt !== null && !isStrictIsoUtcTimestamp(computedAt)) return false;
+  if (candidate['computedAtSource'] !== 'explicit_context' && candidate['computedAtSource'] !== 'absent') {
+    return false;
+  }
+  if (
+    typeof candidate['computedReason'] !== 'string'
+    || !(COMPUTED_REASONS as readonly string[]).includes(candidate['computedReason'] as string)
+  ) {
+    return false;
+  }
   const calories = candidate['targetCalories'];
   if (!isFiniteNumber(calories) || calories <= 0) return false;
   for (const key of ['targetProteinGrams', 'targetCarbsGrams', 'targetFatGrams', 'targetWaterMl'] as const) {
     const macro = candidate[key];
     if (!isFiniteNumber(macro) || macro < 0) return false;
   }
+  for (const key of ['bmrKcal', 'tdeeKcal', 'energyBalanceKcal'] as const) {
+    if (!isFiniteNumber(candidate[key])) return false;
+  }
+  if (candidate['scientificStatus'] !== 'PROVISIONAL_PENDING_PROFESSIONAL_REVIEW') return false;
+  if (typeof candidate['isLimitedGuidance'] !== 'boolean') return false;
+  for (const key of ['appliedCaloricFloor', 'effectiveProteinGramsPerKg', 'effectiveFatGramsPerKg'] as const) {
+    const field = candidate[key];
+    if (!isFiniteNumber(field) || field < 0) return false;
+  }
+  if (!isMacroReconciliation(candidate['macroReconciliation'])) return false;
+  if (!isEstimationTolerance(candidate['estimationTolerance'])) return false;
   return true;
 }
 
+/**
+ * Guarda de leitura de FoodEntry: mesmos limites inferiores da escrita
+ * (NUT-001 + migração legada, que preserva caloria zero consolidada).
+ * NaN/Infinity/negativos falham fechado — storage corrompido nunca vira dia.
+ */
 function isFoodEntryLike(value: unknown): boolean {
   if (!isRecord(value)) return false;
   if (!isNonEmptyString(value['id']) || !isNonEmptyString(value['name'])) return false;
@@ -226,8 +318,11 @@ function isFoodEntryLike(value: unknown): boolean {
   if (value['quantityGrams'] !== undefined) {
     if (!isFiniteNumber(value['quantityGrams']) || (value['quantityGrams'] as number) <= 0) return false;
   }
-  for (const key of ['calories', 'protein', 'carbs', 'fat'] as const) {
-    if (!isFiniteNumber(value[key])) return false;
+  const calories = value['calories'];
+  if (!isFiniteNumber(calories) || (calories as number) < 0) return false;
+  for (const key of ['protein', 'carbs', 'fat'] as const) {
+    const macro = value[key];
+    if (!isFiniteNumber(macro) || (macro as number) < 0) return false;
   }
   if (value['foodReferenceId'] !== undefined && typeof value['foodReferenceId'] !== 'string') return false;
   return true;
@@ -236,7 +331,8 @@ function isFoodEntryLike(value: unknown): boolean {
 function isHydrationEntryLike(value: unknown): boolean {
   if (!isRecord(value)) return false;
   if (!isNonEmptyString(value['id']) || !isNonEmptyString(value['loggedAt'])) return false;
-  return isFiniteNumber(value['amountMl']);
+  const amount = value['amountMl'];
+  return isFiniteNumber(amount) && (amount as number) > 0;
 }
 
 function isMealLike(value: unknown): boolean {

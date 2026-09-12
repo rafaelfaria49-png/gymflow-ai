@@ -1812,7 +1812,7 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       const value = await this.readNutritionMetadataValue(transaction, NUTRITION_ACTIVE_DATE_KEY);
       await completed;
       if (value === undefined || value === null) return null;
-      if (typeof value !== 'string') {
+      if (!isCivilDateString(value)) {
         throw new NutritionDayIntegrityError('A data nutricional ativa está com formato inválido.');
       }
       return value;

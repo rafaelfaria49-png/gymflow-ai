@@ -76,6 +76,55 @@ describe('classifyLegacyNutrition', () => {
     );
   });
 
+  it.each([
+    ['ausente', undefined, 'LEGACY_DEMO'],
+    ['nulo', null, 'LEGACY_DEMO'],
+    ['zerado', 0, 'LEGACY_DEMO'],
+    ['espelho demo 1200', 1200, 'LEGACY_DEMO'],
+    ['hidratação real 500 preserva dado real', 500, 'LEGACY_REAL'],
+    ['hidratação real 1800 preserva dado real', 1800, 'LEGACY_REAL'],
+    ['hidratação real 5000 preserva dado real', 5000, 'LEGACY_REAL'],
+  ])('GOAL-079 — seed exato com waterIntake %s => %s', (_label, intake, expected) => {
+    expect(classifyLegacyNutrition({ ...LEGACY_DEMO_SEED }, intake)).toBe(expected);
+  });
+
+  it('GOAL-079 — waterIntake incompatível segue caminho REAL e preserva a hidratação', () => {
+    const result = migrateLegacyNutrition({
+      nutrition: { ...LEGACY_DEMO_SEED },
+      userWaterIntake: 5000,
+      date: DATE,
+      timezone: TIMEZONE,
+      targets: makeTargets(),
+      markClosed: false,
+    });
+    expect(result.classification).toBe('LEGACY_REAL');
+    expect(result.outcome).toBe('migrated');
+    if (result.outcome !== 'migrated') return expect.unreachable();
+    expect(result.hydrationMl).toBe(5000);
+    expect(result.day.hydrationEntries).toHaveLength(1);
+    expect(result.day.hydrationEntries[0]?.amountMl).toBe(5000);
+  });
+
+  it.each([
+    ['calorias no teto', { calories: 15000, protein: 1, carbs: 1, fat: 1, water: 0 }],
+    ['calorias absurdas', { calories: 50000, protein: 1, carbs: 1, fat: 1, water: 0 }],
+    ['proteína no teto', { calories: 100, protein: 1000, carbs: 1, fat: 1, water: 0 }],
+    ['carbo no teto', { calories: 100, protein: 1, carbs: 1000, fat: 1, water: 0 }],
+    ['gordura no teto', { calories: 100, protein: 1, carbs: 1, fat: 1000, water: 0 }],
+  ])('GOAL-079 — fora de teto %s => UNKNOWN (nunca LEGACY_REAL → exceção)', (_label, nutrition) => {
+    expect(classifyLegacyNutrition(nutrition)).toBe('UNKNOWN');
+    const result = migrateLegacyNutrition({
+      nutrition,
+      date: DATE,
+      timezone: TIMEZONE,
+      targets: makeTargets(),
+    });
+    expect(result.classification).toBe('UNKNOWN');
+    expect(result.outcome).toBe('quarantined');
+    expect(result.day).toBeNull();
+    expect(result.hydrationMl).toBe(0);
+  });
+
   it('REAL para dados divergentes do demo', () => {
     expect(classifyLegacyNutrition({ calories: 2000, protein: 150, carbs: 200, fat: 60, water: 2500 })).toBe(
       'LEGACY_REAL',
@@ -215,6 +264,19 @@ describe('migrateLegacyNutrition — REAL', () => {
         expect((error as NutritionLedgerError).code).toBe('INVALID_TARGETS');
       }
     }
+  });
+
+  it('GOAL-079 — água sem teto canônico: nenhum teto arbitrário inventado (dívida P2 LEGACY_WATER_NO_CEILING)', () => {
+    const result = migrateLegacyNutrition({
+      nutrition: { calories: 2000, protein: 100, carbs: 200, fat: 60, water: 12000 },
+      date: DATE,
+      timezone: TIMEZONE,
+      targets: makeTargets(),
+      markClosed: false,
+    });
+    expect(result.classification).toBe('LEGACY_REAL');
+    if (result.outcome !== 'migrated') return expect.unreachable();
+    expect(result.hydrationMl).toBe(12000);
   });
 
   it('REAL só com hidratação gera dia sem FoodEntry (refeição vazia permanece)', () => {

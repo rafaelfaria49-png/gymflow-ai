@@ -4476,3 +4476,11 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
 - **Arquivos:** 4 novos de dominio + 4 novos de teste; storage-indexeddb.ts aditivo; nutrition/index.ts (barrel); 4 testes existentes atualizados (pins v4 para v5 + lista de stores); docs/DECISOES.md (D77-001 a D77-005).
 - **Preservado:** HYBRID_STORAGE_VERSION=2, CURRENT_STORAGE_VERSION=1, sem cutover, sem parsePhysicalEnvelope novo; GymFlowContext/NutritionPage/NativeAppBridge intocados; backup/restore/reset/logical intocados.
 - **Validacao:** novos 77/77; dirigidos 366/366; afetados 769/769; npm test 3038/3055 (17 falhas so em logical-restore.real, timeout de mount sob carga; 17/17 verde isolado; fora do dominio do GOAL); tsc 0 erros; build OK; build:mobile OK; diff check OK.
+## GOAL-079 - NUT-004A corretivos de integridade da revisao independente 078 (2026-09-12)
+
+- **Contexto:** corrige P0+P1 da revisao 078 no mesmo branch do PR #43, sem ampliar o NUT-004A e sem wiring do NUT-004B.
+- **Antes:** isDailyTargets aceitava 9 campos (TypeError nao-tipado / snapshot oco); data civil so formato; DEMO ignorava waterIntake; fora-de-teto classificava REAL e explodia no migrate; leitura aceitava entry negativa; crash-D assumido reparavel sem prova.
+- **Depois:** isDailyTargets exige contrato REAL completo + aninhados (COMPUTED_REASONS/literais canonicos); data civil com calendario (leitura/escrita de activeDate); DEMO so com intake ausente/0/1200; fora-de-teto calorico/macro vira UNKNOWN; leitura rejeita NaN/Infinity/negativo; crash A/B/C com recovery provado e D provado inalcançavel (ordem W1→W2→W3); P2 loggedAt-aproximacao e agua-sem-teto registradas sem numero arbitrario.
+- **Arquivos:** ledger-types.ts (guards), migration.ts (DEMO/UNKNOWN/P2), storage-indexeddb.ts (activeDate leitura), rollover.ts (ordem A-D); regressoes em ledger/migration/rollover/storage-indexeddb-nutrition.test.ts; docs/DECISOES.md (D79), PENDENCIAS.md (P2), GOALS_LOG.md.
+- **Preservado:** IDB v5, HYBRID=2, CURRENT=1, sem cutover; GymFlowContext/NutritionPage/NativeAppBridge/backup/restore/reset intocados.
+- **Validacao:** dirigidos 547/547 (ledger+migration+rollover+idb-nutrition 160/160; demais gates 387/387); npm test 3138/3138 zero falhas; tsc 0 erros; build OK; build:mobile OK; diff check OK.

@@ -21,7 +21,7 @@ import {
   removeHydrationEntry,
   updateFoodEntry,
 } from './ledger';
-import { NutritionLedgerError, type NutritionDay } from './ledger-types';
+import { NutritionLedgerError, isCivilDateString, isDailyTargets, type NutritionDay } from './ledger-types';
 
 function makeTargets(overrides: Partial<DailyTargets> = {}): DailyTargets {
   return {
@@ -333,5 +333,135 @@ describe('contêiner lógico', () => {
     const day = makeDay();
     expect(findNutritionDay({ days: [day], activeDate: day.date }, '2026-09-12')).toBe(day);
     expect(findNutritionDay({ days: [day], activeDate: day.date }, '2026-09-11')).toBeNull();
+  });
+});
+
+describe('GOAL-079 — isDailyTargets exige o contrato REAL completo', () => {
+  const MANDATORY_TOP_LEVEL = [
+    'id',
+    'engineVersion',
+    'formulaVersion',
+    'inputSnapshotHash',
+    'computedAt',
+    'computedAtSource',
+    'computedReason',
+    'targetCalories',
+    'targetProteinGrams',
+    'targetCarbsGrams',
+    'targetFatGrams',
+    'targetWaterMl',
+    'bmrKcal',
+    'tdeeKcal',
+    'energyBalanceKcal',
+    'scientificStatus',
+    'isLimitedGuidance',
+    'appliedCaloricFloor',
+    'effectiveProteinGramsPerKg',
+    'effectiveFatGramsPerKg',
+    'macroReconciliation',
+    'estimationTolerance',
+  ] as const;
+
+  it('snapshot parcial de 9 campos não é DailyTargets', () => {
+    expect(isDailyTargets({
+      id: 'x',
+      engineVersion: '1.0.0',
+      formulaVersion: 'v1',
+      inputSnapshotHash: 'h',
+      targetCalories: 2500,
+      targetProteinGrams: 160,
+      targetCarbsGrams: 300,
+      targetFatGrams: 70,
+      targetWaterMl: 2800,
+    })).toBe(false);
+  });
+
+  it.each(MANDATORY_TOP_LEVEL.map((field) => [field] as const))(
+    'ausência de %s resulta em isDailyTargets = false',
+    (field) => {
+      const candidate = { ...(makeTargets() as unknown as Record<string, unknown>) };
+      delete candidate[field];
+      expect(isDailyTargets(candidate)).toBe(false);
+    },
+  );
+
+  it.each([
+    ['macroReconciliation ausente', { macroReconciliation: undefined }],
+    ['macroReconciliation nulo', { macroReconciliation: null }],
+    ['macroReconciliation sem unmetConstraints', { macroReconciliation: { macroCalories: 1, targetCalories: 1, deltaKcal: 0, roundingToleranceKcal: 2, isReconciled: true } }],
+    ['macroReconciliation com unmetConstraints não-array', { macroReconciliation: { macroCalories: 1, targetCalories: 1, deltaKcal: 0, roundingToleranceKcal: 2, isReconciled: true, unmetConstraints: 'x' } }],
+    ['macroReconciliation com constraint desconhecida', { macroReconciliation: { macroCalories: 1, targetCalories: 1, deltaKcal: 0, roundingToleranceKcal: 2, isReconciled: true, unmetConstraints: ['INVENTED_CODE'] } }],
+    ['macroReconciliation sem isReconciled', { macroReconciliation: { macroCalories: 1, targetCalories: 1, deltaKcal: 0, roundingToleranceKcal: 2, unmetConstraints: [] } }],
+    ['estimationTolerance ausente', { estimationTolerance: undefined }],
+    ['estimationTolerance nula', { estimationTolerance: null }],
+    ['estimationTolerance sem reason', { estimationTolerance: { relative: 0, targetCaloriesLowerKcal: 1, targetCaloriesUpperKcal: 1 } }],
+    ['estimationTolerance com reason inventada', { estimationTolerance: { relative: 0, reason: 'GUESS', targetCaloriesLowerKcal: 1, targetCaloriesUpperKcal: 1 } }],
+    ['estimationTolerance com relative negativo', { estimationTolerance: { relative: -1, reason: 'NONE', targetCaloriesLowerKcal: 1, targetCaloriesUpperKcal: 1 } }],
+    ['computedReason inventada', { computedReason: 'ai_guess' }],
+    ['computedAtSource inventado', { computedAtSource: 'device_clock' }],
+    ['computedAt malformado', { computedAt: '12/09/2026' }],
+    ['computedAt impossível', { computedAt: '2026-02-30T12:00:00.000Z' }],
+    ['scientificStatus inventado', { scientificStatus: 'FINAL' }],
+    ['isLimitedGuidance não-booleano', { isLimitedGuidance: 'no' }],
+  ])('proveniência aninhada parcial %s não é DailyTargets', (_label, override) => {
+    expect(isDailyTargets({ ...makeTargets(), ...override })).toBe(false);
+  });
+
+  it('computedAt null (ausência explícita do motor) continua válido', () => {
+    expect(isDailyTargets({ ...makeTargets(), computedAt: null, computedAtSource: 'absent' })).toBe(true);
+  });
+
+  it('targets completo do motor é aceito', () => {
+    expect(isDailyTargets(makeTargets())).toBe(true);
+  });
+});
+
+describe('GOAL-079 — snapshot parcial falha tipada, nunca TypeError', () => {
+  it.each([
+    ['sem macroReconciliation', { macroReconciliation: undefined }],
+    ['sem estimationTolerance', { estimationTolerance: undefined }],
+    ['só 9 campos', null],
+  ])('createNutritionDay %s falha com NutritionLedgerError', (_label, override) => {
+    const targets = override === null
+      ? ({ id: 'x', engineVersion: '1.0.0', formulaVersion: 'v1', inputSnapshotHash: 'h', targetCalories: 2500, targetProteinGrams: 1, targetCarbsGrams: 1, targetFatGrams: 1, targetWaterMl: 1 })
+      : ({ ...makeTargets(), ...override });
+    let caught: unknown;
+    try {
+      makeDay({ targets: targets as unknown as DailyTargets });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(NutritionLedgerError);
+    expect((caught as NutritionLedgerError).code).toBe('INVALID_TARGETS');
+    expect(caught).not.toBeInstanceOf(TypeError);
+  });
+});
+
+describe('GOAL-079 — data civil de calendário', () => {
+  it.each([
+    '2026-02-29',
+    '2026-02-30',
+    '2026-02-31',
+    '2026-04-31',
+    '2026-13-01',
+    '2026-00-10',
+    '2026-01-00',
+  ])('isCivilDateString(%s) = false', (date) => {
+    expect(isCivilDateString(date)).toBe(false);
+  });
+
+  it.each([
+    '2026-02-28',
+    '2026-04-30',
+    '2026-12-31',
+    '2024-02-29',
+    '2000-02-29',
+  ])('isCivilDateString(%s) = true (incl. bissextos reais)', (date) => {
+    expect(isCivilDateString(date)).toBe(true);
+  });
+
+  it('createNutritionDay rejeita chave civil impossível com erro tipado', () => {
+    expect(() => makeDay({ date: '2026-02-30' })).toThrowError(NutritionLedgerError);
+    expect(() => makeDay({ date: '2026-04-31' })).toThrowError(NutritionLedgerError);
   });
 });
