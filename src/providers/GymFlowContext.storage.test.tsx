@@ -1,7 +1,7 @@
 import { IDBFactory } from 'fake-indexeddb';
 import React, { StrictMode } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
 import { MOCK_COMMUNITY } from '../mock/data';
 import {
@@ -153,6 +153,26 @@ function persistedCore(): PersistedCoreState {
 // ===== Fixtures =====
 
 const STARTED_AT = 1_784_000_000_000;
+
+// GOAL-069: instantes congelados para tornar determinística a prova de data civil.
+// Construídos com o construtor LOCAL (new Date(ano, mêsIndex, dia, hora, ...)),
+// portanto a data civil esperada é literalmente a mesma em qualquer fuso em que a
+// suíte rodar — não há dependência do relógio real nem do offset da máquina.
+//
+// Em fusos de offset negativo (ex.: UTC-3) o instante das 23:30 locais já está no
+// dia seguinte em UTC; em offsets positivos é o instante das 00:30 locais que está
+// no dia anterior em UTC. Os dois casos juntos provam, em qualquer fuso, que a data
+// gravada vem do calendário local e não da projeção toISOString().
+const CIVIL_EVE_LOCAL = new Date(2026, 8, 11, 23, 30, 0, 0);
+const CIVIL_EVE_ISO = '2026-09-11';
+const CIVIL_NEXT_DAY_LOCAL = new Date(2026, 8, 12, 0, 30, 0, 0);
+const CIVIL_NEXT_DAY_ISO = '2026-09-12';
+
+// Congela somente Date: setTimeout/microtasks seguem reais, porque a hidratação
+// híbrida e o fake-indexeddb dependem de temporizadores verdadeiros para assentar.
+function freezeClockAt(instant: Date): void {
+  vi.useFakeTimers({ toFake: ['Date'], now: instant });
+}
 
 function makeActiveSession(overrides: Partial<WorkoutSession> = {}): WorkoutSession {
   return {
@@ -367,6 +387,8 @@ afterEach(async () => {
   }
   await settle(10);
   restoreBrowserGlobals();
+  // GOAL-069: nenhum teste herda o relógio congelado de outro.
+  vi.useRealTimers();
 });
 
 describe('GymFlowProvider real — hidratação híbrida', () => {
@@ -502,6 +524,7 @@ describe('GymFlowProvider real — hidratação híbrida', () => {
 
 describe('GymFlowProvider real — finalização e recuperação', () => {
   it('confirma o append e aplica XP, streak, plano, desafios, conquistas e postagem', async () => {
+    freezeClockAt(CIVIL_EVE_LOCAL);
     seedV1Envelope();
     const handle = await mountHydrated();
     const postsBefore = handle.context().communityPosts.length;
@@ -516,7 +539,10 @@ describe('GymFlowProvider real — finalização e recuperação', () => {
     expect(context.user?.xp).toBe(100 + 280);
     expect(context.user?.points).toBe(100 + 280);
     expect(context.user?.streak).toBe(4);
-    expect(context.user?.lastWorkoutDate).toBe(new Date().toISOString().split('T')[0]);
+    // GOAL-069: a data civil é a do calendário LOCAL do dispositivo. Comparar com
+    // new Date().toISOString().split('T')[0] projetava o instante em UTC e falhava
+    // na janela após a virada UTC em offsets negativos (21:00-23:59 em UTC-3).
+    expect(context.user?.lastWorkoutDate).toBe(CIVIL_EVE_ISO);
     expect(context.weeklyPlan.filter((day) => day.trained).map((day) => day.dayName))
       .toEqual([todayDayName()]);
     expect(context.challenges.find((c) => c.id === 'chal_1')?.progress).toBe(25);
@@ -536,6 +562,49 @@ describe('GymFlowProvider real — finalização e recuperação', () => {
     expect(core.user?.streak).toBe(4);
     expect(Object.prototype.hasOwnProperty.call(core, 'workoutHistory')).toBe(false);
     expect(await readPendingReceipts()).toEqual([]);
+  });
+
+  // GOAL-069: regressão determinística do flake de fronteira UTC/local.
+  // Cobre o caminho REAL de finalização do provider (finishWorkout -> outcome ->
+  // core persistido), não apenas o helper de data isolado. Com o relógio congelado
+  // a expectativa é um literal, sem dependência do horário da máquina.
+  it('grava lastWorkoutDate na data civil LOCAL às 23:30, mesmo com UTC já no dia seguinte', async () => {
+    freezeClockAt(CIVIL_EVE_LOCAL);
+    seedV1Envelope();
+    const handle = await mountHydrated();
+
+    await finishActiveWorkout(handle);
+
+    expect(handle.context().user?.lastWorkoutDate).toBe(CIVIL_EVE_ISO);
+    // A gravação durável precisa concordar com a memória: core e estado não divergem.
+    expect(persistedCore().user?.lastWorkoutDate).toBe(CIVIL_EVE_ISO);
+    // Streak avança porque a fixture parou em 2020-01-01.
+    expect(handle.context().user?.streak).toBe(4);
+  });
+
+  it('grava lastWorkoutDate na data civil LOCAL às 00:30 após a virada civil real', async () => {
+    freezeClockAt(CIVIL_NEXT_DAY_LOCAL);
+    seedV1Envelope();
+    const handle = await mountHydrated();
+
+    await finishActiveWorkout(handle);
+
+    expect(handle.context().user?.lastWorkoutDate).toBe(CIVIL_NEXT_DAY_ISO);
+    expect(persistedCore().user?.lastWorkoutDate).toBe(CIVIL_NEXT_DAY_ISO);
+    expect(handle.context().user?.streak).toBe(4);
+  });
+
+  it('não incrementa streak duas vezes dentro do mesmo dia civil local', async () => {
+    freezeClockAt(CIVIL_EVE_LOCAL);
+    seedV1Envelope({
+      user: makeUser({ weeklyPlan: makeWeeklyPlan(), streak: 7, lastWorkoutDate: CIVIL_EVE_ISO }),
+    });
+    const handle = await mountHydrated();
+
+    await finishActiveWorkout(handle);
+
+    expect(handle.context().user?.lastWorkoutDate).toBe(CIVIL_EVE_ISO);
+    expect(handle.context().user?.streak).toBe(7);
   });
 
   it('mantém o treino aberto e sinaliza erro quando o append falha', async () => {
