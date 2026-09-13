@@ -182,6 +182,11 @@ import {
   NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
   type NutritionLedgerAdminDeferredReason,
 } from '../lib/nutrition/admin-gate';
+import {
+  isNutritionAdminFencedError,
+  type NutritionAdminFenceOperationKind,
+  type NutritionAdminFenceV1,
+} from '../lib/nutrition/admin-fence';
 import { ensureTodayNutritionDay } from '../lib/nutrition/rollover';
 import { resolveNutritionTargets } from '../lib/nutrition/target-resolution';
 import type { TargetResolution } from '../lib/nutrition/target-resolution';
@@ -1230,6 +1235,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const resetInProgressRef = useRef(false);
   // GOAL-17B-E5B: prova do predecessor somente em ref privada e efêmera.
   const provenRestoreTargetRef = useRef<LogicalStorageRestoreTargetV2 | null>(null);
+  // GOAL-087: owner estável do fence nutricional por ciclo de vida do Provider.
+  // O fenceId (não o ownerId) é a unidade de ownership para release.
+  const nutritionFenceOwnerIdRef = useRef<string | null>(null);
 
   const persistedState: PersistedState = {
     user,
@@ -3263,6 +3271,43 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   }
 
+  function getNutritionFenceOwnerId(): string {
+    if (!nutritionFenceOwnerIdRef.current) {
+      try {
+        const uuid = (globalThis.crypto as { randomUUID?: () => string } | undefined)?.randomUUID;
+        if (typeof uuid === 'function') {
+          nutritionFenceOwnerIdRef.current = `nut-owner-${uuid.call(globalThis.crypto)}`;
+        }
+      } catch {
+        /* fallback abaixo */
+      }
+      nutritionFenceOwnerIdRef.current ??= `nut-owner-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+    return nutritionFenceOwnerIdRef.current;
+  }
+
+  function newNutritionFenceOperationId(kind: NutritionAdminFenceOperationKind): string {
+    try {
+      const uuid = (globalThis.crypto as { randomUUID?: () => string } | undefined)?.randomUUID;
+      if (typeof uuid === 'function') return `nut-op-${kind}-${uuid.call(globalThis.crypto)}`;
+    } catch {
+      /* fallback abaixo */
+    }
+    return `nut-op-${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  async function releaseNutritionFenceBestEffort(
+    adapter: IndexedDbWorkoutHistoryStorage | null,
+    fence: NutritionAdminFenceV1 | null,
+  ): Promise<void> {
+    if (!adapter || !fence) return;
+    try {
+      await adapter.releaseNutritionAdminFence({ fenceId: fence.fenceId });
+    } catch {
+      /* melhor esforço: nunca mascarar o resultado da operação admin */
+    }
+  }
+
   const logWater = async (amountMl: number): Promise<boolean> => {
     if (!isValidWaterInput(amountMl)) {
       return false;
@@ -3349,7 +3394,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         addXp(40, '💧 Meta Diária de Água Batida!');
       }
       return true;
-    } catch {
+    } catch (error) {
+      // GOAL-087: write bloqueado pelo fence → false honesto, sem mirror,
+      // sem waterIntake, sem XP/achievement/lastXpDate, com um único toast.
+      // Nenhum estado acima foi tocado antes do mutate confirmar.
+      if (isNutritionAdminFencedError(error)) {
+        toast.error('Não foi possível registrar a água agora.');
+        return false;
+      }
       toast.error('Não foi possível registrar a água agora.');
       return false;
     }
@@ -3443,7 +3495,13 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         addXp(20, 'Alimento registrado na dieta');
       }
       return true;
-    } catch {
+    } catch (error) {
+      // GOAL-087: idem logWater — fence ativo retorna false honesto, sem
+      // mirror/XP/datas, com um único toast e sem side-effect.
+      if (isNutritionAdminFencedError(error)) {
+        toast.error('Não foi possível registrar a refeição agora.');
+        return false;
+      }
       toast.error('Não foi possível registrar a refeição agora.');
       return false;
     }
@@ -3901,6 +3959,11 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // — sempre ANTES do primeiro write, sem sucesso parcial, sem reload.
   // Ledger vazio (sem FoodEntry/HydrationEntry) segue liberado: nada do
   // usuário seria omitido ou ressuscitado.
+  //
+  // GOAL-087: o gate acima tinha TOCTOU (sonda read-only fora de transação).
+  // A partir daqui cada operação usa o fence durável:
+  // acquire → sondar novamente SOB o fence → se consumo: deferred →
+  // se vazio: executar mantendo o fence → release em finally.
   const isNutritionLedgerAdminDeferred = useCallback(async (): Promise<boolean> => {
     if (storageModeRef.current !== 'hybrid-v2') return false;
     return hasActiveNutritionLedger({
@@ -3914,28 +3977,50 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     if (!adapter || typeof window === 'undefined') {
       return { ok: false, reason: 'administration-unavailable' };
     }
-    // GOAL-085 (gate temporário): com consumo nutricional real persistido, o
-    // arquivo lógico omitiria silenciosamente o ledger — bloquear antes de
-    // gerar qualquer conteúdo. Sem NUT-004C, sem sucesso parcial.
-    if (await isNutritionLedgerAdminDeferred()) {
-      return { ok: false, reason: 'nutrition-ledger-admin-deferred' };
+    // GOAL-087: fence durante TODA a captura do snapshot lógico.
+    // Probe vazio → gravação concorrente → export ok omitindo a gravação:
+    // fechado porque writers veem o fence ativo e são bloqueados, e writers
+    // já iniciados commitam antes do acquire (serialização IDB) e são vistos
+    // pela sonda sob o fence.
+    let fence: NutritionAdminFenceV1 | null = null;
+    try {
+      try {
+        fence = await adapter.acquireNutritionAdminFence({
+          ownerId: getNutritionFenceOwnerId(),
+          operationId: newNutritionFenceOperationId('export'),
+          operationKind: 'export',
+        });
+      } catch (acquireError) {
+        if (isNutritionAdminFencedError(acquireError)) {
+          return { ok: false, reason: 'administration-conflicted' };
+        }
+        throw acquireError;
+      }
+      if (await hasActiveNutritionLedger({
+        currentDay: nutritionDayRef.current,
+        repository: adapter,
+      })) {
+        return { ok: false, reason: 'nutrition-ledger-admin-deferred' };
+      }
+      const runtime = createStorageAdminRuntime({
+        key: STORAGE_KEY,
+        storage: window.localStorage,
+        adapter,
+      });
+      const result = await createLogicalStorageExportV2({ runtime });
+      if (result.ok) {
+        return {
+          ok: true,
+          content: result.content,
+          filename: result.filename,
+          bytes: result.bytes,
+          warning: result.warning,
+        };
+      }
+      return { ok: false, reason: result.reason };
+    } finally {
+      await releaseNutritionFenceBestEffort(adapter, fence);
     }
-    const runtime = createStorageAdminRuntime({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-      adapter,
-    });
-    const result = await createLogicalStorageExportV2({ runtime });
-    if (result.ok) {
-      return {
-        ok: true,
-        content: result.content,
-        filename: result.filename,
-        bytes: result.bytes,
-        warning: result.warning,
-      };
-    }
-    return { ok: false, reason: result.reason };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -4011,30 +4096,55 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       };
     }
 
-    // Pré-flight: owner-token disponível.
-    const ownerTokenInspection = inspectStorageAdminOwnerToken({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-    });
-    if (ownerTokenInspection.status === 'busy') {
-      return {
-        ok: false,
-        reason: 'owner-token-busy',
-        requiresReload: false,
-        message: IMPORT_FAILURE_MESSAGES['owner-token-busy'],
-      };
-    }
+    // GOAL-087: fence desde antes da sonda final até o término/compensação.
+    // Writer já iniciado commita antes do acquire (serialização IDB) e é visto
+    // pela sonda sob o fence; writer posterior é bloqueado pelo fence.
+    let fence: NutritionAdminFenceV1 | null = null;
+    try {
+      try {
+        fence = await adapter.acquireNutritionAdminFence({
+          ownerId: getNutritionFenceOwnerId(),
+          operationId: newNutritionFenceOperationId('import'),
+          operationKind: 'import',
+        });
+      } catch (acquireError) {
+        if (isNutritionAdminFencedError(acquireError)) {
+          return {
+            ok: false,
+            reason: 'operation-open',
+            requiresReload: false,
+            message: IMPORT_FAILURE_MESSAGES['operation-open'],
+          };
+        }
+        throw acquireError;
+      }
 
-    // GOAL-085 (gate temporário): ledger com consumo real — bloquear ANTES de
-    // suspender o autosave e antes de qualquer write administrativo.
-    if (await isNutritionLedgerAdminDeferred()) {
-      return {
-        ok: false,
-        reason: 'nutrition-ledger-admin-deferred',
-        requiresReload: false,
-        message: IMPORT_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
-      };
-    }
+      // Sonda novamente SOB o fence (nunca antes do acquire).
+      if (await hasActiveNutritionLedger({
+        currentDay: nutritionDayRef.current,
+        repository: adapter,
+      })) {
+        return {
+          ok: false,
+          reason: 'nutrition-ledger-admin-deferred',
+          requiresReload: false,
+          message: IMPORT_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
+        };
+      }
+
+      // Pré-flight: owner-token disponível (sob o fence; saída libera o fence).
+      const ownerTokenInspection = inspectStorageAdminOwnerToken({
+        key: STORAGE_KEY,
+        storage: window.localStorage,
+      });
+      if (ownerTokenInspection.status === 'busy') {
+        return {
+          ok: false,
+          reason: 'owner-token-busy',
+          requiresReload: false,
+          message: IMPORT_FAILURE_MESSAGES['owner-token-busy'],
+        };
+      }
 
     // Instância estável do coordenador por ciclo de vida do Provider.
     ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
@@ -4136,6 +4246,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         message: IMPORT_FAILURE_MESSAGES['recovery-required'],
       };
     }
+    } finally {
+      await releaseNutritionFenceBestEffort(adapter, fence);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]);
 
@@ -4164,16 +4277,6 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       };
     }
 
-    // GOAL-085 (gate temporário): inspect também é bloqueado — a prévia não
-    // pode sugerir um restore que a execução recusaria.
-    if (await isNutritionLedgerAdminDeferred()) {
-      return {
-        status: 'error',
-        reason: 'nutrition-ledger-admin-deferred',
-        message: RESTORE_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
-      };
-    }
-
     const adapter = historyAdapterRef.current;
     if (!adapter || typeof window === 'undefined') {
       return {
@@ -4182,6 +4285,37 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         message: RESTORE_FAILURE_MESSAGES['admin-not-ready'],
       };
     }
+
+    // GOAL-087: inspect sob fence — a prévia nunca sugere um restore que a
+    // execução recusaria, e nenhum writer entra entre a sonda e a prévia.
+    let fence: NutritionAdminFenceV1 | null = null;
+    try {
+      try {
+        fence = await adapter.acquireNutritionAdminFence({
+          ownerId: getNutritionFenceOwnerId(),
+          operationId: newNutritionFenceOperationId('restore-inspect'),
+          operationKind: 'restore-inspect',
+        });
+      } catch (acquireError) {
+        if (isNutritionAdminFencedError(acquireError)) {
+          return {
+            status: 'busy',
+            reason: 'operation-open',
+            message: RESTORE_FAILURE_MESSAGES['operation-open'],
+          };
+        }
+        throw acquireError;
+      }
+      if (await hasActiveNutritionLedger({
+        currentDay: nutritionDayRef.current,
+        repository: adapter,
+      })) {
+        return {
+          status: 'error',
+          reason: 'nutrition-ledger-admin-deferred',
+          message: RESTORE_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
+        };
+      }
 
     try {
       const resolved = await resolveLogicalRestorePredecessorV2({
@@ -4213,7 +4347,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         message: RESTORE_FAILURE_MESSAGES['restore-failed'],
       };
     }
-  }, [isNutritionLedgerAdminDeferred]);
+    } finally {
+      await releaseNutritionFenceBestEffort(adapter, fence);
+    }
+  }, []);
 
   const commitLogicalRestoreV2 = useCallback(async (): Promise<PublicLogicalRestoreResult> => {
     if (restoreInProgressRef.current || importInProgressRef.current || resetInProgressRef.current) {
@@ -4234,24 +4371,40 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       return failRestore('admin-not-ready');
     }
 
-    const ownerTokenInspection = inspectStorageAdminOwnerToken({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-    });
-    if (ownerTokenInspection.status === 'busy') {
-      return failRestore('owner-token-busy');
-    }
+    // GOAL-087: fence desde antes da sonda final até término/compensação.
+    let fence: NutritionAdminFenceV1 | null = null;
+    try {
+      try {
+        fence = await adapter.acquireNutritionAdminFence({
+          ownerId: getNutritionFenceOwnerId(),
+          operationId: newNutritionFenceOperationId('restore-commit'),
+          operationKind: 'restore-commit',
+        });
+      } catch (acquireError) {
+        if (isNutritionAdminFencedError(acquireError)) {
+          return failRestore('operation-open');
+        }
+        throw acquireError;
+      }
+      if (await hasActiveNutritionLedger({
+        currentDay: nutritionDayRef.current,
+        repository: adapter,
+      })) {
+        return failRestore('nutrition-ledger-admin-deferred');
+      }
 
-    // GOAL-085 (gate temporário): bloquear ANTES de reler prova ou abrir
-    // receipt — nenhum write administrativo ocorre com ledger ativo.
-    if (await isNutritionLedgerAdminDeferred()) {
-      return failRestore('nutrition-ledger-admin-deferred');
-    }
+      const ownerTokenInspection = inspectStorageAdminOwnerToken({
+        key: STORAGE_KEY,
+        storage: window.localStorage,
+      });
+      if (ownerTokenInspection.status === 'busy') {
+        return failRestore('owner-token-busy');
+      }
 
-    const stored = provenRestoreTargetRef.current;
-    if (stored === null) {
-      return failRestore('restore-unavailable');
-    }
+      const stored = provenRestoreTargetRef.current;
+      if (stored === null) {
+        return failRestore('restore-unavailable');
+      }
 
     ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
       key: STORAGE_KEY,
@@ -4375,7 +4528,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       scheduleAppReload();
       return failRestore('recovery-required', true);
     }
-  }, [toast, isNutritionLedgerAdminDeferred]);
+    } finally {
+      await releaseNutritionFenceBestEffort(adapter, fence);
+    }
+  }, [toast]);
 
   // GOAL-17B-E6B: wrapper público sanitizado para commitLogicalStorageResetV2.
   // A UI nunca recebe adapter, runtime, owner-token, generationId, operationId,
@@ -4404,16 +4560,6 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       };
     }
 
-    // GOAL-085 (gate temporário): inspect também é bloqueado — a prévia não
-    // pode sugerir um reset que a execução recusaria.
-    if (await isNutritionLedgerAdminDeferred()) {
-      return {
-        status: 'error',
-        reason: 'nutrition-ledger-admin-deferred',
-        message: RESET_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
-      };
-    }
-
     const adapter = historyAdapterRef.current;
     if (!adapter || typeof window === 'undefined') {
       return {
@@ -4422,6 +4568,36 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         message: RESET_FAILURE_MESSAGES['admin-not-ready'],
       };
     }
+
+    // GOAL-087: inspect sob fence.
+    let fence: NutritionAdminFenceV1 | null = null;
+    try {
+      try {
+        fence = await adapter.acquireNutritionAdminFence({
+          ownerId: getNutritionFenceOwnerId(),
+          operationId: newNutritionFenceOperationId('reset-inspect'),
+          operationKind: 'reset-inspect',
+        });
+      } catch (acquireError) {
+        if (isNutritionAdminFencedError(acquireError)) {
+          return {
+            status: 'busy',
+            reason: 'operation-open',
+            message: RESET_FAILURE_MESSAGES['operation-open'],
+          };
+        }
+        throw acquireError;
+      }
+      if (await hasActiveNutritionLedger({
+        currentDay: nutritionDayRef.current,
+        repository: adapter,
+      })) {
+        return {
+          status: 'error',
+          reason: 'nutrition-ledger-admin-deferred',
+          message: RESET_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
+        };
+      }
 
     try {
       const runtime = createStorageAdminRuntime({
@@ -4481,7 +4657,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         message: RESET_FAILURE_MESSAGES['reset-failed'],
       };
     }
-  }, [isNutritionLedgerAdminDeferred]);
+    } finally {
+      await releaseNutritionFenceBestEffort(adapter, fence);
+    }
+  }, []);
 
   const commitLogicalResetV2 = useCallback(async (): Promise<PublicLogicalResetResult> => {
     if (resetInProgressRef.current || importInProgressRef.current || restoreInProgressRef.current) {
@@ -4502,30 +4681,46 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       return failReset('admin-not-ready');
     }
 
-    const ownerTokenInspection = inspectStorageAdminOwnerToken({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-    });
-    if (ownerTokenInspection.status === 'busy') {
-      return failReset('owner-token-busy');
-    }
+    // GOAL-087: fence desde antes da sonda final até término/compensação.
+    let fence: NutritionAdminFenceV1 | null = null;
+    try {
+      try {
+        fence = await adapter.acquireNutritionAdminFence({
+          ownerId: getNutritionFenceOwnerId(),
+          operationId: newNutritionFenceOperationId('reset-commit'),
+          operationKind: 'reset-commit',
+        });
+      } catch (acquireError) {
+        if (isNutritionAdminFencedError(acquireError)) {
+          return failReset('operation-open');
+        }
+        throw acquireError;
+      }
+      if (await hasActiveNutritionLedger({
+        currentDay: nutritionDayRef.current,
+        repository: adapter,
+      })) {
+        return failReset('nutrition-ledger-admin-deferred');
+      }
 
-    // GOAL-085 (gate temporário): bloquear ANTES do inspect que antecede o
-    // primeiro write — nenhum write administrativo ocorre com ledger ativo.
-    if (await isNutritionLedgerAdminDeferred()) {
-      return failReset('nutrition-ledger-admin-deferred');
-    }
+      const ownerTokenInspection = inspectStorageAdminOwnerToken({
+        key: STORAGE_KEY,
+        storage: window.localStorage,
+      });
+      if (ownerTokenInspection.status === 'busy') {
+        return failReset('owner-token-busy');
+      }
 
-    ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-    });
+      ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
+        key: STORAGE_KEY,
+        storage: window.localStorage,
+      });
 
-    const runtime = createStorageAdminRuntime({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-      adapter,
-    });
+      const runtime = createStorageAdminRuntime({
+        key: STORAGE_KEY,
+        storage: window.localStorage,
+        adapter,
+      });
 
     try {
       const snapshot = await runtime.inspectStorageAdministration();
@@ -4612,7 +4807,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       scheduleAppReload();
       return failReset('recovery-required', true);
     }
-  }, [toast, isNutritionLedgerAdminDeferred]);
+    } finally {
+      await releaseNutritionFenceBestEffort(adapter, fence);
+    }
+  }, [toast]);
 
   const inspectStorageAdminStatus = useCallback((): Promise<StorageAdminStatus> => {
     const adapter = historyAdapterRef.current;

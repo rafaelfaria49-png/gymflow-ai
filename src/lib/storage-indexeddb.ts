@@ -58,6 +58,17 @@ import {
 
 import { isCivilDateString, isLedgerMigrationMarker, isNutritionDay } from './nutrition/ledger-types';
 import type { LedgerMigrationMarker, NutritionDay } from './nutrition/ledger-types';
+import {
+  NUTRITION_ADMIN_FENCE_KEY,
+  NUTRITION_ADMIN_FENCE_TTL_MS,
+  buildNutritionAdminFenceV1,
+  isNutritionAdminFenceActive,
+  isNutritionAdminFenceV1,
+  newNutritionAdminFenceId,
+  NutritionAdminFencedError,
+  type NutritionAdminFenceOperationKind,
+  type NutritionAdminFenceV1,
+} from './nutrition/admin-fence';
 
 export const GYMFLOW_INDEXEDDB_NAME = 'gymflow-persistence';
 // v2 adicionou o manifest por geração; v3 adicionou os receipts duráveis da
@@ -86,6 +97,11 @@ export const NUTRITION_METADATA_STORE = 'nutritionMetadata';
 // não é tocado: o ledger nutricional tem seu próprio namespace chave/valor.
 const NUTRITION_ACTIVE_DATE_KEY = 'activeNutritionDate';
 const NUTRITION_MIGRATION_MARKER_KEY = 'nutritionMigrationMarker';
+// GOAL-087: fence administrativo nutricional durável. Vive no store EXISTENTE
+// `nutritionMetadata` — sem novo object store, sem bump de IDB (continua v5).
+export { NUTRITION_ADMIN_FENCE_KEY };
+export type { NutritionAdminFenceOperationKind, NutritionAdminFenceV1 };
+export { NutritionAdminFencedError };
 
 const BY_GENERATION_INDEX = 'byGeneration';
 const BY_GENERATION_SESSION_INDEX = 'byGenerationSession';
@@ -1721,9 +1737,16 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       throw new NutritionDayIntegrityError('O dia nutricional a persistir está com formato inválido.');
     }
     const database = this.requireDatabase();
-    const transaction = database.transaction(NUTRITION_DAYS_STORE, 'readwrite');
+    // GOAL-087: escopo [days, metadata] para serializar com o fence.
+    // A consulta ao fence vive NA MESMA transação — nunca check-then-write
+    // em duas transações.
+    const transaction = database.transaction(
+      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+      'readwrite',
+    );
     const completed = transactionResult(transaction);
     try {
+      await this.assertNutritionWriteAllowedInTransaction(transaction);
       await requestResult(transaction.objectStore(NUTRITION_DAYS_STORE).put(day));
       await completed;
     } catch (error) {
@@ -1738,14 +1761,22 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
   // concorrentes nunca criam dois dias da mesma data. Se o `add` falhar por
   // corrida real (ConstraintError), a transação é abortada e o vencedor é
   // relido fora dela; só se não houver vencedor o erro original é relançado.
+  //
+  // GOAL-087: a consulta ao fence vive na MESMA transação (escopo
+  // [days, metadata]). Fence ativo → NUTRITION_ADMIN_FENCED antes do add.
+  // Fence expirado/corrompido → removido na própria transação e o write segue.
   async putNutritionDayIfAbsent(day: NutritionDay): Promise<{ created: boolean; day: NutritionDay }> {
     if (!isNutritionDay(day)) {
       throw new NutritionDayIntegrityError('O dia nutricional a persistir está com formato inválido.');
     }
     const database = this.requireDatabase();
-    const transaction = database.transaction(NUTRITION_DAYS_STORE, 'readwrite');
+    const transaction = database.transaction(
+      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+      'readwrite',
+    );
     const completed = transactionResult(transaction);
     try {
+      await this.assertNutritionWriteAllowedInTransaction(transaction);
       const store = transaction.objectStore(NUTRITION_DAYS_STORE);
       const existing = await requestResult(store.get(day.date)) as unknown;
       if (existing !== undefined && existing !== null) {
@@ -1760,6 +1791,9 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       try {
         await requestResult(store.add(day));
       } catch (addError) {
+        // Fence nunca é mascarado como vencedor: se o abort foi por fence,
+        // ele já teria sido lançado antes do add. Aqui só há corrida real.
+        if (addError instanceof NutritionAdminFencedError) throw addError;
         abortQuietly(transaction);
         await completed.catch(() => undefined);
         const winner = await this.getNutritionDay(day.date);
@@ -1828,9 +1862,14 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       throw new Error(`A data nutricional ativa exige data civil válida (recebido ${String(date)}).`);
     }
     const database = this.requireDatabase();
-    const transaction = database.transaction(NUTRITION_METADATA_STORE, 'readwrite');
+    // GOAL-087: mesmo escopo do fence para serializar cross-tab.
+    const transaction = database.transaction(
+      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+      'readwrite',
+    );
     const completed = transactionResult(transaction);
     try {
+      await this.assertNutritionWriteAllowedInTransaction(transaction);
       await requestResult(transaction.objectStore(NUTRITION_METADATA_STORE).put({
         key: NUTRITION_ACTIVE_DATE_KEY,
         value: date,
@@ -1867,9 +1906,14 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       throw new NutritionDayIntegrityError('O marcador de migração nutricional a persistir está inválido.');
     }
     const database = this.requireDatabase();
-    const transaction = database.transaction(NUTRITION_METADATA_STORE, 'readwrite');
+    // GOAL-087: mesmo escopo do fence para serializar cross-tab.
+    const transaction = database.transaction(
+      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+      'readwrite',
+    );
     const completed = transactionResult(transaction);
     try {
+      await this.assertNutritionWriteAllowedInTransaction(transaction);
       await requestResult(transaction.objectStore(NUTRITION_METADATA_STORE).put({
         key: NUTRITION_MIGRATION_MARKER_KEY,
         value: marker,
@@ -1890,6 +1934,9 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
    * do ledger). A validação `isNutritionDay` roda antes do put; dia inválido
    * aborta sem persistir nada. Chamadas concorrentes nunca perdem updates:
    * cada mutação lê o vencedor anterior dentro da sua transação.
+   *
+   * GOAL-087: escopo [days, metadata] + fence check na MESMA transação.
+   * Fence ativo → NUTRITION_ADMIN_FENCED antes do mutador rodar.
    */
   async mutateNutritionDay(
     date: string,
@@ -1902,9 +1949,13 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       throw new NutritionDayIntegrityError('A mutação nutricional exige um mutador puro síncrono.');
     }
     const database = this.requireDatabase();
-    const transaction = database.transaction(NUTRITION_DAYS_STORE, 'readwrite');
+    const transaction = database.transaction(
+      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+      'readwrite',
+    );
     const completed = transactionResult(transaction);
     try {
+      await this.assertNutritionWriteAllowedInTransaction(transaction);
       const store = transaction.objectStore(NUTRITION_DAYS_STORE);
       const raw = await requestResult(store.get(date)) as unknown;
       let current: NutritionDay | null = null;
@@ -1931,6 +1982,237 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       await completed.catch(() => undefined);
       throw error;
     }
+  }
+
+  // ==========================================================================
+  // Fence administrativo nutricional — GOAL-087 (TOCTOU fix).
+  //
+  // Vive no store EXISTENTE `nutritionMetadata` (sem novo store, sem bump).
+  // Aquisição e writes usam o MESMO escopo readwrite
+  // [nutritionDays, nutritionMetadata]: o IndexedDB serializa transações
+  // sobrepostas, então:
+  // - writer já iniciado → termina primeiro → fence adquire depois →
+  //   nova sonda vê o consumo;
+  // - fence adquirido primeiro → próximo writer vê fence ativo →
+  //   bloqueado antes do put com NUTRITION_ADMIN_FENCED.
+  // ==========================================================================
+
+  private async assertNutritionWriteAllowedInTransaction(
+    transaction: IDBTransaction,
+  ): Promise<void> {
+    const fenceStore = transaction.objectStore(NUTRITION_METADATA_STORE);
+    const raw = await requestResult(fenceStore.get(NUTRITION_ADMIN_FENCE_KEY)) as unknown;
+    if (raw === undefined || raw === null) return;
+    const record = raw as Partial<MetadataRecord> | null;
+    const candidate: unknown = record && typeof record === 'object' && 'value' in (record as object)
+      ? (record as MetadataRecord).value
+      : raw;
+    if (candidate === undefined || candidate === null) return;
+    if (!isNutritionAdminFenceV1(candidate)) {
+      // Fence corrompido: recuperação determinística — remover e liberar o
+      // write. Nunca virar corrupção de storage (GOAL-087 §6).
+      try {
+        await requestResult(fenceStore.delete(NUTRITION_ADMIN_FENCE_KEY));
+      } catch {
+        /* melhor esforço: o write segue mesmo se o delete falhar */
+      }
+      return;
+    }
+    if (!isNutritionAdminFenceActive(candidate)) {
+      // Expirado: remover na PRÓPRIA transação e liberar o writer.
+      await requestResult(fenceStore.delete(NUTRITION_ADMIN_FENCE_KEY));
+      return;
+    }
+    throw new NutritionAdminFencedError(
+      'Escrita nutricional bloqueada por fence administrativo ativo.',
+      { fenceId: candidate.fenceId, operationKind: candidate.operationKind },
+    );
+  }
+
+  async acquireNutritionAdminFence(input: {
+    ownerId: string;
+    operationId: string;
+    operationKind: NutritionAdminFenceOperationKind;
+    ttlMs?: number;
+    now?: Date;
+    fenceId?: string;
+  }): Promise<NutritionAdminFenceV1> {
+    if (!input || typeof input.ownerId !== 'string' || input.ownerId.length === 0) {
+      throw new Error('A aquisição do fence exige um ownerId não vazio.');
+    }
+    if (typeof input.operationId !== 'string' || input.operationId.length === 0) {
+      throw new Error('A aquisição do fence exige um operationId não vazio.');
+    }
+    const database = this.requireDatabase();
+    const now = input.now ?? this.now();
+    const ttlMs = input.ttlMs ?? NUTRITION_ADMIN_FENCE_TTL_MS;
+    const fence: NutritionAdminFenceV1 = buildNutritionAdminFenceV1({
+      fenceId: input.fenceId ?? newNutritionAdminFenceId(),
+      ownerId: input.ownerId,
+      operationId: input.operationId,
+      operationKind: input.operationKind,
+      now,
+      ttlMs,
+    });
+    const transaction = database.transaction(
+      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+      'readwrite',
+    );
+    const completed = transactionResult(transaction);
+    try {
+      const fenceStore = transaction.objectStore(NUTRITION_METADATA_STORE);
+      const raw = await requestResult(fenceStore.get(NUTRITION_ADMIN_FENCE_KEY)) as unknown;
+      if (raw !== undefined && raw !== null) {
+        const record = raw as Partial<MetadataRecord>;
+        const candidate: unknown = record && typeof record === 'object' && 'value' in (record as object)
+          ? (record as MetadataRecord).value
+          : raw;
+        if (candidate !== undefined && candidate !== null && isNutritionAdminFenceV1(candidate)) {
+          if (isNutritionAdminFenceActive(candidate)) {
+            throw new NutritionAdminFencedError(
+              'Já existe um fence administrativo nutricional ativo.',
+              { fenceId: candidate.fenceId, operationKind: candidate.operationKind },
+            );
+          }
+          // Expirado: recuperação determinística — o novo fence sobrescreve.
+        }
+        // Corrompido ou expirado: sobrescrever abaixo (sem erro de storage).
+      }
+      await requestResult(fenceStore.put({
+        key: NUTRITION_ADMIN_FENCE_KEY,
+        value: fence,
+      } satisfies MetadataRecord));
+      await completed;
+      return fence;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async renewNutritionAdminFence(input: {
+    fenceId: string;
+    ttlMs?: number;
+    now?: Date;
+  }): Promise<NutritionAdminFenceV1> {
+    if (!input || typeof input.fenceId !== 'string' || input.fenceId.length === 0) {
+      throw new Error('A renovação do fence exige um fenceId não vazio.');
+    }
+    const database = this.requireDatabase();
+    const now = input.now ?? this.now();
+    const ttlMs = input.ttlMs ?? NUTRITION_ADMIN_FENCE_TTL_MS;
+    const transaction = database.transaction(
+      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+      'readwrite',
+    );
+    const completed = transactionResult(transaction);
+    try {
+      const fenceStore = transaction.objectStore(NUTRITION_METADATA_STORE);
+      const raw = await requestResult(fenceStore.get(NUTRITION_ADMIN_FENCE_KEY)) as unknown;
+      if (raw === undefined || raw === null) {
+        throw new NutritionAdminFencedError('Não há fence administrativo para renovar.');
+      }
+      const record = raw as Partial<MetadataRecord>;
+      const candidate: unknown = record && typeof record === 'object' && 'value' in (record as object)
+        ? (record as MetadataRecord).value
+        : raw;
+      if (!isNutritionAdminFenceV1(candidate)) {
+        throw new NutritionAdminFencedError('O fence administrativo está com formato inválido.');
+      }
+      if (candidate.fenceId !== input.fenceId) {
+        throw new NutritionAdminFencedError(
+          'Renovação recusada: fence pertence a outro dono.',
+          { fenceId: candidate.fenceId, operationKind: candidate.operationKind },
+        );
+      }
+      const renewed: NutritionAdminFenceV1 = {
+        ...candidate,
+        acquiredAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
+      };
+      await requestResult(fenceStore.put({
+        key: NUTRITION_ADMIN_FENCE_KEY,
+        value: renewed,
+      } satisfies MetadataRecord));
+      await completed;
+      return renewed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async releaseNutritionAdminFence(input: {
+    fenceId: string;
+  }): Promise<{ released: boolean }> {
+    if (!input || typeof input.fenceId !== 'string' || input.fenceId.length === 0) {
+      throw new Error('A liberação do fence exige um fenceId não vazio.');
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(
+      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+      'readwrite',
+    );
+    const completed = transactionResult(transaction);
+    try {
+      const fenceStore = transaction.objectStore(NUTRITION_METADATA_STORE);
+      const raw = await requestResult(fenceStore.get(NUTRITION_ADMIN_FENCE_KEY)) as unknown;
+      if (raw === undefined || raw === null) {
+        await completed;
+        return { released: false };
+      }
+      const record = raw as Partial<MetadataRecord>;
+      const candidate: unknown = record && typeof record === 'object' && 'value' in (record as object)
+        ? (record as MetadataRecord).value
+        : raw;
+      if (!isNutritionAdminFenceV1(candidate)) {
+        // Registro corrompido sob a chave do fence: remover (higiene) e
+        // reportar como não-liberado pelo dono (não era um fence válido).
+        try {
+          await requestResult(fenceStore.delete(NUTRITION_ADMIN_FENCE_KEY));
+        } catch {
+          /* melhor esforço */
+        }
+        await completed;
+        return { released: false };
+      }
+      if (candidate.fenceId !== input.fenceId) {
+        // Dono errado: NÃO remover fence alheio (GOAL-087 §11D).
+        await completed;
+        return { released: false };
+      }
+      await requestResult(fenceStore.delete(NUTRITION_ADMIN_FENCE_KEY));
+      await completed;
+      return { released: true };
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async readNutritionAdminFence(): Promise<NutritionAdminFenceV1 | null> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(NUTRITION_METADATA_STORE, 'readonly');
+    const completed = transactionResult(transaction);
+    try {
+      const value = await this.readNutritionMetadataValue(transaction, NUTRITION_ADMIN_FENCE_KEY);
+      await completed;
+      if (value === undefined || value === null) return null;
+      if (!isNutritionAdminFenceV1(value)) return null;
+      return value;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async hasActiveNutritionAdminFence(nowMs?: number): Promise<boolean> {
+    const fence = await this.readNutritionAdminFence();
+    return isNutritionAdminFenceActive(fence, nowMs);
   }
 
   private async readNutritionMetadataValue(

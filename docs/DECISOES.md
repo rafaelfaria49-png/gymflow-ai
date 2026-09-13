@@ -2058,3 +2058,5 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - D85-002: gate temporário do admin lógico só dispara com consumo real (qualquer FoodEntry/HydrationEntry em qualquer dia); ledger vazio segue liberado para não gerar falso-positivo, e sonda que falha responde "ativo" (fail-closed); razão pública nutrition-ledger-admin-deferred sem redesign e sem sucesso parcial.
 - D85-003: perfil persistido inválido falha o bridge explícito em vez de virar PROFILE_ABSENT (hoje inalcançável via storage, que valida estrito nas duas rotas — defesa em profundidade).
 - D85-004: AUTOMATION_BLOCKED exige flag false estrita porque o gate do motor é determinístico (mesmo perfil ⇒ mesmo veredito), então EVALUATED permitido com esse motivo seria incoerência real, não conservadorismo.
+
+- GOAL-087 fence vs guard de export (2026-09-13): export passa a adquirir fence nutricional e liberar em finally durante a captura (fecha TOCTOU sem owner-token); guard precisado para proibir apenas owner-token/begin/receipt e exigir o fence.
