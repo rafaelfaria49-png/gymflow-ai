@@ -2060,3 +2060,10 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - D85-004: AUTOMATION_BLOCKED exige flag false estrita porque o gate do motor é determinístico (mesmo perfil ⇒ mesmo veredito), então EVALUATED permitido com esse motivo seria incoerência real, não conservadorismo.
 
 - GOAL-087 fence vs guard de export (2026-09-13): export passa a adquirir fence nutricional e liberar em finally durante a captura (fecha TOCTOU sem owner-token); guard precisado para proibir apenas owner-token/begin/receipt e exigir o fence.
+
+## GOAL-089 - NUT-004B cross-tab lock via Web Locks (seguranca alem do TTL)
+
+- D89-001: lock canonico unico `gymflow:nutrition-admin-v1` (EXCLUSIVE admin x SHARED writers, FIFO sem ultrapassagem); ordem fixa Web Lock -> fence IDB -> owner-token, sem caminho inverso; acquire/release/renew do fence seguem IDB puros (sem lock proprio) para nao deadlockar sob o exclusive do chamador.
+- D89-002: sem `navigator.locks`, admin falha fechado com `nutrition-admin-lock-unavailable` antes de qualquer write (sem fallback TTL/in-memory); writers passam direto; fake in-memory e somente-teste (mesmo processo, nunca exclusao cross-tab).
+- D89-003: renew de fence expirado ou alheio = `NutritionAdminFencedError`; expiracao sempre pelo `now` injetavel do adapter (`nutritionNowMs()`), nunca `Date.now()`; Provider sem heartbeat (primitiva existe, sem uso).
+- D89-004: harness de fake global (`navigator.locks`) instalado nos 8 arquivos de Provider que exercem as 6 ops; race do export reescrito para serializacao (export ok + writer commita depois, linearizado) em vez de conflito.

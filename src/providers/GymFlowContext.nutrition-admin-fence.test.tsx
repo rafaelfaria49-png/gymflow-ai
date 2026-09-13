@@ -18,6 +18,7 @@ import React, { StrictMode } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
+import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from '../lib/nutrition/admin-lock-fake';
 import { createProfileAbsentSnapshot } from '../lib/nutrition/gate-snapshot';
 import { addHydrationEntry } from '../lib/nutrition/ledger';
 import { IndexedDbWorkoutHistoryStorage } from '../lib/storage-indexeddb';
@@ -191,9 +192,11 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
       configurable: true,
       writable: true,
     });
+    installFakeNutritionCrossTabLocks();
   });
 
   afterEach(async () => {
+    restoreFakeNutritionCrossTabLocks();
     vi.useRealTimers();
     vi.restoreAllMocks();
     while (mounted.length > 0) {
@@ -210,49 +213,49 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
     else Reflect.deleteProperty(globalThis, 'indexedDB');
   });
 
-  it('ADMIN_GATE_TOCTOU_EXPORT = CLOSED: export nunca ok:true omitindo consumo concorrente', async () => {
+  it('ADMIN_GATE_TOCTOU_EXPORT = CLOSED: export serializa writer concorrente via lock (sem omissão)', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
     await settle();
 
     // Aba B (writer cross-tab) grava consumo concorrente ao export da aba A.
+    // GOAL-089: o export retém o EXCLUSIVE durante todo o snapshot; o writer
+    // SHARED aguarda (sem erro, sem put) e commita DEPOIS — snapshot vazio
+    // válido, linearizado antes do write. Nenhum consumo confirmado é omitido
+    // e nenhum writer é rejeitado: serialização, não corrida.
     const writer = new IndexedDbWorkoutHistoryStorage();
     await writer.open();
     try {
       let exportResult: Awaited<ReturnType<GymFlowValue['exportLogicalBackupV2']>> | null = null;
       let writerThrew = false;
+      const events: string[] = [];
       await act(async () => {
-        const exportPromise = app.get().exportLogicalBackupV2();
+        const exportPromise = app.get().exportLogicalBackupV2().then((result) => {
+          events.push('export');
+          return result;
+        });
         const writePromise = writer.putNutritionDay(makeConsumptionDay('2026-09-12')).then(
-          () => false,
-          () => true,
+          () => {
+            events.push('write');
+            return false;
+          },
+          () => {
+            events.push('write-error');
+            return true;
+          },
         );
         const [exp, blocked] = await Promise.all([exportPromise, writePromise]);
         exportResult = exp;
         writerThrew = blocked;
       });
 
-      const ledgerHasConsumption = await readLedgerHasConsumption();
-      // Invariante TOCTOU: nunca (export ok + consumo persistido omitido).
-      // Ou o writer commitou antes (export deferred) ou foi bloqueado (export ok, ledger vazio ou só o que o fence permitiu).
-      if (exportResult!.ok) {
-        // Export ok só é válido se nenhum consumo concorrente passou despercebido:
-        // ou o ledger segue vazio, ou o writer foi bloqueado (fence antes).
-        // Se o ledger tem consumo E o export foi ok, o writer precisou ter sido
-        // bloqueado — mas aqui o writer usou put direto: se ele sucedeu, o export
-        // precisaria ter sido deferred. Checar a combinação proibida:
-        if (ledgerHasConsumption && !writerThrew) {
-          // Writer sucedeu e ledger tem consumo: export ok seria omissão.
-          expect(exportResult).toEqual({ ok: false, reason: 'nutrition-ledger-admin-deferred' });
-        }
-      } else {
-        expect(exportResult).toEqual(
-          expect.objectContaining({ ok: false, reason: expect.stringMatching(/nutrition-ledger-admin-deferred|administration-conflicted/) }),
-        );
-      }
-      // Nos dois desfechos válidos, não há arquivo omitindo consumo confirmado:
-      // (a) export deferred, ou (b) export ok com writer bloqueado.
-      expect(exportResult!.ok === false || writerThrew || !ledgerHasConsumption).toBe(true);
+      // Export ok com snapshot vazio válido + writer commitou depois do
+      // snapshot (shared aguardou o exclusive — sem NUTRITION_ADMIN_FENCED).
+      expect(exportResult).toMatchObject({ ok: true });
+      expect(writerThrew).toBe(false);
+      expect(events).toEqual(['export', 'write']);
+      // O consumo commitado após o snapshot segue persistido (nada perdido).
+      expect(await readLedgerHasConsumption()).toBe(true);
     } finally {
       await writer.close();
     }

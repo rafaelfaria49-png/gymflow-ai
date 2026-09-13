@@ -3,6 +3,7 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
+import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from '../lib/nutrition/admin-lock-fake';
 import {
   GENERATION_MANIFESTS_STORE,
   GYMFLOW_INDEXEDDB_VERSION,
@@ -434,6 +435,7 @@ function assertCanonicalEmpty(context: GymFlowValue): void {
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   installBrowserGlobals();
+  installFakeNutritionCrossTabLocks();
 });
 
 afterEach(async () => {
@@ -446,6 +448,7 @@ afterEach(async () => {
   }
   await settle(10);
   restoreBrowserGlobals();
+  restoreFakeNutritionCrossTabLocks();
 });
 
 async function resetToEmptyAndReload(handle: Mounted): Promise<Mounted> {

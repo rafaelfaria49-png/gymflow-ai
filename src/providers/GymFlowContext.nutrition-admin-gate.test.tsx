@@ -17,6 +17,7 @@ import React, { StrictMode } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
+import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from '../lib/nutrition/admin-lock-fake';
 import { NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE } from '../lib/nutrition/admin-gate';
 import { IndexedDbWorkoutHistoryStorage } from '../lib/storage-indexeddb';
 import type { UserProfile } from '../types';
@@ -179,9 +180,11 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
       configurable: true,
       writable: true,
     });
+    installFakeNutritionCrossTabLocks();
   });
 
   afterEach(async () => {
+    restoreFakeNutritionCrossTabLocks();
     vi.useRealTimers();
     vi.restoreAllMocks();
     while (mounted.length > 0) {

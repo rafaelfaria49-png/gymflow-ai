@@ -3,6 +3,7 @@ import React, { StrictMode } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
+import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from '../lib/nutrition/admin-lock-fake';
 import {
   COMPLETION_RECEIPTS_STORE,
   GYMFLOW_INDEXEDDB_VERSION,
@@ -364,6 +365,7 @@ async function callReset(handle: Mounted): Promise<ResetResult> {
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   installBrowserGlobals();
+  installFakeNutritionCrossTabLocks();
   mockCommitLogicalStorageResetV2.mockReset();
   mockInspectStorageAdminOwnerToken.mockReset();
   mockInspectStorageAdminOwnerToken.mockReturnValue(Object.freeze({ status: 'available' }));
@@ -379,6 +381,7 @@ afterEach(async () => {
   }
   await settle(10);
   restoreBrowserGlobals();
+  restoreFakeNutritionCrossTabLocks();
 });
 
 describe('inspectLogicalResetV2 — fronteira pública', () => {

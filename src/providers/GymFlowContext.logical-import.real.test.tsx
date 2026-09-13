@@ -3,6 +3,7 @@ import React, { StrictMode } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
+import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from '../lib/nutrition/admin-lock-fake';
 import {
   GYMFLOW_INDEXEDDB_VERSION,
   STORAGE_OPERATION_RECEIPTS_STORE,
@@ -419,6 +420,7 @@ async function exportRealBackup(handle: Mounted): Promise<{
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   installBrowserGlobals();
+  installFakeNutritionCrossTabLocks();
 });
 
 afterEach(async () => {
@@ -431,6 +433,7 @@ afterEach(async () => {
   }
   await settle(10);
   restoreBrowserGlobals();
+  restoreFakeNutritionCrossTabLocks();
 });
 
 // ===== Testes de integração REAL =====

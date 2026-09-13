@@ -63,12 +63,23 @@ import {
   NUTRITION_ADMIN_FENCE_TTL_MS,
   buildNutritionAdminFenceV1,
   isNutritionAdminFenceActive,
+  isNutritionAdminFenceExpired,
   isNutritionAdminFenceV1,
   newNutritionAdminFenceId,
   NutritionAdminFencedError,
   type NutritionAdminFenceOperationKind,
   type NutritionAdminFenceV1,
 } from './nutrition/admin-fence';
+import {
+  ADMIN_LOCK_MODE,
+  NUTRITION_ADMIN_WEB_LOCK_NAME,
+  NUTRITION_WRITE_LOCK_MODE,
+  NutritionAdminLockUnavailableError,
+  isNutritionAdminLockUnavailableError,
+  resolveNutritionCrossTabLockManager,
+  type NutritionAdminLockUnavailableReason,
+  type NutritionCrossTabLockManager,
+} from './nutrition/admin-lock';
 
 export const GYMFLOW_INDEXEDDB_NAME = 'gymflow-persistence';
 // v2 adicionou o manifest por geração; v3 adicionou os receipts duráveis da
@@ -102,6 +113,15 @@ const NUTRITION_MIGRATION_MARKER_KEY = 'nutritionMigrationMarker';
 export { NUTRITION_ADMIN_FENCE_KEY };
 export type { NutritionAdminFenceOperationKind, NutritionAdminFenceV1 };
 export { NutritionAdminFencedError };
+// GOAL-089: exclusão cross-tab via Web Locks (re-export para Provider/UI).
+export {
+  ADMIN_LOCK_MODE,
+  NUTRITION_ADMIN_WEB_LOCK_NAME,
+  NUTRITION_WRITE_LOCK_MODE,
+  NutritionAdminLockUnavailableError,
+  isNutritionAdminLockUnavailableError,
+};
+export type { NutritionAdminLockUnavailableReason, NutritionCrossTabLockManager };
 
 const BY_GENERATION_INDEX = 'byGeneration';
 const BY_GENERATION_SESSION_INDEX = 'byGenerationSession';
@@ -177,6 +197,14 @@ export interface IndexedDbHistoryStorageOptions {
   generationIdFactory?: () => string;
   now?: () => Date;
   subtleCrypto?: SubtleCrypto | null;
+  /**
+   * GOAL-089: gerenciador de locks cross-tab (Web Locks API).
+   * - `undefined` (padrão): detecta `navigator.locks` do ambiente a cada uso;
+   * - objeto: gerenciador injetado (testes determinísticos, mesma instância
+   *   entre "abas");
+   * - `null`: força indisponível (fail-closed determinístico do fallback).
+   */
+  locks?: NutritionCrossTabLockManager | null;
 }
 
 export class IndexedDbUnavailableError extends Error {
@@ -963,6 +991,7 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
   private readonly generationIdFactory: () => string;
   private readonly now: () => Date;
   private readonly subtleCrypto: SubtleCrypto | null | undefined;
+  private readonly explicitLocks: NutritionCrossTabLockManager | null | undefined;
   private database: IDBDatabase | null = null;
 
   constructor(options: IndexedDbHistoryStorageOptions = {}) {
@@ -973,6 +1002,7 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     this.subtleCrypto = options.subtleCrypto === null
       ? null
       : options.subtleCrypto ?? globalThis.crypto?.subtle;
+    this.explicitLocks = options.locks;
   }
 
   async isAvailable(): Promise<boolean> {
@@ -1736,24 +1766,28 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     if (!isNutritionDay(day)) {
       throw new NutritionDayIntegrityError('O dia nutricional a persistir está com formato inválido.');
     }
-    const database = this.requireDatabase();
-    // GOAL-087: escopo [days, metadata] para serializar com o fence.
-    // A consulta ao fence vive NA MESMA transação — nunca check-then-write
-    // em duas transações.
-    const transaction = database.transaction(
-      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
-      'readwrite',
-    );
-    const completed = transactionResult(transaction);
-    try {
-      await this.assertNutritionWriteAllowedInTransaction(transaction);
-      await requestResult(transaction.objectStore(NUTRITION_DAYS_STORE).put(day));
-      await completed;
-    } catch (error) {
-      abortQuietly(transaction);
-      await completed.catch(() => undefined);
-      throw error;
-    }
+    // GOAL-089: o shared lock é adquirido ANTES de abrir a transação e cobre
+    // a transação IndexedDB inteira (nunca depois de iniciá-la).
+    return this.runNutritionWriteWithSharedLock(async () => {
+      const database = this.requireDatabase();
+      // GOAL-087: escopo [days, metadata] para serializar com o fence.
+      // A consulta ao fence vive NA MESMA transação — nunca check-then-write
+      // em duas transações.
+      const transaction = database.transaction(
+        [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+        'readwrite',
+      );
+      const completed = transactionResult(transaction);
+      try {
+        await this.assertNutritionWriteAllowedInTransaction(transaction);
+        await requestResult(transaction.objectStore(NUTRITION_DAYS_STORE).put(day));
+        await completed;
+      } catch (error) {
+        abortQuietly(transaction);
+        await completed.catch(() => undefined);
+        throw error;
+      }
+    });
   }
 
   // Put-if-absent atômico pela chave natural (date): checagem e gravação com
@@ -1769,44 +1803,47 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     if (!isNutritionDay(day)) {
       throw new NutritionDayIntegrityError('O dia nutricional a persistir está com formato inválido.');
     }
-    const database = this.requireDatabase();
-    const transaction = database.transaction(
-      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
-      'readwrite',
-    );
-    const completed = transactionResult(transaction);
-    try {
-      await this.assertNutritionWriteAllowedInTransaction(transaction);
-      const store = transaction.objectStore(NUTRITION_DAYS_STORE);
-      const existing = await requestResult(store.get(day.date)) as unknown;
-      if (existing !== undefined && existing !== null) {
-        await completed;
-        if (!isNutritionDay(existing)) {
-          throw new NutritionDayIntegrityError(
-            `O dia nutricional ${day.date} está com formato inválido no armazenamento.`,
-          );
-        }
-        return { created: false, day: existing };
-      }
+    // GOAL-089: shared lock antes da transação, cobrindo-a por inteiro.
+    return this.runNutritionWriteWithSharedLock(async () => {
+      const database = this.requireDatabase();
+      const transaction = database.transaction(
+        [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+        'readwrite',
+      );
+      const completed = transactionResult(transaction);
       try {
-        await requestResult(store.add(day));
-      } catch (addError) {
-        // Fence nunca é mascarado como vencedor: se o abort foi por fence,
-        // ele já teria sido lançado antes do add. Aqui só há corrida real.
-        if (addError instanceof NutritionAdminFencedError) throw addError;
+        await this.assertNutritionWriteAllowedInTransaction(transaction);
+        const store = transaction.objectStore(NUTRITION_DAYS_STORE);
+        const existing = await requestResult(store.get(day.date)) as unknown;
+        if (existing !== undefined && existing !== null) {
+          await completed;
+          if (!isNutritionDay(existing)) {
+            throw new NutritionDayIntegrityError(
+              `O dia nutricional ${day.date} está com formato inválido no armazenamento.`,
+            );
+          }
+          return { created: false, day: existing };
+        }
+        try {
+          await requestResult(store.add(day));
+        } catch (addError) {
+          // Fence nunca é mascarado como vencedor: se o abort foi por fence,
+          // ele já teria sido lançado antes do add. Aqui só há corrida real.
+          if (addError instanceof NutritionAdminFencedError) throw addError;
+          abortQuietly(transaction);
+          await completed.catch(() => undefined);
+          const winner = await this.getNutritionDay(day.date);
+          if (winner) return { created: false, day: winner };
+          throw addError;
+        }
+        await completed;
+        return { created: true, day };
+      } catch (error) {
         abortQuietly(transaction);
         await completed.catch(() => undefined);
-        const winner = await this.getNutritionDay(day.date);
-        if (winner) return { created: false, day: winner };
-        throw addError;
+        throw error;
       }
-      await completed;
-      return { created: true, day };
-    } catch (error) {
-      abortQuietly(transaction);
-      await completed.catch(() => undefined);
-      throw error;
-    }
+    });
   }
 
   async listNutritionDays(options?: { from?: string; to?: string }): Promise<NutritionDay[]> {
@@ -1861,25 +1898,28 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     if (!isCivilDateString(date)) {
       throw new Error(`A data nutricional ativa exige data civil válida (recebido ${String(date)}).`);
     }
-    const database = this.requireDatabase();
-    // GOAL-087: mesmo escopo do fence para serializar cross-tab.
-    const transaction = database.transaction(
-      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
-      'readwrite',
-    );
-    const completed = transactionResult(transaction);
-    try {
-      await this.assertNutritionWriteAllowedInTransaction(transaction);
-      await requestResult(transaction.objectStore(NUTRITION_METADATA_STORE).put({
-        key: NUTRITION_ACTIVE_DATE_KEY,
-        value: date,
-      } satisfies MetadataRecord));
-      await completed;
-    } catch (error) {
-      abortQuietly(transaction);
-      await completed.catch(() => undefined);
-      throw error;
-    }
+    // GOAL-089: shared lock antes da transação, cobrindo-a por inteiro.
+    return this.runNutritionWriteWithSharedLock(async () => {
+      const database = this.requireDatabase();
+      // GOAL-087: mesmo escopo do fence para serializar cross-tab.
+      const transaction = database.transaction(
+        [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+        'readwrite',
+      );
+      const completed = transactionResult(transaction);
+      try {
+        await this.assertNutritionWriteAllowedInTransaction(transaction);
+        await requestResult(transaction.objectStore(NUTRITION_METADATA_STORE).put({
+          key: NUTRITION_ACTIVE_DATE_KEY,
+          value: date,
+        } satisfies MetadataRecord));
+        await completed;
+      } catch (error) {
+        abortQuietly(transaction);
+        await completed.catch(() => undefined);
+        throw error;
+      }
+    });
   }
 
   async getNutritionMigrationMarker(): Promise<LedgerMigrationMarker | null> {
@@ -1905,25 +1945,28 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     if (!isLedgerMigrationMarker(marker)) {
       throw new NutritionDayIntegrityError('O marcador de migração nutricional a persistir está inválido.');
     }
-    const database = this.requireDatabase();
-    // GOAL-087: mesmo escopo do fence para serializar cross-tab.
-    const transaction = database.transaction(
-      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
-      'readwrite',
-    );
-    const completed = transactionResult(transaction);
-    try {
-      await this.assertNutritionWriteAllowedInTransaction(transaction);
-      await requestResult(transaction.objectStore(NUTRITION_METADATA_STORE).put({
-        key: NUTRITION_MIGRATION_MARKER_KEY,
-        value: marker,
-      } satisfies MetadataRecord));
-      await completed;
-    } catch (error) {
-      abortQuietly(transaction);
-      await completed.catch(() => undefined);
-      throw error;
-    }
+    // GOAL-089: shared lock antes da transação, cobrindo-a por inteiro.
+    return this.runNutritionWriteWithSharedLock(async () => {
+      const database = this.requireDatabase();
+      // GOAL-087: mesmo escopo do fence para serializar cross-tab.
+      const transaction = database.transaction(
+        [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+        'readwrite',
+      );
+      const completed = transactionResult(transaction);
+      try {
+        await this.assertNutritionWriteAllowedInTransaction(transaction);
+        await requestResult(transaction.objectStore(NUTRITION_METADATA_STORE).put({
+          key: NUTRITION_MIGRATION_MARKER_KEY,
+          value: marker,
+        } satisfies MetadataRecord));
+        await completed;
+      } catch (error) {
+        abortQuietly(transaction);
+        await completed.catch(() => undefined);
+        throw error;
+      }
+    });
   }
 
   /**
@@ -1948,44 +1991,49 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
     if (typeof mutator !== 'function') {
       throw new NutritionDayIntegrityError('A mutação nutricional exige um mutador puro síncrono.');
     }
-    const database = this.requireDatabase();
-    const transaction = database.transaction(
-      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
-      'readwrite',
-    );
-    const completed = transactionResult(transaction);
-    try {
-      await this.assertNutritionWriteAllowedInTransaction(transaction);
-      const store = transaction.objectStore(NUTRITION_DAYS_STORE);
-      const raw = await requestResult(store.get(date)) as unknown;
-      let current: NutritionDay | null = null;
-      if (raw !== undefined && raw !== null) {
-        if (!isNutritionDay(raw)) {
-          throw new NutritionDayIntegrityError(
-            `O dia nutricional ${date} está com formato inválido no armazenamento.`,
-          );
+    // GOAL-089: shared lock antes da transação, cobrindo-a por inteiro.
+    // A atomicidade read → mutate → validate → put segue dentro do IDB.
+    return this.runNutritionWriteWithSharedLock(async () => {
+      const database = this.requireDatabase();
+      const transaction = database.transaction(
+        [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+        'readwrite',
+      );
+      const completed = transactionResult(transaction);
+      try {
+        await this.assertNutritionWriteAllowedInTransaction(transaction);
+        const store = transaction.objectStore(NUTRITION_DAYS_STORE);
+        const raw = await requestResult(store.get(date)) as unknown;
+        let current: NutritionDay | null = null;
+        if (raw !== undefined && raw !== null) {
+          if (!isNutritionDay(raw)) {
+            throw new NutritionDayIntegrityError(
+              `O dia nutricional ${date} está com formato inválido no armazenamento.`,
+            );
+          }
+          current = raw;
         }
-        current = raw;
+        const next = mutator(current);
+        if (!isNutritionDay(next)) {
+          throw new NutritionDayIntegrityError('O resultado da mutação nutricional está com formato inválido.');
+        }
+        if (next.date !== date) {
+          throw new NutritionDayIntegrityError('A mutação nutricional não pode alterar a chave natural (date).');
+        }
+        await requestResult(store.put(next));
+        await completed;
+        return next;
+      } catch (error) {
+        abortQuietly(transaction);
+        await completed.catch(() => undefined);
+        throw error;
       }
-      const next = mutator(current);
-      if (!isNutritionDay(next)) {
-        throw new NutritionDayIntegrityError('O resultado da mutação nutricional está com formato inválido.');
-      }
-      if (next.date !== date) {
-        throw new NutritionDayIntegrityError('A mutação nutricional não pode alterar a chave natural (date).');
-      }
-      await requestResult(store.put(next));
-      await completed;
-      return next;
-    } catch (error) {
-      abortQuietly(transaction);
-      await completed.catch(() => undefined);
-      throw error;
-    }
+    });
   }
 
   // ==========================================================================
-  // Fence administrativo nutricional — GOAL-087 (TOCTOU fix).
+  // Fence administrativo nutricional — GOAL-087 (TOCTOU fix) + GOAL-089
+  // (exclusão cross-tab pela Web Locks API).
   //
   // Vive no store EXISTENTE `nutritionMetadata` (sem novo store, sem bump).
   // Aquisição e writes usam o MESMO escopo readwrite
@@ -1995,7 +2043,67 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
   //   nova sonda vê o consumo;
   // - fence adquirido primeiro → próximo writer vê fence ativo →
   //   bloqueado antes do put com NUTRITION_ADMIN_FENCED.
+  //
+  // GOAL-089 — papel do TTL: APENAS stale cleanup (recuperação após crash).
+  // A garantia temporal primária é o Web Lock EXCLUSIVE
+  // (`gymflow:nutrition-admin-v1`), retido durante TODA a operação
+  // administrativa. Ordem sempre: Web Lock → fence IDB → owner-token.
+  // ADMIN_SAFETY_DEPENDS_ON_FENCE_TTL = NO.
   // ==========================================================================
+
+  /**
+   * GOAL-089: relógio canônico/injetável em ms. Todas as verificações de
+   * expiração do fence passam por aqui — nunca `Date.now()` direto — para
+   * não divergir do `now` injetado (testes com clock falso).
+   */
+  private nutritionNowMs(): number {
+    return this.now().getTime();
+  }
+
+  /** GOAL-089: gerenciador cross-tab efetivo (injetado ou `navigator.locks`). */
+  getNutritionCrossTabLockManager(): NutritionCrossTabLockManager | null {
+    return resolveNutritionCrossTabLockManager(this.explicitLocks);
+  }
+
+  /** GOAL-089: capability/runtime guard testável da exclusão cross-tab. */
+  isNutritionCrossTabLockAvailable(): boolean {
+    return this.getNutritionCrossTabLockManager() !== null;
+  }
+
+  /**
+   * GOAL-089: executa o write nutricional sob lock SHARED. Writers seguem
+   * concorrentes entre si; um admin EXCLUSIVE ativo faz o lock aguardar
+   * (write pendente, sem put) até a liberação. Sem Web Locks, executa direto
+   * (writes nutricionais continuam funcionando no fallback).
+   */
+  private runNutritionWriteWithSharedLock<T>(task: () => Promise<T>): Promise<T> {
+    const manager = this.getNutritionCrossTabLockManager();
+    if (!manager) return task();
+    return manager.request(
+      NUTRITION_ADMIN_WEB_LOCK_NAME,
+      { mode: NUTRITION_WRITE_LOCK_MODE },
+      task,
+    );
+  }
+
+  /**
+   * GOAL-089: executa a operação administrativa sob lock EXCLUSIVE durante
+   * TODA a sua duração (inclusive compensação). O chamador adquire o fence
+   * IDB e sonda o ledger DENTRO do callback. Sem Web Locks, lança
+   * `NutritionAdminLockUnavailableError` antes de qualquer write — nenhum
+   * fallback para exclusão baseada somente em TTL.
+   */
+  async runNutritionAdminWithExclusiveLock<T>(task: () => Promise<T>): Promise<T> {
+    const manager = this.getNutritionCrossTabLockManager();
+    if (!manager) {
+      throw new NutritionAdminLockUnavailableError();
+    }
+    return manager.request(
+      NUTRITION_ADMIN_WEB_LOCK_NAME,
+      { mode: ADMIN_LOCK_MODE },
+      task,
+    );
+  }
 
   private async assertNutritionWriteAllowedInTransaction(
     transaction: IDBTransaction,
@@ -2018,7 +2126,7 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       }
       return;
     }
-    if (!isNutritionAdminFenceActive(candidate)) {
+    if (!isNutritionAdminFenceActive(candidate, this.nutritionNowMs())) {
       // Expirado: remover na PRÓPRIA transação e liberar o writer.
       await requestResult(fenceStore.delete(NUTRITION_ADMIN_FENCE_KEY));
       return;
@@ -2068,7 +2176,8 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
           ? (record as MetadataRecord).value
           : raw;
         if (candidate !== undefined && candidate !== null && isNutritionAdminFenceV1(candidate)) {
-          if (isNutritionAdminFenceActive(candidate)) {
+          // GOAL-089: expiração sempre pelo relógio canônico/injetável.
+          if (isNutritionAdminFenceActive(candidate, now.getTime())) {
             throw new NutritionAdminFencedError(
               'Já existe um fence administrativo nutricional ativo.',
               { fenceId: candidate.fenceId, operationKind: candidate.operationKind },
@@ -2123,6 +2232,14 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
       if (candidate.fenceId !== input.fenceId) {
         throw new NutritionAdminFencedError(
           'Renovação recusada: fence pertence a outro dono.',
+          { fenceId: candidate.fenceId, operationKind: candidate.operationKind },
+        );
+      }
+      // GOAL-089 (RENEW P2): fence expirado não pode ser renovado — renovar
+      // seria ressuscitar exclusão morta. Expiração pelo relógio canônico.
+      if (isNutritionAdminFenceExpired(candidate, now.getTime())) {
+        throw new NutritionAdminFencedError(
+          'Renovação recusada: o fence administrativo já expirou.',
           { fenceId: candidate.fenceId, operationKind: candidate.operationKind },
         );
       }
@@ -2212,7 +2329,9 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
 
   async hasActiveNutritionAdminFence(nowMs?: number): Promise<boolean> {
     const fence = await this.readNutritionAdminFence();
-    return isNutritionAdminFenceActive(fence, nowMs);
+    // GOAL-089: sem `nowMs` explícito, o relógio injetável/canônico vale —
+    // nunca `Date.now()` divergente do `now` do adapter.
+    return isNutritionAdminFenceActive(fence, nowMs ?? this.nutritionNowMs());
   }
 
   private async readNutritionMetadataValue(
