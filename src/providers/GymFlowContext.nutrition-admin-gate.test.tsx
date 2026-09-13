@@ -17,6 +17,7 @@ import React, { StrictMode } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
+import { waitForCondition, waitForProviderHydrated } from './nutrition-provider-test-readiness';
 import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from '../lib/nutrition/admin-lock-fake';
 import { NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE } from '../lib/nutrition/admin-gate';
 import { IndexedDbWorkoutHistoryStorage } from '../lib/storage-indexeddb';
@@ -130,9 +131,18 @@ async function mountAndGet(): Promise<{ renderer: TestRenderer.ReactTestRenderer
       </StrictMode>,
     );
   });
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  });
+  // GOAL-091: readiness por condição real (hidratação assentada: ready, blocked
+  // ou write-error), sem sleep fixo. StrictMode preservado (double effects
+  // tolerados pela espera da prontidão final). O P3 com classificação blocked
+  // também assenta aqui; os testes admin com ledger ativo/vazio assentam em
+  // ready+hybrid-v2 e seguem determinísticos.
+  await waitForProviderHydrated(
+    () => {
+      if (!value) throw new Error('Contexto não inicializado');
+      return value;
+    },
+    { label: 'admin-gate-cold-boot-settled' },
+  );
   mounted.push(renderer!);
   return {
     renderer: renderer!,
@@ -143,10 +153,18 @@ async function mountAndGet(): Promise<{ renderer: TestRenderer.ReactTestRenderer
   };
 }
 
-async function settle(): Promise<void> {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  });
+/**
+ * GOAL-091: sincronização pós-escrita por condição real (espelho esperado).
+ * Para casos de bloqueio (fail-closed, sem setState), não há espera — a
+ * operação já foi awaitada e o caminho bloqueado nunca agenda atualização;
+ * assert imediato é determinístico.
+ */
+async function waitForNutrition(
+  get: () => GymFlowValue,
+  predicate: (ctx: GymFlowValue) => boolean,
+  label: string,
+): Promise<void> {
+  await waitForCondition(() => predicate(get()), { label });
 }
 
 /** Leitura independente do ledger pelo mesmo IDB do Provider (prova de não-escrita). */
@@ -204,7 +222,8 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
   it('LOGICAL_EXPORT_WITH_ACTIVE_LEDGER = BLOCKED: nenhum arquivo que omita o ledger', async () => {
     seedRealConsumption();
     const app = await mountAndGet();
-    // Sanidade: consumo real chegou ao ledger.
+    // Sanidade: consumo real chegou ao ledger (condição real, sem sleep).
+    await waitForNutrition(app.get, (ctx) => ctx.nutrition.calories === 1850, 'gate-ledger-migrated-1850');
     expect(app.get().nutrition.calories).toBe(1850);
 
     let result: Awaited<ReturnType<GymFlowValue['exportLogicalBackupV2']>> | null = null;
@@ -217,7 +236,7 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
   it('LOGICAL_IMPORT_WITH_ACTIVE_LEDGER = BLOCKED antes de write; core/ledger intactos', async () => {
     seedRealConsumption();
     const app = await mountAndGet();
-    await settle();
+    await waitForNutrition(app.get, (ctx) => ctx.nutrition.calories === 1850, 'gate-ledger-migrated-1850');
     const coreBefore = storage.getItem(STORAGE_KEY);
     const ledgerBefore = await readLedgerSnapshot();
 
@@ -236,7 +255,7 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
       message: NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
     });
 
-    await settle();
+    // GOAL-091: fail-closed antes de write — assert imediato, sem settle genérico.
     expect(storage.getItem(STORAGE_KEY)).toBe(coreBefore);
     expect(await readLedgerSnapshot()).toEqual(ledgerBefore);
     expect(reloadSpy).not.toHaveBeenCalled();
@@ -245,7 +264,7 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
   it('LOGICAL_RESET_WITH_ACTIVE_LEDGER = BLOCKED (inspect + execute); sem write, sem reload', async () => {
     seedRealConsumption();
     const app = await mountAndGet();
-    await settle();
+    await waitForNutrition(app.get, (ctx) => ctx.nutrition.calories === 1850, 'gate-ledger-migrated-1850');
     const coreBefore = storage.getItem(STORAGE_KEY);
     const ledgerBefore = await readLedgerSnapshot();
 
@@ -261,7 +280,7 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
     });
     expect(result).toMatchObject({ ok: false, reason: DEFERRED, requiresReload: false });
 
-    await settle();
+    // GOAL-091: fail-closed — assert imediato.
     expect(storage.getItem(STORAGE_KEY)).toBe(coreBefore);
     expect(await readLedgerSnapshot()).toEqual(ledgerBefore);
     expect(reloadSpy).not.toHaveBeenCalled();
@@ -270,7 +289,7 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
   it('LOGICAL_RESTORE_WITH_ACTIVE_LEDGER = BLOCKED (inspect + execute); sem write, sem reload', async () => {
     seedRealConsumption();
     const app = await mountAndGet();
-    await settle();
+    await waitForNutrition(app.get, (ctx) => ctx.nutrition.calories === 1850, 'gate-ledger-migrated-1850');
     const coreBefore = storage.getItem(STORAGE_KEY);
     const ledgerBefore = await readLedgerSnapshot();
 
@@ -286,7 +305,7 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
     });
     expect(result).toMatchObject({ ok: false, reason: DEFERRED, requiresReload: false });
 
-    await settle();
+    // GOAL-091: fail-closed — assert imediato.
     expect(storage.getItem(STORAGE_KEY)).toBe(coreBefore);
     expect(await readLedgerSnapshot()).toEqual(ledgerBefore);
     expect(reloadSpy).not.toHaveBeenCalled();
@@ -295,6 +314,7 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
   it('PARTIAL_ADMIN_WRITE = NO + LEDGER_RESURRECTION_PATH = CLOSED: bloqueio não altera nada nem ressuscita', async () => {
     seedRealConsumption();
     const app = await mountAndGet();
+    await waitForNutrition(app.get, (ctx) => ctx.nutrition.calories === 1850, 'gate-ledger-migrated-1850');
     const caloriesBefore = app.get().nutrition.calories;
     const waterBefore = app.get().nutrition.water;
     expect(caloriesBefore).toBe(1850);
@@ -303,10 +323,15 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
       await app.get().commitLogicalResetV2();
       await app.get().importLogicalBackupV2({ raw: '{}', declaredBytes: 2, expectedPayloadDigest: 'x' });
     });
-    await settle();
 
     // Remount sobre o mesmo storage+IDB: estado contínuo, sem wipe e sem fantasma.
+    // GOAL-091: segunda montagem também por prontidão real.
     const app2 = await mountAndGet();
+    await waitForNutrition(
+      app2.get,
+      (ctx) => ctx.nutrition.calories === caloriesBefore && ctx.nutrition.water === waterBefore,
+      'gate-remount-stable-mirrors',
+    );
     expect(app2.get().nutrition.calories).toBe(caloriesBefore);
     expect(app2.get().nutrition.water).toBe(waterBefore);
     expect(reloadSpy).not.toHaveBeenCalled();
@@ -327,8 +352,9 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
       { calories: 1850, protein: 140, carbs: 190, fat: 55, water: 2500 },
       { nutritionProfile: { gender: 'male', goal: 'hypertrophy' } },
     );
+    // GOAL-091: mount já garante hidratação assentada (P3 classifica blocked);
+    // ledger vazio (sem dia, sem marker) é a condição real, sem sleep.
     await mountAndGet();
-    await settle();
     const snapshot = await readLedgerSnapshot();
     expect(JSON.parse(snapshot.daysJson)).toEqual([]);
     expect(JSON.parse(snapshot.markerJson)).toBeNull();

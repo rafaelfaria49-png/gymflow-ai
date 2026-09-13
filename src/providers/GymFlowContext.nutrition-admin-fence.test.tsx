@@ -18,6 +18,7 @@ import React, { StrictMode } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
+import { waitForCondition, waitForProviderHydrated } from './nutrition-provider-test-readiness';
 import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from '../lib/nutrition/admin-lock-fake';
 import { createProfileAbsentSnapshot } from '../lib/nutrition/gate-snapshot';
 import { addHydrationEntry } from '../lib/nutrition/ledger';
@@ -121,9 +122,14 @@ async function mountAndGet(): Promise<{ renderer: TestRenderer.ReactTestRenderer
       </StrictMode>,
     );
   });
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  });
+  // GOAL-091: readiness por condição real (hidratação assentada), sem sleep fixo.
+  await waitForProviderHydrated(
+    () => {
+      if (!value) throw new Error('Contexto não inicializado');
+      return value;
+    },
+    { label: 'fence-cold-boot-settled' },
+  );
   mounted.push(renderer!);
   return {
     renderer: renderer!,
@@ -134,10 +140,12 @@ async function mountAndGet(): Promise<{ renderer: TestRenderer.ReactTestRenderer
   };
 }
 
-async function settle(): Promise<void> {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  });
+async function waitForNutrition(
+  get: () => GymFlowValue,
+  predicate: (ctx: GymFlowValue) => boolean,
+  label: string,
+): Promise<void> {
+  await waitForCondition(() => predicate(get()), { label });
 }
 
 function makeConsumptionDay(date: string) {
@@ -216,7 +224,7 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
   it('ADMIN_GATE_TOCTOU_EXPORT = CLOSED: export serializa writer concorrente via lock (sem omissão)', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
+    // GOAL-091: mount já garante ready+hybrid-v2; sem settle genérico.
 
     // Aba B (writer cross-tab) grava consumo concorrente ao export da aba A.
     // GOAL-089: o export retém o EXCLUSIVE durante todo o snapshot; o writer
@@ -264,7 +272,6 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
   it('ADMIN_GATE_TOCTOU_RESET = CLOSED: writer antes → deferred; fence antes → writer bloqueado, sem divergência', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
     const coreBefore = storage.getItem(STORAGE_KEY);
 
     // Ordem A: writer commita antes do admin → sonda sob fence vê consumo → deferred.
@@ -289,7 +296,6 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
   it('ADMIN_GATE_TOCTOU_IMPORT = CLOSED: consumo prévio bloqueia import antes de write', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
     const coreBefore = storage.getItem(STORAGE_KEY);
 
     const writer = new IndexedDbWorkoutHistoryStorage();
@@ -316,7 +322,6 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
   it('ADMIN_GATE_TOCTOU_RESTORE = CLOSED: inspect + commit bloqueados, sem write', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
     const coreBefore = storage.getItem(STORAGE_KEY);
 
     const writer = new IndexedDbWorkoutHistoryStorage();
@@ -345,7 +350,6 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
   it('LOG_WATER_WHILE_FENCED = false sem mirror/XP/achievement/datas', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
     const waterBefore = app.get().nutrition.water;
     const userBefore = app.get().user;
     const xpBefore = userBefore?.xp ?? 0;
@@ -367,7 +371,7 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
         ok = await app.get().logWater(250);
       });
       expect(ok).toBe(false);
-      await settle();
+      // GOAL-091: fail-closed sem setState — assert imediato, sem settle genérico.
       // Sem mirror, sem waterIntake, sem XP, sem datas.
       expect(app.get().nutrition.water).toBe(waterBefore);
       expect(app.get().user?.waterIntake).toBe(userBefore?.waterIntake);
@@ -382,12 +386,17 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
       okAfter = await app.get().logWater(250);
     });
     expect(okAfter).toBe(true);
+    // GOAL-091: espelho pós-release como condição real.
+    await waitForNutrition(
+      app.get,
+      (ctx) => ctx.nutrition.water === waterBefore + 250,
+      'fence-water-after-release-250',
+    );
   });
 
   it('LOG_MACROS_WHILE_FENCED = false sem mirror/XP/datas', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
     const before = { ...app.get().nutrition };
     const xpBefore = app.get().user?.xp ?? 0;
 
@@ -406,7 +415,7 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
         ok = await app.get().logMacros(400, 30, 50, 10);
       });
       expect(ok).toBe(false);
-      await settle();
+      // GOAL-091: fail-closed — assert imediato.
       expect(app.get().nutrition.calories).toBe(before.calories);
       expect(app.get().nutrition.protein).toBe(before.protein);
       expect(app.get().user?.xp ?? 0).toBe(xpBefore);
@@ -419,7 +428,6 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
   it('ADMIN_GATE_TOCTOU_SAFE = YES: ledger vazio segue liberando export + 20 writes concorrentes', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
     let exportResult: Awaited<ReturnType<GymFlowValue['exportLogicalBackupV2']>> | null = null;
     await act(async () => {
       exportResult = await app.get().exportLogicalBackupV2();
@@ -432,7 +440,8 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
         Array.from({ length: 20 }, () => app.get().logWater(50)),
       );
     });
-    await settle();
+    // GOAL-091: 20x50=1000 como condição real (sem lost update), sem sleep.
+    await waitForNutrition(app.get, (ctx) => ctx.nutrition.water === 1000, 'fence-20x50-water-1000');
     expect(app.get().nutrition.water).toBeGreaterThanOrEqual(0);
   });
 });

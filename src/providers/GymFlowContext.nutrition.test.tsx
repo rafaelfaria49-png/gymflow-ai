@@ -4,6 +4,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
 import { GymFlowProvider, STORAGE_KEY, useGymFlow } from './GymFlowContext';
+import { waitForProviderHydrated } from './nutrition-provider-test-readiness';
 import { MONOLITHIC_STORAGE_VERSION } from '../lib/storage-types';
 import { getCivilDateString } from '../lib/nutrition-civil-date';
 import type { UserProfile } from '../types';
@@ -122,11 +123,16 @@ async function mountProvider(): Promise<Mounted> {
   await act(async () => {
     renderer = TestRenderer.create(<StrictMode>{tree}</StrictMode>);
   });
-  // NUT-004B: o cold boot (IDB + migração + ensureToday) assenta em microtasks
-  // e eventos do fake-indexeddb; timers seguem reais para não travar o IDB.
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  });
+  // NUT-004B (GOAL-091): cold boot (IDB + migração + ensureToday) via condição
+  // real — storageHealth=ready prova hidratação + bridge concluídos.
+  // Timers seguem reais para não travar o fake-indexeddb; StrictMode preservado.
+  await waitForProviderHydrated(
+    () => {
+      if (!contextValue) throw new Error('Contexto não inicializado');
+      return contextValue;
+    },
+    { label: 'nutrition-cold-boot-hydrated' },
+  );
 
   const handle: Mounted = {
     renderer: renderer as unknown as TestRenderer.ReactTestRenderer,

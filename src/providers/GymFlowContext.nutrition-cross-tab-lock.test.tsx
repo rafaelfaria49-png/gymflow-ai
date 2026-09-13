@@ -20,6 +20,7 @@ import React, { StrictMode } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
+import { waitForCondition, waitForProviderHydrated } from './nutrition-provider-test-readiness';
 import { NUTRITION_ADMIN_WEB_LOCK_NAME } from '../lib/nutrition/admin-lock';
 import {
   createDeferred,
@@ -134,9 +135,14 @@ async function mountAndGet(): Promise<{ renderer: TestRenderer.ReactTestRenderer
       </StrictMode>,
     );
   });
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  });
+  // GOAL-091: readiness por condição real (hidratação assentada), sem sleep fixo.
+  await waitForProviderHydrated(
+    () => {
+      if (!value) throw new Error('Contexto não inicializado');
+      return value;
+    },
+    { label: 'xtab-cold-boot-settled' },
+  );
   mounted.push(renderer!);
   return {
     renderer: renderer!,
@@ -147,10 +153,12 @@ async function mountAndGet(): Promise<{ renderer: TestRenderer.ReactTestRenderer
   };
 }
 
-async function settle(): Promise<void> {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  });
+async function waitForNutrition(
+  get: () => GymFlowValue,
+  predicate: (ctx: GymFlowValue) => boolean,
+  label: string,
+): Promise<void> {
+  await waitForCondition(() => predicate(get()), { label });
 }
 
 function makeConsumptionDay(date: string) {
@@ -174,6 +182,9 @@ function makeConsumptionDay(date: string) {
   }) as never;
 }
 
+// GOAL-091: prova negativa de bloqueio — observa por 30ms reais se a promise
+// (retida pelo EXCLUSIVE de outra aba) permanece pendente, sem sleep de
+// readiness. Timers reais (harness nunca faka setTimeout); não é settle genérico.
 async function pendingSettled<T>(promise: Promise<T>, ms = 30): Promise<{ settled: boolean; value?: T }> {
   let outcome: { settled: boolean; value?: T } = { settled: false };
   void promise.then((value) => {
@@ -226,7 +237,7 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
   it('WRITER_BEFORE_ADMIN = OBSERVED_BY_PROBE: write commita primeiro, export defere', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
+    // GOAL-091: mount já garante ready+hybrid-v2.
 
     const writer = new IndexedDbWorkoutHistoryStorage();
     await writer.open();
@@ -250,7 +261,6 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
   it('ADMIN_BEFORE_WRITER = BLOCKED: export de outra aba retém logWater sem commit parcial', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
     const waterBefore = app.get().nutrition.water;
     const xpBefore = app.get().user?.xp ?? 0;
 
@@ -287,14 +297,18 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
     });
     // Sem sucesso falso antes do write real: true só após commitar, uma vez.
     expect(ok).toBe(true);
-    await settle();
+    // GOAL-091: espelho como condição real.
+    await waitForNutrition(
+      app.get,
+      (ctx) => ctx.nutrition.water === waterBefore + 250,
+      'xtab-water-after-release-250',
+    );
     expect(app.get().nutrition.water).toBe(waterBefore + 250);
   });
 
   it('logMacros durante EXCLUSIVE: pendente sem mirror/XP e commita uma vez após liberar', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
     const caloriesBefore = app.get().nutrition.calories;
     const xpBefore = app.get().user?.xp ?? 0;
 
@@ -308,6 +322,11 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
     await adminTabEntered.promise;
 
     const macrosPromise = app.get().logMacros(400, 30, 50, 10);
+    // GOAL-091: ticket enfileirado como condição real antes da prova negativa
+    // (logMacros tem prefixo async antes do primeiro shared lock).
+    await vi.waitFor(() => {
+      expect(locks.pendingCount(LOCK)).toBe(1);
+    });
     const whilePending = await pendingSettled(macrosPromise);
     expect(whilePending.settled).toBe(false);
     expect(app.get().nutrition.calories).toBe(caloriesBefore);
@@ -320,14 +339,17 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
       ok = await macrosPromise;
     });
     expect(ok).toBe(true);
-    await settle();
+    await waitForNutrition(
+      app.get,
+      (ctx) => ctx.nutrition.calories === caloriesBefore + 400,
+      'xtab-macros-after-release-400',
+    );
     expect(app.get().nutrition.calories).toBe(caloriesBefore + 400);
   });
 
   it('export do Provider aguarda admin de outra aba e conclui ok em ledger vazio', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
 
     const releaseAdminTab = createDeferred<void>();
     const adminTabEntered = createDeferred<void>();
@@ -339,7 +361,11 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
     await adminTabEntered.promise;
 
     const exportPromise = app.get().exportLogicalBackupV2();
-    expect(locks.pendingCount(LOCK)).toBe(1);
+    // GOAL-091: ticket enfileirado como condição real (export tem prefixo async
+    // antes do EXCLUSIVE; assert síncrono era flaky sob paralelismo).
+    await vi.waitFor(() => {
+      expect(locks.pendingCount(LOCK)).toBe(1);
+    });
     const whilePending = await pendingSettled(exportPromise);
     expect(whilePending.settled).toBe(false);
 
@@ -355,7 +381,6 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
   it('ADMIN_WITHOUT_WEB_LOCK = BLOCKED_FAIL_CLOSED: seis ops indisponíveis, writers normais, zero parcial', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
     const coreBefore = storage.getItem(STORAGE_KEY);
 
     // Suprime até a Web Locks nativa: nenhuma exclusão cross-tab disponível.
@@ -415,7 +440,7 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
         waterOk = await app.get().logWater(250);
       });
       expect(waterOk).toBe(true);
-      await settle();
+      await waitForNutrition(app.get, (ctx) => ctx.nutrition.water === 250, 'xtab-no-lock-water-250');
       expect(app.get().nutrition.water).toBe(250);
     } finally {
       restoreGlobalWebLocksAfterTest();
@@ -425,7 +450,6 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
   it('ADMIN_THROW_RELEASE no Provider: throw inesperado libera o lock; próximo admin funciona', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
 
     const acquireSpy = vi
       .spyOn(IndexedDbWorkoutHistoryStorage.prototype, 'acquireNutritionAdminFence')
@@ -453,7 +477,6 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
   it('TOCTOU_OVER_TTL no Provider: fence expirado não esconde consumo (deferred)', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
     const coreBefore = storage.getItem(STORAGE_KEY);
 
     // Outra aba planta fence que já nasce expirado (crash/stale simulado).
@@ -493,7 +516,6 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
   it('regressão: 20 logWater concorrentes sem lost update', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    await settle();
 
     await act(async () => {
       const results = await Promise.all(
@@ -501,7 +523,8 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
       );
       expect(results.every((ok) => ok === true)).toBe(true);
     });
-    await settle();
+    // GOAL-091: 20x50=1000 como condição real, sem sleep.
+    await waitForNutrition(app.get, (ctx) => ctx.nutrition.water === 1000, 'xtab-20x50-water-1000');
     expect(app.get().nutrition.water).toBe(1000);
   });
 });

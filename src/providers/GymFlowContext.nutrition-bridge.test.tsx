@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
 import { IndexedDbWorkoutHistoryStorage } from '../lib/storage-indexeddb';
 import { GymFlowProvider, STORAGE_KEY, useGymFlow } from './GymFlowContext';
+import { waitForCondition, waitForProviderHydrated } from './nutrition-provider-test-readiness';
 import type { UserProfile } from '../types';
 
 type GymFlowValue = ReturnType<typeof useGymFlow>;
@@ -112,9 +113,14 @@ async function mountAndGet(): Promise<{ renderer: TestRenderer.ReactTestRenderer
       </StrictMode>,
     );
   });
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  });
+  // GOAL-091: readiness por condição real (storageHealth=ready), sem sleep fixo.
+  await waitForProviderHydrated(
+    () => {
+      if (!value) throw new Error('Contexto não inicializado');
+      return value;
+    },
+    { label: 'bridge-cold-boot-hydrated' },
+  );
   mounted.push(renderer!);
   return {
     renderer: renderer!,
@@ -235,9 +241,11 @@ describe('GymFlowContext — bridge nutricional durável (NUT-004B)', () => {
       results.push(...settled);
     });
     expect(results.every(Boolean)).toBe(true);
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    });
+    // GOAL-091: espelho projetado como condição real, sem sleep fixo.
+    await waitForCondition(
+      () => app.get().nutrition.water === 1000 && app.get().user?.waterIntake === 1000,
+      { label: 'bridge-concurrent-water-1000' },
+    );
     expect(app.get().nutrition.water).toBe(1000);
     expect(app.get().user!.waterIntake).toBe(1000);
   }, 60000);
