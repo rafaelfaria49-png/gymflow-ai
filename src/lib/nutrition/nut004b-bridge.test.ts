@@ -79,6 +79,23 @@ function makeTargets(): DailyTargets {
   return calculateDailyTargets(makeProfile());
 }
 
+function makeAutomatedGateSnapshot() {
+  return createEvaluatedGateSnapshot(evaluateNutritionGate(makeProfile()), NOW_ISO);
+}
+
+function makeBlockedGateSnapshot() {
+  return createEvaluatedGateSnapshot(
+    evaluateNutritionGate(makeProfile({ healthFlags: ['pregnancy'] })),
+    NOW_ISO,
+  );
+}
+
+function makeManualGateSnapshot(reason: 'PROFILE_ABSENT' | 'AUTOMATION_BLOCKED' | 'TARGET_RESOLUTION_ERROR') {
+  if (reason === 'PROFILE_ABSENT') return createProfileAbsentSnapshot(NOW_ISO);
+  if (reason === 'AUTOMATION_BLOCKED') return makeBlockedGateSnapshot();
+  return makeAutomatedGateSnapshot();
+}
+
 const NOW = new Date('2026-09-12T14:00:00.000Z');
 const NOW_ISO = '2026-09-12T14:00:00.000Z';
 
@@ -220,6 +237,7 @@ describe('NUT004B — NutritionDay AUTOMATED / MANUAL_ONLY', () => {
       date: '2026-09-12',
       timezone: 'America/Sao_Paulo',
       targets: makeTargets(),
+      gateSnapshot: makeAutomatedGateSnapshot(),
     });
     expect(day.targetState).toBe('AUTOMATED');
     expect(day.targets).not.toBeNull();
@@ -235,6 +253,7 @@ describe('NUT004B — NutritionDay AUTOMATED / MANUAL_ONLY', () => {
         targets: null,
         targetState: 'MANUAL_ONLY',
         targetUnavailableReason: reason,
+        gateSnapshot: makeManualGateSnapshot(reason),
       });
       expect(day.targetState).toBe('MANUAL_ONLY');
       expect(day.targets).toBeNull();
@@ -252,6 +271,7 @@ describe('NUT004B — NutritionDay AUTOMATED / MANUAL_ONLY', () => {
         targets: null,
         targetState: 'MANUAL_ONLY',
         targetUnavailableReason: 'BOGUS' as never,
+        gateSnapshot: createProfileAbsentSnapshot(NOW_ISO),
       }),
     ).toThrow(NutritionLedgerError);
     expect(() =>
@@ -260,6 +280,7 @@ describe('NUT004B — NutritionDay AUTOMATED / MANUAL_ONLY', () => {
         date: '2026-09-12',
         timezone: 'America/Sao_Paulo',
         targets: null,
+        gateSnapshot: makeAutomatedGateSnapshot(),
       } as never),
     ).toThrow(NutritionLedgerError);
     expect(
@@ -312,6 +333,7 @@ describe('NUT004B — remaining sem meta implícita', () => {
       date: '2026-09-12',
       timezone: 'America/Sao_Paulo',
       targets: makeTargets(),
+      gateSnapshot: makeAutomatedGateSnapshot(),
     });
     const manual = createNutritionDay({
       id: 'm',
@@ -320,6 +342,7 @@ describe('NUT004B — remaining sem meta implícita', () => {
       targets: null,
       targetState: 'MANUAL_ONLY',
       targetUnavailableReason: 'PROFILE_ABSENT',
+      gateSnapshot: createProfileAbsentSnapshot(NOW_ISO),
     });
     expect(calculateActuals(auto)).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0, waterMl: 0 });
     expect(calculateActuals(manual)).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0, waterMl: 0 });
@@ -370,6 +393,7 @@ describe('NUT004B — migração legada', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeAutomatedGateSnapshot(),
       markClosed: false,
     });
     expect(real.outcome).toBe('migrated');
@@ -383,6 +407,7 @@ describe('NUT004B — migração legada', () => {
       timezone: TIMEZONE,
       targets: null,
       targetUnavailableReason: 'PROFILE_ABSENT',
+      gateSnapshot: createProfileAbsentSnapshot(NOW_ISO),
       markClosed: false,
     });
     expect(result.outcome).toBe('migrated');
@@ -401,6 +426,7 @@ describe('NUT004B — migração legada', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeAutomatedGateSnapshot(),
       markClosed: false,
     } as const;
     const first = migrateLegacyNutrition({ ...input });

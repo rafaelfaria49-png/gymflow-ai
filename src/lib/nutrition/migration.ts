@@ -18,6 +18,7 @@
 
 import type { DailyTargets } from './engine-types';
 import { createNutritionDay } from './ledger';
+import type { NutritionGateSnapshot } from './gate-snapshot';
 import {
   isCivilDateString,
   NutritionLedgerError,
@@ -169,6 +170,13 @@ export interface MigrateLegacyNutritionInput {
    */
   targets: DailyTargets | null | undefined;
   targetUnavailableReason?: import('./ledger-types').NutritionTargetUnavailableReason;
+  /**
+   * Prova da resolução (GOAL-085): obrigatória quando o resultado é um dia
+   * REAL migrado — o dia nunca é persistido sem gateSnapshot coerente (a
+   * validação vive em `createNutritionDay`). Descarte/quarentena não criam
+   * dia e ignoram este campo.
+   */
+  gateSnapshot?: NutritionGateSnapshot;
   /** IDs determinísticos por data (idempotência de replay); sobrescrevíveis. */
   dayId?: string;
   mealId?: string;
@@ -282,6 +290,12 @@ export function migrateLegacyNutrition(input: MigrateLegacyNutritionInput): Migr
         'Migração REAL sem targets exige targetUnavailableReason explícito (MANUAL_ONLY, sem metas inventadas).',
       );
     }
+    if (input.gateSnapshot === undefined) {
+      throw new NutritionLedgerError(
+        'INVALID_TARGETS',
+        'Migração REAL exige gateSnapshot explícito: dia migrado nunca sai sem gate coerente.',
+      );
+    }
     day = createNutritionDay({
       id: input.dayId ?? `legacy-nutrition-day-${input.date}`,
       date: input.date,
@@ -289,13 +303,21 @@ export function migrateLegacyNutrition(input: MigrateLegacyNutritionInput): Migr
       targets: null,
       targetState: 'MANUAL_ONLY',
       targetUnavailableReason: reason,
+      gateSnapshot: input.gateSnapshot,
     });
   } else {
+    if (input.gateSnapshot === undefined) {
+      throw new NutritionLedgerError(
+        'INVALID_TARGETS',
+        'Migração REAL exige gateSnapshot explícito: dia migrado nunca sai sem gate coerente.',
+      );
+    }
     day = createNutritionDay({
       id: input.dayId ?? `legacy-nutrition-day-${input.date}`,
       date: input.date,
       timezone: input.timezone,
       targets: input.targets as DailyTargets,
+      gateSnapshot: input.gateSnapshot,
     });
   }
 

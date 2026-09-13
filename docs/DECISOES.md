@@ -2051,3 +2051,10 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 ## GOAL-083 - NUT-004B cold boot provider bridge (sem lifecycle/timer/backup)
 
 - D83-001: dia legado sem targetState lido como AUTOMATED (compat IDB v5); migração REAL de hoje usa markClosed false com putIfAbsent pela chave natural e marker só após confirmação; backup lógico aceita nutritionProfile opcional sem versionar envelope.
+
+## GOAL-085 - NUT-004B correções de integridade P1 (gate persistido + admin lógico diferido)
+
+- D85-001: gateSnapshot obrigatório e copiado em todo NutritionDay novo (create/ensure/migration-REAL/bridge); coerência AUTOMATED⟺EVALUATED permitido, PROFILE_ABSENT⟺PROFILE_ABSENT, AUTOMATION_BLOCKED⟺EVALUATED bloqueado, TARGET_RESOLUTION_ERROR⟺EVALUATED permitido; legado pré-004B segue legível sem gate (nada fabricado); dia 004B sem gate falha fechado na escrita e na leitura.
+- D85-002: gate temporário do admin lógico só dispara com consumo real (qualquer FoodEntry/HydrationEntry em qualquer dia); ledger vazio segue liberado para não gerar falso-positivo, e sonda que falha responde "ativo" (fail-closed); razão pública nutrition-ledger-admin-deferred sem redesign e sem sucesso parcial.
+- D85-003: perfil persistido inválido falha o bridge explícito em vez de virar PROFILE_ABSENT (hoje inalcançável via storage, que valida estrito nas duas rotas — defesa em profundidade).
+- D85-004: AUTOMATION_BLOCKED exige flag false estrita porque o gate do motor é determinístico (mesmo perfil ⇒ mesmo veredito), então EVALUATED permitido com esse motivo seria incoerência real, não conservadorismo.

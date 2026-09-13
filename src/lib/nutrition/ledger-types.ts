@@ -22,6 +22,10 @@ import type {
   MacroConstraintCode,
 } from './engine-types';
 import { isStrictIsoUtcTimestamp } from './engine-validation';
+import {
+  isNutritionGateSnapshot,
+  type NutritionGateSnapshot,
+} from './gate-snapshot';
 
 // ============================================================================
 // TIPOS DE DOMÍNIO
@@ -108,6 +112,12 @@ export interface Remaining {
  * NUT-004B: estado discriminado de metas.
  * - AUTOMATED: snapshot completo de DailyTargets vigente na criação.
  * - MANUAL_ONLY: sem meta implícita; targets === null e motivo explícito.
+ *
+ * GOAL-085 (correção P1): todo dia NUT-004B (targetState explícito) carrega
+ * obrigatoriamente o `gateSnapshot` que prova como os targets foram
+ * resolvidos (contrato de gate-snapshot.ts). Dias legados pré-004B
+ * (sem targetState) continuam sem snapshot — nenhum gate histórico é
+ * fabricado retroativamente.
  */
 export type NutritionTargetState = 'AUTOMATED' | 'MANUAL_ONLY';
 
@@ -143,6 +153,11 @@ export interface AutomatedNutritionDay extends NutritionDayBase {
   /** Snapshot completo e imutável dos alvos vigentes na criação do dia. */
   targets: DailyTargets;
   targetUnavailableReason?: never;
+  /**
+   * Prova persistida da resolução (GOAL-085): EVALUATED com
+   * allowAutomatedTargets === true. Obrigatório em todo dia novo.
+   */
+  gateSnapshot: NutritionGateSnapshot;
 }
 
 /** Dia de rastreio manual: sem meta implícita; remaining indisponível. */
@@ -150,6 +165,11 @@ export interface ManualNutritionDay extends NutritionDayBase {
   targetState: 'MANUAL_ONLY';
   targets: null;
   targetUnavailableReason: NutritionTargetUnavailableReason;
+  /**
+   * Prova persistida da resolução (GOAL-085): PROFILE_ABSENT quando o motivo
+   * é PROFILE_ABSENT; EVALUATED caso contrário. Obrigatório em todo dia novo.
+   */
+  gateSnapshot: NutritionGateSnapshot;
 }
 
 export type NutritionDay = AutomatedNutritionDay | ManualNutritionDay;
@@ -384,6 +404,39 @@ function isMealLike(value: unknown): boolean {
 }
 
 /**
+ * Coerência gate ↔ dia AUTOMATED (GOAL-085): somente EVALUATED com
+ * allowAutomatedTargets === true. Snapshot parcial/malformado, PROFILE_ABSENT
+ * ou EVALUATED com flags incompatíveis falham fechado.
+ */
+export function isCoherentAutomatedGateSnapshot(value: unknown): value is NutritionGateSnapshot {
+  if (!isNutritionGateSnapshot(value)) return false;
+  if (value.kind !== 'EVALUATED') return false;
+  return value.result.allowAutomatedTargets === true;
+}
+
+/**
+ * Coerência gate ↔ dia MANUAL_ONLY (GOAL-085):
+ * - PROFILE_ABSENT ⟺ snapshot PROFILE_ABSENT (perfil realmente ausente; um
+ *   EVALUATED aqui alegaria um perfil que não existe);
+ * - AUTOMATION_BLOCKED ⟺ snapshot EVALUATED com allowAutomatedTargets false
+ *   (o perfil existiu e foi avaliado; o gate do motor é determinístico, então
+ *   um EVALUATED permitido aqui seria incoerente);
+ * - TARGET_RESOLUTION_ERROR ⟺ snapshot EVALUATED com allowAutomatedTargets
+ *   true (o erro veio do motor DEPOIS do gate permitido; PROFILE_ABSENT aqui
+ *   esconderia um perfil que existiu).
+ */
+export function isCoherentManualGateSnapshot(
+  value: unknown,
+  reason: NutritionTargetUnavailableReason,
+): value is NutritionGateSnapshot {
+  if (!isNutritionGateSnapshot(value)) return false;
+  if (reason === 'PROFILE_ABSENT') return value.kind === 'PROFILE_ABSENT';
+  if (value.kind !== 'EVALUATED') return false;
+  if (reason === 'AUTOMATION_BLOCKED') return value.result.allowAutomatedTargets === false;
+  return value.result.allowAutomatedTargets === true;
+}
+
+/**
  * Guarda estrutural de NutritionDay para leitura de storage: rejeita payload
  * malformado em vez de promovê-lo a dia válido.
  *
@@ -393,6 +446,10 @@ function isMealLike(value: unknown): boolean {
  *   AUTOMATION_BLOCKED | TARGET_RESOLUTION_ERROR.
  * - Legado sem targetState mas com targets válido: aceito como AUTOMATED
  *   (compatibilidade IDB v5 pré-004B); nunca promove null silencioso.
+ *
+ * GOAL-085: dia NUT-004B (targetState explícito) sem gateSnapshot coerente é
+ * rejeitado (fail-closed). Legado pré-004B segue sem snapshot — nenhum gate
+ * histórico é fabricado ou exigido retroativamente.
  */
 export function isNutritionDay(value: unknown): value is NutritionDay {
   if (!isRecord(value)) return false;
@@ -402,9 +459,11 @@ export function isNutritionDay(value: unknown): value is NutritionDay {
   const targetState = value['targetState'];
   const targets = value['targets'];
   const reason = value['targetUnavailableReason'];
+  const gateSnapshot = value['gateSnapshot'];
   if (targetState === 'AUTOMATED') {
     if (!isDailyTargets(targets)) return false;
     if (reason !== undefined) return false;
+    if (!isCoherentAutomatedGateSnapshot(gateSnapshot)) return false;
   } else if (targetState === 'MANUAL_ONLY') {
     if (targets !== null) return false;
     if (
@@ -414,10 +473,14 @@ export function isNutritionDay(value: unknown): value is NutritionDay {
     ) {
       return false;
     }
+    if (!isCoherentManualGateSnapshot(gateSnapshot, reason)) return false;
   } else if (targetState === undefined) {
-    // Legado NUT-004A: sem targetState, com snapshot completo válido.
+    // Legado NUT-004A: sem targetState, com snapshot completo válido e SEM
+    // gate (pré-004B). Um gate aqui seria malformado: nenhum produtor legado
+    // o emitiu e nenhum gate histórico é fabricado na leitura.
     if (!isDailyTargets(targets)) return false;
     if (reason !== undefined) return false;
+    if (gateSnapshot !== undefined) return false;
   } else {
     return false;
   }

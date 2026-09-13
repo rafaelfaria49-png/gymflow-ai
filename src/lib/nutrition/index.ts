@@ -12,6 +12,7 @@ export * from './migration';
 export * from './rollover';
 export * from './profile-validation';
 export * from './gate-snapshot';
+export * from './admin-gate';
 export * from './effective-timezone';
 export * from './target-resolution';
 export * from './provider-bridge';

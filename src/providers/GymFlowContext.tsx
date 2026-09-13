@@ -177,6 +177,11 @@ import {
   runNutritionColdBoot,
 } from '../lib/nutrition/provider-bridge';
 import { normalizePersistedNutritionProfile } from '../lib/nutrition/profile-validation';
+import {
+  hasActiveNutritionLedger,
+  NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
+  type NutritionLedgerAdminDeferredReason,
+} from '../lib/nutrition/admin-gate';
 import { ensureTodayNutritionDay } from '../lib/nutrition/rollover';
 import { resolveNutritionTargets } from '../lib/nutrition/target-resolution';
 import type { TargetResolution } from '../lib/nutrition/target-resolution';
@@ -313,7 +318,8 @@ export type LogicalBackupExportFailureReason =
   | 'invalid-timestamp'
   | 'crypto-unavailable'
   | 'serialization'
-  | 'too-large';
+  | 'too-large'
+  | NutritionLedgerAdminDeferredReason;
 
 export type PublicLogicalExportResult =
   | {
@@ -337,7 +343,8 @@ export type PublicLogicalImportFailureReason =
   | 'owner-token-busy'
   | 'import-failed'
   | 'recovery-required'
-  | 'compensation-failed';
+  | 'compensation-failed'
+  | NutritionLedgerAdminDeferredReason;
 
 export type PublicLogicalImportResult =
   | { ok: true }
@@ -359,7 +366,8 @@ export type PublicLogicalRestoreFailureReason =
   | 'restore-ambiguous'
   | 'proof-diverged'
   | 'restore-failed'
-  | 'recovery-required';
+  | 'recovery-required'
+  | NutritionLedgerAdminDeferredReason;
 
 export interface PublicLogicalRestorePreview {
   sessionCount: number;
@@ -404,7 +412,8 @@ export type PublicLogicalResetFailureReason =
   | 'operation-open'
   | 'owner-token-busy'
   | 'reset-failed'
-  | 'recovery-required';
+  | 'recovery-required'
+  | NutritionLedgerAdminDeferredReason;
 
 export interface PublicLogicalResetPreview {
   sessionCount: number;
@@ -654,6 +663,7 @@ const RESTORE_FAILURE_MESSAGES: Record<PublicLogicalRestoreFailureReason, string
   'proof-diverged': 'O backup anterior mudou desde a verificação. Tente novamente.',
   'restore-failed': 'Não foi possível restaurar o backup anterior.',
   'recovery-required': 'A restauração requer recuperação. O aplicativo será recarregado.',
+  'nutrition-ledger-admin-deferred': NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
 };
 
 function failRestore(
@@ -678,6 +688,7 @@ const RESET_FAILURE_MESSAGES: Record<PublicLogicalResetFailureReason, string> = 
   'owner-token-busy': 'Outra aba está executando uma operação administrativa.',
   'reset-failed': 'Não foi possível zerar os dados do GymFlow.',
   'recovery-required': 'O reset requer recuperação. O aplicativo será recarregado.',
+  'nutrition-ledger-admin-deferred': NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
 };
 
 function failReset(
@@ -1594,7 +1605,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         setNutrition(preservedNutrition);
         lastMacroLoggedDateRef.current = preservedNutrition.lastMacroLoggedDate ?? preservedNutrition.lastMacroXpDate ?? null;
         lastWaterXpDateRef.current = preservedNutrition.lastWaterXpDate ?? null;
-        if (hydration.mode === 'hybrid-v2') {
+        // GOAL-085 (P3): perfil persistido inválido NUNCA vira semanticamente
+        // PROFILE_ABSENT — o bridge falha explícito (sem resolução, sem dia).
+        if (hydration.mode === 'hybrid-v2' && normalizedProfile.ok) {
           try {
             const bridge = await runNutritionColdBoot({
               repository: historyAdapter,
@@ -3272,13 +3285,21 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       const resolution = nutritionResolutionRef.current
         ?? resolveNutritionTargets({ profile: profileForWrite, evaluatedAt: loggedAt });
       const ensured = resolution.targetState === 'AUTOMATED'
-        ? await ensureTodayNutritionDay({ now, timezone: tz.timezone, targets: resolution.targets, repository: adapter })
+        ? await ensureTodayNutritionDay({
+          now,
+          timezone: tz.timezone,
+          targets: resolution.targets,
+          targetState: 'AUTOMATED',
+          gateSnapshot: resolution.gateSnapshot,
+          repository: adapter,
+        })
         : await ensureTodayNutritionDay({
           now,
           timezone: tz.timezone,
           targets: null,
           targetState: 'MANUAL_ONLY',
           targetUnavailableReason: resolution.targetUnavailableReason,
+          gateSnapshot: resolution.gateSnapshot,
           repository: adapter,
         });
       const entryId = newNutritionEntryId('hydration');
@@ -3361,13 +3382,21 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       const resolution = nutritionResolutionRef.current
         ?? resolveNutritionTargets({ profile: profileForWrite, evaluatedAt: loggedAt });
       const ensured = resolution.targetState === 'AUTOMATED'
-        ? await ensureTodayNutritionDay({ now, timezone: tz.timezone, targets: resolution.targets, repository: adapter })
+        ? await ensureTodayNutritionDay({
+          now,
+          timezone: tz.timezone,
+          targets: resolution.targets,
+          targetState: 'AUTOMATED',
+          gateSnapshot: resolution.gateSnapshot,
+          repository: adapter,
+        })
         : await ensureTodayNutritionDay({
           now,
           timezone: tz.timezone,
           targets: null,
           targetState: 'MANUAL_ONLY',
           targetUnavailableReason: resolution.targetUnavailableReason,
+          gateSnapshot: resolution.gateSnapshot,
           repository: adapter,
         });
       const mealId = `manual-macros-${ensured.today}`;
@@ -3861,10 +3890,35 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     toast.info(`Conteúdo original exportado (${recovery.bytes.toLocaleString('pt-BR')} bytes).`);
   };
 
+  // GOAL-085 — gate temporário do admin lógico (decisão temporária, sem NUT-004C).
+  //
+  // Enquanto nutritionDays + nutritionMetadata não participam do formato
+  // lógico, qualquer operação lógica sobre um ledger com consumo real seria
+  // parcial: o export geraria um arquivo que omite o ledger ativo, e
+  // import/restore/reset tocariam o core sem tocar o ledger (ressurreição de
+  // consumo zerado no próximo boot). Por isso o Provider bloqueia as seis
+  // operações lógicas em runtime hybrid-v2 quando há consumo real persistido
+  // — sempre ANTES do primeiro write, sem sucesso parcial, sem reload.
+  // Ledger vazio (sem FoodEntry/HydrationEntry) segue liberado: nada do
+  // usuário seria omitido ou ressuscitado.
+  const isNutritionLedgerAdminDeferred = useCallback(async (): Promise<boolean> => {
+    if (storageModeRef.current !== 'hybrid-v2') return false;
+    return hasActiveNutritionLedger({
+      currentDay: nutritionDayRef.current,
+      repository: historyAdapterRef.current,
+    });
+  }, []);
+
   const exportLogicalBackupV2 = useCallback(async (): Promise<PublicLogicalExportResult> => {
     const adapter = historyAdapterRef.current;
     if (!adapter || typeof window === 'undefined') {
       return { ok: false, reason: 'administration-unavailable' };
+    }
+    // GOAL-085 (gate temporário): com consumo nutricional real persistido, o
+    // arquivo lógico omitiria silenciosamente o ledger — bloquear antes de
+    // gerar qualquer conteúdo. Sem NUT-004C, sem sucesso parcial.
+    if (await isNutritionLedgerAdminDeferred()) {
+      return { ok: false, reason: 'nutrition-ledger-admin-deferred' };
     }
     const runtime = createStorageAdminRuntime({
       key: STORAGE_KEY,
@@ -3882,6 +3936,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       };
     }
     return { ok: false, reason: result.reason };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // GOAL-17B-E4B: wrapper público sanitizado para commitLogicalStorageImportV2.
@@ -3897,6 +3952,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     'import-failed': 'Não foi possível importar o backup selecionado.',
     'recovery-required': 'A importação requer recuperação. O aplicativo será recarregado.',
     'compensation-failed': 'A importação falhou e não pôde ser revertida. O aplicativo será recarregado.',
+    'nutrition-ledger-admin-deferred': NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
   };
 
   const importLogicalBackupV2 = useCallback(async (input: {
@@ -3966,6 +4022,17 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         reason: 'owner-token-busy',
         requiresReload: false,
         message: IMPORT_FAILURE_MESSAGES['owner-token-busy'],
+      };
+    }
+
+    // GOAL-085 (gate temporário): ledger com consumo real — bloquear ANTES de
+    // suspender o autosave e antes de qualquer write administrativo.
+    if (await isNutritionLedgerAdminDeferred()) {
+      return {
+        ok: false,
+        reason: 'nutrition-ledger-admin-deferred',
+        requiresReload: false,
+        message: IMPORT_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
       };
     }
 
@@ -4097,6 +4164,16 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       };
     }
 
+    // GOAL-085 (gate temporário): inspect também é bloqueado — a prévia não
+    // pode sugerir um restore que a execução recusaria.
+    if (await isNutritionLedgerAdminDeferred()) {
+      return {
+        status: 'error',
+        reason: 'nutrition-ledger-admin-deferred',
+        message: RESTORE_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
+      };
+    }
+
     const adapter = historyAdapterRef.current;
     if (!adapter || typeof window === 'undefined') {
       return {
@@ -4136,7 +4213,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         message: RESTORE_FAILURE_MESSAGES['restore-failed'],
       };
     }
-  }, []);
+  }, [isNutritionLedgerAdminDeferred]);
 
   const commitLogicalRestoreV2 = useCallback(async (): Promise<PublicLogicalRestoreResult> => {
     if (restoreInProgressRef.current || importInProgressRef.current || resetInProgressRef.current) {
@@ -4163,6 +4240,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     });
     if (ownerTokenInspection.status === 'busy') {
       return failRestore('owner-token-busy');
+    }
+
+    // GOAL-085 (gate temporário): bloquear ANTES de reler prova ou abrir
+    // receipt — nenhum write administrativo ocorre com ledger ativo.
+    if (await isNutritionLedgerAdminDeferred()) {
+      return failRestore('nutrition-ledger-admin-deferred');
     }
 
     const stored = provenRestoreTargetRef.current;
@@ -4292,7 +4375,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       scheduleAppReload();
       return failRestore('recovery-required', true);
     }
-  }, [toast]);
+  }, [toast, isNutritionLedgerAdminDeferred]);
 
   // GOAL-17B-E6B: wrapper público sanitizado para commitLogicalStorageResetV2.
   // A UI nunca recebe adapter, runtime, owner-token, generationId, operationId,
@@ -4318,6 +4401,16 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         status: 'error',
         reason: 'storage-not-healthy',
         message: RESET_FAILURE_MESSAGES['storage-not-healthy'],
+      };
+    }
+
+    // GOAL-085 (gate temporário): inspect também é bloqueado — a prévia não
+    // pode sugerir um reset que a execução recusaria.
+    if (await isNutritionLedgerAdminDeferred()) {
+      return {
+        status: 'error',
+        reason: 'nutrition-ledger-admin-deferred',
+        message: RESET_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
       };
     }
 
@@ -4388,7 +4481,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         message: RESET_FAILURE_MESSAGES['reset-failed'],
       };
     }
-  }, []);
+  }, [isNutritionLedgerAdminDeferred]);
 
   const commitLogicalResetV2 = useCallback(async (): Promise<PublicLogicalResetResult> => {
     if (resetInProgressRef.current || importInProgressRef.current || restoreInProgressRef.current) {
@@ -4415,6 +4508,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     });
     if (ownerTokenInspection.status === 'busy') {
       return failReset('owner-token-busy');
+    }
+
+    // GOAL-085 (gate temporário): bloquear ANTES do inspect que antecede o
+    // primeiro write — nenhum write administrativo ocorre com ledger ativo.
+    if (await isNutritionLedgerAdminDeferred()) {
+      return failReset('nutrition-ledger-admin-deferred');
     }
 
     ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
@@ -4513,7 +4612,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       scheduleAppReload();
       return failReset('recovery-required', true);
     }
-  }, [toast]);
+  }, [toast, isNutritionLedgerAdminDeferred]);
 
   const inspectStorageAdminStatus = useCallback((): Promise<StorageAdminStatus> => {
     const adapter = historyAdapterRef.current;

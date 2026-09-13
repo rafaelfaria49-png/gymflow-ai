@@ -235,6 +235,7 @@ export async function runNutritionColdBoot(
 
   // LEGACY_REAL: migrar para o NutritionDay correspondente (hoje, aberto).
   // Com targets => AUTOMATED; sem targets => MANUAL_ONLY. Nunca inventar metas.
+  // GOAL-085: o gateSnapshot da resolução é persistido no dia migrado.
   try {
     const migrated = resolution.targetState === 'AUTOMATED'
       ? migrateLegacyNutrition({
@@ -243,6 +244,7 @@ export async function runNutritionColdBoot(
         date: today,
         timezone,
         targets: resolution.targets,
+        gateSnapshot: resolution.gateSnapshot,
         markClosed: false,
       })
       : migrateLegacyNutrition({
@@ -252,6 +254,7 @@ export async function runNutritionColdBoot(
         timezone,
         targets: null,
         targetUnavailableReason: resolution.targetUnavailableReason,
+        gateSnapshot: resolution.gateSnapshot,
         markClosed: false,
       });
     if (migrated.outcome === 'migrated' && migrated.day) {
@@ -297,6 +300,8 @@ async function ensureTodayWithResolution(
       now,
       timezone,
       targets: resolution.targets,
+      targetState: 'AUTOMATED',
+      gateSnapshot: resolution.gateSnapshot,
       repository,
     });
   }
@@ -306,6 +311,7 @@ async function ensureTodayWithResolution(
     targets: null,
     targetState: 'MANUAL_ONLY',
     targetUnavailableReason: resolution.targetUnavailableReason,
+    gateSnapshot: resolution.gateSnapshot,
     repository,
   });
 }

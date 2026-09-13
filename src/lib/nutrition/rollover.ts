@@ -20,6 +20,7 @@
 import { getCivilDateString } from '../nutrition-civil-date';
 import type { DailyTargets } from './engine-types';
 import { closeNutritionDay, createNutritionDay } from './ledger';
+import type { NutritionGateSnapshot } from './gate-snapshot';
 import {
   NutritionLedgerError,
   type LedgerMigrationMarker,
@@ -130,6 +131,11 @@ export interface EnsureTodayNutritionDayInput {
   targets: DailyTargets | null;
   targetState?: 'AUTOMATED' | 'MANUAL_ONLY';
   targetUnavailableReason?: NutritionTargetUnavailableReason;
+  /**
+   * Prova da resolução (GOAL-085): obrigatória — o dia novo nunca é criado
+   * sem gateSnapshot coerente (a validação vive em `createNutritionDay`).
+   */
+  gateSnapshot: NutritionGateSnapshot;
   repository: NutritionDayRepository;
   /** Factory de id do dia; default determinístico `nutrition-day-${date}`. */
   dayIdFactory?: (date: string) => string;
@@ -198,6 +204,8 @@ export async function ensureTodayNutritionDay(
   } else {
     // NUT-004B: AUTOMATED exige targets válido; MANUAL_ONLY exige motivo
     // explícito. Nenhum alvo artificial é inventado pelo rollover.
+    // GOAL-085: gateSnapshot obrigatório — createNutritionDay rejeita dia
+    // novo sem gate coerente (INVALID_TARGETS, antes de qualquer escrita).
     const candidate = input.targets === null
       ? createNutritionDay({
         id: (input.dayIdFactory ?? defaultDayId)(today),
@@ -206,12 +214,15 @@ export async function ensureTodayNutritionDay(
         targets: null,
         targetState: 'MANUAL_ONLY',
         targetUnavailableReason: input.targetUnavailableReason,
+        gateSnapshot: input.gateSnapshot,
       })
       : createNutritionDay({
         id: (input.dayIdFactory ?? defaultDayId)(today),
         date: today,
         timezone,
         targets: input.targets,
+        targetState: 'AUTOMATED',
+        gateSnapshot: input.gateSnapshot,
       });
     const placed = await repository.putNutritionDayIfAbsent(candidate);
     day = placed.day;

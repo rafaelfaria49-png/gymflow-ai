@@ -11,6 +11,8 @@
 import type { DailyTargets } from './engine-types';
 import {
   isCivilDateString,
+  isCoherentAutomatedGateSnapshot,
+  isCoherentManualGateSnapshot,
   isDailyTargets,
   MEAL_TYPES,
   NutritionLedgerError,
@@ -24,6 +26,8 @@ import {
   type NutritionTargetUnavailableReason,
   type Remaining,
 } from './ledger-types';
+import type { NutritionGateSnapshot } from './gate-snapshot';
+import { isNutritionGateSnapshot } from './gate-snapshot';
 import { isValidMacroInput, isValidWaterInput } from '../nutrition-validation';
 
 // ============================================================================
@@ -102,6 +106,12 @@ export interface CreateNutritionDayInput {
   targets: DailyTargets | null;
   targetState?: 'AUTOMATED' | 'MANUAL_ONLY';
   targetUnavailableReason?: NutritionTargetUnavailableReason;
+  /**
+   * Prova da resolução de targets (GOAL-085): obrigatória em todo dia novo.
+   * AUTOMATED exige EVALUATED permitido; MANUAL_ONLY exige snapshot coerente
+   * com o motivo (PROFILE_ABSENT ⟺ PROFILE_ABSENT; demais ⟺ EVALUATED).
+   */
+  gateSnapshot: NutritionGateSnapshot;
 }
 
 const VALID_UNAVAILABLE_REASONS: readonly NutritionTargetUnavailableReason[] = Object.freeze([
@@ -116,6 +126,8 @@ const VALID_UNAVAILABLE_REASONS: readonly NutritionTargetUnavailableReason[] = O
  *   viva). Falha tipada quando os targets são inválidos/ausentes.
  * - MANUAL_ONLY: targets === null, sem meta implícita, com motivo explícito.
  *   Nenhum fallback numérico é inventado para preservar consumo.
+ * - GOAL-085: gateSnapshot obrigatório e coerente com o estado; dia novo sem
+ *   gate nunca sai desta factory (falha INVALID_TARGETS, sem default).
  */
 export function createNutritionDay(input: CreateNutritionDayInput): NutritionDay {
   assertNonEmptyId(input.id, 'NutritionDay');
@@ -147,6 +159,15 @@ export function createNutritionDay(input: CreateNutritionDayInput): NutritionDay
         'Dia MANUAL_ONLY exige targetUnavailableReason em PROFILE_ABSENT | AUTOMATION_BLOCKED | TARGET_RESOLUTION_ERROR.',
       );
     }
+    if (!isCoherentManualGateSnapshot(input.gateSnapshot, reason)) {
+      throw new NutritionLedgerError(
+        'INVALID_TARGETS',
+        `Dia MANUAL_ONLY (${reason}) exige gateSnapshot coerente: `
+          + 'PROFILE_ABSENT ⟺ snapshot PROFILE_ABSENT; '
+          + 'AUTOMATION_BLOCKED ⟺ EVALUATED bloqueado; '
+          + 'TARGET_RESOLUTION_ERROR ⟺ EVALUATED permitido. Dia sem gate foi rejeitado.',
+      );
+    }
     return {
       id: input.id,
       date: input.date,
@@ -154,6 +175,7 @@ export function createNutritionDay(input: CreateNutritionDayInput): NutritionDay
       targetState: 'MANUAL_ONLY',
       targets: null,
       targetUnavailableReason: reason,
+      gateSnapshot: cloneGateSnapshot(input.gateSnapshot),
       meals: [],
       hydrationEntries: [],
       isClosed: false,
@@ -177,6 +199,13 @@ export function createNutritionDay(input: CreateNutritionDayInput): NutritionDay
     );
   }
   assertValidTargets(input.targets);
+  if (!isCoherentAutomatedGateSnapshot(input.gateSnapshot)) {
+    throw new NutritionLedgerError(
+      'INVALID_TARGETS',
+      'Dia AUTOMATED exige gateSnapshot EVALUATED com allowAutomatedTargets === true. '
+        + 'Dia sem gate (ou com flags incompatíveis) foi rejeitado.',
+    );
+  }
 
   return {
     id: input.id,
@@ -193,10 +222,30 @@ export function createNutritionDay(input: CreateNutritionDayInput): NutritionDay
       },
       estimationTolerance: { ...input.targets.estimationTolerance },
     },
+    gateSnapshot: cloneGateSnapshot(input.gateSnapshot),
     meals: [],
     hydrationEntries: [],
     isClosed: false,
     closedAt: null,
+  };
+}
+
+/**
+ * Cópia explícita do snapshot para que o dia nunca observe mutação posterior
+ * do objeto de resolução do chamador (mesma disciplina do snapshot de
+ * targets). `evaluatedAt`/`profileHash` são imutáveis por valor.
+ */
+function cloneGateSnapshot(snapshot: NutritionGateSnapshot): NutritionGateSnapshot {
+  if (!isNutritionGateSnapshot(snapshot)) {
+    throw new NutritionLedgerError(
+      'INVALID_TARGETS',
+      'gateSnapshot malformado: não é um NutritionGateSnapshot válido.',
+    );
+  }
+  if (snapshot.kind === 'PROFILE_ABSENT') return { ...snapshot };
+  return {
+    ...snapshot,
+    result: { ...snapshot.result, reasons: [...snapshot.result.reasons] },
   };
 }
 

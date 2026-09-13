@@ -11,7 +11,9 @@ import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import { calculateDailyTargets } from './nutrition/engine';
 import type { DailyTargets } from './nutrition/engine-types';
+import { createEvaluatedGateSnapshot, createProfileAbsentSnapshot } from './nutrition/gate-snapshot';
 import { addHydrationEntry, calculateActuals } from './nutrition/ledger';
+import { evaluateNutritionGate } from './nutrition/profile-gates';
 import type { NutritionProfile } from '../types/nutrition';
 import {
   GYMFLOW_INDEXEDDB_VERSION,
@@ -65,6 +67,7 @@ describe('NUT004B — escrita atômica do ledger', () => {
       targetState: 'MANUAL_ONLY',
       targets: null,
       targetUnavailableReason: 'PROFILE_ABSENT',
+      gateSnapshot: createProfileAbsentSnapshot('2026-09-12T14:00:00.000Z'),
       meals: [],
       hydrationEntries: [],
       isClosed: false,
@@ -97,6 +100,10 @@ describe('NUT004B — escrita atômica do ledger', () => {
       timezone: 'America/Sao_Paulo',
       targetState: 'AUTOMATED',
       targets: makeTargets(),
+      gateSnapshot: createEvaluatedGateSnapshot(
+        evaluateNutritionGate(makeProfile()),
+        '2026-09-12T14:00:00.000Z',
+      ),
       meals: [],
       hydrationEntries: [],
       isClosed: false,
@@ -133,6 +140,7 @@ describe('NUT004B — escrita atômica do ledger', () => {
       targetState: 'MANUAL_ONLY',
       targets: null,
       targetUnavailableReason: 'PROFILE_ABSENT',
+      gateSnapshot: createProfileAbsentSnapshot('2026-09-12T14:00:00.000Z'),
       meals: [],
       hydrationEntries: [],
       isClosed: false,
