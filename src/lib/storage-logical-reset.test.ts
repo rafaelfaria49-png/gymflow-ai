@@ -269,6 +269,7 @@ describe('estado vazio canonico', () => {
       favoriteExercises: [],
       recentlyViewedVideoIds: [],
       gymProfile: null,
+      nutritionProfile: null,
     });
     const world = await createWorldA();
     const reset = await commitLogicalStorageResetV2({

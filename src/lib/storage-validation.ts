@@ -7,6 +7,7 @@ import {
   type StorageEnvelope,
 } from './storage-types';
 import { isGymProfileState } from '../domain/gymProfile';
+import { isNutritionProfile } from './nutrition/profile-validation';
 
 const ARRAY_FIELDS: (keyof PersistedState)[] = [
   'weeklyPlan',
@@ -54,6 +55,16 @@ export function validatePersistedStateShape(value: unknown): value is PersistedS
   }
   if ('nutrition' in value && !isRecord(value.nutrition)) return false;
   if ('gymProfile' in value && value.gymProfile !== null && !isGymProfileState(value.gymProfile)) return false;
+  // NUT-004B: campo opcional; ausente continua válido (hidrata como null).
+  // Presente e não-nulo exige perfil estrito — sem inferência silenciosa.
+  if (
+    'nutritionProfile' in value
+    && value.nutritionProfile !== null
+    && value.nutritionProfile !== undefined
+    && !isNutritionProfile(value.nutritionProfile)
+  ) {
+    return false;
+  }
 
   return true;
 }

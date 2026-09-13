@@ -3,6 +3,7 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
+import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from '../lib/nutrition/admin-lock-fake';
 import {
   GENERATION_MANIFESTS_STORE,
   GYMFLOW_INDEXEDDB_VERSION,
@@ -434,6 +435,7 @@ function assertCanonicalEmpty(context: GymFlowValue): void {
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   installBrowserGlobals();
+  installFakeNutritionCrossTabLocks();
 });
 
 afterEach(async () => {
@@ -446,6 +448,7 @@ afterEach(async () => {
   }
   await settle(10);
   restoreBrowserGlobals();
+  restoreFakeNutritionCrossTabLocks();
 });
 
 async function resetToEmptyAndReload(handle: Mounted): Promise<Mounted> {
@@ -576,7 +579,11 @@ describe('reset hybrid-v2 — A → Z → restore A', () => {
     expect(afterRestore.context().programs.some((program) => program.isCustom)).toBe(true);
     expect(afterRestore.context().weightHistory).toHaveLength(3);
     expect(afterRestore.context().measurementsHistory).toHaveLength(2);
-    expect(afterRestore.context().nutrition.calories).toBe(1420);
+    // NUT-004B: o ledger é a fonte de verdade e o seed 1420/110/150/45/1200 é
+    // LEGACY_DEMO (descartado, sem XP). O restore lógico ainda não restaura o
+    // ledger (fora do escopo NUT-004B, próximos gates), então os espelhos
+    // derivam do dia vazio — sem fantasma da demo restaurada.
+    expect(afterRestore.context().nutrition.calories).toBe(0);
   });
 });
 

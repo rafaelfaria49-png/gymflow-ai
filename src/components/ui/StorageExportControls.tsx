@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { downloadTextFile } from '../../lib/storage-export';
+import { NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE } from '../../lib/nutrition/admin-gate';
+import { NUTRITION_ADMIN_LOCK_UNAVAILABLE_MESSAGE } from '../../lib/nutrition/admin-lock';
 import { useToast } from './Toast';
 
 type LogicalBackupExportFailureReason =
@@ -15,7 +17,11 @@ type LogicalBackupExportFailureReason =
   | 'invalid-timestamp'
   | 'crypto-unavailable'
   | 'serialization'
-  | 'too-large';
+  | 'too-large'
+  // GOAL-085 (gate temporário): ledger nutricional ativo fora do backup lógico.
+  | 'nutrition-ledger-admin-deferred'
+  // GOAL-089: exclusão cross-tab indisponível (fail-closed, sem write).
+  | 'nutrition-admin-lock-unavailable';
 
 type PublicLogicalExportResult =
   | {
@@ -61,6 +67,8 @@ const FAILURE_MESSAGES: Record<LogicalBackupExportFailureReason, string> = {
     'A criptografia necessária não está disponível neste navegador.',
   'serialization': 'Não foi possível serializar o backup lógico.',
   'too-large': 'O backup excede o limite máximo permitido.',
+  'nutrition-ledger-admin-deferred': NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
+  'nutrition-admin-lock-unavailable': NUTRITION_ADMIN_LOCK_UNAVAILABLE_MESSAGE,
 };
 
 const PRIVACY_DESCRIPTION =

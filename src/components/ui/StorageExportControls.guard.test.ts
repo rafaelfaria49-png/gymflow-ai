@@ -67,16 +67,35 @@ describe('GymFlowContext.exportLogicalBackupV2 — prova de zero owner-token', (
   const fnBody = fnMatch?.[0] ?? '';
 
   const FORBIDDEN_IN_FN = [
-    'acquire',
     'owner-token',
     'beginStorageOperation',
+    'acquireOwnerToken',
+    'createStorageAdminOwnerTokenCoordinator',
+    'inspectStorageAdminOwnerToken',
     'lease',
     'receipt',
   ] as const;
 
+  // GOAL-087: `releaseNutritionFenceBestEffort` contém o substring `lease`
+  // (`reLease`) mas é o fence nutricional — não o lease de owner-token.
+  // A asserção abaixo filtra esse falso-positivo pelo contexto.
   for (const token of FORBIDDEN_IN_FN) {
     it(`exportLogicalBackupV2 não referencia "${token}"`, () => {
+      if (token === 'lease') {
+        // Remove as ocorrências do fence nutricional antes de checar o lease
+        // de owner-token (que o export nunca toca — prova de zero owner-token).
+        const scrubbed = fnBody
+          .replaceAll('releaseNutritionFenceBestEffort', '')
+          .replaceAll('releaseNutritionAdminFence', '');
+        expect(scrubbed).not.toContain(token);
+        return;
+      }
       expect(fnBody).not.toContain(token);
     });
   }
+
+  it('exportLogicalBackupV2 mantém o fence nutricional durante a captura (GOAL-087)', () => {
+    expect(fnBody).toContain('acquireNutritionAdminFence');
+    expect(fnBody).toContain('releaseNutritionFenceBestEffort');
+  });
 });

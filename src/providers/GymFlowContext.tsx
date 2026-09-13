@@ -164,6 +164,37 @@ import {
   isValidWaterInput,
 } from '../lib/nutrition-validation';
 import { getCivilDateString } from '../lib/nutrition-civil-date';
+import {
+  addFoodEntry,
+  addHydrationEntry,
+  addMeal,
+  calculateActuals,
+} from '../lib/nutrition/ledger';
+import type { NutritionDay } from '../lib/nutrition/ledger-types';
+import { resolveEffectiveTimezone } from '../lib/nutrition/effective-timezone';
+import {
+  projectCompatMirrors,
+  runNutritionColdBoot,
+} from '../lib/nutrition/provider-bridge';
+import { normalizePersistedNutritionProfile } from '../lib/nutrition/profile-validation';
+import {
+  hasActiveNutritionLedger,
+  NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
+  type NutritionLedgerAdminDeferredReason,
+} from '../lib/nutrition/admin-gate';
+import {
+  isNutritionAdminFencedError,
+  type NutritionAdminFenceOperationKind,
+  type NutritionAdminFenceV1,
+} from '../lib/nutrition/admin-fence';
+import {
+  NUTRITION_ADMIN_LOCK_UNAVAILABLE_MESSAGE,
+  isNutritionAdminLockUnavailableError,
+  type NutritionAdminLockUnavailableReason,
+} from '../lib/nutrition/admin-lock';
+import { ensureTodayNutritionDay } from '../lib/nutrition/rollover';
+import { resolveNutritionTargets } from '../lib/nutrition/target-resolution';
+import type { TargetResolution } from '../lib/nutrition/target-resolution';
 import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
 import {
   readPersistedGymProfile,
@@ -242,6 +273,8 @@ interface PersistedState {
   recentlyViewedVideoIds: string[];
   // Ausente em envelopes anteriores; a migração/hidratação expõe null ao domínio.
   gymProfile?: GymProfileState | null;
+  // NUT-004B: perfil nutricional opcional no core v2; ausente hidrata como null.
+  nutritionProfile?: import('../types/nutrition').NutritionProfile | null;
 }
 
 export type AppView =
@@ -295,7 +328,9 @@ export type LogicalBackupExportFailureReason =
   | 'invalid-timestamp'
   | 'crypto-unavailable'
   | 'serialization'
-  | 'too-large';
+  | 'too-large'
+  | NutritionLedgerAdminDeferredReason
+  | NutritionAdminLockUnavailableReason;
 
 export type PublicLogicalExportResult =
   | {
@@ -319,7 +354,9 @@ export type PublicLogicalImportFailureReason =
   | 'owner-token-busy'
   | 'import-failed'
   | 'recovery-required'
-  | 'compensation-failed';
+  | 'compensation-failed'
+  | NutritionLedgerAdminDeferredReason
+  | NutritionAdminLockUnavailableReason;
 
 export type PublicLogicalImportResult =
   | { ok: true }
@@ -341,7 +378,9 @@ export type PublicLogicalRestoreFailureReason =
   | 'restore-ambiguous'
   | 'proof-diverged'
   | 'restore-failed'
-  | 'recovery-required';
+  | 'recovery-required'
+  | NutritionLedgerAdminDeferredReason
+  | NutritionAdminLockUnavailableReason;
 
 export interface PublicLogicalRestorePreview {
   sessionCount: number;
@@ -386,7 +425,9 @@ export type PublicLogicalResetFailureReason =
   | 'operation-open'
   | 'owner-token-busy'
   | 'reset-failed'
-  | 'recovery-required';
+  | 'recovery-required'
+  | NutritionLedgerAdminDeferredReason
+  | NutritionAdminLockUnavailableReason;
 
 export interface PublicLogicalResetPreview {
   sessionCount: number;
@@ -548,13 +589,13 @@ interface GymFlowContextType {
 
   // Nutrition
   nutrition: NutritionLog;
-  logWater: (amountMl: number) => boolean;
+  logWater: (amountMl: number) => Promise<boolean>;
   logMacros: (
     calories: number,
     protein: number,
     carbs: number,
     fat: number
-  ) => boolean;
+  ) => Promise<boolean>;
 
   // Community
   communityPosts: CommunityPost[];
@@ -636,6 +677,8 @@ const RESTORE_FAILURE_MESSAGES: Record<PublicLogicalRestoreFailureReason, string
   'proof-diverged': 'O backup anterior mudou desde a verificação. Tente novamente.',
   'restore-failed': 'Não foi possível restaurar o backup anterior.',
   'recovery-required': 'A restauração requer recuperação. O aplicativo será recarregado.',
+  'nutrition-ledger-admin-deferred': NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
+  'nutrition-admin-lock-unavailable': NUTRITION_ADMIN_LOCK_UNAVAILABLE_MESSAGE,
 };
 
 function failRestore(
@@ -660,6 +703,8 @@ const RESET_FAILURE_MESSAGES: Record<PublicLogicalResetFailureReason, string> = 
   'owner-token-busy': 'Outra aba está executando uma operação administrativa.',
   'reset-failed': 'Não foi possível zerar os dados do GymFlow.',
   'recovery-required': 'O reset requer recuperação. O aplicativo será recarregado.',
+  'nutrition-ledger-admin-deferred': NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
+  'nutrition-admin-lock-unavailable': NUTRITION_ADMIN_LOCK_UNAVAILABLE_MESSAGE,
 };
 
 function failReset(
@@ -1033,6 +1078,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   ]);
 
   // Nutrition (NUT-001: estado inicial canônico em zero sem vazamento de demo)
+  // NUT-004B: espelhos derivados do ledger (fonte de verdade no IndexedDB).
   const [nutrition, setNutrition] = useState<NutritionLog>({
     calories: 0,
     protein: 0,
@@ -1040,8 +1086,16 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     fat: 0,
     water: 0
   });
+  const [nutritionProfile, setNutritionProfile] = useState<
+    import('../types/nutrition').NutritionProfile | null
+  >(null);
   const lastMacroLoggedDateRef = useRef<string | null>(null);
   const lastWaterXpDateRef = useRef<string | null>(null);
+  // NUT-004B: dia corrente do ledger + resolução vigente (targets/state).
+  const nutritionDayRef = useRef<NutritionDay | null>(null);
+  const nutritionResolutionRef = useRef<TargetResolution | null>(null);
+  const nutritionTimezoneRef = useRef<string | null>(null);
+  const nutritionBridgeFailedRef = useRef(false);
 
   // Achievements, XP notifications
   const [xpNotifications, setXpNotifications] = useState<XpNotification[]>([]);
@@ -1192,6 +1246,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const resetInProgressRef = useRef(false);
   // GOAL-17B-E5B: prova do predecessor somente em ref privada e efêmera.
   const provenRestoreTargetRef = useRef<LogicalStorageRestoreTargetV2 | null>(null);
+  // GOAL-087: owner estável do fence nutricional por ciclo de vida do Provider.
+  // O fenceId (não o ownerId) é a unidade de ownership para release.
+  const nutritionFenceOwnerIdRef = useRef<string | null>(null);
 
   const persistedState: PersistedState = {
     user,
@@ -1211,6 +1268,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     favoriteExercises,
     recentlyViewedVideoIds,
     gymProfile,
+    nutritionProfile,
   };
   const persistedStateRef = useRef<PersistedState>(persistedState);
   const initialPersistedStateRef = useRef<PersistedState>(persistedState);
@@ -1559,9 +1617,62 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         setWorkoutHistory(normalizedSession.workoutHistory);
         setWeightHistory(saved.weightHistory);
         setMeasurementsHistory(saved.measurementsHistory);
-        setNutrition(saved.nutrition);
-        lastMacroLoggedDateRef.current = saved.nutrition.lastMacroLoggedDate ?? saved.nutrition.lastMacroXpDate ?? null;
-        lastWaterXpDateRef.current = saved.nutrition.lastWaterXpDate ?? null;
+        const normalizedProfile = normalizePersistedNutritionProfile(saved.nutritionProfile);
+        const effectiveProfile = normalizedProfile.ok ? normalizedProfile.profile : null;
+        setNutritionProfile(effectiveProfile);
+        const preservedNutrition = saved.nutrition;
+        setNutrition(preservedNutrition);
+        lastMacroLoggedDateRef.current = preservedNutrition.lastMacroLoggedDate ?? preservedNutrition.lastMacroXpDate ?? null;
+        lastWaterXpDateRef.current = preservedNutrition.lastWaterXpDate ?? null;
+        // GOAL-085 (P3): perfil persistido inválido NUNCA vira semanticamente
+        // PROFILE_ABSENT — o bridge falha explícito (sem resolução, sem dia).
+        if (hydration.mode === 'hybrid-v2' && normalizedProfile.ok) {
+          try {
+            const bridge = await runNutritionColdBoot({
+              repository: historyAdapter,
+              now: new Date(),
+              profile: effectiveProfile,
+              savedNutrition: saved.nutrition,
+              savedUserWaterIntake: saved.user?.waterIntake,
+            });
+            if (cancelled || !mountedRef.current) return;
+            if (bridge.ok) {
+              const projected = projectCompatMirrors(bridge.actuals, {
+                lastMacroLoggedDate: preservedNutrition.lastMacroLoggedDate,
+                lastMacroXpDate: preservedNutrition.lastMacroXpDate,
+                lastWaterXpDate: preservedNutrition.lastWaterXpDate,
+              });
+              setNutrition(projected);
+              nutritionDayRef.current = bridge.day;
+              nutritionResolutionRef.current = bridge.resolution;
+              nutritionTimezoneRef.current = bridge.timezone;
+              nutritionBridgeFailedRef.current = false;
+              const projectedWater = bridge.mirrors.waterIntake;
+              setUser((prev) => {
+                const base = prev ?? saved.user;
+                if (!base) return prev;
+                if (base.waterIntake === projectedWater) return prev;
+                return { ...base, waterIntake: projectedWater };
+              });
+            } else {
+              nutritionDayRef.current = null;
+              nutritionResolutionRef.current = null;
+              nutritionTimezoneRef.current = null;
+              nutritionBridgeFailedRef.current = true;
+            }
+          } catch {
+            if (cancelled || !mountedRef.current) return;
+            nutritionDayRef.current = null;
+            nutritionResolutionRef.current = null;
+            nutritionTimezoneRef.current = null;
+            nutritionBridgeFailedRef.current = true;
+          }
+        } else {
+          nutritionDayRef.current = null;
+          nutritionResolutionRef.current = null;
+          nutritionTimezoneRef.current = null;
+          nutritionBridgeFailedRef.current = true;
+        }
         setAchievements(saved.achievements);
         setChallenges(saved.challenges);
         setFavoriteExercises(saved.favoriteExercises);
@@ -1661,6 +1772,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     favoriteExercises,
     recentlyViewedVideoIds,
     gymProfile,
+    nutritionProfile,
   ]);
 
   useEffect(() => {
@@ -3159,79 +3271,251 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     addXp(40, 'Medidas corporais atualizadas');
   };
 
-  // Nutrition trackers (NUT-001)
-  const logWater = (amountMl: number): boolean => {
+  // Nutrition trackers (NUT-001 + NUT-004B ledger durável)
+  function newNutritionEntryId(prefix: string): string {
+    try {
+      const uuid = (globalThis.crypto as { randomUUID?: () => string } | undefined)?.randomUUID;
+      if (typeof uuid === 'function') return `${prefix}-${uuid.call(globalThis.crypto)}`;
+    } catch {
+      /* fallback abaixo */
+    }
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  function getNutritionFenceOwnerId(): string {
+    if (!nutritionFenceOwnerIdRef.current) {
+      try {
+        const uuid = (globalThis.crypto as { randomUUID?: () => string } | undefined)?.randomUUID;
+        if (typeof uuid === 'function') {
+          nutritionFenceOwnerIdRef.current = `nut-owner-${uuid.call(globalThis.crypto)}`;
+        }
+      } catch {
+        /* fallback abaixo */
+      }
+      nutritionFenceOwnerIdRef.current ??= `nut-owner-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+    return nutritionFenceOwnerIdRef.current;
+  }
+
+  function newNutritionFenceOperationId(kind: NutritionAdminFenceOperationKind): string {
+    try {
+      const uuid = (globalThis.crypto as { randomUUID?: () => string } | undefined)?.randomUUID;
+      if (typeof uuid === 'function') return `nut-op-${kind}-${uuid.call(globalThis.crypto)}`;
+    } catch {
+      /* fallback abaixo */
+    }
+    return `nut-op-${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  async function releaseNutritionFenceBestEffort(
+    adapter: IndexedDbWorkoutHistoryStorage | null,
+    fence: NutritionAdminFenceV1 | null,
+  ): Promise<void> {
+    if (!adapter || !fence) return;
+    try {
+      await adapter.releaseNutritionAdminFence({ fenceId: fence.fenceId });
+    } catch {
+      /* melhor esforço: nunca mascarar o resultado da operação admin */
+    }
+  }
+
+  const logWater = async (amountMl: number): Promise<boolean> => {
     if (!isValidWaterInput(amountMl)) {
       return false;
     }
-
-    const today = getCivilDateString();
-    let grantWaterXp = false;
-
-    if (user) {
-      const prevWater = user.waterIntake;
-      const newWater = prevWater + amountMl;
-      setUser((prev) => (prev ? { ...prev, waterIntake: newWater } : null));
-
-      if (newWater >= user.waterGoal && prevWater < user.waterGoal) {
-        unlockAchievement('ach_4');
-
-        const alreadyRewardedToday = (
-          lastWaterXpDateRef.current === today ||
-          nutrition.lastWaterXpDate === today
-        );
-
-        if (!alreadyRewardedToday) {
-          grantWaterXp = true;
-          lastWaterXpDateRef.current = today;
-          // NUT-001 (D-NUT-07): calibração para 40 XP para respeitar o teto diário de 60 XP em nutrição (20 XP macros + 40 XP água)
-          addXp(40, '💧 Meta Diária de Água Batida!');
+    const adapter = historyAdapterRef.current;
+    if (!adapter || storageBlockedRef.current) {
+      toast.error('Não foi possível registrar a água agora.');
+      return false;
+    }
+    const now = new Date();
+    const loggedAt = now.toISOString();
+    try {
+      const profileForWrite = nutritionProfile;
+      const tzFallback = nutritionTimezoneRef.current ?? profileForWrite?.timezone ?? null;
+      const tz = resolveEffectiveTimezone(tzFallback);
+      if (!tz.ok) {
+        toast.error('Não foi possível registrar a água agora.');
+        return false;
+      }
+      const resolution = nutritionResolutionRef.current
+        ?? resolveNutritionTargets({ profile: profileForWrite, evaluatedAt: loggedAt });
+      const ensured = resolution.targetState === 'AUTOMATED'
+        ? await ensureTodayNutritionDay({
+          now,
+          timezone: tz.timezone,
+          targets: resolution.targets,
+          targetState: 'AUTOMATED',
+          gateSnapshot: resolution.gateSnapshot,
+          repository: adapter,
+        })
+        : await ensureTodayNutritionDay({
+          now,
+          timezone: tz.timezone,
+          targets: null,
+          targetState: 'MANUAL_ONLY',
+          targetUnavailableReason: resolution.targetUnavailableReason,
+          gateSnapshot: resolution.gateSnapshot,
+          repository: adapter,
+        });
+      const entryId = newNutritionEntryId('hydration');
+      const nextDay = await adapter.mutateNutritionDay(ensured.today, (current) => {
+        const base = current ?? ensured.day;
+        return addHydrationEntry(base, { id: entryId, amountMl, loggedAt });
+      });
+      nutritionDayRef.current = nextDay;
+      nutritionResolutionRef.current = resolution;
+      nutritionTimezoneRef.current = tz.timezone;
+      nutritionBridgeFailedRef.current = false;
+      const actuals = calculateActuals(nextDay);
+      const civilToday = ensured.today;
+      const prevWater = actuals.waterMl - amountMl;
+      let grantWaterXp = false;
+      const currentUser = persistedStateRef.current.user ?? user;
+      if (currentUser) {
+        const goal = currentUser.waterGoal;
+        if (actuals.waterMl >= goal && prevWater < goal) {
+          const alreadyRewarded = lastWaterXpDateRef.current === civilToday
+            || persistedStateRef.current.nutrition.lastWaterXpDate === civilToday;
+          if (!alreadyRewarded) {
+            grantWaterXp = true;
+          }
         }
       }
+      if (grantWaterXp) {
+        lastWaterXpDateRef.current = civilToday;
+      }
+      setNutrition((prev) => ({
+        ...prev,
+        calories: actuals.calories,
+        protein: actuals.protein,
+        carbs: actuals.carbs,
+        fat: actuals.fat,
+        water: actuals.waterMl,
+        ...(grantWaterXp ? { lastWaterXpDate: civilToday } : {}),
+      }));
+      setUser((prev) => {
+        const base = prev ?? persistedStateRef.current.user;
+        if (!base) return prev;
+        if (base.waterIntake === actuals.waterMl) return prev;
+        return { ...base, waterIntake: actuals.waterMl };
+      });
+      if (grantWaterXp) {
+        unlockAchievement('ach_4');
+        addXp(40, '💧 Meta Diária de Água Batida!');
+      }
+      return true;
+    } catch (error) {
+      // GOAL-087: write bloqueado pelo fence → false honesto, sem mirror,
+      // sem waterIntake, sem XP/achievement/lastXpDate, com um único toast.
+      // Nenhum estado acima foi tocado antes do mutate confirmar.
+      if (isNutritionAdminFencedError(error)) {
+        toast.error('Não foi possível registrar a água agora.');
+        return false;
+      }
+      toast.error('Não foi possível registrar a água agora.');
+      return false;
     }
-
-    setNutrition((prev) => ({
-      ...prev,
-      water: prev.water + amountMl,
-      ...(grantWaterXp ? { lastWaterXpDate: today } : {}),
-    }));
-
-    return true;
   };
 
-  const logMacros = (
+  const logMacros = async (
     calories: number,
     protein: number,
     carbs: number,
     fat: number
-  ): boolean => {
+  ): Promise<boolean> => {
     if (!isValidMacroInput(calories, protein, carbs, fat)) {
       return false;
     }
-
-    const today = getCivilDateString();
-    const alreadyGrantedToday = (
-      lastMacroLoggedDateRef.current === today ||
-      nutrition.lastMacroLoggedDate === today ||
-      nutrition.lastMacroXpDate === today
-    );
-
-    if (!alreadyGrantedToday) {
-      lastMacroLoggedDateRef.current = today;
-      addXp(20, 'Alimento registrado na dieta');
+    const adapter = historyAdapterRef.current;
+    if (!adapter || storageBlockedRef.current) {
+      toast.error('Não foi possível registrar a refeição agora.');
+      return false;
     }
-
-    setNutrition((prev) => ({
-      ...prev,
-      calories: prev.calories + calories,
-      protein: prev.protein + protein,
-      carbs: prev.carbs + carbs,
-      fat: prev.fat + fat,
-      lastMacroLoggedDate: today,
-      lastMacroXpDate: today,
-    }));
-
-    return true;
+    const now = new Date();
+    const loggedAt = now.toISOString();
+    try {
+      const profileForWrite = nutritionProfile;
+      const tzFallback = nutritionTimezoneRef.current ?? profileForWrite?.timezone ?? null;
+      const tz = resolveEffectiveTimezone(tzFallback);
+      if (!tz.ok) {
+        toast.error('Não foi possível registrar a refeição agora.');
+        return false;
+      }
+      const resolution = nutritionResolutionRef.current
+        ?? resolveNutritionTargets({ profile: profileForWrite, evaluatedAt: loggedAt });
+      const ensured = resolution.targetState === 'AUTOMATED'
+        ? await ensureTodayNutritionDay({
+          now,
+          timezone: tz.timezone,
+          targets: resolution.targets,
+          targetState: 'AUTOMATED',
+          gateSnapshot: resolution.gateSnapshot,
+          repository: adapter,
+        })
+        : await ensureTodayNutritionDay({
+          now,
+          timezone: tz.timezone,
+          targets: null,
+          targetState: 'MANUAL_ONLY',
+          targetUnavailableReason: resolution.targetUnavailableReason,
+          gateSnapshot: resolution.gateSnapshot,
+          repository: adapter,
+        });
+      const mealId = `manual-macros-${ensured.today}`;
+      const entryId = newNutritionEntryId('food');
+      const mealName = 'Registro manual de macros';
+      const nextDay = await adapter.mutateNutritionDay(ensured.today, (current) => {
+        let base = current ?? ensured.day;
+        if (!base.meals.some((meal) => meal.id === mealId)) {
+          base = addMeal(base, { id: mealId, type: 'custom', name: mealName });
+        }
+        return addFoodEntry(base, mealId, {
+          id: entryId,
+          name: mealName,
+          calories,
+          protein,
+          carbs,
+          fat,
+          loggedAt,
+        });
+      });
+      nutritionDayRef.current = nextDay;
+      nutritionResolutionRef.current = resolution;
+      nutritionTimezoneRef.current = tz.timezone;
+      nutritionBridgeFailedRef.current = false;
+      const actuals = calculateActuals(nextDay);
+      const civilToday = ensured.today;
+      const alreadyGranted = lastMacroLoggedDateRef.current === civilToday
+        || persistedStateRef.current.nutrition.lastMacroLoggedDate === civilToday
+        || persistedStateRef.current.nutrition.lastMacroXpDate === civilToday;
+      if (!alreadyGranted) {
+        lastMacroLoggedDateRef.current = civilToday;
+      }
+      setNutrition((prev) => ({
+        ...prev,
+        calories: actuals.calories,
+        protein: actuals.protein,
+        carbs: actuals.carbs,
+        fat: actuals.fat,
+        water: actuals.waterMl,
+        lastMacroLoggedDate: civilToday,
+        lastMacroXpDate: civilToday,
+      }));
+      if (!alreadyGranted) {
+        addXp(20, 'Alimento registrado na dieta');
+      }
+      return true;
+    } catch (error) {
+      // GOAL-087: idem logWater — fence ativo retorna false honesto, sem
+      // mirror/XP/datas, com um único toast e sem side-effect.
+      if (isNutritionAdminFencedError(error)) {
+        toast.error('Não foi possível registrar a refeição agora.');
+        return false;
+      }
+      toast.error('Não foi possível registrar a refeição agora.');
+      return false;
+    }
   };
 
   // Community Feed
@@ -3675,27 +3959,94 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     toast.info(`Conteúdo original exportado (${recovery.bytes.toLocaleString('pt-BR')} bytes).`);
   };
 
+  // GOAL-085 — gate temporário do admin lógico (decisão temporária, sem NUT-004C).
+  //
+  // Enquanto nutritionDays + nutritionMetadata não participam do formato
+  // lógico, qualquer operação lógica sobre um ledger com consumo real seria
+  // parcial: o export geraria um arquivo que omite o ledger ativo, e
+  // import/restore/reset tocariam o core sem tocar o ledger (ressurreição de
+  // consumo zerado no próximo boot). Por isso o Provider bloqueia as seis
+  // operações lógicas em runtime hybrid-v2 quando há consumo real persistido
+  // — sempre ANTES do primeiro write, sem sucesso parcial, sem reload.
+  // Ledger vazio (sem FoodEntry/HydrationEntry) segue liberado: nada do
+  // usuário seria omitido ou ressuscitado.
+  //
+  // GOAL-087: o gate acima tinha TOCTOU (sonda read-only fora de transação).
+  // A partir daqui cada operação usa o fence durável:
+  // acquire → sondar novamente SOB o fence → se consumo: deferred →
+  // se vazio: executar mantendo o fence → release em finally.
+  const isNutritionLedgerAdminDeferred = useCallback(async (): Promise<boolean> => {
+    if (storageModeRef.current !== 'hybrid-v2') return false;
+    return hasActiveNutritionLedger({
+      currentDay: nutritionDayRef.current,
+      repository: historyAdapterRef.current,
+    });
+  }, []);
+
   const exportLogicalBackupV2 = useCallback(async (): Promise<PublicLogicalExportResult> => {
     const adapter = historyAdapterRef.current;
     if (!adapter || typeof window === 'undefined') {
       return { ok: false, reason: 'administration-unavailable' };
     }
-    const runtime = createStorageAdminRuntime({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-      adapter,
-    });
-    const result = await createLogicalStorageExportV2({ runtime });
-    if (result.ok) {
-      return {
-        ok: true,
-        content: result.content,
-        filename: result.filename,
-        bytes: result.bytes,
-        warning: result.warning,
-      };
+    // GOAL-087: fence durante TODA a captura do snapshot lógico.
+    // Probe vazio → gravação concorrente → export ok omitindo a gravação:
+    // fechado porque writers veem o fence ativo e são bloqueados, e writers
+    // já iniciados commitam antes do acquire (serialização IDB) e são vistos
+    // pela sonda sob o fence.
+    //
+    // GOAL-089: o Web Lock EXCLUSIVE é retido durante TODA a operação
+    // (ordem: Web Lock → fence IDB → token de posse). Writers nutricionais
+    // (SHARED) aguardam sem commitar; a segurança não depende do TTL.
+    try {
+      return await adapter.runNutritionAdminWithExclusiveLock<PublicLogicalExportResult>(async () => {
+        let fence: NutritionAdminFenceV1 | null = null;
+        try {
+          try {
+            fence = await adapter.acquireNutritionAdminFence({
+              ownerId: getNutritionFenceOwnerId(),
+              operationId: newNutritionFenceOperationId('export'),
+              operationKind: 'export',
+            });
+          } catch (acquireError) {
+            if (isNutritionAdminFencedError(acquireError)) {
+              return { ok: false, reason: 'administration-conflicted' };
+            }
+            throw acquireError;
+          }
+          if (await hasActiveNutritionLedger({
+            currentDay: nutritionDayRef.current,
+            repository: adapter,
+          })) {
+            return { ok: false, reason: 'nutrition-ledger-admin-deferred' };
+          }
+          const runtime = createStorageAdminRuntime({
+            key: STORAGE_KEY,
+            storage: window.localStorage,
+            adapter,
+          });
+          const result = await createLogicalStorageExportV2({ runtime });
+          if (result.ok) {
+            return {
+              ok: true,
+              content: result.content,
+              filename: result.filename,
+              bytes: result.bytes,
+              warning: result.warning,
+            };
+          }
+          return { ok: false, reason: result.reason };
+        } finally {
+          await releaseNutritionFenceBestEffort(adapter, fence);
+        }
+      });
+    } catch (lockError) {
+      // GOAL-089: sem Web Locks, fail-closed antes de qualquer write.
+      if (isNutritionAdminLockUnavailableError(lockError)) {
+        return { ok: false, reason: 'nutrition-admin-lock-unavailable' };
+      }
+      throw lockError;
     }
-    return { ok: false, reason: result.reason };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // GOAL-17B-E4B: wrapper público sanitizado para commitLogicalStorageImportV2.
@@ -3711,6 +4062,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     'import-failed': 'Não foi possível importar o backup selecionado.',
     'recovery-required': 'A importação requer recuperação. O aplicativo será recarregado.',
     'compensation-failed': 'A importação falhou e não pôde ser revertida. O aplicativo será recarregado.',
+    'nutrition-ledger-admin-deferred': NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
+    'nutrition-admin-lock-unavailable': NUTRITION_ADMIN_LOCK_UNAVAILABLE_MESSAGE,
   };
 
   const importLogicalBackupV2 = useCallback(async (input: {
@@ -3769,119 +4122,176 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       };
     }
 
-    // Pré-flight: owner-token disponível.
-    const ownerTokenInspection = inspectStorageAdminOwnerToken({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-    });
-    if (ownerTokenInspection.status === 'busy') {
-      return {
-        ok: false,
-        reason: 'owner-token-busy',
-        requiresReload: false,
-        message: IMPORT_FAILURE_MESSAGES['owner-token-busy'],
-      };
-    }
-
-    // Instância estável do coordenador por ciclo de vida do Provider.
-    ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-    });
-
-    const runtime = createStorageAdminRuntime({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-      adapter,
-    });
-
-    // Suspensão do autosave antes do primeiro write administrativo.
-    importInProgressRef.current = true;
-    const wasBlocked = storageBlockedRef.current;
-    storageBlockedRef.current = true;
-    if (pendingSaveRef.current) {
-      clearTimeout(pendingSaveRef.current);
-      pendingSaveRef.current = null;
-    }
-
+    // GOAL-087: fence desde antes da sonda final até o término/compensação.
+    // Writer já iniciado commita antes do acquire (serialização IDB) e é visto
+    // pela sonda sob o fence; writer posterior é bloqueado pelo fence.
+    //
+    // GOAL-089: tudo abaixo roda sob Web Lock EXCLUSIVE (ordem: Web Lock →
+    // fence IDB → token de posse), retido inclusive durante a compensação.
     try {
-      const result = await commitLogicalStorageImportV2({
-        raw: input.raw,
-        declaredBytes: input.declaredBytes,
-        expectedPayloadDigest: input.expectedPayloadDigest,
-        runtime: {
-          inspectStorageAdministration: runtime.inspectStorageAdministration.bind(runtime),
-          beginStorageOperation: runtime.beginStorageOperation.bind(runtime),
-          transitionStorageOperation: runtime.transitionStorageOperation.bind(runtime),
-        },
-        adapter: {
-          readMetadata: adapter.readMetadata.bind(adapter),
-          stageHistoryGenerationForOperation: adapter.stageHistoryGenerationForOperation.bind(adapter),
-          readVerifiedHistoryGeneration: adapter.readVerifiedHistoryGeneration.bind(adapter),
-          rollbackToHistoryGeneration: adapter.rollbackToHistoryGeneration.bind(adapter),
-          transitionStorageOperationIfUnambiguous: adapter.transitionStorageOperationIfUnambiguous.bind(adapter),
-          revertStorageOperationAfterTransitionConflict: adapter.revertStorageOperationAfterTransitionConflict.bind(adapter),
-          readStorageOperationReceipt: adapter.readStorageOperationReceipt.bind(adapter),
-          clearInactiveGeneration: adapter.clearInactiveGeneration.bind(adapter),
-        },
-        storage: window.localStorage,
-        key: STORAGE_KEY,
-        ownerToken: ownerTokenCoordinatorRef.current,
+      return await adapter.runNutritionAdminWithExclusiveLock<PublicLogicalImportResult>(async () => {
+        let fence: NutritionAdminFenceV1 | null = null;
+        try {
+          try {
+            fence = await adapter.acquireNutritionAdminFence({
+              ownerId: getNutritionFenceOwnerId(),
+              operationId: newNutritionFenceOperationId('import'),
+              operationKind: 'import',
+            });
+          } catch (acquireError) {
+            if (isNutritionAdminFencedError(acquireError)) {
+              return {
+                ok: false,
+                reason: 'operation-open',
+                requiresReload: false,
+                message: IMPORT_FAILURE_MESSAGES['operation-open'],
+              };
+            }
+            throw acquireError;
+          }
+
+          // Sonda novamente SOB o fence (nunca antes do acquire).
+          if (await hasActiveNutritionLedger({
+            currentDay: nutritionDayRef.current,
+            repository: adapter,
+          })) {
+            return {
+              ok: false,
+              reason: 'nutrition-ledger-admin-deferred',
+              requiresReload: false,
+              message: IMPORT_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
+            };
+          }
+
+          // Pré-flight: owner-token disponível (sob o fence; saída libera o fence).
+          const ownerTokenInspection = inspectStorageAdminOwnerToken({
+            key: STORAGE_KEY,
+            storage: window.localStorage,
+          });
+          if (ownerTokenInspection.status === 'busy') {
+            return {
+              ok: false,
+              reason: 'owner-token-busy',
+              requiresReload: false,
+              message: IMPORT_FAILURE_MESSAGES['owner-token-busy'],
+            };
+          }
+
+          // Instância estável do coordenador por ciclo de vida do Provider.
+          ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
+            key: STORAGE_KEY,
+            storage: window.localStorage,
+          });
+
+          const runtime = createStorageAdminRuntime({
+            key: STORAGE_KEY,
+            storage: window.localStorage,
+            adapter,
+          });
+
+          // Suspensão do autosave antes do primeiro write administrativo.
+          importInProgressRef.current = true;
+          const wasBlocked = storageBlockedRef.current;
+          storageBlockedRef.current = true;
+          if (pendingSaveRef.current) {
+            clearTimeout(pendingSaveRef.current);
+            pendingSaveRef.current = null;
+          }
+
+          try {
+            const result = await commitLogicalStorageImportV2({
+              raw: input.raw,
+              declaredBytes: input.declaredBytes,
+              expectedPayloadDigest: input.expectedPayloadDigest,
+              runtime: {
+                inspectStorageAdministration: runtime.inspectStorageAdministration.bind(runtime),
+                beginStorageOperation: runtime.beginStorageOperation.bind(runtime),
+                transitionStorageOperation: runtime.transitionStorageOperation.bind(runtime),
+              },
+              adapter: {
+                readMetadata: adapter.readMetadata.bind(adapter),
+                stageHistoryGenerationForOperation: adapter.stageHistoryGenerationForOperation.bind(adapter),
+                readVerifiedHistoryGeneration: adapter.readVerifiedHistoryGeneration.bind(adapter),
+                rollbackToHistoryGeneration: adapter.rollbackToHistoryGeneration.bind(adapter),
+                transitionStorageOperationIfUnambiguous: adapter.transitionStorageOperationIfUnambiguous.bind(adapter),
+                revertStorageOperationAfterTransitionConflict: adapter.revertStorageOperationAfterTransitionConflict.bind(adapter),
+                readStorageOperationReceipt: adapter.readStorageOperationReceipt.bind(adapter),
+                clearInactiveGeneration: adapter.clearInactiveGeneration.bind(adapter),
+              },
+              storage: window.localStorage,
+              key: STORAGE_KEY,
+              ownerToken: ownerTokenCoordinatorRef.current,
+            });
+
+            if (result.ok) {
+              // Sucesso settled: reload controlado uma única vez.
+              toast.success('Backup importado com sucesso. Recarregando...');
+              scheduleAppReload();
+              return { ok: true };
+            }
+
+            // Falha: classificar e decidir se precisa reload.
+            if (result.reason === 'recovery-required') {
+              // Manter autosave bloqueado; orientar reload.
+              toast.error(IMPORT_FAILURE_MESSAGES['recovery-required']);
+              scheduleAppReload();
+              return {
+                ok: false,
+                reason: 'recovery-required',
+                requiresReload: true,
+                message: IMPORT_FAILURE_MESSAGES['recovery-required'],
+              };
+            }
+
+            if (result.compensation === 'failed') {
+              // Compensation failed: estado ambíguo, reload.
+              toast.error(IMPORT_FAILURE_MESSAGES['compensation-failed']);
+              scheduleAppReload();
+              return {
+                ok: false,
+                reason: 'compensation-failed',
+                requiresReload: true,
+                message: IMPORT_FAILURE_MESSAGES['compensation-failed'],
+              };
+            }
+
+            // Falha comprovadamente sem write ou revertida: liberar autosave.
+            storageBlockedRef.current = wasBlocked;
+            importInProgressRef.current = false;
+            const publicMessage = IMPORT_FAILURE_MESSAGES['import-failed'];
+            toast.error(publicMessage);
+            return {
+              ok: false,
+              reason: 'import-failed',
+              requiresReload: false,
+              message: publicMessage,
+            };
+          } catch {
+            // Exceção inesperada: estado ambíguo, reload.
+            toast.error(IMPORT_FAILURE_MESSAGES['recovery-required']);
+            scheduleAppReload();
+            return {
+              ok: false,
+              reason: 'recovery-required',
+              requiresReload: true,
+              message: IMPORT_FAILURE_MESSAGES['recovery-required'],
+            };
+          }
+        } finally {
+          await releaseNutritionFenceBestEffort(adapter, fence);
+        }
       });
-
-      if (result.ok) {
-        // Sucesso settled: reload controlado uma única vez.
-        toast.success('Backup importado com sucesso. Recarregando...');
-        scheduleAppReload();
-        return { ok: true };
-      }
-
-      // Falha: classificar e decidir se precisa reload.
-      if (result.reason === 'recovery-required') {
-        // Manter autosave bloqueado; orientar reload.
-        toast.error(IMPORT_FAILURE_MESSAGES['recovery-required']);
-        scheduleAppReload();
+    } catch (lockError) {
+      // GOAL-089: sem Web Locks, fail-closed antes de qualquer write.
+      if (isNutritionAdminLockUnavailableError(lockError)) {
         return {
           ok: false,
-          reason: 'recovery-required',
-          requiresReload: true,
-          message: IMPORT_FAILURE_MESSAGES['recovery-required'],
+          reason: 'nutrition-admin-lock-unavailable',
+          requiresReload: false,
+          message: IMPORT_FAILURE_MESSAGES['nutrition-admin-lock-unavailable'],
         };
       }
-
-      if (result.compensation === 'failed') {
-        // Compensation failed: estado ambíguo, reload.
-        toast.error(IMPORT_FAILURE_MESSAGES['compensation-failed']);
-        scheduleAppReload();
-        return {
-          ok: false,
-          reason: 'compensation-failed',
-          requiresReload: true,
-          message: IMPORT_FAILURE_MESSAGES['compensation-failed'],
-        };
-      }
-
-      // Falha comprovadamente sem write ou revertida: liberar autosave.
-      storageBlockedRef.current = wasBlocked;
-      importInProgressRef.current = false;
-      const publicMessage = IMPORT_FAILURE_MESSAGES['import-failed'];
-      toast.error(publicMessage);
-      return {
-        ok: false,
-        reason: 'import-failed',
-        requiresReload: false,
-        message: publicMessage,
-      };
-    } catch {
-      // Exceção inesperada: estado ambíguo, reload.
-      toast.error(IMPORT_FAILURE_MESSAGES['recovery-required']);
-      scheduleAppReload();
-      return {
-        ok: false,
-        reason: 'recovery-required',
-        requiresReload: true,
-        message: IMPORT_FAILURE_MESSAGES['recovery-required'],
-      };
+      throw lockError;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]);
@@ -3920,35 +4330,85 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       };
     }
 
+    // GOAL-087: inspect sob fence — a prévia nunca sugere um restore que a
+    // execução recusaria, e nenhum writer entra entre a sonda e a prévia.
+    //
+    // GOAL-089: inspect sob Web Lock EXCLUSIVE (ordem: Web Lock → fence IDB).
     try {
-      const resolved = await resolveLogicalRestorePredecessorV2({
-        adapter,
-        storage: window.localStorage,
-        key: STORAGE_KEY,
+      return await adapter.runNutritionAdminWithExclusiveLock<PublicLogicalRestoreAvailability>(async () => {
+        let fence: NutritionAdminFenceV1 | null = null;
+        try {
+          try {
+            fence = await adapter.acquireNutritionAdminFence({
+              ownerId: getNutritionFenceOwnerId(),
+              operationId: newNutritionFenceOperationId('restore-inspect'),
+              operationKind: 'restore-inspect',
+            });
+          } catch (acquireError) {
+            if (isNutritionAdminFencedError(acquireError)) {
+              return {
+                status: 'busy',
+                reason: 'operation-open',
+                message: RESTORE_FAILURE_MESSAGES['operation-open'],
+              };
+            }
+            throw acquireError;
+          }
+          if (await hasActiveNutritionLedger({
+            currentDay: nutritionDayRef.current,
+            repository: adapter,
+          })) {
+            return {
+              status: 'error',
+              reason: 'nutrition-ledger-admin-deferred',
+              message: RESTORE_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
+            };
+          }
+
+          try {
+            const resolved = await resolveLogicalRestorePredecessorV2({
+              adapter,
+              storage: window.localStorage,
+              key: STORAGE_KEY,
+            });
+            if (resolved.status === 'available') {
+              provenRestoreTargetRef.current = resolved.target;
+              return { status: 'available', preview: resolved.preview };
+            }
+            if (resolved.status === 'unavailable' || resolved.status === 'ambiguous') {
+              return { status: resolved.status };
+            }
+            if (resolved.status === 'conflict') {
+              return {
+                status: 'error',
+                reason: 'restore-failed',
+                message: RESTORE_FAILURE_MESSAGES['restore-failed'],
+              };
+            }
+            const mapped = mapRestoreResolution(resolved.status, resolved.reason);
+            if ('status' in mapped) return mapped;
+            return { status: resolved.status, ...mapped };
+          } catch {
+            return {
+              status: 'error',
+              reason: 'restore-failed',
+              message: RESTORE_FAILURE_MESSAGES['restore-failed'],
+            };
+          }
+        } finally {
+          await releaseNutritionFenceBestEffort(adapter, fence);
+        }
       });
-      if (resolved.status === 'available') {
-        provenRestoreTargetRef.current = resolved.target;
-        return { status: 'available', preview: resolved.preview };
-      }
-      if (resolved.status === 'unavailable' || resolved.status === 'ambiguous') {
-        return { status: resolved.status };
-      }
-      if (resolved.status === 'conflict') {
+    } catch (lockError) {
+      // GOAL-089: sem Web Locks, fail-closed antes de qualquer write.
+      if (isNutritionAdminLockUnavailableError(lockError)) {
         return {
           status: 'error',
-          reason: 'restore-failed',
-          message: RESTORE_FAILURE_MESSAGES['restore-failed'],
+          reason: 'nutrition-admin-lock-unavailable',
+          message: RESTORE_FAILURE_MESSAGES['nutrition-admin-lock-unavailable'],
         };
       }
-      const mapped = mapRestoreResolution(resolved.status, resolved.reason);
-      if ('status' in mapped) return mapped;
-      return { status: resolved.status, ...mapped };
-    } catch {
-      return {
-        status: 'error',
-        reason: 'restore-failed',
-        message: RESTORE_FAILURE_MESSAGES['restore-failed'],
-      };
+      throw lockError;
     }
   }, []);
 
@@ -3971,140 +4431,178 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       return failRestore('admin-not-ready');
     }
 
-    const ownerTokenInspection = inspectStorageAdminOwnerToken({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-    });
-    if (ownerTokenInspection.status === 'busy') {
-      return failRestore('owner-token-busy');
-    }
-
-    const stored = provenRestoreTargetRef.current;
-    if (stored === null) {
-      return failRestore('restore-unavailable');
-    }
-
-    ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-    });
-
-    const runtime = createStorageAdminRuntime({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-      adapter,
-    });
-
-    restoreInProgressRef.current = true;
-    const wasBlocked = storageBlockedRef.current;
-    storageBlockedRef.current = true;
-    if (pendingSaveRef.current) {
-      clearTimeout(pendingSaveRef.current);
-      pendingSaveRef.current = null;
-    }
-
+    // GOAL-087: fence desde antes da sonda final até término/compensação.
+    //
+    // GOAL-089: tudo abaixo roda sob Web Lock EXCLUSIVE (ordem: Web Lock →
+    // fence IDB → token de posse), retido inclusive durante a compensação.
     try {
-      const resolved = await resolveLogicalRestorePredecessorV2({
-        adapter,
-        storage: window.localStorage,
-        key: STORAGE_KEY,
-      });
+      return await adapter.runNutritionAdminWithExclusiveLock<PublicLogicalRestoreResult>(async () => {
+        let fence: NutritionAdminFenceV1 | null = null;
+        try {
+          try {
+            fence = await adapter.acquireNutritionAdminFence({
+              ownerId: getNutritionFenceOwnerId(),
+              operationId: newNutritionFenceOperationId('restore-commit'),
+              operationKind: 'restore-commit',
+            });
+          } catch (acquireError) {
+            if (isNutritionAdminFencedError(acquireError)) {
+              return failRestore('operation-open');
+            }
+            throw acquireError;
+          }
+          if (await hasActiveNutritionLedger({
+            currentDay: nutritionDayRef.current,
+            repository: adapter,
+          })) {
+            return failRestore('nutrition-ledger-admin-deferred');
+          }
 
-      if (resolved.status === 'unavailable') {
-        storageBlockedRef.current = wasBlocked;
-        restoreInProgressRef.current = false;
-        provenRestoreTargetRef.current = null;
-        toast.error(RESTORE_FAILURE_MESSAGES['restore-unavailable']);
-        return failRestore('restore-unavailable');
-      }
-      if (resolved.status === 'ambiguous') {
-        storageBlockedRef.current = wasBlocked;
-        restoreInProgressRef.current = false;
-        provenRestoreTargetRef.current = null;
-        toast.error(RESTORE_FAILURE_MESSAGES['restore-ambiguous']);
-        return failRestore('restore-ambiguous');
-      }
-      if (resolved.status === 'conflict') {
-        storageBlockedRef.current = wasBlocked;
-        restoreInProgressRef.current = false;
-        provenRestoreTargetRef.current = null;
-        toast.error(RESTORE_FAILURE_MESSAGES['restore-failed']);
-        return failRestore('restore-failed');
-      }
-      if (resolved.status !== 'available') {
-        const mapped = mapRestoreResolution(resolved.status, resolved.reason);
-        const reason = 'reason' in mapped ? mapped.reason : 'restore-failed';
-        const keepBlocked = reason === 'completion-pending' || reason === 'operation-open';
-        if (!keepBlocked) {
-          storageBlockedRef.current = wasBlocked;
-          restoreInProgressRef.current = false;
+          const ownerTokenInspection = inspectStorageAdminOwnerToken({
+            key: STORAGE_KEY,
+            storage: window.localStorage,
+          });
+          if (ownerTokenInspection.status === 'busy') {
+            return failRestore('owner-token-busy');
+          }
+
+          const stored = provenRestoreTargetRef.current;
+          if (stored === null) {
+            return failRestore('restore-unavailable');
+          }
+
+          ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
+            key: STORAGE_KEY,
+            storage: window.localStorage,
+          });
+
+          const runtime = createStorageAdminRuntime({
+            key: STORAGE_KEY,
+            storage: window.localStorage,
+            adapter,
+          });
+
+          restoreInProgressRef.current = true;
+          const wasBlocked = storageBlockedRef.current;
+          storageBlockedRef.current = true;
+          if (pendingSaveRef.current) {
+            clearTimeout(pendingSaveRef.current);
+            pendingSaveRef.current = null;
+          }
+
+          try {
+            const resolved = await resolveLogicalRestorePredecessorV2({
+              adapter,
+              storage: window.localStorage,
+              key: STORAGE_KEY,
+            });
+
+            if (resolved.status === 'unavailable') {
+              storageBlockedRef.current = wasBlocked;
+              restoreInProgressRef.current = false;
+              provenRestoreTargetRef.current = null;
+              toast.error(RESTORE_FAILURE_MESSAGES['restore-unavailable']);
+              return failRestore('restore-unavailable');
+            }
+            if (resolved.status === 'ambiguous') {
+              storageBlockedRef.current = wasBlocked;
+              restoreInProgressRef.current = false;
+              provenRestoreTargetRef.current = null;
+              toast.error(RESTORE_FAILURE_MESSAGES['restore-ambiguous']);
+              return failRestore('restore-ambiguous');
+            }
+            if (resolved.status === 'conflict') {
+              storageBlockedRef.current = wasBlocked;
+              restoreInProgressRef.current = false;
+              provenRestoreTargetRef.current = null;
+              toast.error(RESTORE_FAILURE_MESSAGES['restore-failed']);
+              return failRestore('restore-failed');
+            }
+            if (resolved.status !== 'available') {
+              const mapped = mapRestoreResolution(resolved.status, resolved.reason);
+              const reason = 'reason' in mapped ? mapped.reason : 'restore-failed';
+              const keepBlocked = reason === 'completion-pending' || reason === 'operation-open';
+              if (!keepBlocked) {
+                storageBlockedRef.current = wasBlocked;
+                restoreInProgressRef.current = false;
+              }
+              provenRestoreTargetRef.current = null;
+              toast.error(RESTORE_FAILURE_MESSAGES[reason]);
+              return failRestore(reason);
+            }
+            if (!logicalRestoreTargetsMatch(stored, resolved.target)) {
+              storageBlockedRef.current = wasBlocked;
+              restoreInProgressRef.current = false;
+              provenRestoreTargetRef.current = null;
+              toast.error(RESTORE_FAILURE_MESSAGES['proof-diverged']);
+              return failRestore('proof-diverged');
+            }
+
+            const result = await commitLogicalStorageRestoreV2({
+              target: resolved.target,
+              runtime: {
+                inspectStorageAdministration: runtime.inspectStorageAdministration.bind(runtime),
+                beginStorageOperation: runtime.beginStorageOperation.bind(runtime),
+                transitionStorageOperation: runtime.transitionStorageOperation.bind(runtime),
+                revertStorageOperationSafely: runtime.revertStorageOperationSafely.bind(runtime),
+              },
+              adapter: {
+                readStorageAdministrationSnapshot: adapter.readStorageAdministrationSnapshot.bind(adapter),
+                readStorageOperationReceipt: adapter.readStorageOperationReceipt.bind(adapter),
+                readVerifiedHistoryGeneration: adapter.readVerifiedHistoryGeneration.bind(adapter),
+                readMetadata: adapter.readMetadata.bind(adapter),
+                rollbackToHistoryGeneration: adapter.rollbackToHistoryGeneration.bind(adapter),
+                transitionStorageOperationIfUnambiguous: adapter.transitionStorageOperationIfUnambiguous.bind(adapter),
+              },
+              storage: window.localStorage,
+              key: STORAGE_KEY,
+              ownerToken: ownerTokenCoordinatorRef.current,
+            });
+
+            provenRestoreTargetRef.current = null;
+
+            if (result.ok) {
+              toast.success(RESTORE_SUCCESS_MESSAGE);
+              scheduleAppReload();
+              return {
+                ok: true,
+                requiresReload: true,
+                message: RESTORE_SUCCESS_MESSAGE,
+              };
+            }
+
+            if (result.recoveryRequired || result.reason === 'recovery-required') {
+              toast.error(RESTORE_FAILURE_MESSAGES['recovery-required']);
+              scheduleAppReload();
+              return failRestore('recovery-required', true);
+            }
+
+            storageBlockedRef.current = wasBlocked;
+            restoreInProgressRef.current = false;
+            const publicReason: PublicLogicalRestoreFailureReason = result.reason === 'owner-token-conflict'
+              ? 'owner-token-busy'
+              : result.reason === 'provenance-diverged' || result.reason === 'invalid-target-proof'
+                ? 'proof-diverged'
+                : result.reason === 'operation-conflict'
+                  ? 'operation-open'
+                  : 'restore-failed';
+            toast.error(RESTORE_FAILURE_MESSAGES[publicReason]);
+            return failRestore(publicReason);
+          } catch {
+            toast.error(RESTORE_FAILURE_MESSAGES['recovery-required']);
+            scheduleAppReload();
+            return failRestore('recovery-required', true);
+          }
+        } finally {
+          await releaseNutritionFenceBestEffort(adapter, fence);
         }
-        provenRestoreTargetRef.current = null;
-        toast.error(RESTORE_FAILURE_MESSAGES[reason]);
-        return failRestore(reason);
-      }
-      if (!logicalRestoreTargetsMatch(stored, resolved.target)) {
-        storageBlockedRef.current = wasBlocked;
-        restoreInProgressRef.current = false;
-        provenRestoreTargetRef.current = null;
-        toast.error(RESTORE_FAILURE_MESSAGES['proof-diverged']);
-        return failRestore('proof-diverged');
-      }
-
-      const result = await commitLogicalStorageRestoreV2({
-        target: resolved.target,
-        runtime: {
-          inspectStorageAdministration: runtime.inspectStorageAdministration.bind(runtime),
-          beginStorageOperation: runtime.beginStorageOperation.bind(runtime),
-          transitionStorageOperation: runtime.transitionStorageOperation.bind(runtime),
-          revertStorageOperationSafely: runtime.revertStorageOperationSafely.bind(runtime),
-        },
-        adapter: {
-          readStorageAdministrationSnapshot: adapter.readStorageAdministrationSnapshot.bind(adapter),
-          readStorageOperationReceipt: adapter.readStorageOperationReceipt.bind(adapter),
-          readVerifiedHistoryGeneration: adapter.readVerifiedHistoryGeneration.bind(adapter),
-          readMetadata: adapter.readMetadata.bind(adapter),
-          rollbackToHistoryGeneration: adapter.rollbackToHistoryGeneration.bind(adapter),
-          transitionStorageOperationIfUnambiguous: adapter.transitionStorageOperationIfUnambiguous.bind(adapter),
-        },
-        storage: window.localStorage,
-        key: STORAGE_KEY,
-        ownerToken: ownerTokenCoordinatorRef.current,
       });
-
-      provenRestoreTargetRef.current = null;
-
-      if (result.ok) {
-        toast.success(RESTORE_SUCCESS_MESSAGE);
-        scheduleAppReload();
-        return {
-          ok: true,
-          requiresReload: true,
-          message: RESTORE_SUCCESS_MESSAGE,
-        };
+    } catch (lockError) {
+      // GOAL-089: sem Web Locks, fail-closed antes de qualquer write.
+      if (isNutritionAdminLockUnavailableError(lockError)) {
+        return failRestore('nutrition-admin-lock-unavailable');
       }
-
-      if (result.recoveryRequired || result.reason === 'recovery-required') {
-        toast.error(RESTORE_FAILURE_MESSAGES['recovery-required']);
-        scheduleAppReload();
-        return failRestore('recovery-required', true);
-      }
-
-      storageBlockedRef.current = wasBlocked;
-      restoreInProgressRef.current = false;
-      const publicReason: PublicLogicalRestoreFailureReason = result.reason === 'owner-token-conflict'
-        ? 'owner-token-busy'
-        : result.reason === 'provenance-diverged' || result.reason === 'invalid-target-proof'
-          ? 'proof-diverged'
-          : result.reason === 'operation-conflict'
-            ? 'operation-open'
-            : 'restore-failed';
-      toast.error(RESTORE_FAILURE_MESSAGES[publicReason]);
-      return failRestore(publicReason);
-    } catch {
-      toast.error(RESTORE_FAILURE_MESSAGES['recovery-required']);
-      scheduleAppReload();
-      return failRestore('recovery-required', true);
+      throw lockError;
     }
   }, [toast]);
 
@@ -4144,63 +4642,112 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       };
     }
 
+    // GOAL-087: inspect sob fence.
+    //
+    // GOAL-089: inspect sob Web Lock EXCLUSIVE (ordem: Web Lock → fence IDB).
     try {
-      const runtime = createStorageAdminRuntime({
-        key: STORAGE_KEY,
-        storage: window.localStorage,
-        adapter,
+      return await adapter.runNutritionAdminWithExclusiveLock<PublicLogicalResetAvailability>(async () => {
+        let fence: NutritionAdminFenceV1 | null = null;
+        try {
+          try {
+            fence = await adapter.acquireNutritionAdminFence({
+              ownerId: getNutritionFenceOwnerId(),
+              operationId: newNutritionFenceOperationId('reset-inspect'),
+              operationKind: 'reset-inspect',
+            });
+          } catch (acquireError) {
+            if (isNutritionAdminFencedError(acquireError)) {
+              return {
+                status: 'busy',
+                reason: 'operation-open',
+                message: RESET_FAILURE_MESSAGES['operation-open'],
+              };
+            }
+            throw acquireError;
+          }
+          if (await hasActiveNutritionLedger({
+            currentDay: nutritionDayRef.current,
+            repository: adapter,
+          })) {
+            return {
+              status: 'error',
+              reason: 'nutrition-ledger-admin-deferred',
+              message: RESET_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
+            };
+          }
+
+          try {
+            const runtime = createStorageAdminRuntime({
+              key: STORAGE_KEY,
+              storage: window.localStorage,
+              adapter,
+            });
+            const snapshot = await runtime.inspectStorageAdministration();
+            if (snapshot.state.status === 'unavailable') {
+              return {
+                status: 'error',
+                reason: 'admin-not-ready',
+                message: RESET_FAILURE_MESSAGES['admin-not-ready'],
+              };
+            }
+            if (snapshot.pendingCompletionReceiptCount > 0) {
+              return {
+                status: 'error',
+                reason: 'completion-pending',
+                message: RESET_FAILURE_MESSAGES['completion-pending'],
+              };
+            }
+            if (snapshot.state.status !== 'ready' || snapshot.unsettledOperations.length !== 0) {
+              return {
+                status: 'busy',
+                reason: 'operation-open',
+                message: RESET_FAILURE_MESSAGES['operation-open'],
+              };
+            }
+            if (
+              snapshot.activeGenerationId === null
+              || snapshot.coreRawObserved === null
+              || snapshot.activeGenerationIntegrity?.status !== 'verified'
+            ) {
+              return {
+                status: 'error',
+                reason: 'admin-not-ready',
+                message: RESET_FAILURE_MESSAGES['admin-not-ready'],
+              };
+            }
+            const preview = previewFromCurrentCore(
+              snapshot.coreRawObserved,
+              snapshot.activeGenerationIntegrity.manifest.sessionCount,
+            );
+            if (preview === null) {
+              return {
+                status: 'error',
+                reason: 'reset-failed',
+                message: RESET_FAILURE_MESSAGES['reset-failed'],
+              };
+            }
+            return { status: 'available', preview };
+          } catch {
+            return {
+              status: 'error',
+              reason: 'reset-failed',
+              message: RESET_FAILURE_MESSAGES['reset-failed'],
+            };
+          }
+        } finally {
+          await releaseNutritionFenceBestEffort(adapter, fence);
+        }
       });
-      const snapshot = await runtime.inspectStorageAdministration();
-      if (snapshot.state.status === 'unavailable') {
+    } catch (lockError) {
+      // GOAL-089: sem Web Locks, fail-closed antes de qualquer write.
+      if (isNutritionAdminLockUnavailableError(lockError)) {
         return {
           status: 'error',
-          reason: 'admin-not-ready',
-          message: RESET_FAILURE_MESSAGES['admin-not-ready'],
+          reason: 'nutrition-admin-lock-unavailable',
+          message: RESET_FAILURE_MESSAGES['nutrition-admin-lock-unavailable'],
         };
       }
-      if (snapshot.pendingCompletionReceiptCount > 0) {
-        return {
-          status: 'error',
-          reason: 'completion-pending',
-          message: RESET_FAILURE_MESSAGES['completion-pending'],
-        };
-      }
-      if (snapshot.state.status !== 'ready' || snapshot.unsettledOperations.length !== 0) {
-        return {
-          status: 'busy',
-          reason: 'operation-open',
-          message: RESET_FAILURE_MESSAGES['operation-open'],
-        };
-      }
-      if (
-        snapshot.activeGenerationId === null
-        || snapshot.coreRawObserved === null
-        || snapshot.activeGenerationIntegrity?.status !== 'verified'
-      ) {
-        return {
-          status: 'error',
-          reason: 'admin-not-ready',
-          message: RESET_FAILURE_MESSAGES['admin-not-ready'],
-        };
-      }
-      const preview = previewFromCurrentCore(
-        snapshot.coreRawObserved,
-        snapshot.activeGenerationIntegrity.manifest.sessionCount,
-      );
-      if (preview === null) {
-        return {
-          status: 'error',
-          reason: 'reset-failed',
-          message: RESET_FAILURE_MESSAGES['reset-failed'],
-        };
-      }
-      return { status: 'available', preview };
-    } catch {
-      return {
-        status: 'error',
-        reason: 'reset-failed',
-        message: RESET_FAILURE_MESSAGES['reset-failed'],
-      };
+      throw lockError;
     }
   }, []);
 
@@ -4223,109 +4770,147 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       return failReset('admin-not-ready');
     }
 
-    const ownerTokenInspection = inspectStorageAdminOwnerToken({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-    });
-    if (ownerTokenInspection.status === 'busy') {
-      return failReset('owner-token-busy');
-    }
-
-    ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-    });
-
-    const runtime = createStorageAdminRuntime({
-      key: STORAGE_KEY,
-      storage: window.localStorage,
-      adapter,
-    });
-
+    // GOAL-087: fence desde antes da sonda final até término/compensação.
+    //
+    // GOAL-089: tudo abaixo roda sob Web Lock EXCLUSIVE (ordem: Web Lock →
+    // fence IDB → token de posse), retido inclusive durante a compensação.
     try {
-      const snapshot = await runtime.inspectStorageAdministration();
-      if (snapshot.state.status === 'unavailable') {
-        return failReset('admin-not-ready');
-      }
-      if (snapshot.pendingCompletionReceiptCount > 0) {
-        return failReset('completion-pending');
-      }
-      if (snapshot.state.status !== 'ready' || snapshot.unsettledOperations.length !== 0) {
-        return failReset('operation-open');
-      }
-      if (
-        snapshot.activeGenerationId === null
-        || snapshot.coreRawObserved === null
-        || snapshot.activeGenerationIntegrity?.status !== 'verified'
-      ) {
-        return failReset('admin-not-ready');
-      }
-    } catch {
-      return failReset('admin-not-ready');
-    }
+      return await adapter.runNutritionAdminWithExclusiveLock<PublicLogicalResetResult>(async () => {
+        let fence: NutritionAdminFenceV1 | null = null;
+        try {
+          try {
+            fence = await adapter.acquireNutritionAdminFence({
+              ownerId: getNutritionFenceOwnerId(),
+              operationId: newNutritionFenceOperationId('reset-commit'),
+              operationKind: 'reset-commit',
+            });
+          } catch (acquireError) {
+            if (isNutritionAdminFencedError(acquireError)) {
+              return failReset('operation-open');
+            }
+            throw acquireError;
+          }
+          if (await hasActiveNutritionLedger({
+            currentDay: nutritionDayRef.current,
+            repository: adapter,
+          })) {
+            return failReset('nutrition-ledger-admin-deferred');
+          }
 
-    resetInProgressRef.current = true;
-    const wasBlocked = storageBlockedRef.current;
-    storageBlockedRef.current = true;
-    if (pendingSaveRef.current) {
-      clearTimeout(pendingSaveRef.current);
-      pendingSaveRef.current = null;
-    }
+          const ownerTokenInspection = inspectStorageAdminOwnerToken({
+            key: STORAGE_KEY,
+            storage: window.localStorage,
+          });
+          if (ownerTokenInspection.status === 'busy') {
+            return failReset('owner-token-busy');
+          }
 
-    try {
-      const result = await commitLogicalStorageResetV2({
-        runtime: {
-          inspectStorageAdministration: runtime.inspectStorageAdministration.bind(runtime),
-          beginStorageOperation: runtime.beginStorageOperation.bind(runtime),
-          transitionStorageOperation: runtime.transitionStorageOperation.bind(runtime),
-        },
-        adapter: {
-          readStorageAdministrationSnapshot: adapter.readStorageAdministrationSnapshot.bind(adapter),
-          readStorageOperationReceipt: adapter.readStorageOperationReceipt.bind(adapter),
-          readVerifiedHistoryGeneration: adapter.readVerifiedHistoryGeneration.bind(adapter),
-          readMetadata: adapter.readMetadata.bind(adapter),
-          stageHistoryGenerationForOperation: adapter.stageHistoryGenerationForOperation.bind(adapter),
-          rollbackToHistoryGeneration: adapter.rollbackToHistoryGeneration.bind(adapter),
-          transitionStorageOperationIfUnambiguous: adapter.transitionStorageOperationIfUnambiguous.bind(adapter),
-        },
-        storage: window.localStorage,
-        key: STORAGE_KEY,
-        ownerToken: ownerTokenCoordinatorRef.current,
+          ownerTokenCoordinatorRef.current ??= createStorageAdminOwnerTokenCoordinator({
+            key: STORAGE_KEY,
+            storage: window.localStorage,
+          });
+
+          const runtime = createStorageAdminRuntime({
+            key: STORAGE_KEY,
+            storage: window.localStorage,
+            adapter,
+          });
+
+          try {
+            const snapshot = await runtime.inspectStorageAdministration();
+            if (snapshot.state.status === 'unavailable') {
+              return failReset('admin-not-ready');
+            }
+            if (snapshot.pendingCompletionReceiptCount > 0) {
+              return failReset('completion-pending');
+            }
+            if (snapshot.state.status !== 'ready' || snapshot.unsettledOperations.length !== 0) {
+              return failReset('operation-open');
+            }
+            if (
+              snapshot.activeGenerationId === null
+              || snapshot.coreRawObserved === null
+              || snapshot.activeGenerationIntegrity?.status !== 'verified'
+            ) {
+              return failReset('admin-not-ready');
+            }
+          } catch {
+            return failReset('admin-not-ready');
+          }
+
+          resetInProgressRef.current = true;
+          const wasBlocked = storageBlockedRef.current;
+          storageBlockedRef.current = true;
+          if (pendingSaveRef.current) {
+            clearTimeout(pendingSaveRef.current);
+            pendingSaveRef.current = null;
+          }
+
+          try {
+            const result = await commitLogicalStorageResetV2({
+              runtime: {
+                inspectStorageAdministration: runtime.inspectStorageAdministration.bind(runtime),
+                beginStorageOperation: runtime.beginStorageOperation.bind(runtime),
+                transitionStorageOperation: runtime.transitionStorageOperation.bind(runtime),
+              },
+              adapter: {
+                readStorageAdministrationSnapshot: adapter.readStorageAdministrationSnapshot.bind(adapter),
+                readStorageOperationReceipt: adapter.readStorageOperationReceipt.bind(adapter),
+                readVerifiedHistoryGeneration: adapter.readVerifiedHistoryGeneration.bind(adapter),
+                readMetadata: adapter.readMetadata.bind(adapter),
+                stageHistoryGenerationForOperation: adapter.stageHistoryGenerationForOperation.bind(adapter),
+                rollbackToHistoryGeneration: adapter.rollbackToHistoryGeneration.bind(adapter),
+                transitionStorageOperationIfUnambiguous: adapter.transitionStorageOperationIfUnambiguous.bind(adapter),
+              },
+              storage: window.localStorage,
+              key: STORAGE_KEY,
+              ownerToken: ownerTokenCoordinatorRef.current,
+            });
+
+            if (result.ok) {
+              toast.success(RESET_SUCCESS_MESSAGE);
+              scheduleAppReload();
+              return {
+                ok: true,
+                requiresReload: true,
+                message: RESET_SUCCESS_MESSAGE,
+              };
+            }
+
+            if (result.recoveryRequired || result.reason === 'recovery-required') {
+              toast.error(RESET_FAILURE_MESSAGES['recovery-required']);
+              scheduleAppReload();
+              return failReset('recovery-required', true);
+            }
+
+            storageBlockedRef.current = wasBlocked;
+            resetInProgressRef.current = false;
+            const publicReason: PublicLogicalResetFailureReason = result.reason === 'owner-token-conflict'
+              ? 'owner-token-busy'
+              : result.reason === 'administration-unavailable'
+                ? 'admin-not-ready'
+                : result.reason === 'operation-conflict'
+                  ? 'operation-open'
+                  : result.reason === 'storage-unavailable'
+                    ? 'storage-not-healthy'
+                    : 'reset-failed';
+            toast.error(RESET_FAILURE_MESSAGES[publicReason]);
+            return failReset(publicReason);
+          } catch {
+            toast.error(RESET_FAILURE_MESSAGES['recovery-required']);
+            scheduleAppReload();
+            return failReset('recovery-required', true);
+          }
+        } finally {
+          await releaseNutritionFenceBestEffort(adapter, fence);
+        }
       });
-
-      if (result.ok) {
-        toast.success(RESET_SUCCESS_MESSAGE);
-        scheduleAppReload();
-        return {
-          ok: true,
-          requiresReload: true,
-          message: RESET_SUCCESS_MESSAGE,
-        };
+    } catch (lockError) {
+      // GOAL-089: sem Web Locks, fail-closed antes de qualquer write.
+      if (isNutritionAdminLockUnavailableError(lockError)) {
+        return failReset('nutrition-admin-lock-unavailable');
       }
-
-      if (result.recoveryRequired || result.reason === 'recovery-required') {
-        toast.error(RESET_FAILURE_MESSAGES['recovery-required']);
-        scheduleAppReload();
-        return failReset('recovery-required', true);
-      }
-
-      storageBlockedRef.current = wasBlocked;
-      resetInProgressRef.current = false;
-      const publicReason: PublicLogicalResetFailureReason = result.reason === 'owner-token-conflict'
-        ? 'owner-token-busy'
-        : result.reason === 'administration-unavailable'
-          ? 'admin-not-ready'
-          : result.reason === 'operation-conflict'
-            ? 'operation-open'
-            : result.reason === 'storage-unavailable'
-              ? 'storage-not-healthy'
-              : 'reset-failed';
-      toast.error(RESET_FAILURE_MESSAGES[publicReason]);
-      return failReset(publicReason);
-    } catch {
-      toast.error(RESET_FAILURE_MESSAGES['recovery-required']);
-      scheduleAppReload();
-      return failReset('recovery-required', true);
+      throw lockError;
     }
   }, [toast]);
 

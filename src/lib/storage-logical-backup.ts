@@ -20,6 +20,7 @@ import {
 } from './storage-types';
 import { isRecord, validatePersistedStateShape } from './storage-validation';
 import { isGymProfileState } from '../domain/gymProfile';
+import { isNutritionProfile } from './nutrition/profile-validation';
 
 // Formato externo LÓGICO v2 (GOAL-17B-002D-B, slice B) + corretivo 046.
 //
@@ -249,6 +250,9 @@ const REQUIRED_PAYLOAD_FIELDS: readonly (keyof PersistedState)[] = [
 
 const OPTIONAL_PAYLOAD_FIELDS: readonly (keyof PersistedState)[] = [
   'gymProfile',
+  // NUT-004B: perfil nutricional opcional no core; ausente em backups antigos
+  // continua válido. Ledger (nutritionDays) segue fora do backup lógico.
+  'nutritionProfile',
 ];
 
 const CANONICAL_PAYLOAD_FIELDS: ReadonlySet<string> = new Set([
@@ -786,6 +790,14 @@ export function validateLogicalBackupPayload(value: unknown): LogicalBackupPaylo
   }
   if (hasOwn(payload, 'gymProfile') && payload.gymProfile !== null && !isGymProfileState(payload.gymProfile)) {
     return invalidPayload('O campo gymProfile precisa ser um GymProfileState válido ou null.');
+  }
+  if (
+    hasOwn(payload, 'nutritionProfile')
+    && payload.nutritionProfile !== null
+    && payload.nutritionProfile !== undefined
+    && !isNutritionProfile(payload.nutritionProfile)
+  ) {
+    return invalidPayload('O campo nutritionProfile precisa ser um NutritionProfile válido ou null.');
   }
 
   for (const field of ['favoriteExercises', 'recentlyViewedVideoIds'] as const) {

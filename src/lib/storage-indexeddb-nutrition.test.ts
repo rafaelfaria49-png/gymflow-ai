@@ -10,6 +10,7 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import type { DailyTargets } from './nutrition/engine-types';
+import { createEvaluatedGateSnapshot } from './nutrition/gate-snapshot';
 import { createNutritionDay } from './nutrition/ledger';
 import type { LedgerMigrationMarker, NutritionDay } from './nutrition/ledger-types';
 import { ensureTodayNutritionDay } from './nutrition/rollover';
@@ -69,12 +70,27 @@ function makeTargets(): DailyTargets {
   };
 }
 
+function makeGateSnapshot() {
+  return createEvaluatedGateSnapshot(
+    {
+      status: 'NORMAL_FLOW',
+      reasons: [],
+      userNoticeKey: 'NUTRITION_GATE_NORMAL_FLOW',
+      allowManualTracking: true,
+      allowAutomatedTargets: true,
+      suggestedAction: 'PROCEED',
+    },
+    '2026-09-12T14:00:00.000Z',
+  );
+}
+
 function makeDay(date: string, id?: string): NutritionDay {
   return createNutritionDay({
     id: id ?? `day-${date}`,
     date,
     timezone: 'America/Sao_Paulo',
     targets: makeTargets(),
+    gateSnapshot: makeGateSnapshot(),
   });
 }
 
@@ -399,8 +415,22 @@ describe('rollover concorrente sobre o adapter real', () => {
     const now = new Date('2026-09-12T14:00:00.000Z');
 
     const [left, right] = await Promise.all([
-      ensureTodayNutritionDay({ now, timezone: 'America/Sao_Paulo', targets: makeTargets(), repository: adapter }),
-      ensureTodayNutritionDay({ now, timezone: 'America/Sao_Paulo', targets: makeTargets(), repository: adapter }),
+      ensureTodayNutritionDay({
+        now,
+        timezone: 'America/Sao_Paulo',
+        targets: makeTargets(),
+        targetState: 'AUTOMATED',
+        gateSnapshot: makeGateSnapshot(),
+        repository: adapter,
+      }),
+      ensureTodayNutritionDay({
+        now,
+        timezone: 'America/Sao_Paulo',
+        targets: makeTargets(),
+        targetState: 'AUTOMATED',
+        gateSnapshot: makeGateSnapshot(),
+        repository: adapter,
+      }),
     ]);
 
     expect(left.day.id).toBe(right.day.id);
@@ -421,7 +451,14 @@ describe('rollover concorrente sobre o adapter real', () => {
 
     const results = await Promise.all(
       Array.from({ length: 20 }, () =>
-        ensureTodayNutritionDay({ now, timezone: 'America/Sao_Paulo', targets: makeTargets(), repository: adapter })),
+        ensureTodayNutritionDay({
+          now,
+          timezone: 'America/Sao_Paulo',
+          targets: makeTargets(),
+          targetState: 'AUTOMATED',
+          gateSnapshot: makeGateSnapshot(),
+          repository: adapter,
+        })),
     );
 
     expect(new Set(results.map((result) => result.day.id)).size).toBe(1);
