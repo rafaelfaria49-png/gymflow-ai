@@ -16,3 +16,4 @@ export * from './admin-gate';
 export * from './effective-timezone';
 export * from './target-resolution';
 export * from './provider-bridge';
+export * from './lifecycle';

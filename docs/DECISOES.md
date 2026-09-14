@@ -2071,3 +2071,10 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 ## GOAL-093 - GYMFLOW-NUT004B-FINAL-MERGE-093 fechamento docs-only sobre master
 
 - D93-001: fechamento persistido como commit docs-only direto sobre master (GOALS_LOG + 1 linha DECISOES), sem PR novo e sem tocar na branch de feature ja mergeada; arvore de codigo inalterada, entao build/typecheck herdados da CI do merge.
+
+## GOAL-094 - NUT-004C lifecycle/rollover nutricional (2026-09-14)
+
+- D94-001: funcao unica `reconcileNutritionDayForNow` em `src/lib/nutrition/lifecycle.ts` (timezone efetivo atual -> targets/gate NUT-004B -> data civil -> ensureToday -> actuals/espelhos); resume/visibility/appState/timer/writes passam por ela; cold boot com migracao segue no bridge NUT-004B preservado.
+- D94-002: timezone sempre fresco profile-first (`profile?.timezone ?? runtime`, sem preferir cache) — correto em viagem/troca de perfil; writes passam a resolver targets fresh (snapshot do dia novo com evaluatedAt corrente; dia existente nao cria snapshot).
+- D94-003: `appStateChange` do Capacitor via import dinamico com fail-closed silencioso (web/PWA = NOT_APPLICABLE, visibilitychange cobre); timer 60s so em foreground, desarmado em hidden; mesma-data implica so leituras (`existing-active`); reconcile nunca concede XP nem cria entries.
+- D94-004: testes de Provider usam waiter wall-clock local (`performance.now`, sem act orfao) porque `waitForCondition` mede timeout em `Date.now` congelado — condicao nao atendida nunca expiraria e envenenaria os testes seguintes (observado no debug: espião de `putIfAbsent` impossivel em mesmo-dia, onde o ensure so le).
