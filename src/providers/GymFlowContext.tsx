@@ -164,6 +164,7 @@ import {
   isValidWaterInput,
 } from '../lib/nutrition-validation';
 import { getCivilDateString } from '../lib/nutrition-civil-date';
+import { resolveEffectiveTimezone } from '../lib/nutrition/effective-timezone';
 import {
   addFoodEntry,
   addHydrationEntry,
@@ -1101,7 +1102,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const nutritionBridgeFailedRef = useRef(false);
   // NUT-004C: reconciliação em voo (deduplica visibility + appState + timer +
   // writes concorrentes; a idempotência real vive no put-if-absent do ledger).
-  const nutritionReconcileInFlightRef = useRef<Promise<ReconcileNutritionDaySuccess | null> | null>(null);
+  // NUT-004C-INFLIGHT (GOAL-096): o in-flight carrega a chave civil
+  // `${timezone}:${civilDate}` (helpers canônicos). Mesma chave reutiliza a
+  // Promise; chave diferente serializa (sem reusar o resultado antigo).
+  type NutritionReconcileInFlight = {
+    key: string;
+    promise: Promise<ReconcileNutritionDaySuccess | null>;
+  };
+  const nutritionReconcileInFlightRef = useRef<NutritionReconcileInFlight | null>(null);
 
   // Achievements, XP notifications
   const [xpNotifications, setXpNotifications] = useState<XpNotification[]>([]);
@@ -1295,19 +1303,34 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   ): Promise<ReconcileNutritionDaySuccess | null> => {
     const adapter = historyAdapterRef.current;
     if (!adapter || storageBlockedRef.current || !mountedRef.current) return null;
+    // NUT-004C-INFLIGHT (GOAL-096 P1): chave civil do chamador com os helpers
+    // canônicos (nunca UTC como substituto). Timezone efetivo distinto implica
+    // chave distinta. Perfil capturado no ato da chamada (sem profileHash e
+    // sem nova persistência); a execução enfileirada usa o `now`/perfil do
+    // novo chamador, nunca o resultado antigo.
+    const profileSnapshot = persistedStateRef.current.nutritionProfile ?? null;
+    let inflightKey: string;
+    try {
+      const tz = resolveEffectiveTimezone(profileSnapshot?.timezone ?? null);
+      inflightKey = tz.ok
+        ? `${tz.timezone}:${getCivilDateString(now, tz.timezone)}`
+        : `invalid:${Number.isNaN(now?.getTime?.() ?? Number.NaN) ? 'nan' : String(now.getTime())}`;
+    } catch {
+      inflightKey = `invalid:${String(now?.getTime?.() ?? 'unknown')}`;
+    }
     const inFlight = nutritionReconcileInFlightRef.current;
-    if (inFlight) {
+    if (inFlight && inFlight.key === inflightKey) {
       try {
-        return await inFlight;
+        return await inFlight.promise;
       } catch {
         return null;
       }
     }
-    const task: Promise<ReconcileNutritionDaySuccess | null> = (async () => {
-      const profile = persistedStateRef.current.nutritionProfile ?? null;
-      const result = await reconcileNutritionDayForNow({ reason, repository: adapter, now, profile });
+    const executeReconcile = async (): Promise<ReconcileNutritionDaySuccess | null> => {
+      const result = await reconcileNutritionDayForNow({ reason, repository: adapter, now, profile: profileSnapshot });
       if (!mountedRef.current || !result.ok) return null;
-      // Persistência confirmada (ensureToday): só agora toca refs e espelhos.
+      // Persistência confirmada (ensureToday): só agora toca refs e espelhos,
+      // sempre com o resultado NOVO (o antigo nunca é publicado como novo).
       nutritionDayRef.current = result.day;
       nutritionResolutionRef.current = result.resolution;
       nutritionTimezoneRef.current = result.timezone;
@@ -1336,14 +1359,44 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         return { ...base, waterIntake: actuals.waterMl };
       });
       return result;
-    })();
-    nutritionReconcileInFlightRef.current = task;
+    };
+    if (inFlight && inFlight.key !== inflightKey) {
+      // Chave diferente: serializar (antigo termina → novo executa). A entrada
+      // nova é publicada ANTES de aguardar, para que chamadas posteriores da
+      // nova chave reutilizem a nova Promise já enfileirada e para evitar duas
+      // reconciliações cross-day concorrentes.
+      const predecessor = inFlight.promise;
+      const entry: NutritionReconcileInFlight = {
+        key: inflightKey,
+        promise: null as unknown as Promise<ReconcileNutritionDaySuccess | null>,
+      };
+      const task: Promise<ReconcileNutritionDaySuccess | null> = (async () => {
+        try {
+          await predecessor;
+        } catch {
+          /* resultado antigo nunca é reusado: segue para a reconciliação nova */
+        }
+        return executeReconcile();
+      })();
+      entry.promise = task;
+      nutritionReconcileInFlightRef.current = entry;
+      try {
+        return await task;
+      } catch {
+        return null;
+      } finally {
+        if (nutritionReconcileInFlightRef.current === entry) nutritionReconcileInFlightRef.current = null;
+      }
+    }
+    const task: Promise<ReconcileNutritionDaySuccess | null> = (async () => executeReconcile())();
+    const entry: NutritionReconcileInFlight = { key: inflightKey, promise: task };
+    nutritionReconcileInFlightRef.current = entry;
     try {
       return await task;
     } catch {
       return null;
     } finally {
-      if (nutritionReconcileInFlightRef.current === task) nutritionReconcileInFlightRef.current = null;
+      if (nutritionReconcileInFlightRef.current === entry) nutritionReconcileInFlightRef.current = null;
     }
   }, []);
 
