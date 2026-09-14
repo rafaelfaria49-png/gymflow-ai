@@ -4493,3 +4493,13 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
 - **Arquivos:** `src/lib/nutrition/admin-lock.ts` + `admin-lock-fake.ts` (novos); `src/lib/storage-indexeddb.ts` (shared nos 5 writers, helper exclusive, renew/clock); `src/providers/GymFlowContext.tsx` (exclusive nas 6 ops + razao publica); `src/components/ui/StorageExportControls.tsx` (razao+mensagem); 2 arquivos de teste novos; 8 arquivos de teste com harness de fake global; race do export reescrito para serializacao.
 - **Preservado:** IDB=5, HYBRID=2, CURRENT=1; gateSnapshot; AUTOMATED/MANUAL_ONLY; migration replay; LEGACY_REAL; mutate atomico; 20 water/macros; XP +20/+40/+60; durable-before-success; zero owner-token no export (guard).
 - **Validacao:** focados 81+381+97+47 verdes; npm test 3256/3256 zero falhas; tsc 0 erros; build OK; build:mobile OK; diff check OK.
+
+## GOAL-093 - GYMFLOW-NUT004B-FINAL-MERGE-093 merge controlado do PR #44 (2026-09-14)
+
+- **Contexto:** merge controlado do PR #44 em master, encerrando formalmente o NUT-004B. Nenhuma alteracao funcional adicional.
+- **Pre-flight:** PR #44 OPEN; headRefOid `e44d32427c1d519430bc3afcd0feec73f890580b`; origin/master `eab87e2b2317808051df95ab87a704fe32254bbe`; mergeable MERGEABLE; mergeStateStatus CLEAN. CI no HEAD aprovado: iOS Cloud Runtime Validation SUCCESS; iOS Distribution Readiness Validation SUCCESS; zero checks running/failing.
+- **Evidencia herdada (sem repetir full suites):** PROVIDER_BATCH_1/2/3 PASS; FULL_DEFAULT_RUN_1/2/3 3256/3256; TYPECHECK/BUILD/MOBILE_BUILD/DIFF_CHECK PASS; P0=0 P1=0.
+- **Merge:** merge commit `d4ca50cf9bdc86278bcfd96b82781ae2e830c19c` (metodo merge, sem squash/rebase/admin/force); 5 commits do PR preservados; pais `eab87e2b...` + `e44d3242...`; HEAD aprovado na ancestralidade da nova master; zero commits extras entre pre-flight e merge.
+- **Status:** NUT004A_STATUS=INTEGRATED; NUT004B_STATUS=INTEGRATED. P2/P3 herdados do NUT-004B seguem em PENDENCIAS.md (NUT-004C): LOG_APPROX, WATER_NO_CEILING, EMPTY_LEDGER_PASS_THROUGH (P2); DIAS_083_SEM_GATE (P3).
+- **Preservado fora:** resume/appStateChange nutricional, visibilitychange nutricional, timer cooperativo, backup/restore/reset completo do ledger, NUT-005 (proxima etapa). NUT-004C nao aberto nesta sessao.
+- **Validacao:** docs-only (markdown); `git diff --check` OK; arvore de codigo byte-identica a validada pela CI no merge.

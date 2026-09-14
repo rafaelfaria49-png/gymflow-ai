@@ -2067,3 +2067,7 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - D89-002: sem `navigator.locks`, admin falha fechado com `nutrition-admin-lock-unavailable` antes de qualquer write (sem fallback TTL/in-memory); writers passam direto; fake in-memory e somente-teste (mesmo processo, nunca exclusao cross-tab).
 - D89-003: renew de fence expirado ou alheio = `NutritionAdminFencedError`; expiracao sempre pelo `now` injetavel do adapter (`nutritionNowMs()`), nunca `Date.now()`; Provider sem heartbeat (primitiva existe, sem uso).
 - D89-004: harness de fake global (`navigator.locks`) instalado nos 8 arquivos de Provider que exercem as 6 ops; race do export reescrito para serializacao (export ok + writer commita depois, linearizado) em vez de conflito.
+
+## GOAL-093 - GYMFLOW-NUT004B-FINAL-MERGE-093 fechamento docs-only sobre master
+
+- D93-001: fechamento persistido como commit docs-only direto sobre master (GOALS_LOG + 1 linha DECISOES), sem PR novo e sem tocar na branch de feature ja mergeada; arvore de codigo inalterada, entao build/typecheck herdados da CI do merge.
