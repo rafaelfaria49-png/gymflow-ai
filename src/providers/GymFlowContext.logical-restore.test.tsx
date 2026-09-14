@@ -3,6 +3,7 @@ import React, { StrictMode } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
+import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from '../lib/nutrition/admin-lock-fake';
 import { MONOLITHIC_STORAGE_VERSION } from '../lib/storage-types';
 import type {
   Achievement,
@@ -332,6 +333,7 @@ function stubAvailable(target = TARGET_A) {
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   installBrowserGlobals();
+  installFakeNutritionCrossTabLocks();
   mockCommitLogicalStorageRestoreV2.mockReset();
   mockResolveLogicalRestorePredecessorV2.mockReset();
   mockInspectStorageAdminOwnerToken.mockReset();
@@ -349,6 +351,7 @@ afterEach(async () => {
   }
   await settle(10);
   restoreBrowserGlobals();
+  restoreFakeNutritionCrossTabLocks();
 });
 
 describe('inspectLogicalRestoreV2 — fronteira pública', () => {
@@ -610,6 +613,7 @@ describe('scheduleAppReload — proteção de reload tardio após teardown', () 
     } finally {
       vi.useRealTimers();
       restoreBrowserGlobals();
+  restoreFakeNutritionCrossTabLocks();
     }
   });
 
@@ -638,6 +642,7 @@ describe('scheduleAppReload — proteção de reload tardio após teardown', () 
     } finally {
       vi.useRealTimers();
       restoreBrowserGlobals();
+  restoreFakeNutritionCrossTabLocks();
     }
   });
 

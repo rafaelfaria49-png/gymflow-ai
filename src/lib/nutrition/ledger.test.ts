@@ -21,6 +21,7 @@ import {
   removeHydrationEntry,
   updateFoodEntry,
 } from './ledger';
+import { createEvaluatedGateSnapshot } from './gate-snapshot';
 import { NutritionLedgerError, isCivilDateString, isDailyTargets, type NutritionDay } from './ledger-types';
 
 function makeTargets(overrides: Partial<DailyTargets> = {}): DailyTargets {
@@ -63,12 +64,27 @@ function makeTargets(overrides: Partial<DailyTargets> = {}): DailyTargets {
   };
 }
 
+function makeGateSnapshot() {
+  return createEvaluatedGateSnapshot(
+    {
+      status: 'NORMAL_FLOW',
+      reasons: [],
+      userNoticeKey: 'NUTRITION_GATE_NORMAL_FLOW',
+      allowManualTracking: true,
+      allowAutomatedTargets: true,
+      suggestedAction: 'PROCEED',
+    },
+    '2026-09-12T14:00:00.000Z',
+  );
+}
+
 function makeDay(overrides: Partial<Parameters<typeof createNutritionDay>[0]> = {}): NutritionDay {
   return createNutritionDay({
     id: 'day-1',
     date: '2026-09-12',
     timezone: 'America/Sao_Paulo',
     targets: makeTargets(),
+    gateSnapshot: makeGateSnapshot(),
     ...overrides,
   });
 }
@@ -98,8 +114,8 @@ describe('createNutritionDay', () => {
     targets.targetCalories = 9999;
     targets.macroReconciliation.unmetConstraints.push('ENERGY_BELOW_MACRO_MINIMUMS');
 
-    expect(day.targets.targetCalories).toBe(2500);
-    expect(day.targets.macroReconciliation.unmetConstraints).toEqual([]);
+    expect(day.targets!.targetCalories).toBe(2500);
+    expect(day.targets!.macroReconciliation.unmetConstraints).toEqual([]);
   });
 
   it.each([

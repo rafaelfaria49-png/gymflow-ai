@@ -1202,3 +1202,20 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   fora de qualquer plausibilidade biológica (ex.: 12000 ml) ainda migra via `max()`.
   O teto de 4500 ml do motor (`MAX_HYDRATION_ML_PER_DAY`) cobre metas automatizadas, não
   ingestão legada declarada — estendê-lo à migração seria criar regra clínica nova.
+
+## GOAL-085 — diferidos do NUT-004B (revisão 084; NUT-004C não implementado)
+
+- **NUT004C_LEDGER_ADMIN_DEFERRED.** *Ativo (gate temporário) · P1 diferido.* Backup,
+  import, restore e reset lógicos seguem sem `nutritionDays` + `nutritionMetadata`; o
+  Provider bloqueia as seis operações com `nutrition-ledger-admin-deferred` quando há
+  consumo real (`src/lib/nutrition/admin-gate.ts`). Remover o gate SOMENTE quando o
+  NUT-004C integrar o ledger ao snapshot completo (formato + restore + reset + provas).
+- **ADMIN_GATE_EMPTY_LEDGER_PASS_THROUGH.** *Documentado · P2.* Ledger sem nenhuma
+  FoodEntry/HydrationEntry (só dia vazio + marker) não dispara o gate: nada do usuário
+  seria omitido ou ressuscitado. Reavaliar no NUT-004C se dia vazio com targets
+  AUTOMATED passar a carregar dado não-regenerável.
+- **DIAS_083_SEM_GATE_REJEITADOS.** *Documentado · P3.* Dias persistidos pelo bridge 083
+  (com `targetState`, sem `gateSnapshot`) viram ilegíveis fail-closed após este GOAL
+  (`isNutritionDay` rejeita, IDB lança `NutritionDayIntegrityError`). Aceito porque o
+  083 não foi mergeado (nenhum usuário real tem esses dias); não há reparo/backfill —
+  fabricar gate histórico violaria a honestidade de proveniência.

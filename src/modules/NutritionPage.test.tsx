@@ -1,3 +1,4 @@
+import { IDBFactory } from 'fake-indexeddb';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -21,6 +22,7 @@ class MemoryLocalStorage {
 
 let originalWindow = Reflect.getOwnPropertyDescriptor(globalThis, 'window');
 let originalDocument = Reflect.getOwnPropertyDescriptor(globalThis, 'document');
+let originalIndexedDb = Reflect.getOwnPropertyDescriptor(globalThis, 'indexedDB');
 
 describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
   beforeEach(() => {
@@ -51,6 +53,11 @@ describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
       configurable: true,
       writable: true,
     });
+    Reflect.defineProperty(globalThis, 'indexedDB', {
+      value: new IDBFactory(),
+      configurable: true,
+      writable: true,
+    });
   });
 
   afterEach(() => {
@@ -63,6 +70,11 @@ describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
       Reflect.defineProperty(globalThis, 'document', originalDocument);
     } else {
       Reflect.deleteProperty(globalThis, 'document');
+    }
+    if (originalIndexedDb) {
+      Reflect.defineProperty(globalThis, 'indexedDB', originalIndexedDb);
+    } else {
+      Reflect.deleteProperty(globalThis, 'indexedDB');
     }
   });
 
@@ -125,6 +137,9 @@ describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
         </ToastProvider>
       );
     });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
 
     const root = renderer!.root;
     const inputs = root.findAllByType('input');
@@ -152,7 +167,7 @@ describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
     expect(macroForm).toBeDefined();
 
     await act(async () => {
-      macroForm!.props.onSubmit({ preventDefault: vi.fn() });
+      await macroForm!.props.onSubmit({ preventDefault: vi.fn() });
     });
 
     expect(capturedContext!.nutrition.calories).toBe(450);
@@ -179,6 +194,9 @@ describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
         </ToastProvider>
       );
     });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
 
     const root = renderer!.root;
     const inputs = root.findAllByType('input');
@@ -198,7 +216,7 @@ describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
     const macroForm = forms.find((f) => f.props.className?.includes('space-y-3.5'));
 
     await act(async () => {
-      macroForm!.props.onSubmit({ preventDefault: vi.fn() });
+      await macroForm!.props.onSubmit({ preventDefault: vi.fn() });
     });
 
     // Estado deve permanecer zero
@@ -230,6 +248,9 @@ describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
         </ToastProvider>
       );
     });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
 
     const root = renderer!.root;
     const waterInput = root.findAllByType('input').find((i) => i.props.placeholder === 'Outro valor em ml');
@@ -244,7 +265,7 @@ describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
       waterInput!.props.onChange({ target: { value: '0' } });
     });
     await act(async () => {
-      waterForm!.props.onSubmit({ preventDefault: vi.fn() });
+      await waterForm!.props.onSubmit({ preventDefault: vi.fn() });
     });
     expect(capturedContext!.nutrition.water).toBe(0);
     expect(JSON.stringify(renderer!.toJSON())).toContain('Informe uma quantidade positiva de água');
@@ -254,7 +275,7 @@ describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
       waterInput!.props.onChange({ target: { value: '-100' } });
     });
     await act(async () => {
-      waterForm!.props.onSubmit({ preventDefault: vi.fn() });
+      await waterForm!.props.onSubmit({ preventDefault: vi.fn() });
     });
     expect(capturedContext!.nutrition.water).toBe(0);
   });

@@ -3,6 +3,7 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
+import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from '../lib/nutrition/admin-lock-fake';
 import {
   COMPLETION_RECEIPTS_STORE,
   GENERATION_MANIFESTS_STORE,
@@ -431,6 +432,7 @@ async function buildBackupB(): Promise<{
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   installBrowserGlobals();
+  installFakeNutritionCrossTabLocks();
 });
 
 afterEach(async () => {
@@ -443,6 +445,7 @@ afterEach(async () => {
   }
   await settle(10);
   restoreBrowserGlobals();
+  restoreFakeNutritionCrossTabLocks();
 });
 
 async function waitMs(ms: number): Promise<void> {

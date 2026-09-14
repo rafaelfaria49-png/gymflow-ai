@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { DailyTargets } from './engine-types';
+import { createEvaluatedGateSnapshot } from './gate-snapshot';
 import { createInMemoryNutritionDayRepository } from './rollover';
 import { NutritionLedgerError } from './ledger-types';
 import {
@@ -58,6 +59,20 @@ function makeTargets(): DailyTargets {
 const DATE = '2026-09-10';
 const TIMEZONE = 'America/Sao_Paulo';
 
+function makeGateSnapshot() {
+  return createEvaluatedGateSnapshot(
+    {
+      status: 'NORMAL_FLOW',
+      reasons: [],
+      userNoticeKey: 'NUTRITION_GATE_NORMAL_FLOW',
+      allowManualTracking: true,
+      allowAutomatedTargets: true,
+      suggestedAction: 'PROCEED',
+    },
+    '2026-09-10T14:00:00.000Z',
+  );
+}
+
 describe('classifyLegacyNutrition', () => {
   it('EMPTY para zeros absolutos', () => {
     expect(classifyLegacyNutrition({ calories: 0, protein: 0, carbs: 0, fat: 0, water: 0 })).toBe('LEGACY_EMPTY');
@@ -95,6 +110,7 @@ describe('classifyLegacyNutrition', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
       markClosed: false,
     });
     expect(result.classification).toBe('LEGACY_REAL');
@@ -118,6 +134,7 @@ describe('classifyLegacyNutrition', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
     });
     expect(result.classification).toBe('UNKNOWN');
     expect(result.outcome).toBe('quarantined');
@@ -168,6 +185,7 @@ describe('migrateLegacyNutrition — descarte e quarentena', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
     });
     expect(result).toMatchObject({ classification: 'LEGACY_EMPTY', outcome: 'discarded', day: null, hydrationMl: 0 });
   });
@@ -178,6 +196,7 @@ describe('migrateLegacyNutrition — descarte e quarentena', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
     });
     expect(result).toMatchObject({ classification: 'LEGACY_DEMO', outcome: 'discarded', day: null });
   });
@@ -189,6 +208,7 @@ describe('migrateLegacyNutrition — descarte e quarentena', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
     });
     expect(result.classification).toBe('UNKNOWN');
     expect(result.outcome).toBe('quarantined');
@@ -213,6 +233,7 @@ describe('migrateLegacyNutrition — REAL', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
     });
     expect(result.classification).toBe('LEGACY_REAL');
     expect(result.outcome).toBe('migrated');
@@ -221,7 +242,7 @@ describe('migrateLegacyNutrition — REAL', () => {
     const { day } = result;
     expect(day.date).toBe(DATE);
     expect(day.timezone).toBe(TIMEZONE);
-    expect(day.targets.targetCalories).toBe(2500);
+    expect(day.targets!.targetCalories).toBe(2500);
     expect(day.meals).toHaveLength(1);
     expect(day.meals[0]?.type).toBe('custom');
     expect(day.meals[0]?.name).toBe(LEGACY_CONSOLIDATED_MEAL_NAME);
@@ -243,6 +264,7 @@ describe('migrateLegacyNutrition — REAL', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
       markClosed: false,
     });
     if (result.outcome !== 'migrated') return expect.unreachable();
@@ -272,6 +294,7 @@ describe('migrateLegacyNutrition — REAL', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
       markClosed: false,
     });
     expect(result.classification).toBe('LEGACY_REAL');
@@ -286,6 +309,7 @@ describe('migrateLegacyNutrition — REAL', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
       markClosed: false,
     });
     if (result.outcome !== 'migrated') return expect.unreachable();
@@ -310,6 +334,7 @@ describe('migrateLegacyNutrition — anti-duplicidade de hidratação', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
       markClosed: false,
     });
     if (result.outcome !== 'migrated') return expect.unreachable();
@@ -326,6 +351,7 @@ describe('migrateLegacyNutrition — anti-duplicidade de hidratação', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
       markClosed: false,
     });
     if (result.outcome !== 'migrated') return expect.unreachable();
@@ -342,6 +368,7 @@ describe('migrateLegacyNutrition — idempotência de replay', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
     };
     const first = migrateLegacyNutrition(input);
     const second = migrateLegacyNutrition(input);
@@ -356,6 +383,7 @@ describe('migrateLegacyNutrition — idempotência de replay', () => {
       date: DATE,
       timezone: TIMEZONE,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
     };
     for (let replay = 0; replay < 2; replay += 1) {
       const result = migrateLegacyNutrition(input);

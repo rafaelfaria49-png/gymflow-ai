@@ -8,6 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { DailyTargets } from './engine-types';
+import { createEvaluatedGateSnapshot } from './gate-snapshot';
 import { addFoodEntry, addMeal, calculateActuals, closeNutritionDay, createNutritionDay } from './ledger';
 import { NutritionLedgerError } from './ledger-types';
 import {
@@ -64,7 +65,28 @@ function ensure(
   now: Date,
   timezone: string = SAO_PAULO,
 ) {
-  return ensureTodayNutritionDay({ now, timezone, targets: makeTargets(), repository });
+  return ensureTodayNutritionDay({
+    now,
+    timezone,
+    targets: makeTargets(),
+    targetState: 'AUTOMATED',
+    gateSnapshot: makeGateSnapshot(),
+    repository,
+  });
+}
+
+function makeGateSnapshot() {
+  return createEvaluatedGateSnapshot(
+    {
+      status: 'NORMAL_FLOW',
+      reasons: [],
+      userNoticeKey: 'NUTRITION_GATE_NORMAL_FLOW',
+      allowManualTracking: true,
+      allowAutomatedTargets: true,
+      suggestedAction: 'PROCEED',
+    },
+    '2026-09-12T14:00:00.000Z',
+  );
 }
 
 describe('ensureTodayNutritionDay — mesmo dia e meia-noite', () => {
@@ -116,6 +138,8 @@ describe('ensureTodayNutritionDay — mesmo dia e meia-noite', () => {
       now: new Date('2026-09-12T14:00:00.000Z'),
       timezone: SAO_PAULO,
       targets: makeTargets(),
+      targetState: 'AUTOMATED',
+      gateSnapshot: makeGateSnapshot(),
       repository: createInMemoryNutritionDayRepository(),
       dayIdFactory: () => 'seeded-day',
     });
@@ -130,6 +154,8 @@ describe('ensureTodayNutritionDay — mesmo dia e meia-noite', () => {
       now: new Date('2026-09-11T14:00:00.000Z'),
       timezone: SAO_PAULO,
       targets: makeTargets(),
+      targetState: 'AUTOMATED',
+      gateSnapshot: makeGateSnapshot(),
       repository,
     });
     expect(previous.day.date).toBe('2026-09-11');
@@ -250,6 +276,8 @@ describe('ensureTodayNutritionDay — relógio retrocede', () => {
       now: new Date('2026-09-10T14:00:00.000Z'),
       timezone: SAO_PAULO,
       targets: makeTargets(),
+      targetState: 'AUTOMATED',
+      gateSnapshot: makeGateSnapshot(),
       repository: createInMemoryNutritionDayRepository(),
     });
     const repository = createInMemoryNutritionDayRepository({
@@ -272,6 +300,7 @@ describe('ensureTodayNutritionDay — entradas inválidas', () => {
         now: new Date('2026-09-12T14:00:00.000Z'),
         timezone: SAO_PAULO,
         targets: null as never,
+        gateSnapshot: makeGateSnapshot(),
         repository,
       }),
     ).rejects.toMatchObject({ name: 'NutritionLedgerError', code: 'INVALID_TARGETS' });
@@ -285,6 +314,8 @@ describe('ensureTodayNutritionDay — entradas inválidas', () => {
         now: new Date(Number.NaN),
         timezone: SAO_PAULO,
         targets: makeTargets(),
+        targetState: 'AUTOMATED',
+        gateSnapshot: makeGateSnapshot(),
         repository,
       }),
     ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
@@ -293,6 +324,8 @@ describe('ensureTodayNutritionDay — entradas inválidas', () => {
         now: new Date('2026-09-12T14:00:00.000Z'),
         timezone: '',
         targets: makeTargets(),
+        targetState: 'AUTOMATED',
+        gateSnapshot: makeGateSnapshot(),
         repository,
       }),
     ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
@@ -316,6 +349,7 @@ describe('GOAL-079 — recuperação determinística dos pontos de crash A–D',
       date: '2026-09-11',
       timezone: SAO_PAULO,
       targets: makeTargets(),
+      gateSnapshot: makeGateSnapshot(),
     });
     return repository.putNutritionDay(closed ? closeNutritionDay(previous, '2026-09-11T23:00:00.000Z') : previous)
       .then(() => repository.setActiveNutritionDate('2026-09-11'));

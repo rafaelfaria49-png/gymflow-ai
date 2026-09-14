@@ -2047,3 +2047,23 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - D79-002: isCivilDateString com calendário real (bissexto, sem Date/timezone); activeDate validado na escrita e na leitura.
 - D79-003: DEMO só com waterIntake ausente/0/1200; outro valor válido vira REAL e preserva a hidratação; fora de teto calórico/macro vira UNKNOWN (quarentena), sem teto novo de água (P2).
 - D79-004: crash A/B/C recuperados pelo próximo ensure; D inalcançável por ordem W1→W2→W3 com propagação de erro (provado em teste), sem varredura O(n); loggedAt meio-dia registrado como aproximação P2.
+
+## GOAL-083 - NUT-004B cold boot provider bridge (sem lifecycle/timer/backup)
+
+- D83-001: dia legado sem targetState lido como AUTOMATED (compat IDB v5); migração REAL de hoje usa markClosed false com putIfAbsent pela chave natural e marker só após confirmação; backup lógico aceita nutritionProfile opcional sem versionar envelope.
+
+## GOAL-085 - NUT-004B correções de integridade P1 (gate persistido + admin lógico diferido)
+
+- D85-001: gateSnapshot obrigatório e copiado em todo NutritionDay novo (create/ensure/migration-REAL/bridge); coerência AUTOMATED⟺EVALUATED permitido, PROFILE_ABSENT⟺PROFILE_ABSENT, AUTOMATION_BLOCKED⟺EVALUATED bloqueado, TARGET_RESOLUTION_ERROR⟺EVALUATED permitido; legado pré-004B segue legível sem gate (nada fabricado); dia 004B sem gate falha fechado na escrita e na leitura.
+- D85-002: gate temporário do admin lógico só dispara com consumo real (qualquer FoodEntry/HydrationEntry em qualquer dia); ledger vazio segue liberado para não gerar falso-positivo, e sonda que falha responde "ativo" (fail-closed); razão pública nutrition-ledger-admin-deferred sem redesign e sem sucesso parcial.
+- D85-003: perfil persistido inválido falha o bridge explícito em vez de virar PROFILE_ABSENT (hoje inalcançável via storage, que valida estrito nas duas rotas — defesa em profundidade).
+- D85-004: AUTOMATION_BLOCKED exige flag false estrita porque o gate do motor é determinístico (mesmo perfil ⇒ mesmo veredito), então EVALUATED permitido com esse motivo seria incoerência real, não conservadorismo.
+
+- GOAL-087 fence vs guard de export (2026-09-13): export passa a adquirir fence nutricional e liberar em finally durante a captura (fecha TOCTOU sem owner-token); guard precisado para proibir apenas owner-token/begin/receipt e exigir o fence.
+
+## GOAL-089 - NUT-004B cross-tab lock via Web Locks (seguranca alem do TTL)
+
+- D89-001: lock canonico unico `gymflow:nutrition-admin-v1` (EXCLUSIVE admin x SHARED writers, FIFO sem ultrapassagem); ordem fixa Web Lock -> fence IDB -> owner-token, sem caminho inverso; acquire/release/renew do fence seguem IDB puros (sem lock proprio) para nao deadlockar sob o exclusive do chamador.
+- D89-002: sem `navigator.locks`, admin falha fechado com `nutrition-admin-lock-unavailable` antes de qualquer write (sem fallback TTL/in-memory); writers passam direto; fake in-memory e somente-teste (mesmo processo, nunca exclusao cross-tab).
+- D89-003: renew de fence expirado ou alheio = `NutritionAdminFencedError`; expiracao sempre pelo `now` injetavel do adapter (`nutritionNowMs()`), nunca `Date.now()`; Provider sem heartbeat (primitiva existe, sem uso).
+- D89-004: harness de fake global (`navigator.locks`) instalado nos 8 arquivos de Provider que exercem as 6 ops; race do export reescrito para serializacao (export ok + writer commita depois, linearizado) em vez de conflito.

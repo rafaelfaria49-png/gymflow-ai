@@ -20,11 +20,17 @@ export function mergePersistedState(
 ): PersistedState {
   // Presença da propriedade, e não length, decide o valor. Assim [] é dado legítimo.
   const hasGymProfile = Object.prototype.hasOwnProperty.call(saved, 'gymProfile');
+  const hasNutritionProfile = Object.prototype.hasOwnProperty.call(saved, 'nutritionProfile');
   return {
     ...defaults,
     ...saved,
     // GOAL-32: dados v1/v2 anteriores não criam uma academia silenciosamente.
     gymProfile: hasGymProfile ? saved.gymProfile ?? null : defaults.gymProfile ?? null,
+    // NUT-004B: envelope antigo sem campo hidrata como null; nunca deriva de
+    // user.gender/goal/restrictions.
+    nutritionProfile: hasNutritionProfile
+      ? saved.nutritionProfile ?? null
+      : defaults.nutritionProfile ?? null,
   };
 }
 

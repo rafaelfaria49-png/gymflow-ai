@@ -7,6 +7,7 @@ import type {
   WorkoutProgram,
   WorkoutSession,
 } from '../types';
+import type { NutritionProfile } from '../types/nutrition';
 import type { GymProfileState } from '../domain/gymProfile';
 
 export const MONOLITHIC_STORAGE_VERSION = 1 as const;
@@ -36,6 +37,12 @@ export interface PersistedState {
   recentlyViewedVideoIds: string[];
   /** GOAL-32: envelopes anteriores não possuem este campo; ausência vira null. */
   gymProfile?: GymProfileState | null;
+  /**
+   * NUT-004B: perfil nutricional opcional no core v2. Envelope antigo sem
+   * campo continua válido e hidrata como null. Nunca derivado
+   * silenciosamente de user.gender/goal/restrictions.
+   */
+  nutritionProfile?: NutritionProfile | null;
 }
 
 // Única fábrica do mundo lógico vazio. O reset hybrid-v2 — e qualquer
@@ -61,6 +68,7 @@ export function createEmptyPersistedState(): PersistedState {
     favoriteExercises: [],
     recentlyViewedVideoIds: [],
     gymProfile: null,
+    nutritionProfile: null,
   };
 }
 
