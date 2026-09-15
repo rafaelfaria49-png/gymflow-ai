@@ -190,6 +190,8 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
     const windowStub = Object.assign(new EventTarget(), {
       localStorage: storage,
       location: { reload: reloadSpy },
+      setTimeout: globalThis.setTimeout.bind(globalThis),
+      clearTimeout: globalThis.clearTimeout.bind(globalThis),
     });
     const documentStub = Object.assign(new EventTarget(), { visibilityState: 'visible' });
     Reflect.defineProperty(globalThis, 'window', { value: windowStub, configurable: true, writable: true });
@@ -269,12 +271,11 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
     }
   });
 
-  it('ADMIN_GATE_TOCTOU_RESET = CLOSED: writer antes → deferred; fence antes → writer bloqueado, sem divergência', async () => {
+  it('ADMIN_GATE_TOCTOU_RESET = CLOSED (GOAL-100): reset ledger-aware zera core+ledger com reload', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
-    const coreBefore = storage.getItem(STORAGE_KEY);
 
-    // Ordem A: writer commita antes do admin → sonda sob fence vê consumo → deferred.
+    // Writer commita antes do admin → reset seletivo inclui o consumo (sem gate).
     const writerA = new IndexedDbWorkoutHistoryStorage();
     await writerA.open();
     try {
@@ -286,14 +287,14 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
     await act(async () => {
       resetResult = await app.get().commitLogicalResetV2();
     });
-    expect(resetResult).toMatchObject({ ok: false, reason: 'nutrition-ledger-admin-deferred' });
-    // Sem divergência: core intacto, ledger com consumo preservado.
-    expect(storage.getItem(STORAGE_KEY)).toBe(coreBefore);
-    expect(await readLedgerHasConsumption()).toBe(true);
-    expect(reloadSpy).not.toHaveBeenCalled();
+    // GOAL-100: sem deferred; reset com ledger ativo zera tudo (coerente) e recarrega.
+    expect(resetResult).toMatchObject({ ok: true, requiresReload: true });
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 700));
+    expect(await readLedgerHasConsumption()).toBe(false);
+    expect(reloadSpy).toHaveBeenCalled();
   });
 
-  it('ADMIN_GATE_TOCTOU_IMPORT = CLOSED: consumo prévio bloqueia import antes de write', async () => {
+  it('ADMIN_GATE_TOCTOU_IMPORT = CLOSED (GOAL-100): arquivo inválido recusa antes de write, sem reload', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
     const coreBefore = storage.getItem(STORAGE_KEY);
@@ -313,13 +314,14 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
         expectedPayloadDigest: 'sha256:0',
       });
     });
-    expect(result).toMatchObject({ ok: false, reason: 'nutrition-ledger-admin-deferred' });
+    // GOAL-100: sem gate; arquivo malformado => import-failed (fail-closed), sem write.
+    expect(result).toMatchObject({ ok: false, reason: 'import-failed', requiresReload: false });
     expect(storage.getItem(STORAGE_KEY)).toBe(coreBefore);
     expect(await readLedgerHasConsumption()).toBe(true);
     expect(reloadSpy).not.toHaveBeenCalled();
   });
 
-  it('ADMIN_GATE_TOCTOU_RESTORE = CLOSED: inspect + commit bloqueados, sem write', async () => {
+  it('ADMIN_GATE_TOCTOU_RESTORE = CLOSED (GOAL-100): sem gate; sem predecessor não há write', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
     const coreBefore = storage.getItem(STORAGE_KEY);
@@ -335,13 +337,15 @@ describe('GOAL-087 — TOCTOU fechado pelo fence (repro GOAL-086)', () => {
     await act(async () => {
       inspected = await app.get().inspectLogicalRestoreV2();
     });
-    expect(inspected).toMatchObject({ status: 'error', reason: 'nutrition-ledger-admin-deferred' });
+    // GOAL-100: sem deferred; sem predecessor settled não há alvo (unavailable), sem write.
+    expect(inspected).not.toMatchObject({ reason: 'nutrition-ledger-admin-deferred' });
 
     let committed: Awaited<ReturnType<GymFlowValue['commitLogicalRestoreV2']>> | null = null;
     await act(async () => {
       committed = await app.get().commitLogicalRestoreV2();
     });
-    expect(committed).toMatchObject({ ok: false, reason: 'nutrition-ledger-admin-deferred' });
+    expect(committed).not.toMatchObject({ reason: 'nutrition-ledger-admin-deferred' });
+    expect((committed as unknown as { ok?: boolean } | null)?.ok).toBe(false);
     expect(storage.getItem(STORAGE_KEY)).toBe(coreBefore);
     expect(await readLedgerHasConsumption()).toBe(true);
     expect(reloadSpy).not.toHaveBeenCalled();

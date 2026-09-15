@@ -1105,8 +1105,9 @@ describe('backup lógico v2 — inspeção read-only', () => {
 
   it('32. schema lógico inválido', async () => {
     const { content } = await validBackupFile();
+    // GOAL-100: schema corrente é 2; futuro = 3.
     expect(await inspectLogicalStorageBackupV2(await tampered(content, (b) => {
-      b.logicalSchemaVersion = 2;
+      b.logicalSchemaVersion = 3;
     }))).toMatchObject({ ok: false, reason: 'unsupported-schema' });
   });
 
@@ -1698,6 +1699,8 @@ describe('backup lógico v2 — regressão do fluxo v1', () => {
       'src/lib/storage-logical-reset.ts',
       'src/lib/storage-logical-restore-resolve.test.ts',
       'src/lib/storage-logical-restore.test.ts',
+      // GOAL-100: prova ledger-aware do backup schema 2 (importa o módulo v2).
+      'src/lib/storage-nutrition-ledger-admin.test.ts',
       'src/lib/storage-retirement-journal.test.ts',
       'src/lib/storage-retirement-readiness.test.ts',
       'src/providers/GymFlowContext.logical-import.real.test.tsx',

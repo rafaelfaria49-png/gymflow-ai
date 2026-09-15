@@ -706,7 +706,8 @@ describe('importação lógica v2 — arquivo recusado antes do primeiro write',
 
   it('14. recusa logicalSchemaVersion futuro', async () => {
     const harness = await createReadyHarness({ sessions: [makeSession(1)] });
-    const raw = await makeBackupContent(defaults([makeSession(70)]), { logicalSchemaVersion: 2 });
+    // GOAL-100: schema corrente é 2 (ledger-aware); futuro = 3.
+    const raw = await makeBackupContent(defaults([makeSession(70)]), { logicalSchemaVersion: 3 });
     await expectNoWrite(harness, raw, {
       reason: 'unsupported-schema',
       backupReason: 'unsupported-schema',
@@ -1473,6 +1474,8 @@ describe('importação lógica v2 — idempotência e invariantes', () => {
         'src/lib/storage-logical-import.test.ts',
         'src/lib/storage-logical-restore-resolve.test.ts',
         'src/lib/storage-logical-restore.test.ts',
+        // GOAL-100: prova ledger-aware (import + recovery via dispatcher).
+        'src/lib/storage-nutrition-ledger-admin.test.ts',
         'src/lib/storage-retirement-journal.test.ts',
         'src/lib/storage-retirement-readiness.test.ts',
       ]);
@@ -5112,6 +5115,8 @@ describe('recuperação da importação v2 — ausência de call site', () => {
       'src/lib/storage-logical-import.test.ts',
       'src/lib/storage-logical-restore-resolve.test.ts',
       'src/lib/storage-logical-restore.test.ts',
+      // GOAL-100: prova ledger-aware.
+      'src/lib/storage-nutrition-ledger-admin.test.ts',
       'src/lib/storage-retirement-journal.test.ts',
       'src/lib/storage-retirement-readiness.test.ts',
       'src/providers/GymFlowContext.logical-import.test.tsx',

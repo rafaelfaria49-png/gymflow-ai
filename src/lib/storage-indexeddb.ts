@@ -58,6 +58,7 @@ import {
 
 import { isCivilDateString, isLedgerMigrationMarker, isNutritionDay } from './nutrition/ledger-types';
 import type { LedgerMigrationMarker, NutritionDay } from './nutrition/ledger-types';
+import type { NutritionLedgerBackupSection } from './storage-nutrition-ledger-backup';
 import {
   NUTRITION_ADMIN_FENCE_KEY,
   NUTRITION_ADMIN_FENCE_TTL_MS,
@@ -1970,6 +1971,272 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
   }
 
   /**
+   * GOAL-100 (NUT-004C LEDGER ADMIN): snapshot readonly consistente do ledger.
+   *
+   * Uma única transação readonly sobre [nutritionDays, nutritionMetadata] lê
+   * days + activeDate + marker de modo estabilizado. O fence
+   * (`nutritionAdminFence`) NUNCA é incluído. IDB continua v5, nenhum store novo.
+   * Chamador típico retém o Web Lock EXCLUSIVE e o fence; por isso este método
+   * NÃO adquire lock (evita deadlock de shared-dentro-de-exclusive).
+   */
+  async snapshotNutritionLedger(): Promise<NutritionLedgerBackupSection> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(
+      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+      'readonly',
+    );
+    const completed = transactionResult(transaction);
+    try {
+      const dayRecords = await requestResult(
+        transaction.objectStore(NUTRITION_DAYS_STORE).getAll(),
+      ) as unknown[];
+      const days: NutritionDay[] = [];
+      for (const record of dayRecords) {
+        if (!isNutritionDay(record)) {
+          throw new NutritionDayIntegrityError(
+            'Existe um dia nutricional com formato inválido no armazenamento.',
+          );
+        }
+        days.push(record);
+      }
+      days.sort((left, right) => (left.date < right.date ? -1 : left.date > right.date ? 1 : 0));
+      const activeValue = await this.readNutritionMetadataValue(transaction, NUTRITION_ACTIVE_DATE_KEY);
+      let activeDate: string | null = null;
+      if (activeValue !== undefined && activeValue !== null) {
+        if (!isCivilDateString(activeValue)) {
+          throw new NutritionDayIntegrityError('A data nutricional ativa está com formato inválido.');
+        }
+        activeDate = activeValue;
+      }
+      const markerValue = await this.readNutritionMetadataValue(transaction, NUTRITION_MIGRATION_MARKER_KEY);
+      let migrationMarker: LedgerMigrationMarker | null = null;
+      if (markerValue !== undefined && markerValue !== null) {
+        if (!isLedgerMigrationMarker(markerValue)) {
+          throw new NutritionDayIntegrityError('O marcador de migração nutricional está com formato inválido.');
+        }
+        migrationMarker = markerValue;
+      }
+      await completed;
+      return { days, activeDate, migrationMarker };
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * GOAL-100: substituição seletiva do ledger pelo admin (bypass do fence).
+   *
+   * O chamador RETÉM Web Lock EXCLUSIVE + fence IDB; por isso NÃO adquire
+   * shared lock e NÃO consulta o fence (o próprio fence ativo bloquearia o
+   * admin). Valida TUDO antes de qualquer mutação; section parcialmente
+   * válida => nenhum write. Preserva o fence corrente (nunca apaga
+   * `nutritionAdminFence`). NUNCA usa clear() em nutritionMetadata (deletes
+   * individuais). Days extras são deletados por chave; days alvo via put.
+   */
+  async replaceNutritionLedgerAsAdmin(section: NutritionLedgerBackupSection): Promise<void> {
+    if (!section || !Array.isArray(section.days)) {
+      throw new NutritionDayIntegrityError('A substituição do ledger exige section válida.');
+    }
+    for (const day of section.days) {
+      if (!isNutritionDay(day)) {
+        throw new NutritionDayIntegrityError('A substituição do ledger encontrou dia inválido.');
+      }
+    }
+    if (section.activeDate !== null && !isCivilDateString(section.activeDate)) {
+      throw new NutritionDayIntegrityError('A substituição do ledger exige activeDate civil ou null.');
+    }
+    if (section.activeDate !== null && !section.days.some((day) => day.date === section.activeDate)) {
+      throw new NutritionDayIntegrityError('A substituição do ledger tem activeDate órfã.');
+    }
+    if (section.migrationMarker !== null && !isLedgerMigrationMarker(section.migrationMarker)) {
+      throw new NutritionDayIntegrityError('A substituição do ledger tem marker incoerente.');
+    }
+    const seen = new Set<string>();
+    for (const day of section.days) {
+      if (seen.has(day.date)) {
+        throw new NutritionDayIntegrityError('A substituição do ledger tem dias duplicados.');
+      }
+      seen.add(day.date);
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(
+      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+      'readwrite',
+    );
+    const completed = transactionResult(transaction);
+    try {
+      const daysStore = transaction.objectStore(NUTRITION_DAYS_STORE);
+      const metaStore = transaction.objectStore(NUTRITION_METADATA_STORE);
+      const existingKeys = await requestResult(daysStore.getAllKeys()) as unknown[];
+      const targetKeys = new Set(section.days.map((day) => day.date));
+      for (const key of existingKeys) {
+        if (typeof key === 'string' && !targetKeys.has(key)) {
+          await requestResult(daysStore.delete(key));
+        }
+      }
+      for (const day of section.days) {
+        await requestResult(daysStore.put(day));
+      }
+      if (section.activeDate === null) {
+        await requestResult(metaStore.delete(NUTRITION_ACTIVE_DATE_KEY));
+      } else {
+        await requestResult(metaStore.put({
+          key: NUTRITION_ACTIVE_DATE_KEY,
+          value: section.activeDate,
+        } satisfies MetadataRecord));
+      }
+      if (section.migrationMarker === null) {
+        await requestResult(metaStore.delete(NUTRITION_MIGRATION_MARKER_KEY));
+      } else {
+        await requestResult(metaStore.put({
+          key: NUTRITION_MIGRATION_MARKER_KEY,
+          value: section.migrationMarker,
+        } satisfies MetadataRecord));
+      }
+      // Fence intocado de propósito: sobrevive até o finally normal de release.
+      await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * GOAL-100: stage dos dias (admin, sem metadata). Valida dias antes de qualquer
+   * write; preserva activeDate/marker/fence (para fault injection granular:
+   * "durante gravação dos dias" vs "durante metadata").
+   */
+  async replaceNutritionLedgerDaysAsAdmin(days: NutritionDay[]): Promise<void> {
+    if (!Array.isArray(days)) {
+      throw new NutritionDayIntegrityError('O stage dos dias exige array válido.');
+    }
+    for (const day of days) {
+      if (!isNutritionDay(day)) {
+        throw new NutritionDayIntegrityError('O stage dos dias encontrou dia inválido.');
+      }
+    }
+    const seen = new Set<string>();
+    for (const day of days) {
+      if (seen.has(day.date)) {
+        throw new NutritionDayIntegrityError('O stage dos dias tem dias duplicados.');
+      }
+      seen.add(day.date);
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(
+      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+      'readwrite',
+    );
+    const completed = transactionResult(transaction);
+    try {
+      const daysStore = transaction.objectStore(NUTRITION_DAYS_STORE);
+      const existingKeys = await requestResult(daysStore.getAllKeys()) as unknown[];
+      const targetKeys = new Set(days.map((day) => day.date));
+      for (const key of existingKeys) {
+        if (typeof key === 'string' && !targetKeys.has(key)) {
+          await requestResult(daysStore.delete(key));
+        }
+      }
+      for (const day of days) {
+        await requestResult(daysStore.put(day));
+      }
+      await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * GOAL-100: ativação da metadata (admin, após dias). Valida activeDate órfã
+   * contra os dias JÁ persistidos (mesma transação) + marker coerente.
+   * Preserva days e fence.
+   */
+  async applyNutritionLedgerMetadataAsAdmin(input: {
+    activeDate: string | null;
+    migrationMarker: LedgerMigrationMarker | null;
+  }): Promise<void> {
+    if (input.activeDate !== null && !isCivilDateString(input.activeDate)) {
+      throw new NutritionDayIntegrityError('A ativação do ledger exige activeDate civil ou null.');
+    }
+    if (input.migrationMarker !== null && !isLedgerMigrationMarker(input.migrationMarker)) {
+      throw new NutritionDayIntegrityError('A ativação do ledger tem marker incoerente.');
+    }
+    const database = this.requireDatabase();
+    const transaction = database.transaction(
+      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+      'readwrite',
+    );
+    const completed = transactionResult(transaction);
+    try {
+      const daysStore = transaction.objectStore(NUTRITION_DAYS_STORE);
+      const metaStore = transaction.objectStore(NUTRITION_METADATA_STORE);
+      if (input.activeDate !== null) {
+        const record = await requestResult(daysStore.get(input.activeDate)) as unknown;
+        if (record === undefined || record === null || !isNutritionDay(record)) {
+          throw new NutritionDayIntegrityError('A ativação do ledger tem activeDate órfã.');
+        }
+      }
+      if (input.activeDate === null) {
+        await requestResult(metaStore.delete(NUTRITION_ACTIVE_DATE_KEY));
+      } else {
+        await requestResult(metaStore.put({
+          key: NUTRITION_ACTIVE_DATE_KEY,
+          value: input.activeDate,
+        } satisfies MetadataRecord));
+      }
+      if (input.migrationMarker === null) {
+        await requestResult(metaStore.delete(NUTRITION_MIGRATION_MARKER_KEY));
+      } else {
+        await requestResult(metaStore.put({
+          key: NUTRITION_MIGRATION_MARKER_KEY,
+          value: input.migrationMarker,
+        } satisfies MetadataRecord));
+      }
+      await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * GOAL-100: reset nutricional seletivo (admin). Após reset: days=[], activeDate=null,
+   * marker=null. NUNCA apaga o fence corrente. NUNCA clear() em nutritionMetadata.
+   */
+  async clearNutritionLedgerAsAdmin(): Promise<void> {
+    const database = this.requireDatabase();
+    const transaction = database.transaction(
+      [NUTRITION_DAYS_STORE, NUTRITION_METADATA_STORE],
+      'readwrite',
+    );
+    const completed = transactionResult(transaction);
+    try {
+      const daysStore = transaction.objectStore(NUTRITION_DAYS_STORE);
+      const metaStore = transaction.objectStore(NUTRITION_METADATA_STORE);
+      const existingKeys = await requestResult(daysStore.getAllKeys()) as unknown[];
+      for (const key of existingKeys) {
+        if (typeof key === 'string') {
+          await requestResult(daysStore.delete(key));
+        }
+      }
+      await requestResult(metaStore.delete(NUTRITION_ACTIVE_DATE_KEY));
+      await requestResult(metaStore.delete(NUTRITION_MIGRATION_MARKER_KEY));
+      // Fence preservado: nenhum delete em NUTRITION_ADMIN_FENCE_KEY.
+      await completed;
+    } catch (error) {
+      abortQuietly(transaction);
+      await completed.catch(() => undefined);
+      throw error;
+    }
+  }
+
+  /**
    * NUT-004B: primitiva transacional read → mutate puro → validate → put em
    * uma única transação readwrite por date.
    *
@@ -2818,14 +3085,54 @@ implements WorkoutHistoryStorageAdapter, WorkoutHistoryAdministrationAdapter {
         );
       }
 
+      const currentRecord = current as unknown as Record<string, unknown>;
+      const patchRecord = (patch ?? {}) as unknown as Record<string, unknown>;
       const next = {
         ...current,
         sourceDigest: patchedField(patch.sourceDigest, current.sourceDigest),
         stagedGenerationId: patchedField(patch.stagedGenerationId, current.stagedGenerationId),
         targetCoreRaw: patchedField(patch.targetCoreRaw, current.targetCoreRaw),
+        nutritionLedgerStatus: patchedField(
+          patchRecord.nutritionLedgerStatus as never,
+          currentRecord.nutritionLedgerStatus as never,
+        ) as never,
+        nutritionLedgerDigest: patchedField(
+          patchRecord.nutritionLedgerDigest as never,
+          currentRecord.nutritionLedgerDigest as never,
+        ) as never,
+        nutritionLedgerActiveDate: patchedField(
+          patchRecord.nutritionLedgerActiveDate as never,
+          currentRecord.nutritionLedgerActiveDate as never,
+        ) as never,
+        nutritionLedgerMarker: patchedField(
+          patchRecord.nutritionLedgerMarker as never,
+          currentRecord.nutritionLedgerMarker as never,
+        ) as never,
+        previousNutritionLedgerRaw: patchedField(
+          patchRecord.previousNutritionLedgerRaw as never,
+          currentRecord.previousNutritionLedgerRaw as never,
+        ) as never,
+        targetNutritionLedgerRaw: patchedField(
+          patchRecord.targetNutritionLedgerRaw as never,
+          currentRecord.targetNutritionLedgerRaw as never,
+        ) as never,
         status: nextStatus,
         updatedAt,
       } as StorageOperationReceipt;
+      // Remove chaves ledger `undefined` herdadas de receipts legados para não
+      // persistir `undefined` (JSON/IDB converte de forma inconsistente).
+      for (const ledgerKey of [
+        'nutritionLedgerStatus',
+        'nutritionLedgerDigest',
+        'nutritionLedgerActiveDate',
+        'nutritionLedgerMarker',
+        'previousNutritionLedgerRaw',
+        'targetNutritionLedgerRaw',
+      ] as const) {
+        if ((next as unknown as Record<string, unknown>)[ledgerKey] === undefined) {
+          delete (next as unknown as Record<string, unknown>)[ledgerKey];
+        }
+      }
       if (!isStorageOperationReceipt(next)) {
         throw new StorageOperationReceiptIntegrityError(
           `A transição deixaria o receipt ${operationId} com formato inválido.`,

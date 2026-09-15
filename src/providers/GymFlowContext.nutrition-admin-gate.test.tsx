@@ -1,15 +1,11 @@
 /**
- * GymFlow AI — Gate temporário do admin lógico com ledger ativo (GOAL-085)
+ * GymFlow AI — Admin lógico ledger-aware (GOAL-100; gate GOAL-085 REMOVIDO)
  *
- * Enquanto o NUT-004C não integra nutritionDays + nutritionMetadata ao formato
- * lógico, o Provider bloqueia as seis operações lógicas em hybrid-v2 quando há
- * consumo nutricional real — ANTES de qualquer write, sem sucesso parcial:
- * - exportLogicalBackupV2 (nenhum arquivo que omita o ledger é gerado);
- * - importLogicalBackupV2 (bloqueado antes de write);
- * - inspect/commit logical restore (bloqueados antes de write);
- * - inspect/commit logical reset (bloqueados antes de write).
- *
- * Razão pública tipada: nutrition-ledger-admin-deferred.
+ * O NUT-004C integra nutritionDays + nutritionMetadata ao formato lógico
+ * (schema 2, section nutritionLedger obrigatória). Não há mais bloqueio
+ * temporário: export inclui o ledger; import/restore/reset aplicam core+ledger
+ * com verificação cruzada; schema 1 + ledger ativo falha fechado com
+ * legacy-backup-with-active-ledger (sem reload, sem wipe).
  */
 
 import { IDBFactory } from 'fake-indexeddb';
@@ -19,14 +15,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../components/ui/Toast';
 import { waitForCondition, waitForProviderHydrated } from './nutrition-provider-test-readiness';
 import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from '../lib/nutrition/admin-lock-fake';
-import { NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE } from '../lib/nutrition/admin-gate';
 import { IndexedDbWorkoutHistoryStorage } from '../lib/storage-indexeddb';
 import type { UserProfile } from '../types';
 import { GymFlowProvider, STORAGE_KEY, useGymFlow } from './GymFlowContext';
 
 type GymFlowValue = ReturnType<typeof useGymFlow>;
-
-const DEFERRED = 'nutrition-ledger-admin-deferred';
 
 class MemoryLocalStorage {
   readonly values = new Map<string, string>();
@@ -188,6 +181,8 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
     const windowStub = Object.assign(new EventTarget(), {
       localStorage: storage,
       location: { reload: reloadSpy },
+      setTimeout: globalThis.setTimeout.bind(globalThis),
+      clearTimeout: globalThis.clearTimeout.bind(globalThis),
     });
     const documentStub = Object.assign(new EventTarget(), { visibilityState: 'visible' });
     Reflect.defineProperty(globalThis, 'window', { value: windowStub, configurable: true, writable: true });
@@ -219,10 +214,9 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
     else Reflect.deleteProperty(globalThis, 'indexedDB');
   });
 
-  it('LOGICAL_EXPORT_WITH_ACTIVE_LEDGER = BLOCKED: nenhum arquivo que omita o ledger', async () => {
+  it('ADMIN_GATE_REMOVED: export com ledger ativo inclui a section (schema 2)', async () => {
     seedRealConsumption();
     const app = await mountAndGet();
-    // Sanidade: consumo real chegou ao ledger (condição real, sem sleep).
     await waitForNutrition(app.get, (ctx) => ctx.nutrition.calories === 1850, 'gate-ledger-migrated-1850');
     expect(app.get().nutrition.calories).toBe(1850);
 
@@ -230,10 +224,18 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
     await act(async () => {
       result = await app.get().exportLogicalBackupV2();
     });
-    expect(result).toEqual({ ok: false, reason: DEFERRED });
+    expect(result).toMatchObject({ ok: true });
+    const content = (result as unknown as { ok: boolean; content?: string }).content as string;
+    const parsed = JSON.parse(content) as {
+      logicalSchemaVersion: number;
+      nutritionLedger: { days: unknown[]; activeDate: unknown };
+    };
+    expect(parsed.logicalSchemaVersion).toBe(2);
+    expect(Array.isArray(parsed.nutritionLedger.days)).toBe(true);
+    expect(parsed.nutritionLedger.days.length).toBeGreaterThan(0);
   });
 
-  it('LOGICAL_IMPORT_WITH_ACTIVE_LEDGER = BLOCKED antes de write; core/ledger intactos', async () => {
+  it('OLD_BACKUP_SAFE (provider): arquivo inválido recusa antes de write; core/ledger intactos', async () => {
     seedRealConsumption();
     const app = await mountAndGet();
     await waitForNutrition(app.get, (ctx) => ctx.nutrition.calories === 1850, 'gate-ledger-migrated-1850');
@@ -248,45 +250,35 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
         expectedPayloadDigest: 'sha256:0',
       });
     });
-    expect(result).toMatchObject({
-      ok: false,
-      reason: DEFERRED,
-      requiresReload: false,
-      message: NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
-    });
+    expect(result).toMatchObject({ ok: false, requiresReload: false });
+    expect((result as { reason?: string } | null)?.reason).not.toBe('nutrition-ledger-admin-deferred');
 
-    // GOAL-091: fail-closed antes de write — assert imediato, sem settle genérico.
     expect(storage.getItem(STORAGE_KEY)).toBe(coreBefore);
     expect(await readLedgerSnapshot()).toEqual(ledgerBefore);
     expect(reloadSpy).not.toHaveBeenCalled();
   });
 
-  it('LOGICAL_RESET_WITH_ACTIVE_LEDGER = BLOCKED (inspect + execute); sem write, sem reload', async () => {
+  it('RESET_LEDGER_COMPLETE (provider): reset com ledger ativo zera e recarrega', async () => {
     seedRealConsumption();
     const app = await mountAndGet();
     await waitForNutrition(app.get, (ctx) => ctx.nutrition.calories === 1850, 'gate-ledger-migrated-1850');
-    const coreBefore = storage.getItem(STORAGE_KEY);
-    const ledgerBefore = await readLedgerSnapshot();
 
     let inspected: Awaited<ReturnType<GymFlowValue['inspectLogicalResetV2']>> | null = null;
     await act(async () => {
       inspected = await app.get().inspectLogicalResetV2();
     });
-    expect(inspected).toMatchObject({ status: 'error', reason: DEFERRED });
+    expect((inspected as { reason?: string } | null)?.reason).not.toBe('nutrition-ledger-admin-deferred');
 
     let result: Awaited<ReturnType<GymFlowValue['commitLogicalResetV2']>> | null = null;
     await act(async () => {
       result = await app.get().commitLogicalResetV2();
     });
-    expect(result).toMatchObject({ ok: false, reason: DEFERRED, requiresReload: false });
-
-    // GOAL-091: fail-closed — assert imediato.
-    expect(storage.getItem(STORAGE_KEY)).toBe(coreBefore);
-    expect(await readLedgerSnapshot()).toEqual(ledgerBefore);
-    expect(reloadSpy).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ ok: true, requiresReload: true });
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 700));
+    expect(reloadSpy).toHaveBeenCalled();
   });
 
-  it('LOGICAL_RESTORE_WITH_ACTIVE_LEDGER = BLOCKED (inspect + execute); sem write, sem reload', async () => {
+  it('RESTORE sem predecessor: sem gate; sem alvo não há write nem reload', async () => {
     seedRealConsumption();
     const app = await mountAndGet();
     await waitForNutrition(app.get, (ctx) => ctx.nutrition.calories === 1850, 'gate-ledger-migrated-1850');
@@ -297,44 +289,34 @@ describe('GymFlowContext — gate do admin lógico com ledger ativo (GOAL-085)',
     await act(async () => {
       inspected = await app.get().inspectLogicalRestoreV2();
     });
-    expect(inspected).toMatchObject({ status: 'error', reason: DEFERRED });
+    expect((inspected as { reason?: string } | null)?.reason).not.toBe('nutrition-ledger-admin-deferred');
 
     let result: Awaited<ReturnType<GymFlowValue['commitLogicalRestoreV2']>> | null = null;
     await act(async () => {
       result = await app.get().commitLogicalRestoreV2();
     });
-    expect(result).toMatchObject({ ok: false, reason: DEFERRED, requiresReload: false });
+    expect((result as unknown as { ok?: boolean } | null)?.ok).toBe(false);
+    expect((result as { reason?: string } | null)?.reason).not.toBe('nutrition-ledger-admin-deferred');
 
-    // GOAL-091: fail-closed — assert imediato.
     expect(storage.getItem(STORAGE_KEY)).toBe(coreBefore);
     expect(await readLedgerSnapshot()).toEqual(ledgerBefore);
     expect(reloadSpy).not.toHaveBeenCalled();
   });
 
-  it('PARTIAL_ADMIN_WRITE = NO + LEDGER_RESURRECTION_PATH = CLOSED: bloqueio não altera nada nem ressuscita', async () => {
+  it('NO_LEDGER_RESURRECTION (provider): reset zera; remount não ressuscita consumo', async () => {
     seedRealConsumption();
     const app = await mountAndGet();
     await waitForNutrition(app.get, (ctx) => ctx.nutrition.calories === 1850, 'gate-ledger-migrated-1850');
-    const caloriesBefore = app.get().nutrition.calories;
-    const waterBefore = app.get().nutrition.water;
-    expect(caloriesBefore).toBe(1850);
 
     await act(async () => {
       await app.get().commitLogicalResetV2();
-      await app.get().importLogicalBackupV2({ raw: '{}', declaredBytes: 2, expectedPayloadDigest: 'x' });
     });
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 700));
+    expect(reloadSpy).toHaveBeenCalled();
 
-    // Remount sobre o mesmo storage+IDB: estado contínuo, sem wipe e sem fantasma.
-    // GOAL-091: segunda montagem também por prontidão real.
     const app2 = await mountAndGet();
-    await waitForNutrition(
-      app2.get,
-      (ctx) => ctx.nutrition.calories === caloriesBefore && ctx.nutrition.water === waterBefore,
-      'gate-remount-stable-mirrors',
-    );
-    expect(app2.get().nutrition.calories).toBe(caloriesBefore);
-    expect(app2.get().nutrition.water).toBe(waterBefore);
-    expect(reloadSpy).not.toHaveBeenCalled();
+    await waitForNutrition(app2.get, (ctx) => ctx.nutrition.calories === 0, 'reset-remount-zero-mirrors');
+    expect(app2.get().nutrition.calories).toBe(0);
   });
 
   it('ledger vazio: export lógico segue liberado (sem falso-positivo do gate)', async () => {

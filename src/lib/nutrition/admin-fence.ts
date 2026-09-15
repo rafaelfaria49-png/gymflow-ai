@@ -28,6 +28,13 @@ export const NUTRITION_ADMIN_FENCE_VERSION = 1 as const;
 export const NUTRITION_ADMIN_FENCE_TTL_MS = 30_000 as const;
 export const NUTRITION_ADMIN_FENCED_CODE = 'NUTRITION_ADMIN_FENCED' as const;
 
+// GOAL-100 (NUT-004C LEDGER ADMIN, §13 FENCE):
+// O fence NUNCA é serializado no backup nem restaurado dele. Backup malformado
+// contendo fence/metadata perigosa => fail-closed (validação da section).
+// O fence corrente da operação sobrevive até o finally normal de release.
+export const NUTRITION_ADMIN_FENCE_BACKUP = 'NO' as const;
+export const NUTRITION_ADMIN_FENCE_RESTORE = 'NO' as const;
+
 export type NutritionAdminFenceOperationKind =
   | 'export'
   | 'import'

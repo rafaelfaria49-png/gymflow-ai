@@ -166,6 +166,14 @@ interface BeginStorageOperationBaseInput {
   // físico ou core alvo, então aceitar valor aqui gravaria no receipt uma
   // promessa que nada cumpriu. Reservados para 002D-C/D.
   stagedGenerationId: string | null;
+  // GOAL-100: journal nutricional opcional (ausente = legado pré-ledger).
+  // Quando presente, o receipt nasce com a fase nutricional + expectativas.
+  nutritionLedgerStatus?: import('./storage-operation-receipt').NutritionLedgerJournalStatus;
+  nutritionLedgerDigest?: string | null;
+  nutritionLedgerActiveDate?: string | null;
+  nutritionLedgerMarker?: import('./nutrition/ledger-types').LedgerMigrationMarker | null;
+  previousNutritionLedgerRaw?: string | null;
+  targetNutritionLedgerRaw?: string | null;
 }
 
 export type BeginStorageOperationInput =
@@ -998,6 +1006,14 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
       }
     }
 
+    const ledgerJournal = {
+      ...(input.nutritionLedgerStatus === undefined ? {} : { nutritionLedgerStatus: input.nutritionLedgerStatus }),
+      ...(input.nutritionLedgerDigest === undefined ? {} : { nutritionLedgerDigest: input.nutritionLedgerDigest }),
+      ...(input.nutritionLedgerActiveDate === undefined ? {} : { nutritionLedgerActiveDate: input.nutritionLedgerActiveDate }),
+      ...(input.nutritionLedgerMarker === undefined ? {} : { nutritionLedgerMarker: input.nutritionLedgerMarker }),
+      ...(input.previousNutritionLedgerRaw === undefined ? {} : { previousNutritionLedgerRaw: input.previousNutritionLedgerRaw }),
+      ...(input.targetNutritionLedgerRaw === undefined ? {} : { targetNutritionLedgerRaw: input.targetNutritionLedgerRaw }),
+    };
     const receipt = input.kind === 'restore'
       ? createStorageOperationReceipt({
           operationId,
@@ -1012,6 +1028,7 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
           ...(supersedesOperationIds === undefined
             ? {}
             : { supersedesOperationIds }),
+          ...ledgerJournal,
         })
       : createStorageOperationReceipt({
           operationId,
@@ -1022,6 +1039,7 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
           sourceDigest: input.sourceDigest ?? null,
           stagedGenerationId: null,
           targetCoreRaw: null,
+          ...ledgerJournal,
         });
 
     const created = await this.adapter.createStorageOperationReceiptIfIdle({
@@ -1398,7 +1416,7 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
     nextStatus: StorageOperationStatus,
     patch: StorageOperationReceiptPatch | undefined,
   ): StorageOperationReceipt {
-    return {
+    const projected = {
       ...operation,
       sourceDigest: patch?.sourceDigest === undefined ? operation.sourceDigest : patch.sourceDigest,
       stagedGenerationId: patch?.stagedGenerationId === undefined
@@ -1406,7 +1424,23 @@ class StorageAdminRuntimeImpl implements StorageAdminRuntime {
         : patch.stagedGenerationId,
       targetCoreRaw: patch?.targetCoreRaw === undefined ? operation.targetCoreRaw : patch.targetCoreRaw,
       status: nextStatus,
-    } as StorageOperationReceipt;
+    } as unknown as Record<string, unknown>;
+    // GOAL-100: projeção do journal nutricional (quando o patch os carrega).
+    const source = operation as unknown as Record<string, unknown>;
+    const ledgerKeys = [
+      'nutritionLedgerStatus',
+      'nutritionLedgerDigest',
+      'nutritionLedgerActiveDate',
+      'nutritionLedgerMarker',
+      'previousNutritionLedgerRaw',
+      'targetNutritionLedgerRaw',
+    ] as const;
+    for (const ledgerKey of ledgerKeys) {
+      const patched = (patch as unknown as Record<string, unknown> | undefined)?.[ledgerKey];
+      projected[ledgerKey] = patched === undefined ? source[ledgerKey] : patched;
+      if (projected[ledgerKey] === undefined) delete projected[ledgerKey];
+    }
+    return projected as unknown as StorageOperationReceipt;
   }
 
   // PROTOCOLO PÓS-COMMIT (corretivo 038).

@@ -2082,3 +2082,9 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 ## GOAL-098 - GYMFLOW-NUT004C-LIFECYCLE-FINAL-MERGE-098 fechamento docs-only sobre master
 
 - D98-001: fechamento persistido como commit docs-only direto sobre master (GOALS_LOG + 1 linha DECISOES), sem PR novo e sem tocar na branch de feature ja mergeada; arvore de codigo inalterada, entao build/typecheck herdados da CI do merge; NUT004C_LIFECYCLE_STATUS=INTEGRATED, READY_FOR_NUT004C_LEDGER_ADMIN=YES.
+
+## GOAL-100 - GYMFLOW-NUT004C-LEDGER-ADMIN-IMPLEMENTATION-100 (2026-09-15)
+
+- D100-001: section ledger no envelope (nao no payload): schema 2 tem 9 chaves (8 + nutritionLedger obrigatoria), digest combinado payload+ledger com separador newline (mesmo sha256, sem hash paralelo); schema 1 segue legivel sem section.
+- D100-002: stage do ledger em dois tempos (dias antes do core, metadata apos o core) para fault injection granular durante-dias/durante-metadata; journal carrega previous/target raws + digest/activeDate/marker + status pending/staged/applied/verified; recovery do core preservado + fix-up do ledger no dispatcher sob lock EXCLUSIVE (fallback direto sem locks em single-tab).
+- D100-003: gate nutrition-ledger-admin-deferred removido do Provider/UI (seis sondas); schema 1 + consumo real falha fechado com legacy-backup-with-active-ledger (sem reload, sem wipe); reset seletivo preserva o fence e nunca da clear() em nutritionMetadata; fence nunca serializado (NUTRITION_ADMIN_FENCE_BACKUP/RESTORE = NO).

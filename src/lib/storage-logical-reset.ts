@@ -50,7 +50,18 @@ export type LogicalResetAdapter = Pick<
   | 'stageHistoryGenerationForOperation'
   | 'rollbackToHistoryGeneration'
   | 'transitionStorageOperationIfUnambiguous'
->;
+> & {
+  snapshotNutritionLedger: () => Promise<import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection>;
+  replaceNutritionLedgerDaysAsAdmin: (days: import('./nutrition/ledger-types').NutritionDay[]) => Promise<void>;
+  applyNutritionLedgerMetadataAsAdmin: (input: {
+    activeDate: string | null;
+    migrationMarker: import('./nutrition/ledger-types').LedgerMigrationMarker | null;
+  }) => Promise<void>;
+  replaceNutritionLedgerAsAdmin: (
+    section: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection,
+  ) => Promise<void>;
+  clearNutritionLedgerAsAdmin: () => Promise<void>;
+};
 
 export type LogicalResetFailureReason =
   | 'administration-unavailable'
@@ -82,9 +93,12 @@ export type LogicalStorageResetV2Result =
 export type LogicalResetCommitStep =
   | 'journal-created'
   | 'staging-created'
+  | 'ledger-staged'
   | 'activating'
   | 'generation-activated'
   | 'core-committed'
+  | 'ledger-applied'
+  | 'verified'
   | 'receipt-activated'
   | 'settled';
 
@@ -302,12 +316,40 @@ export async function commitLogicalStorageResetV2(
     const previousGenerationId = snapshot.activeGenerationId;
     const previousCoreRaw = snapshot.coreRawObserved;
 
+    // GOAL-100: snapshot ledger previous (zero escrita) + alvo vazio seletivo.
+    // Após reset: days=[], activeDate=null, marker=null. Core zerado pela
+    // primitiva existente. Fence preservado; nunca clear() em metadata.
+    let previousLedger: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection;
+    let previousLedgerRaw = '';
+    let emptyLedgerRaw = '';
+    try {
+      const {
+        validateNutritionLedgerBackupSection,
+        createEmptyNutritionLedgerSection,
+        serializeNutritionLedgerCanonically,
+      } = await import('./storage-nutrition-ledger-backup');
+      const currentSnapshot = await adapter.snapshotNutritionLedger();
+      const checked = validateNutritionLedgerBackupSection(currentSnapshot);
+      if (checked.status !== 'valid') return fail('operation-conflict');
+      previousLedger = checked.section;
+      previousLedgerRaw = serializeNutritionLedgerCanonically(previousLedger);
+      emptyLedgerRaw = serializeNutritionLedgerCanonically(createEmptyNutritionLedgerSection());
+    } catch {
+      return fail('administration-unavailable');
+    }
+
     const begun = await ownerLease.execute(() => runtime.beginStorageOperation({
       kind: RESET_KIND,
       sourceDigest: null,
       reservedOperationId: operationId,
       stagedGenerationId: null,
       targetCoreRaw: null,
+      nutritionLedgerStatus: 'pending',
+      nutritionLedgerDigest: null,
+      nutritionLedgerActiveDate: null,
+      nutritionLedgerMarker: null,
+      previousNutritionLedgerRaw: previousLedgerRaw,
+      targetNutritionLedgerRaw: emptyLedgerRaw,
     }));
     journalCreated = true;
     if (
@@ -334,6 +376,13 @@ export async function commitLogicalStorageResetV2(
     if (generationId === previousGenerationId) return fail('staging-failed');
     const stagedGenerationId = generationId;
     await input.afterStep?.('staging-created');
+    // GOAL-100: stage dos dias do reset (esvazia days, preserva metadata/fence).
+    try {
+      await ownerLease.execute(() => adapter.replaceNutritionLedgerDaysAsAdmin([]));
+    } catch {
+      return fail('staging-failed');
+    }
+    await input.afterStep?.('ledger-staged');
 
     const emptyDigest = await computeOrderedHistoryDigest(EMPTY_HISTORY);
     const verified = await adapter.readVerifiedHistoryGeneration(stagedGenerationId);
@@ -349,7 +398,7 @@ export async function commitLogicalStorageResetV2(
       operationId,
       expectedStatus: 'staged',
       nextStatus: 'activating',
-      patch: { targetCoreRaw },
+      patch: { targetCoreRaw, nutritionLedgerStatus: 'staged' },
     }));
     if (
       !isResetReceipt(activating, operationId)
@@ -380,12 +429,34 @@ export async function commitLogicalStorageResetV2(
     if (committed !== 'committed') return fail(committed);
     await input.afterStep?.('core-committed');
 
+    // GOAL-100: ativar ledger do reset (limpa activeDate/marker, preserva fence)
+    // + verificação cruzada (core vazio + ledger vazio).
+    try {
+      await ownerLease.execute(() => adapter.applyNutritionLedgerMetadataAsAdmin({
+        activeDate: null,
+        migrationMarker: null,
+      }));
+    } catch {
+      return fail('recovery-required');
+    }
+    await input.afterStep?.('ledger-applied');
+    try {
+      const ledgerAfter = await adapter.snapshotNutritionLedger();
+      if (ledgerAfter.days.length !== 0 || ledgerAfter.activeDate !== null || ledgerAfter.migrationMarker !== null) {
+        return fail('recovery-required');
+      }
+    } catch {
+      return fail('recovery-required');
+    }
+    await input.afterStep?.('verified');
+
     const activated = await ownerLease.execute(() => (
       adapter.transitionStorageOperationIfUnambiguous({
         operationId,
         expectedStatus: 'activating',
         nextStatus: 'activated',
         expectedActiveGenerationId: stagedGenerationId,
+        patch: { nutritionLedgerStatus: 'applied' },
       })
     ));
     if (!isResetReceipt(activated, operationId) || activated.status !== 'activated') {
@@ -397,6 +468,7 @@ export async function commitLogicalStorageResetV2(
       operationId,
       expectedStatus: 'activated',
       nextStatus: 'settled',
+      patch: { nutritionLedgerStatus: 'verified' },
     }));
     if (!isResetReceipt(settled, operationId) || settled.status !== 'settled') {
       return fail('readback-failed');

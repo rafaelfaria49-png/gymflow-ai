@@ -42,6 +42,8 @@ export const TERMINAL_STORAGE_OPERATION_STATUSES: readonly StorageOperationStatu
   'reverted',
 ];
 
+export type NutritionLedgerJournalStatus = 'pending' | 'staged' | 'applied' | 'verified';
+
 interface StorageOperationReceiptBase {
   operationId: string;
   // Digest do arquivo/origem que motivou a operação. `null` quando a operação
@@ -61,6 +63,20 @@ interface StorageOperationReceiptBase {
   // final. Ausente em receipts legado. Imutavel apos o nascimento: nao entra
   // no patch e receipts settled antigos nunca sao reescritos.
   supersedesOperationIds?: readonly string[];
+  // GOAL-100 (NUT-004C LEDGER ADMIN): fase nutricional da operação + expectativas
+  // do ledger alvo. Ausentes em receipts legados (pré-ledger). Quando presentes,
+  // cobrem: ledger pending/staged/applied/verified, digest esperado da section,
+  // activeDate esperado e migrationMarker esperado. O journal continua ÚNICO
+  // (nenhum segundo sistema de recovery).
+  nutritionLedgerStatus?: NutritionLedgerJournalStatus;
+  nutritionLedgerDigest?: string | null;
+  nutritionLedgerActiveDate?: string | null;
+  nutritionLedgerMarker?: import('./nutrition/ledger-types').LedgerMigrationMarker | null;
+  // Snapshots canônicos do ledger (JSON) para convergência/reversão no boot.
+  // previous: mundo antes da operação; target: mundo prometido. Ausentes no
+  // legado; obrigatórios nas operações ledger-aware novas (mesmo vazios).
+  previousNutritionLedgerRaw?: string | null;
+  targetNutritionLedgerRaw?: string | null;
 }
 
 // `kind` discrimina identidades fisicas diferentes. Import e reset criam uma
@@ -100,7 +116,18 @@ export type StorageOperationReceipt =
 // `kind`), origem (`previousCoreRaw`, `previousGenerationId`), `status`,
 // `createdAt` e `updatedAt` nunca entram pelo patch.
 export type StorageOperationReceiptPatch = Partial<
-  Pick<StorageOperationReceipt, 'sourceDigest' | 'stagedGenerationId' | 'targetCoreRaw'>
+  Pick<
+    StorageOperationReceipt,
+    | 'sourceDigest'
+    | 'stagedGenerationId'
+    | 'targetCoreRaw'
+    | 'nutritionLedgerStatus'
+    | 'nutritionLedgerDigest'
+    | 'nutritionLedgerActiveDate'
+    | 'nutritionLedgerMarker'
+    | 'previousNutritionLedgerRaw'
+    | 'targetNutritionLedgerRaw'
+  >
 >;
 
 const ALLOWED_TRANSITIONS: Record<StorageOperationStatus, readonly StorageOperationStatus[]> = {
@@ -187,6 +214,43 @@ function kindFieldsAreValid(record: Record<string, unknown>): boolean {
 
 // Validação pura usada antes de gravar e depois de ler. Um registro malformado
 // nunca vira operação administrativa silenciosa.
+function nutritionLedgerJournalFieldsAreValid(record: Record<string, unknown>): boolean {
+  if (hasOwn(record, 'nutritionLedgerStatus')) {
+    const status = record.nutritionLedgerStatus;
+    if (
+      status !== 'pending'
+      && status !== 'staged'
+      && status !== 'applied'
+      && status !== 'verified'
+    ) {
+      return false;
+    }
+  }
+  if (hasOwn(record, 'nutritionLedgerDigest')) {
+    const digest = record.nutritionLedgerDigest;
+    if (digest !== null && !(typeof digest === 'string' && /^sha256:[0-9a-f]{64}$/.test(digest))) {
+      return false;
+    }
+  }
+  if (hasOwn(record, 'nutritionLedgerActiveDate')) {
+    const active = record.nutritionLedgerActiveDate;
+    if (active !== null && typeof active !== 'string') return false;
+  }
+  if (hasOwn(record, 'nutritionLedgerMarker')) {
+    const marker = record.nutritionLedgerMarker;
+    if (marker !== null && (typeof marker !== 'object' || marker === null)) return false;
+  }
+  if (hasOwn(record, 'previousNutritionLedgerRaw')) {
+    const raw = record.previousNutritionLedgerRaw;
+    if (raw !== null && typeof raw !== 'string') return false;
+  }
+  if (hasOwn(record, 'targetNutritionLedgerRaw')) {
+    const raw = record.targetNutritionLedgerRaw;
+    if (raw !== null && typeof raw !== 'string') return false;
+  }
+  return true;
+}
+
 export function isStorageOperationReceipt(value: unknown): value is StorageOperationReceipt {
   if (value === null || typeof value !== 'object') return false;
   const record = value as Record<string, unknown>;
@@ -204,6 +268,7 @@ export function isStorageOperationReceipt(value: unknown): value is StorageOpera
     && isNullableString(record.targetCoreRaw)
     && kindFieldsAreValid(record)
     && supersessionFieldIsValid(record)
+    && nutritionLedgerJournalFieldsAreValid(record)
     && isStorageOperationStatus(record.status)
     && isNonEmptyString(record.createdAt)
     && isNonEmptyString(record.updatedAt);
@@ -594,6 +659,12 @@ type CreateStorageOperationReceiptBaseInput = {
   targetCoreRaw?: string | null;
   updatedAt?: string;
   supersedesOperationIds?: readonly string[];
+  nutritionLedgerStatus?: NutritionLedgerJournalStatus;
+  nutritionLedgerDigest?: string | null;
+  nutritionLedgerActiveDate?: string | null;
+  nutritionLedgerMarker?: import('./nutrition/ledger-types').LedgerMigrationMarker | null;
+  previousNutritionLedgerRaw?: string | null;
+  targetNutritionLedgerRaw?: string | null;
 };
 
 export type CreateStorageOperationReceiptInput =
@@ -624,6 +695,14 @@ export function createStorageOperationReceipt(
     ? { targetGenerationId: input.targetGenerationId }
     : {};
   const supersedes = frozenSupersedes(input.supersedesOperationIds, input.operationId);
+  const ledger = {
+    ...(input.nutritionLedgerStatus === undefined ? {} : { nutritionLedgerStatus: input.nutritionLedgerStatus }),
+    ...(input.nutritionLedgerDigest === undefined ? {} : { nutritionLedgerDigest: input.nutritionLedgerDigest }),
+    ...(input.nutritionLedgerActiveDate === undefined ? {} : { nutritionLedgerActiveDate: input.nutritionLedgerActiveDate }),
+    ...(input.nutritionLedgerMarker === undefined ? {} : { nutritionLedgerMarker: input.nutritionLedgerMarker }),
+    ...(input.previousNutritionLedgerRaw === undefined ? {} : { previousNutritionLedgerRaw: input.previousNutritionLedgerRaw }),
+    ...(input.targetNutritionLedgerRaw === undefined ? {} : { targetNutritionLedgerRaw: input.targetNutritionLedgerRaw }),
+  };
   return {
     operationId: input.operationId,
     kind: input.kind,
@@ -634,6 +713,7 @@ export function createStorageOperationReceipt(
     targetCoreRaw: input.targetCoreRaw ?? null,
     ...targetGeneration,
     ...(supersedes === undefined ? {} : { supersedesOperationIds: supersedes }),
+    ...ledger,
     status: 'staged',
     createdAt: input.createdAt,
     updatedAt: input.updatedAt ?? input.createdAt,

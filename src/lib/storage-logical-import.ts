@@ -103,6 +103,7 @@ export type LogicalImportFailureReason =
   | 'invalid-backup'
   | 'unsupported-version'
   | 'unsupported-schema'
+  | 'legacy-backup-with-active-ledger'
   | 'administration-unavailable'
   | 'administration-conflicted'
   | 'administration-interrupted'
@@ -175,7 +176,27 @@ export type LogicalImportAdapter = Pick<
   | 'revertStorageOperationAfterTransitionConflict'
   | 'readStorageOperationReceipt'
   | 'clearInactiveGeneration'
->;
+> & {
+  snapshotNutritionLedger: () => Promise<import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection>;
+  replaceNutritionLedgerDaysAsAdmin: (days: import('./nutrition/ledger-types').NutritionDay[]) => Promise<void>;
+  applyNutritionLedgerMetadataAsAdmin: (input: {
+    activeDate: string | null;
+    migrationMarker: import('./nutrition/ledger-types').LedgerMigrationMarker | null;
+  }) => Promise<void>;
+  replaceNutritionLedgerAsAdmin: (
+    section: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection,
+  ) => Promise<void>;
+};
+
+export type LogicalImportCommitStep =
+  | 'journal-created'
+  | 'history-staged'
+  | 'ledger-staged'
+  | 'ledger-metadata'
+  | 'core-committed'
+  | 'ledger-applied'
+  | 'verified'
+  | 'settled';
 
 export interface CommitLogicalStorageImportV2Input {
   // Conteúdo BRUTO do arquivo. Não existe variante que aceite payload já
@@ -197,6 +218,8 @@ export interface CommitLogicalStorageImportV2Input {
   // Injeção para testes e integrações que compartilham uma identidade de aba.
   // Ausente, o coordenador cria um ownerId opaco por documento.
   ownerToken?: StorageAdminOwnerTokenCoordinator;
+  // GOAL-100: costura determinística para fault injection (testes de falha parcial).
+  afterStep?: (step: LogicalImportCommitStep) => void | Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,6 +231,7 @@ const MESSAGES = {
   digestMismatch: 'O digest do payload não corresponde ao digest esperado pelo chamador.',
   unsupportedVersion: 'Versão de formato ou de origem física não suportada.',
   unsupportedSchema: 'Versão de esquema lógico não suportada.',
+  legacyWithLedger: 'O backup legado não cobre o histórico nutricional ativo nesta instalação.',
   administrationUnavailable: 'O armazenamento administrativo não está disponível para importar.',
   administrationConflicted: 'O estado administrativo está ambíguo demais para importar.',
   administrationInterrupted: 'Existe uma operação administrativa em aberto.',
@@ -649,6 +673,56 @@ export async function commitLogicalStorageImportV2(
     });
   }
 
+  // GOAL-100 W0 ledger-aware (zero escrita): compatibilidade schema 1 vs ativo.
+  // Schema 2 sempre traz section (validada na inspeção); schema 1 + ledger real
+  // => fail-closed antes de qualquer write, sem reload, sem apagar ledger.
+  const backupSchemaVersion = (inspection.backup as unknown as { logicalSchemaVersion: number }).logicalSchemaVersion;
+  const isSchema2 = backupSchemaVersion === 2;
+  let targetLedger: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection;
+  if (isSchema2) {
+    targetLedger = (inspection.backup as unknown as {
+      nutritionLedger: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection;
+    }).nutritionLedger;
+  } else {
+    // Schema 1: sem section; o alvo ledger é vazio (fluxo legado permitido
+    // somente sem consumo real — verificado abaixo).
+    const { createEmptyNutritionLedgerSection } = await import('./storage-nutrition-ledger-backup');
+    targetLedger = createEmptyNutritionLedgerSection();
+  }
+  let previousLedger: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection;
+  try {
+    const snapshotLedger = await adapter.snapshotNutritionLedger();
+    const { validateNutritionLedgerBackupSection } = await import('./storage-nutrition-ledger-backup');
+    const checked = validateNutritionLedgerBackupSection(snapshotLedger);
+    if (checked.status !== 'valid') {
+      return failure({
+        reason: 'administration-conflicted',
+        error: MESSAGES.administrationConflicted,
+        compensation: 'not-needed',
+      });
+    }
+    previousLedger = checked.section;
+  } catch (cause) {
+    return failure({
+      reason: 'administration-unavailable',
+      error: MESSAGES.administrationUnavailable,
+      compensation: 'not-needed',
+      cause,
+    });
+  }
+  if (!isSchema2) {
+    const { nutritionLedgerSectionHasConsumption } = await import('./storage-nutrition-ledger-backup');
+    if (nutritionLedgerSectionHasConsumption(previousLedger)) {
+      return failure({
+        reason: 'legacy-backup-with-active-ledger',
+        error: MESSAGES.legacyWithLedger,
+        compensation: 'not-needed',
+      });
+    }
+    // Legado sem consumo: alvo = anterior (vazio) — nenhum write no ledger.
+    targetLedger = previousLedger;
+  }
+
   const snapshot = await runtime.inspectStorageAdministration();
   if (snapshot.state.status === 'unavailable') {
     return failure({
@@ -755,10 +829,40 @@ export async function commitLogicalStorageImportV2(
   }
   const ownerLease = acquisition.lease;
 
+  // GOAL-100: material do journal nutricional (previous/target canônicos + digest).
+  // Calculado antes do primeiro write; falha de digest => crypto-unavailable.
+  let previousLedgerRaw: string;
+  let targetLedgerRaw: string;
+  let targetLedgerDigest: string;
+  try {
+    const {
+      serializeNutritionLedgerCanonically,
+      computeNutritionLedgerDigest,
+    } = await import('./storage-nutrition-ledger-backup');
+    previousLedgerRaw = serializeNutritionLedgerCanonically(previousLedger);
+    targetLedgerRaw = serializeNutritionLedgerCanonically(targetLedger);
+    targetLedgerDigest = await computeNutritionLedgerDigest(targetLedger, input.subtleCrypto);
+  } catch (cause) {
+    const { HistoryDigestCryptoUnavailableError } = await import('./storage-history-integrity');
+    if (cause instanceof HistoryDigestCryptoUnavailableError) {
+      return failure({
+        reason: 'crypto-unavailable',
+        error: MESSAGES.cryptoUnavailable,
+        compensation: 'not-needed',
+        cause,
+      });
+    }
+    return failure({
+      reason: 'invalid-backup',
+      error: MESSAGES.invalidBackup,
+      compensation: 'not-needed',
+    });
+  }
+
   try {
 
   // -------------------------------------------------------------------------
-  // W1 — receipt inicial. Primeiro write da operação.
+  // W1 — receipt inicial. Primeiro write da operação (journal com ledger pending).
   // -------------------------------------------------------------------------
 
   let receipt: StorageOperationReceipt;
@@ -769,6 +873,12 @@ export async function commitLogicalStorageImportV2(
       reservedOperationId,
       stagedGenerationId: null,
       targetCoreRaw: null,
+      nutritionLedgerStatus: 'pending',
+      nutritionLedgerDigest: targetLedgerDigest,
+      nutritionLedgerActiveDate: targetLedger.activeDate,
+      nutritionLedgerMarker: targetLedger.migrationMarker,
+      previousNutritionLedgerRaw: previousLedgerRaw,
+      targetNutritionLedgerRaw: targetLedgerRaw,
     }));
   } catch (cause) {
     if (isStorageAdminOwnerTokenConflict(cause)) {
@@ -840,6 +950,10 @@ export async function commitLogicalStorageImportV2(
     || begun.previousGenerationId !== previousGenerationId
     || begun.stagedGenerationId !== null
     || begun.targetCoreRaw !== null
+    || begun.nutritionLedgerStatus !== 'pending'
+    || begun.nutritionLedgerDigest !== targetLedgerDigest
+    || begun.previousNutritionLedgerRaw !== previousLedgerRaw
+    || begun.targetNutritionLedgerRaw !== targetLedgerRaw
   ) {
     const compensation = await revertReceipt({
       adapter,
@@ -891,7 +1005,8 @@ export async function commitLogicalStorageImportV2(
   }
 
   // A partir daqui existe uma geração física criada por esta operação. Toda
-  // falha compensa o receipt E limpa essa geração.
+  // falha compensa o receipt E limpa essa geração E reverte o ledger para o
+  // anterior (nunca híbrido core↔ledger).
   const failAfterStaging = async (
     reason: LogicalImportFailureReason,
     error: string,
@@ -914,6 +1029,20 @@ export async function commitLogicalStorageImportV2(
         generationId,
         previousGenerationId,
       );
+      // Reverte o ledger (best-effort, sem owner-token aninhado direto no IDB):
+      // se falhar, o journal fica aberto (compensation failed => recovery).
+      try {
+        await adapter.replaceNutritionLedgerAsAdmin(previousLedger);
+      } catch (ledgerCause) {
+        return failure({
+          reason: 'recovery-required',
+          error: MESSAGES.coreAmbiguous,
+          operationId,
+          generationId,
+          compensation: 'failed',
+          cause: ledgerCause,
+        });
+      }
     }
     return failure({ reason, error, operationId, generationId, compensation, cause });
   };
@@ -934,6 +1063,57 @@ export async function commitLogicalStorageImportV2(
       'staged',
       REVERT_REASONS.afterStaging,
     );
+  }
+  try {
+    await input.afterStep?.('journal-created');
+  } catch {
+    // Se a sonda de fault injection lançar, o journal fica aberto para recovery.
+    return failure({
+      reason: 'recovery-required',
+      error: MESSAGES.coreAmbiguous,
+      operationId,
+      generationId,
+      compensation: 'not-attempted',
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // W2b — stage do ledger (dias). Ordem: journal begin → stage ledger dias →
+  // core (primitiva existente) → ativar ledger metadata → verificar cruzado.
+  // Nenhum sucesso com core novo + ledger antigo (ou inverso).
+  // -------------------------------------------------------------------------
+
+  try {
+    await ownerLease.execute(() => adapter.replaceNutritionLedgerDaysAsAdmin(targetLedger.days));
+  } catch (cause) {
+    if (isStorageAdminOwnerTokenConflict(cause)) throw cause;
+    // Reverte o ledger para o anterior (best-effort) antes de reverter o receipt,
+    // para não deixar híbrido dias-novo + core-antigo sem dono.
+    try {
+      await ownerLease.execute(() => adapter.replaceNutritionLedgerAsAdmin(previousLedger));
+    } catch {
+      // Reversão do ledger falhou: journal aberto para o recovery convergir.
+      return failure({
+        reason: 'recovery-required',
+        error: MESSAGES.coreAmbiguous,
+        operationId,
+        generationId,
+        compensation: 'not-attempted',
+        cause,
+      });
+    }
+    return failAfterStaging('staging-failed', MESSAGES.stagingFailed, 'staged', REVERT_REASONS.afterStaging, cause);
+  }
+  try {
+    await input.afterStep?.('ledger-staged');
+  } catch {
+    return failure({
+      reason: 'recovery-required',
+      error: MESSAGES.coreAmbiguous,
+      operationId,
+      generationId,
+      compensation: 'not-attempted',
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -1045,8 +1225,19 @@ export async function commitLogicalStorageImportV2(
       operationId,
       expectedStatus: 'staged',
       nextStatus: 'activating',
-      patch: { targetCoreRaw },
+      patch: { targetCoreRaw, nutritionLedgerStatus: 'staged' },
     }));
+    try {
+      await input.afterStep?.('history-staged');
+    } catch {
+      return failure({
+        reason: 'recovery-required',
+        error: MESSAGES.coreAmbiguous,
+        operationId,
+        generationId,
+        compensation: 'not-attempted',
+      });
+    }
   } catch (cause) {
     if (isStorageAdminOwnerTokenConflict(cause)) throw cause;
     if (cause instanceof StorageOperationTransitionConflictError) {
@@ -1153,6 +1344,18 @@ export async function commitLogicalStorageImportV2(
         generationId,
         previousGenerationId,
       );
+      try {
+        await adapter.replaceNutritionLedgerAsAdmin(previousLedger);
+      } catch (ledgerCause) {
+        return failure({
+          reason: 'recovery-required',
+          error: MESSAGES.coreAmbiguous,
+          operationId,
+          generationId,
+          compensation: 'failed',
+          cause: ledgerCause,
+        });
+      }
     }
     return failure({ reason, error, operationId, generationId, compensation, cause });
   };
@@ -1306,6 +1509,47 @@ export async function commitLogicalStorageImportV2(
   // Terceiro valor: não adivinha, não sobrescreve, não apaga a geração, não
   // marca terminal. O journal fica inteiro para o slice C2.
   if (afterWrite.raw !== targetCoreRaw) return unprovableCore('recovery-required');
+  try {
+    await input.afterStep?.('core-committed');
+  } catch {
+    return unprovableCore('recovery-required');
+  }
+
+  // -------------------------------------------------------------------------
+  // W6b — aplicar/ativar ledger (metadata após dias + core). Ordem obrigatória:
+  // stage dias → core → metadata → verificação cruzada. Nunca sucesso com
+  // core novo + ledger antigo (ou inverso), activeDate órfã ou marker incoerente.
+  // -------------------------------------------------------------------------
+
+  try {
+    await ownerLease.execute(() => adapter.applyNutritionLedgerMetadataAsAdmin({
+      activeDate: targetLedger.activeDate,
+      migrationMarker: targetLedger.migrationMarker,
+    }));
+  } catch (cause) {
+    if (isStorageAdminOwnerTokenConflict(cause)) throw cause;
+    return unprovableCore('recovery-required');
+  }
+  try {
+    await input.afterStep?.('ledger-applied');
+  } catch {
+    return unprovableCore('recovery-required');
+  }
+  // Revalidação cruzada imediata core↔ledger antes da verificação final.
+  try {
+    const ledgerAfterApply = await adapter.snapshotNutritionLedger();
+    const {
+      validateNutritionLedgerBackupSection,
+      serializeNutritionLedgerCanonically,
+    } = await import('./storage-nutrition-ledger-backup');
+    const ledgerChecked = validateNutritionLedgerBackupSection(ledgerAfterApply);
+    if (ledgerChecked.status !== 'valid') return unprovableCore('recovery-required');
+    if (serializeNutritionLedgerCanonically(ledgerChecked.section) !== targetLedgerRaw) {
+      return unprovableCore('recovery-required');
+    }
+  } catch {
+    return unprovableCore('recovery-required');
+  }
 
   // -------------------------------------------------------------------------
   // W7 — verificação final. A partir daqui o mundo alvo está aplicado: uma
@@ -1348,8 +1592,27 @@ export async function commitLogicalStorageImportV2(
     ) {
       return unprovable();
     }
+    // GOAL-100: verificação cruzada core+ledger (nunca híbrido). Section
+    // parcialmente aplicada => journal preservado (recovery-required).
+    const finalLedger = await adapter.snapshotNutritionLedger();
+    const {
+      validateNutritionLedgerBackupSection: validateFinalLedger,
+      serializeNutritionLedgerCanonically: serializeFinalLedger,
+      computeNutritionLedgerDigest: digestFinalLedger,
+    } = await import('./storage-nutrition-ledger-backup');
+    const finalLedgerChecked = validateFinalLedger(finalLedger);
+    if (finalLedgerChecked.status !== 'valid') return unprovable();
+    if (serializeFinalLedger(finalLedgerChecked.section) !== targetLedgerRaw) return unprovable();
+    const finalLedgerDigest = await digestFinalLedger(finalLedgerChecked.section, input.subtleCrypto);
+    if (finalLedgerDigest !== targetLedgerDigest) return unprovable();
+    if (finalLedgerChecked.section.activeDate !== targetLedger.activeDate) return unprovable();
   } catch (cause) {
     return unprovable(cause);
+  }
+  try {
+    await input.afterStep?.('verified');
+  } catch {
+    return unprovable();
   }
 
   // -------------------------------------------------------------------------
@@ -1384,6 +1647,7 @@ export async function commitLogicalStorageImportV2(
         expectedStatus: 'activating',
         nextStatus: 'activated',
         expectedActiveGenerationId: generationId,
+        patch: { nutritionLedgerStatus: 'applied' },
         })
       ));
       if (advanced.status !== 'activated') return unprovable();
@@ -1441,6 +1705,7 @@ export async function commitLogicalStorageImportV2(
         operationId,
         expectedStatus: 'activated',
         nextStatus: 'settled',
+        patch: { nutritionLedgerStatus: 'verified' },
       }));
     } catch (cause) {
       if (isStorageAdminOwnerTokenConflict(cause)) throw cause;
@@ -1458,6 +1723,12 @@ export async function commitLogicalStorageImportV2(
     }
   } else if (beforeSettle.status !== 'settled') {
     return unprovable();
+  }
+  try {
+    await input.afterStep?.('settled');
+  } catch {
+    // Settled já persistido; falha da sonda pós-settled não reabre o journal.
+    // O boot recovery convergirá o ledger pelo receipt settled (fix-up).
   }
 
   const settled = await adapter.readStorageOperationReceipt(operationId).catch(() => null);
