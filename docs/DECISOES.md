@@ -2078,3 +2078,7 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - D94-002: timezone sempre fresco profile-first (`profile?.timezone ?? runtime`, sem preferir cache) — correto em viagem/troca de perfil; writes passam a resolver targets fresh (snapshot do dia novo com evaluatedAt corrente; dia existente nao cria snapshot).
 - D94-003: `appStateChange` do Capacitor via import dinamico com fail-closed silencioso (web/PWA = NOT_APPLICABLE, visibilitychange cobre); timer 60s so em foreground, desarmado em hidden; mesma-data implica so leituras (`existing-active`); reconcile nunca concede XP nem cria entries.
 - D94-004: testes de Provider usam waiter wall-clock local (`performance.now`, sem act orfao) porque `waitForCondition` mede timeout em `Date.now` congelado — condicao nao atendida nunca expiraria e envenenaria os testes seguintes (observado no debug: espião de `putIfAbsent` impossivel em mesmo-dia, onde o ensure so le).
+
+## GOAL-098 - GYMFLOW-NUT004C-LIFECYCLE-FINAL-MERGE-098 fechamento docs-only sobre master
+
+- D98-001: fechamento persistido como commit docs-only direto sobre master (GOALS_LOG + 1 linha DECISOES), sem PR novo e sem tocar na branch de feature ja mergeada; arvore de codigo inalterada, entao build/typecheck herdados da CI do merge; NUT004C_LIFECYCLE_STATUS=INTEGRATED, READY_FOR_NUT004C_LEDGER_ADMIN=YES.
