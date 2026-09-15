@@ -164,6 +164,7 @@ import {
   isValidWaterInput,
 } from '../lib/nutrition-validation';
 import { getCivilDateString } from '../lib/nutrition-civil-date';
+import { resolveEffectiveTimezone } from '../lib/nutrition/effective-timezone';
 import {
   addFoodEntry,
   addHydrationEntry,
@@ -171,7 +172,6 @@ import {
   calculateActuals,
 } from '../lib/nutrition/ledger';
 import type { NutritionDay } from '../lib/nutrition/ledger-types';
-import { resolveEffectiveTimezone } from '../lib/nutrition/effective-timezone';
 import {
   projectCompatMirrors,
   runNutritionColdBoot,
@@ -192,9 +192,13 @@ import {
   isNutritionAdminLockUnavailableError,
   type NutritionAdminLockUnavailableReason,
 } from '../lib/nutrition/admin-lock';
-import { ensureTodayNutritionDay } from '../lib/nutrition/rollover';
-import { resolveNutritionTargets } from '../lib/nutrition/target-resolution';
 import type { TargetResolution } from '../lib/nutrition/target-resolution';
+import {
+  NUTRITION_FOREGROUND_RECONCILE_INTERVAL_MS,
+  reconcileNutritionDayForNow,
+  type NutritionLifecycleReason,
+  type ReconcileNutritionDaySuccess,
+} from '../lib/nutrition/lifecycle';
 import { StorageRecoveryNotice } from '../components/ui/StorageRecoveryNotice';
 import {
   readPersistedGymProfile,
@@ -1096,6 +1100,16 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const nutritionResolutionRef = useRef<TargetResolution | null>(null);
   const nutritionTimezoneRef = useRef<string | null>(null);
   const nutritionBridgeFailedRef = useRef(false);
+  // NUT-004C: reconciliação em voo (deduplica visibility + appState + timer +
+  // writes concorrentes; a idempotência real vive no put-if-absent do ledger).
+  // NUT-004C-INFLIGHT (GOAL-096): o in-flight carrega a chave civil
+  // `${timezone}:${civilDate}` (helpers canônicos). Mesma chave reutiliza a
+  // Promise; chave diferente serializa (sem reusar o resultado antigo).
+  type NutritionReconcileInFlight = {
+    key: string;
+    promise: Promise<ReconcileNutritionDaySuccess | null>;
+  };
+  const nutritionReconcileInFlightRef = useRef<NutritionReconcileInFlight | null>(null);
 
   // Achievements, XP notifications
   const [xpNotifications, setXpNotifications] = useState<XpNotification[]>([]);
@@ -1275,6 +1289,116 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     persistedStateRef.current = persistedState;
   });
+
+  // NUT-004C: função ÚNICA de reconciliação do dia nutricional ativo.
+  // Usada pelo resume/foreground (visibility/appState), pelo timer cooperativo
+  // e pelos writes (logWater/logMacros reconciliam antes do mutate — nenhum
+  // consumo pós-meia-noite cai no dia anterior). Refs do Provider só são
+  // atualizadas após persistência confirmada; falha é fail-closed silenciosa
+  // (sem toast: lifecycle não pode spammar a UI a cada foreground e nunca
+  // concede XP — projeção deriva espelhos, sem entries e sem achievements).
+  const runNutritionReconcile = useCallback(async (
+    reason: NutritionLifecycleReason,
+    now: Date,
+  ): Promise<ReconcileNutritionDaySuccess | null> => {
+    const adapter = historyAdapterRef.current;
+    if (!adapter || storageBlockedRef.current || !mountedRef.current) return null;
+    // NUT-004C-INFLIGHT (GOAL-096 P1): chave civil do chamador com os helpers
+    // canônicos (nunca UTC como substituto). Timezone efetivo distinto implica
+    // chave distinta. Perfil capturado no ato da chamada (sem profileHash e
+    // sem nova persistência); a execução enfileirada usa o `now`/perfil do
+    // novo chamador, nunca o resultado antigo.
+    const profileSnapshot = persistedStateRef.current.nutritionProfile ?? null;
+    let inflightKey: string;
+    try {
+      const tz = resolveEffectiveTimezone(profileSnapshot?.timezone ?? null);
+      inflightKey = tz.ok
+        ? `${tz.timezone}:${getCivilDateString(now, tz.timezone)}`
+        : `invalid:${Number.isNaN(now?.getTime?.() ?? Number.NaN) ? 'nan' : String(now.getTime())}`;
+    } catch {
+      inflightKey = `invalid:${String(now?.getTime?.() ?? 'unknown')}`;
+    }
+    const inFlight = nutritionReconcileInFlightRef.current;
+    if (inFlight && inFlight.key === inflightKey) {
+      try {
+        return await inFlight.promise;
+      } catch {
+        return null;
+      }
+    }
+    const executeReconcile = async (): Promise<ReconcileNutritionDaySuccess | null> => {
+      const result = await reconcileNutritionDayForNow({ reason, repository: adapter, now, profile: profileSnapshot });
+      if (!mountedRef.current || !result.ok) return null;
+      // Persistência confirmada (ensureToday): só agora toca refs e espelhos,
+      // sempre com o resultado NOVO (o antigo nunca é publicado como novo).
+      nutritionDayRef.current = result.day;
+      nutritionResolutionRef.current = result.resolution;
+      nutritionTimezoneRef.current = result.timezone;
+      nutritionBridgeFailedRef.current = false;
+      const { actuals } = result;
+      setNutrition((prev) => (
+        prev.calories === actuals.calories
+        && prev.protein === actuals.protein
+        && prev.carbs === actuals.carbs
+        && prev.fat === actuals.fat
+        && prev.water === actuals.waterMl
+          ? prev
+          : {
+            ...prev,
+            calories: actuals.calories,
+            protein: actuals.protein,
+            carbs: actuals.carbs,
+            fat: actuals.fat,
+            water: actuals.waterMl,
+          }
+      ));
+      setUser((prev) => {
+        const base = prev ?? persistedStateRef.current.user;
+        if (!base) return prev;
+        if (base.waterIntake === actuals.waterMl) return prev;
+        return { ...base, waterIntake: actuals.waterMl };
+      });
+      return result;
+    };
+    if (inFlight && inFlight.key !== inflightKey) {
+      // Chave diferente: serializar (antigo termina → novo executa). A entrada
+      // nova é publicada ANTES de aguardar, para que chamadas posteriores da
+      // nova chave reutilizem a nova Promise já enfileirada e para evitar duas
+      // reconciliações cross-day concorrentes.
+      const predecessor = inFlight.promise;
+      const entry: NutritionReconcileInFlight = {
+        key: inflightKey,
+        promise: null as unknown as Promise<ReconcileNutritionDaySuccess | null>,
+      };
+      const task: Promise<ReconcileNutritionDaySuccess | null> = (async () => {
+        try {
+          await predecessor;
+        } catch {
+          /* resultado antigo nunca é reusado: segue para a reconciliação nova */
+        }
+        return executeReconcile();
+      })();
+      entry.promise = task;
+      nutritionReconcileInFlightRef.current = entry;
+      try {
+        return await task;
+      } catch {
+        return null;
+      } finally {
+        if (nutritionReconcileInFlightRef.current === entry) nutritionReconcileInFlightRef.current = null;
+      }
+    }
+    const task: Promise<ReconcileNutritionDaySuccess | null> = (async () => executeReconcile())();
+    const entry: NutritionReconcileInFlight = { key: inflightKey, promise: task };
+    nutritionReconcileInFlightRef.current = entry;
+    try {
+      return await task;
+    } catch {
+      return null;
+    } finally {
+      if (nutritionReconcileInFlightRef.current === entry) nutritionReconcileInFlightRef.current = null;
+    }
+  }, []);
 
   const hasValidBackup = () => loadBackupResult<StoragePersistedState>(STORAGE_KEY).status === 'ok';
 
@@ -1811,6 +1935,100 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [hydrated]);
+
+  // NUT-004C: lifecycle nutricional — resume/foreground + timer cooperativo.
+  // Reutiliza o `visibilitychange` global já existente (sem segundo sistema de
+  // lifecycle): ao voltar ao foreground reconcilia imediatamente; em
+  // background o timer é desarmado (NUTRITION_FOREGROUND_TIMER_ACTIVE = NO) e
+  // o retorno reconcilia antes da interação normal, sem depender do timer.
+  // No Capacitor, `appStateChange` complementa; na web/PWA indisponível ele
+  // falha fechado em silêncio (visibilitychange cobre). Eventos duplicados
+  // (visibility + appState, timer + resume) são inofensivos por idempotência.
+  useEffect(() => {
+    if (!hydrated) return;
+    let disposed = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let appStateHandle: { remove: () => Promise<void> | void } | null = null;
+
+    const isForeground = (): boolean => {
+      try {
+        return typeof document === 'undefined' || document.visibilityState === 'visible';
+      } catch {
+        return true;
+      }
+    };
+    const startTimer = (): void => {
+      if (timer !== null || !isForeground()) return;
+      timer = setInterval(() => {
+        if (disposed || !isForeground()) return;
+        void runNutritionReconcile('timer', new Date());
+      }, NUTRITION_FOREGROUND_RECONCILE_INTERVAL_MS);
+    };
+    const stopTimer = (): void => {
+      if (timer !== null) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+    const handleNutritionVisibilityChange = (): void => {
+      if (disposed) return;
+      if (isForeground()) {
+        startTimer();
+        void runNutritionReconcile('visibility', new Date());
+      } else {
+        stopTimer();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleNutritionVisibilityChange);
+    startTimer();
+
+    // Capacitor (nativo): resume via appStateChange. Import dinâmico para não
+    // acoplar o bundle web ao plugin; falha => NOT_APPLICABLE silencioso.
+    void (async () => {
+      try {
+        const { App } = await import('@capacitor/app');
+        if (disposed) return;
+        const listener = await App.addListener('appStateChange', ({ isActive }) => {
+          if (disposed) return;
+          if (isActive) {
+            startTimer();
+            void runNutritionReconcile('app-state', new Date());
+          } else {
+            stopTimer();
+          }
+        });
+        if (disposed) {
+          try {
+            await listener.remove();
+          } catch {
+            /* cleanup best-effort */
+          }
+          return;
+        }
+        appStateHandle = listener;
+      } catch {
+        /* web/PWA sem App nativo: visibilitychange cobre o foreground */
+      }
+    })();
+
+    return () => {
+      disposed = true;
+      document.removeEventListener('visibilitychange', handleNutritionVisibilityChange);
+      stopTimer();
+      if (appStateHandle) {
+        try {
+          const removal = appStateHandle.remove();
+          if (removal && typeof (removal as Promise<void>).catch === 'function') {
+            (removal as Promise<void>).catch(() => {});
+          }
+        } catch {
+          /* cleanup best-effort */
+        }
+        appStateHandle = null;
+      }
+    };
+  }, [hydrated, runNutritionReconcile]);
 
   // XP trigger helper
   const addXp = (amount: number, reason: string) => {
@@ -3331,33 +3549,15 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     const now = new Date();
     const loggedAt = now.toISOString();
     try {
-      const profileForWrite = nutritionProfile;
-      const tzFallback = nutritionTimezoneRef.current ?? profileForWrite?.timezone ?? null;
-      const tz = resolveEffectiveTimezone(tzFallback);
-      if (!tz.ok) {
+      // NUT-004C: reconcilia o dia antes do write pela função única — nenhum
+      // consumo pós-meia-noite cai no dia anterior (contrato da seção 8).
+      const reconciled = await runNutritionReconcile('write', now);
+      if (!reconciled) {
         toast.error('Não foi possível registrar a água agora.');
         return false;
       }
-      const resolution = nutritionResolutionRef.current
-        ?? resolveNutritionTargets({ profile: profileForWrite, evaluatedAt: loggedAt });
-      const ensured = resolution.targetState === 'AUTOMATED'
-        ? await ensureTodayNutritionDay({
-          now,
-          timezone: tz.timezone,
-          targets: resolution.targets,
-          targetState: 'AUTOMATED',
-          gateSnapshot: resolution.gateSnapshot,
-          repository: adapter,
-        })
-        : await ensureTodayNutritionDay({
-          now,
-          timezone: tz.timezone,
-          targets: null,
-          targetState: 'MANUAL_ONLY',
-          targetUnavailableReason: resolution.targetUnavailableReason,
-          gateSnapshot: resolution.gateSnapshot,
-          repository: adapter,
-        });
+      const ensured = { today: reconciled.today, day: reconciled.day };
+      const resolution = reconciled.resolution;
       const entryId = newNutritionEntryId('hydration');
       const nextDay = await adapter.mutateNutritionDay(ensured.today, (current) => {
         const base = current ?? ensured.day;
@@ -3365,7 +3565,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       });
       nutritionDayRef.current = nextDay;
       nutritionResolutionRef.current = resolution;
-      nutritionTimezoneRef.current = tz.timezone;
+      nutritionTimezoneRef.current = reconciled.timezone;
       nutritionBridgeFailedRef.current = false;
       const actuals = calculateActuals(nextDay);
       const civilToday = ensured.today;
@@ -3408,7 +3608,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       // GOAL-087: write bloqueado pelo fence → false honesto, sem mirror,
       // sem waterIntake, sem XP/achievement/lastXpDate, com um único toast.
-      // Nenhum estado acima foi tocado antes do mutate confirmar.
+      // NUT-004C: a reconciliação prévia só republica espelhos derivados do
+      // dia já persistido (no-op quando o dia não mudou); o mutate segue como
+      // único escritor de entries — nenhuma entry nasce sem commit.
       if (isNutritionAdminFencedError(error)) {
         toast.error('Não foi possível registrar a água agora.');
         return false;
@@ -3435,33 +3637,15 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     const now = new Date();
     const loggedAt = now.toISOString();
     try {
-      const profileForWrite = nutritionProfile;
-      const tzFallback = nutritionTimezoneRef.current ?? profileForWrite?.timezone ?? null;
-      const tz = resolveEffectiveTimezone(tzFallback);
-      if (!tz.ok) {
+      // NUT-004C: idem logWater — reconcilia o dia antes do write pela função
+      // única (nenhum consumo pós-meia-noite cai no dia anterior).
+      const reconciled = await runNutritionReconcile('write', now);
+      if (!reconciled) {
         toast.error('Não foi possível registrar a refeição agora.');
         return false;
       }
-      const resolution = nutritionResolutionRef.current
-        ?? resolveNutritionTargets({ profile: profileForWrite, evaluatedAt: loggedAt });
-      const ensured = resolution.targetState === 'AUTOMATED'
-        ? await ensureTodayNutritionDay({
-          now,
-          timezone: tz.timezone,
-          targets: resolution.targets,
-          targetState: 'AUTOMATED',
-          gateSnapshot: resolution.gateSnapshot,
-          repository: adapter,
-        })
-        : await ensureTodayNutritionDay({
-          now,
-          timezone: tz.timezone,
-          targets: null,
-          targetState: 'MANUAL_ONLY',
-          targetUnavailableReason: resolution.targetUnavailableReason,
-          gateSnapshot: resolution.gateSnapshot,
-          repository: adapter,
-        });
+      const ensured = { today: reconciled.today, day: reconciled.day };
+      const resolution = reconciled.resolution;
       const mealId = `manual-macros-${ensured.today}`;
       const entryId = newNutritionEntryId('food');
       const mealName = 'Registro manual de macros';
@@ -3482,7 +3666,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       });
       nutritionDayRef.current = nextDay;
       nutritionResolutionRef.current = resolution;
-      nutritionTimezoneRef.current = tz.timezone;
+      nutritionTimezoneRef.current = reconciled.timezone;
       nutritionBridgeFailedRef.current = false;
       const actuals = calculateActuals(nextDay);
       const civilToday = ensured.today;
@@ -3508,7 +3692,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       return true;
     } catch (error) {
       // GOAL-087: idem logWater — fence ativo retorna false honesto, sem
-      // mirror/XP/datas, com um único toast e sem side-effect.
+      // mirror/XP/datas, com um único toast. NUT-004C: a reconciliação prévia
+      // só republica espelhos do dia persistido; o mutate segue como único
+      // escritor de entries.
       if (isNutritionAdminFencedError(error)) {
         toast.error('Não foi possível registrar a refeição agora.');
         return false;
