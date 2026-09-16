@@ -17,3 +17,6 @@ export * from './effective-timezone';
 export * from './target-resolution';
 export * from './provider-bridge';
 export * from './lifecycle';
+export * from './food-types';
+export * from './food-database';
+export * from './food-preferences';

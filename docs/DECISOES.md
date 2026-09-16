@@ -2092,3 +2092,10 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 ## GOAL-104 - GYMFLOW-NUT004C-LEDGER-ADMIN-FINAL-MERGE-104 fechamento docs-only sobre master
 
 - D104-001: fechamento persistido como commit docs-only direto sobre master (GOALS_LOG + 1 linha DECISOES), sem PR novo e sem tocar na branch de feature ja mergeada; arvore de codigo inalterada, entao build/typecheck herdados da CI do merge; NUT004A/NUT004B/NUT004C_LIFECYCLE/NUT004C_LEDGER_ADMIN = INTEGRATED; homologacao final do NUT-004 e NUT-005 nao iniciados.
+
+## GOAL-106 - GYMFLOW-NUT005-FOOD-DATABASE-SEARCH-ENDTOEND-106 (2026-09-16)
+
+- D106-001: dataset CANONICAL_BR (160 itens) usa USDA FoodData Central SR Legacy (dominio publico federal EUA) como base com descricao pesquisavel em `sourceRef`; preparos brasileiros sem equivalente direto levam sufixo de harmonizacao/proxy declarado (ex.: mandioquinha, merluza, pescada) - nenhum ID FDC numerico afirmado sem verificacao, nenhuma TBCA raspada, nenhum OFF/barcode, nenhum catalogo comercial.
+- D106-002: consistencia energetica do catalogo com regra D-NUT-10 (15% relativo) + piso absoluto de 1.5 kcal para itens de energia quase nula (cafe, cha), onde razao relativa e indefinida; fronteira inclusiva com epsilon 1e-9 contra poeira de ponto flutuante.
+- D106-003: favoritos/recentes como listas de IDs em chave/valor textual versionado (`gymflow:nutrition:*Ids:v1`), sem novo store IDB e sem bump (listas curtas de strings nao justificam entidade relacional); limite de recentes 30 (V1, sem teto canonico); sem wiring no Provider - NUT-006 conecta; payload corrompido = quarentena para [] sem throw.
+- D106-004: USDA_FDC apenas como contrato offline puro (`foodReferenceFromUsdaFdc` preserva `FDC:<id>`); catalogo V1 100% CANONICAL_BR; busca vazia retorna [] deterministico; `toFoodEntryInput` monta input do ledger sem gravar nada (ledger segue source of truth).
