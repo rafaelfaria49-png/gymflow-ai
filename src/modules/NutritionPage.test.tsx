@@ -24,7 +24,37 @@ let originalWindow = Reflect.getOwnPropertyDescriptor(globalThis, 'window');
 let originalDocument = Reflect.getOwnPropertyDescriptor(globalThis, 'document');
 let originalIndexedDb = Reflect.getOwnPropertyDescriptor(globalThis, 'indexedDB');
 
-describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
+async function renderPage() {
+  let renderer: TestRenderer.ReactTestRenderer | null = null;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <ToastProvider>
+        <GymFlowProvider>
+          <NutritionPage />
+        </GymFlowProvider>
+      </ToastProvider>
+    );
+  });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  });
+  return renderer!;
+}
+
+function panelText(renderer: TestRenderer.ReactTestRenderer): string {
+  return JSON.stringify(renderer.toJSON());
+}
+
+function switchTab(renderer: TestRenderer.ReactTestRenderer, tabId: string) {
+  const root = renderer.root;
+  const tab = root.findAllByType('button').find((button) => button.props.id === `nut-tab-${tabId}`);
+  expect(tab).toBeDefined();
+  act(() => {
+    tab!.props.onClick();
+  });
+}
+
+describe('NutritionPage NUT-006 (mobile UX sobre ledger real)', () => {
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const storage = new MemoryLocalStorage();
@@ -78,54 +108,36 @@ describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
     }
   });
 
-  it('não exibe falso rótulo de IA e utiliza "Sugestões de refeições"', async () => {
-    let renderer: TestRenderer.ReactTestRenderer | null = null;
-    await act(async () => {
-      renderer = TestRenderer.create(
-        <ToastProvider>
-          <GymFlowProvider>
-            <NutritionPage />
-          </GymFlowProvider>
-        </ToastProvider>
-      );
-    });
-
-    const allText = JSON.stringify(renderer!.toJSON());
-
-    // Deve conter "Sugestões de refeições"
-    expect(allText).toContain('Sugestões de refeições');
-    // Não pode conter "Cardápio Sugerido IA" nem "Cardápio Sugerido" na seção
-    expect(allText).not.toContain('Cardápio Sugerido IA');
-    expect(allText).not.toContain('Cardápio Sugerido');
+  it('FIVE_SECTIONS = PASS: cinco abas internas sem estado paralelo', async () => {
+    const renderer = await renderPage();
+    const text = panelText(renderer);
+    for (const label of ['Hoje', 'Registrar', 'Metas', 'Tendência', 'Sugestões']) {
+      expect(text).toContain(label);
+    }
+    // Nenhum formulário legado de macros manuais.
+    expect(text).not.toContain('Adicionar Alimento (Refeição)');
+    expect(text).not.toContain('Ex: 450');
   });
 
-  it('não possui disclaimers que insinuem estimativas geradas por IA/algoritmos', async () => {
-    let renderer: TestRenderer.ReactTestRenderer | null = null;
-    await act(async () => {
-      renderer = TestRenderer.create(
-        <ToastProvider>
-          <GymFlowProvider>
-            <NutritionPage />
-          </GymFlowProvider>
-        </ToastProvider>
-      );
-    });
-
-    const allText = JSON.stringify(renderer!.toJSON());
-
-    expect(allText).not.toContain('estimativas geradas por algoritmos');
-    expect(allText).not.toContain('Cardápio Sugerido IA');
-    expect(allText).toContain('Sugestões de refeições');
-    expect(allText).toContain('não constituem planejamento alimentar individualizado');
+  it('FAKE_AI_LABEL = NO e FAKE_NUTRITION_DATA = NO: sem IA, sem sugestões hardcoded', async () => {
+    const renderer = await renderPage();
+    const text = panelText(renderer);
+    expect(text).not.toContain('Cardápio Sugerido IA');
+    expect(text).not.toContain('Cardápio Sugerido');
+    expect(text).not.toContain('Mingau de aveia');
+    expect(text).not.toContain('Patinho bovino');
+    // Sugestões honestas exigem disclaimer real.
+    switchTab(renderer, 'suggestions');
+    const suggestionsText = panelText(renderer);
+    expect(suggestionsText).toContain('não constituem planejamento alimentar individualizado');
   });
 
-  it('submissão de macros com campos válidos atualiza o contexto e reseta inputs', async () => {
+  it('TODAY_REAL_LEDGER + HYDRATION = PASS: quick actions registram água real', async () => {
     let capturedContext: ReturnType<typeof useGymFlow> | null = null;
     const ContextInspector = () => {
       capturedContext = useGymFlow();
       return null;
     };
-
     let renderer: TestRenderer.ReactTestRenderer | null = null;
     await act(async () => {
       renderer = TestRenderer.create(
@@ -138,145 +150,57 @@ describe('NutritionPage UI (NUT-001 Honesty & Legacy Containment)', () => {
       );
     });
     await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+    const root = renderer!.root;
+    // Aba Hoje é a padrão: quick actions de hidratação.
+    const quick250 = root.findAllByType('button').find((b) => b.props['aria-label']?.includes('250'));
+    expect(quick250).toBeDefined();
+    await act(async () => {
+      await quick250!.props.onClick();
+    });
+    await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
     });
-
-    const root = renderer!.root;
-    const inputs = root.findAllByType('input');
-    // inputs: [waterInput, kcalInput, protInput, carbInput, fatInput]
-    const kcalInput = inputs.find((i) => i.props.placeholder === 'Ex: 450');
-    const protInput = inputs.find((i) => i.props.placeholder === '30');
-    const carbInput = inputs.find((i) => i.props.placeholder === '50');
-    const fatInput = inputs.find((i) => i.props.placeholder === '10');
-
-    expect(kcalInput).toBeDefined();
-    expect(protInput).toBeDefined();
-    expect(carbInput).toBeDefined();
-    expect(fatInput).toBeDefined();
-
-    await act(async () => {
-      kcalInput!.props.onChange({ target: { value: '450' } });
-      protInput!.props.onChange({ target: { value: '35' } });
-      carbInput!.props.onChange({ target: { value: '55' } });
-      fatInput!.props.onChange({ target: { value: '15' } });
-    });
-
-    // Encontrar form de macro
-    const forms = root.findAllByType('form');
-    const macroForm = forms.find((f) => f.props.className?.includes('space-y-3.5'));
-    expect(macroForm).toBeDefined();
-
-    await act(async () => {
-      await macroForm!.props.onSubmit({ preventDefault: vi.fn() });
-    });
-
-    expect(capturedContext!.nutrition.calories).toBe(450);
-    expect(capturedContext!.nutrition.protein).toBe(35);
-    expect(capturedContext!.nutrition.carbs).toBe(55);
-    expect(capturedContext!.nutrition.fat).toBe(15);
+    expect(capturedContext!.nutrition.water).toBe(250);
+    expect(capturedContext!.nutritionDay).not.toBeNull();
   });
 
-  it('submissão com calorias zero ou negativas não altera nutrição', async () => {
-    let capturedContext: ReturnType<typeof useGymFlow> | null = null;
-    const ContextInspector = () => {
-      capturedContext = useGymFlow();
-      return null;
-    };
-
-    let renderer: TestRenderer.ReactTestRenderer | null = null;
-    await act(async () => {
-      renderer = TestRenderer.create(
-        <ToastProvider>
-          <GymFlowProvider>
-            <ContextInspector />
-            <NutritionPage />
-          </GymFlowProvider>
-        </ToastProvider>
-      );
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    });
-
-    const root = renderer!.root;
-    const inputs = root.findAllByType('input');
-    const kcalInput = inputs.find((i) => i.props.placeholder === 'Ex: 450');
-    const protInput = inputs.find((i) => i.props.placeholder === '30');
-    const carbInput = inputs.find((i) => i.props.placeholder === '50');
-    const fatInput = inputs.find((i) => i.props.placeholder === '10');
-
-    await act(async () => {
-      kcalInput!.props.onChange({ target: { value: '0' } });
-      protInput!.props.onChange({ target: { value: '30' } });
-      carbInput!.props.onChange({ target: { value: '50' } });
-      fatInput!.props.onChange({ target: { value: '10' } });
-    });
-
-    const forms = root.findAllByType('form');
-    const macroForm = forms.find((f) => f.props.className?.includes('space-y-3.5'));
-
-    await act(async () => {
-      await macroForm!.props.onSubmit({ preventDefault: vi.fn() });
-    });
-
-    // Estado deve permanecer zero
-    expect(capturedContext!.nutrition.calories).toBe(0);
-    expect(capturedContext!.nutrition.protein).toBe(0);
-    expect(capturedContext!.nutrition.carbs).toBe(0);
-    expect(capturedContext!.nutrition.fat).toBe(0);
-
-    // Feedback honesto de erro exibido na UI via toast
-    const renderedText = JSON.stringify(renderer!.toJSON());
-    expect(renderedText).toContain('Informe valores válidos');
+  it('TARGETS_MANUAL_ONLY = PASS: sem perfil, sem números fabricados', async () => {
+    const renderer = await renderPage();
+    switchTab(renderer, 'targets');
+    const text = panelText(renderer);
+    expect(text).toContain('Metas automáticas indisponíveis');
+    expect(text).toContain('PROFILE_ABSENT');
+    expect(text).not.toContain('Mingau de aveia');
   });
 
-  it('submissão de água manual com valor zero ou negativo não altera estado e exibe feedback honesto', async () => {
-    let capturedContext: ReturnType<typeof useGymFlow> | null = null;
-    const ContextInspector = () => {
-      capturedContext = useGymFlow();
-      return null;
-    };
+  it('REGISTER_REAL_FOOD = PASS: fluxo busca → preview → confirmação existe e nada grava sozinho', async () => {
+    const renderer = await renderPage();
+    switchTab(renderer, 'register');
+    const root = renderer.root;
+    const search = root.findAllByType('input').find((i) => i.props['aria-label'] === 'Buscar alimento no catálogo');
+    expect(search).toBeDefined();
+    // Sem seleção, nenhum botão de confirmação de alimento.
+    expect(panelText(renderer)).not.toContain('Confirmar registro');
+    await act(async () => {
+      search!.props.onChange({ target: { value: 'arroz' } });
+    });
+    const text = panelText(renderer);
+    expect(text).toContain('Arroz');
+    // Cadastro manual USER_CONFIRMED presente com trava de 15%.
+    expect(text).toContain('USER_CONFIRMED');
+  });
 
-    let renderer: TestRenderer.ReactTestRenderer | null = null;
+  it('TREND_7_30 = PASS: janelas de 7/30 dias sem inventar dias', async () => {
+    const renderer = await renderPage();
+    switchTab(renderer, 'trend');
     await act(async () => {
-      renderer = TestRenderer.create(
-        <ToastProvider>
-          <GymFlowProvider>
-            <ContextInspector />
-            <NutritionPage />
-          </GymFlowProvider>
-        </ToastProvider>
-      );
+      await new Promise((resolve) => setTimeout(resolve, 200));
     });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    });
-
-    const root = renderer!.root;
-    const waterInput = root.findAllByType('input').find((i) => i.props.placeholder === 'Outro valor em ml');
-    expect(waterInput).toBeDefined();
-
-    const forms = root.findAllByType('form');
-    const waterForm = forms.find((f) => f.props.className?.includes('border-t'));
-    expect(waterForm).toBeDefined();
-
-    // Tentar registrar 0ml
-    await act(async () => {
-      waterInput!.props.onChange({ target: { value: '0' } });
-    });
-    await act(async () => {
-      await waterForm!.props.onSubmit({ preventDefault: vi.fn() });
-    });
-    expect(capturedContext!.nutrition.water).toBe(0);
-    expect(JSON.stringify(renderer!.toJSON())).toContain('Informe uma quantidade positiva de água');
-
-    // Tentar registrar -100ml
-    await act(async () => {
-      waterInput!.props.onChange({ target: { value: '-100' } });
-    });
-    await act(async () => {
-      await waterForm!.props.onSubmit({ preventDefault: vi.fn() });
-    });
-    expect(capturedContext!.nutrition.water).toBe(0);
+    const text = panelText(renderer);
+    expect(text).toContain('Janela da tendência');
+    expect(text).toContain('dias');
+    expect(text).toContain('interpolados');
   });
 });

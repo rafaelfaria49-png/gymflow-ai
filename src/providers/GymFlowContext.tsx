@@ -171,7 +171,21 @@ import {
   addMeal,
   calculateActuals,
 } from '../lib/nutrition/ledger';
-import type { NutritionDay } from '../lib/nutrition/ledger-types';
+import type { MealType, NutritionDay } from '../lib/nutrition/ledger-types';
+import { MEAL_TYPES } from '../lib/nutrition/ledger-types';
+import {
+  isFoodReference,
+  type FoodReference,
+} from '../lib/nutrition/food-types';
+import { toFoodEntryInput } from '../lib/nutrition/food-database';
+import {
+  FOOD_FAVORITES_STORAGE_KEY,
+  FOOD_RECENTS_STORAGE_KEY,
+  FOOD_RECENTS_LIMIT,
+  addFavoriteId,
+  markRecentId,
+  removeFavoriteId,
+} from '../lib/nutrition/food-preferences';
 import {
   projectCompatMirrors,
   runNutritionColdBoot,
@@ -593,6 +607,25 @@ interface GymFlowContextType {
     carbs: number,
     fat: number
   ) => Promise<boolean>;
+  // NUT-006: superfície mínima real sobre o NutritionLedger (leitura + escrita).
+  // Ledger segue source of truth; engine segue autoridade dos targets; UI não
+  // duplica regra nutricional.
+  nutritionDay: NutritionDay | null;
+  nutritionActiveDate: string | null;
+  nutritionTimezone: string | null;
+  nutritionTargetState: 'AUTOMATED' | 'MANUAL_ONLY' | null;
+  nutritionLoading: boolean;
+  nutritionError: string | null;
+  nutritionFavorites: string[];
+  nutritionRecents: string[];
+  toggleNutritionFavorite: (foodId: string) => void;
+  getNutritionHistory: (options?: { from?: string; to?: string }) => Promise<NutritionDay[]>;
+  logFoodReference: (
+    reference: FoodReference,
+    grams: number,
+    mealType?: MealType
+  ) => Promise<boolean>;
+  refreshNutrition: () => Promise<void>;
 
   // Community
   communityPosts: CommunityPost[];
@@ -1092,6 +1125,50 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const nutritionResolutionRef = useRef<TargetResolution | null>(null);
   const nutritionTimezoneRef = useRef<string | null>(null);
   const nutritionBridgeFailedRef = useRef(false);
+  // NUT-006: espelhos reativos do dia ativo para a UX mobile (refs seguem como
+  // fonte interna de escrita; states abaixo dirigem a renderização).
+  const [nutritionDay, setNutritionDay] = useState<NutritionDay | null>(null);
+  const [nutritionActiveDate, setNutritionActiveDate] = useState<string | null>(null);
+  const [nutritionTimezone, setNutritionTimezone] = useState<string | null>(null);
+  const [nutritionTargetState, setNutritionTargetState] = useState<'AUTOMATED' | 'MANUAL_ONLY' | null>(null);
+  const [nutritionLoading, setNutritionLoading] = useState(true);
+  const [nutritionError, setNutritionError] = useState<string | null>(null);
+  const readNutritionIdList = (key: string): string[] => {
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+      if (!raw) return [];
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      const seen = new Set<string>();
+      const clean: string[] = [];
+      for (const entry of parsed) {
+        if (typeof entry === 'string' && entry.trim().length > 0 && !seen.has(entry)) {
+          seen.add(entry);
+          clean.push(entry);
+        }
+      }
+      return clean;
+    } catch {
+      return [];
+    }
+  };
+  const [nutritionFavorites, setNutritionFavorites] = useState<string[]>(() => readNutritionIdList(FOOD_FAVORITES_STORAGE_KEY));
+  const [nutritionRecents, setNutritionRecents] = useState<string[]>(() => readNutritionIdList(FOOD_RECENTS_STORAGE_KEY).slice(0, FOOD_RECENTS_LIMIT));
+  const publishNutritionDayState = (
+    day: NutritionDay | null,
+    resolution: TargetResolution | null,
+    timezone: string | null,
+    activeDate: string | null,
+  ) => {
+    nutritionDayRef.current = day;
+    nutritionResolutionRef.current = resolution;
+    nutritionTimezoneRef.current = timezone;
+    setNutritionDay(day);
+    setNutritionActiveDate(activeDate);
+    setNutritionTimezone(timezone);
+    setNutritionTargetState(resolution ? resolution.targetState : (day ? day.targetState : null));
+    if (day) setNutritionError(null);
+  };
   // NUT-004C: reconciliação em voo (deduplica visibility + appState + timer +
   // writes concorrentes; a idempotência real vive no put-if-absent do ledger).
   // NUT-004C-INFLIGHT (GOAL-096): o in-flight carrega a chave civil
@@ -1327,6 +1404,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       nutritionResolutionRef.current = result.resolution;
       nutritionTimezoneRef.current = result.timezone;
       nutritionBridgeFailedRef.current = false;
+      // NUT-006: espelha o dia ativo para a UX reativa (mesma atomicidade).
+      setNutritionDay(result.day);
+      setNutritionActiveDate(result.today);
+      setNutritionTimezone(result.timezone);
+      setNutritionTargetState(result.resolution.targetState);
+      setNutritionError(null);
       const { actuals } = result;
       setNutrition((prev) => (
         prev.calories === actuals.calories
@@ -1763,6 +1846,13 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
               nutritionResolutionRef.current = bridge.resolution;
               nutritionTimezoneRef.current = bridge.timezone;
               nutritionBridgeFailedRef.current = false;
+              // NUT-006: publica o dia ativo + fim do loading.
+              setNutritionDay(bridge.day);
+              setNutritionActiveDate(bridge.today);
+              setNutritionTimezone(bridge.timezone);
+              setNutritionTargetState(bridge.resolution.targetState);
+              setNutritionError(null);
+              setNutritionLoading(false);
               const projectedWater = bridge.mirrors.waterIntake;
               setUser((prev) => {
                 const base = prev ?? saved.user;
@@ -1775,6 +1865,13 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
               nutritionResolutionRef.current = null;
               nutritionTimezoneRef.current = null;
               nutritionBridgeFailedRef.current = true;
+              // NUT-006: falha honesta do bridge (sem dia fabricado).
+              setNutritionDay(null);
+              setNutritionActiveDate(null);
+              setNutritionTimezone(null);
+              setNutritionTargetState(null);
+              setNutritionError(bridge.error);
+              setNutritionLoading(false);
             }
           } catch {
             if (cancelled || !mountedRef.current) return;
@@ -1782,12 +1879,28 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
             nutritionResolutionRef.current = null;
             nutritionTimezoneRef.current = null;
             nutritionBridgeFailedRef.current = true;
+            setNutritionDay(null);
+            setNutritionActiveDate(null);
+            setNutritionTimezone(null);
+            setNutritionTargetState(null);
+            setNutritionError('Não foi possível carregar o diário nutricional agora.');
+            setNutritionLoading(false);
           }
         } else {
           nutritionDayRef.current = null;
           nutritionResolutionRef.current = null;
           nutritionTimezoneRef.current = null;
           nutritionBridgeFailedRef.current = true;
+          setNutritionDay(null);
+          setNutritionActiveDate(null);
+          setNutritionTimezone(null);
+          setNutritionTargetState(null);
+          setNutritionError(
+            hydration.mode === 'hybrid-v2'
+              ? 'Perfil nutricional indisponível para metas automáticas.'
+              : 'Diário nutricional indisponível neste modo de armazenamento.',
+          );
+          setNutritionLoading(false);
         }
         setAchievements(saved.achievements);
         setChallenges(saved.challenges);
@@ -3559,6 +3672,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       nutritionResolutionRef.current = resolution;
       nutritionTimezoneRef.current = reconciled.timezone;
       nutritionBridgeFailedRef.current = false;
+      // NUT-006: publica o dia ativo para a UX reativa.
+      setNutritionDay(nextDay);
+      setNutritionActiveDate(ensured.today);
+      setNutritionTimezone(reconciled.timezone);
+      setNutritionTargetState(resolution.targetState);
+      setNutritionError(null);
       const actuals = calculateActuals(nextDay);
       const civilToday = ensured.today;
       const prevWater = actuals.waterMl - amountMl;
@@ -3660,6 +3779,12 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       nutritionResolutionRef.current = resolution;
       nutritionTimezoneRef.current = reconciled.timezone;
       nutritionBridgeFailedRef.current = false;
+      // NUT-006: publica o dia ativo para a UX reativa.
+      setNutritionDay(nextDay);
+      setNutritionActiveDate(ensured.today);
+      setNutritionTimezone(reconciled.timezone);
+      setNutritionTargetState(resolution.targetState);
+      setNutritionError(null);
       const actuals = calculateActuals(nextDay);
       const civilToday = ensured.today;
       const alreadyGranted = lastMacroLoggedDateRef.current === civilToday
@@ -3692,6 +3817,149 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
       toast.error('Não foi possível registrar a refeição agora.');
+      return false;
+    }
+  };
+
+  // NUT-006: favoritos / recentes (IDs, nunca cópias de macros). Persistência
+  // em chave/valor textual versionada; falha de storage nunca quebra o app.
+  const persistNutritionIdList = (key: string, ids: readonly string[]) => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(key, JSON.stringify([...ids]));
+      }
+    } catch {
+      /* quota/privado: estado em memória prevalece */
+    }
+  };
+
+  const toggleNutritionFavorite = (foodId: string) => {
+    if (typeof foodId !== 'string' || foodId.trim().length === 0) return;
+    setNutritionFavorites((prev) => {
+      const next = prev.includes(foodId)
+        ? removeFavoriteId(prev, foodId)
+        : addFavoriteId(prev, foodId);
+      persistNutritionIdList(FOOD_FAVORITES_STORAGE_KEY, next);
+      return next;
+    });
+  };
+
+  const markNutritionRecent = (foodId: string) => {
+    if (typeof foodId !== 'string' || foodId.trim().length === 0) return;
+    setNutritionRecents((prev) => {
+      const next = markRecentId(prev, foodId, FOOD_RECENTS_LIMIT);
+      persistNutritionIdList(FOOD_RECENTS_STORAGE_KEY, next);
+      return next;
+    });
+  };
+
+  // NUT-006: histórico real de NutritionDays (sem interpolar dias).
+  const getNutritionHistory = async (options?: { from?: string; to?: string }): Promise<NutritionDay[]> => {
+    const adapter = historyAdapterRef.current;
+    if (!adapter || storageBlockedRef.current) return [];
+    try {
+      return await adapter.listNutritionDays(options ?? {});
+    } catch {
+      return [];
+    }
+  };
+
+  const refreshNutrition = async (): Promise<void> => {
+    await runNutritionReconcile('visibility', new Date());
+  };
+
+  const MEAL_TYPE_LABELS: Record<MealType, string> = {
+    breakfast: 'Café da manhã',
+    lunch: 'Almoço',
+    dinner: 'Jantar',
+    snack: 'Lanche',
+    custom: 'Refeição',
+  };
+
+  // NUT-006: fluxo real tipo → busca → seleção → gramas → preview → confirmação
+  // → FoodEntry real no ledger. Nenhuma seleção grava automaticamente: a UI só
+  // chama aqui após confirmação explícita. Reutiliza `toFoodEntryInput`
+  // (NUT-005) — nenhuma regra nutricional duplicada na UI ou no Provider.
+  const logFoodReference = async (
+    reference: FoodReference,
+    grams: number,
+    mealType: MealType = 'custom',
+  ): Promise<boolean> => {
+    if (!isFoodReference(reference)) return false;
+    if (typeof grams !== 'number' || !Number.isFinite(grams) || grams <= 0) return false;
+    const safeMealType: MealType = (MEAL_TYPES as readonly string[]).includes(mealType) ? mealType : 'custom';
+    const adapter = historyAdapterRef.current;
+    if (!adapter || storageBlockedRef.current) {
+      toast.error('Não foi possível registrar o alimento agora.');
+      return false;
+    }
+    const now = new Date();
+    const loggedAt = now.toISOString();
+    try {
+      // Reconcilia o dia antes do write (nenhum consumo pós-meia-noite cai no
+      // dia anterior — mesmo contrato de logWater/logMacros).
+      const reconciled = await runNutritionReconcile('write', now);
+      if (!reconciled) {
+        toast.error('Não foi possível registrar o alimento agora.');
+        return false;
+      }
+      const ensured = { today: reconciled.today, day: reconciled.day };
+      const resolution = reconciled.resolution;
+      const entryId = newNutritionEntryId('food');
+      let entryInput;
+      try {
+        entryInput = toFoodEntryInput(reference, grams, { id: entryId, loggedAt });
+      } catch {
+        toast.error('Não foi possível registrar o alimento agora.');
+        return false;
+      }
+      const mealId = `meal-${safeMealType}-${ensured.today}`;
+      const mealName = MEAL_TYPE_LABELS[safeMealType];
+      const nextDay = await adapter.mutateNutritionDay(ensured.today, (current) => {
+        let base = current ?? ensured.day;
+        if (!base.meals.some((meal) => meal.id === mealId)) {
+          base = addMeal(base, { id: mealId, type: safeMealType, name: mealName });
+        }
+        return addFoodEntry(base, mealId, entryInput);
+      });
+      nutritionDayRef.current = nextDay;
+      nutritionResolutionRef.current = resolution;
+      nutritionTimezoneRef.current = reconciled.timezone;
+      nutritionBridgeFailedRef.current = false;
+      setNutritionDay(nextDay);
+      setNutritionActiveDate(ensured.today);
+      setNutritionTimezone(reconciled.timezone);
+      setNutritionTargetState(resolution.targetState);
+      setNutritionError(null);
+      const actuals = calculateActuals(nextDay);
+      const civilToday = ensured.today;
+      const alreadyGranted = lastMacroLoggedDateRef.current === civilToday
+        || persistedStateRef.current.nutrition.lastMacroLoggedDate === civilToday
+        || persistedStateRef.current.nutrition.lastMacroXpDate === civilToday;
+      if (!alreadyGranted) {
+        lastMacroLoggedDateRef.current = civilToday;
+      }
+      setNutrition((prev) => ({
+        ...prev,
+        calories: actuals.calories,
+        protein: actuals.protein,
+        carbs: actuals.carbs,
+        fat: actuals.fat,
+        water: actuals.waterMl,
+        lastMacroLoggedDate: civilToday,
+        lastMacroXpDate: civilToday,
+      }));
+      if (!alreadyGranted) {
+        addXp(20, 'Alimento registrado na dieta');
+      }
+      markNutritionRecent(reference.id);
+      return true;
+    } catch (error) {
+      if (isNutritionAdminFencedError(error)) {
+        toast.error('Não foi possível registrar o alimento agora.');
+        return false;
+      }
+      toast.error('Não foi possível registrar o alimento agora.');
       return false;
     }
   };
@@ -5171,6 +5439,18 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         nutrition,
         logWater,
         logMacros,
+        nutritionDay,
+        nutritionActiveDate,
+        nutritionTimezone,
+        nutritionTargetState,
+        nutritionLoading,
+        nutritionError,
+        nutritionFavorites,
+        nutritionRecents,
+        toggleNutritionFavorite,
+        getNutritionHistory,
+        logFoodReference,
+        refreshNutrition,
 
         communityPosts,
         likePost,
