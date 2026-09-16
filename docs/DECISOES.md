@@ -2099,3 +2099,7 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - D106-002: consistencia energetica do catalogo com regra D-NUT-10 (15% relativo) + piso absoluto de 1.5 kcal para itens de energia quase nula (cafe, cha), onde razao relativa e indefinida; fronteira inclusiva com epsilon 1e-9 contra poeira de ponto flutuante.
 - D106-003: favoritos/recentes como listas de IDs em chave/valor textual versionado (`gymflow:nutrition:*Ids:v1`), sem novo store IDB e sem bump (listas curtas de strings nao justificam entidade relacional); limite de recentes 30 (V1, sem teto canonico); sem wiring no Provider - NUT-006 conecta; payload corrompido = quarentena para [] sem throw.
 - D106-004: USDA_FDC apenas como contrato offline puro (`foodReferenceFromUsdaFdc` preserva `FDC:<id>`); catalogo V1 100% CANONICAL_BR; busca vazia retorna [] deterministico; `toFoodEntryInput` monta input do ledger sem gravar nada (ledger segue source of truth).
+
+## GOAL-106-MERGE - GYMFLOW-NUT005-FINAL-MERGE-106 fechamento docs-only sobre master
+
+- D106M-001: fechamento persistido como commit docs-only direto sobre master (GOALS_LOG + 1 linha DECISOES), sem PR novo e sem tocar na branch de feature ja mergeada; arvore de codigo inalterada, entao build/typecheck herdados da CI do merge; PR #47 CLEAN/MERGEABLE com 2 checks SUCCESS; merge commit `ccae3dc` (metodo merge); NUT004_STATUS=INTEGRATED, NUT005_STATUS=INTEGRATED, READY_FOR_NUT006=YES.

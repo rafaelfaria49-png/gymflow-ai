@@ -4561,3 +4561,11 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
 - **Arquivos:** `src/lib/nutrition/food-types.ts`, `src/lib/nutrition/food-database.ts`, `src/lib/nutrition/food-preferences.ts`, `src/lib/nutrition/food-database.test.ts`, `src/lib/nutrition/food-preferences.test.ts`, `src/data/canonical-br-foods.json`, `src/lib/nutrition/index.ts`, `docs/DECISOES.md`, `docs/GOALS_LOG.md`.
 - **Validacoes:** focados NUT-005 47/47; suite completa 143 arquivos 3355/3355 (zero regressao NUT-003/NUT-004/lifecycle/backup/admin/XP/civil-date); `npx tsc --noEmit` 0 erros; `npm run build` OK; `npm run build:mobile` OK; `git diff --check` limpo; busca media 0.0206ms/500 iters (< 15ms); auditoria dataset: COUNT=160 DUPLICATE_IDS=0 INVALID=0 UNVERIFIED=0 OUTLIERS=0.
 - **Status:** NUT004_STATUS=INTEGRATED (fechamento tecnico evidenciado pela suite verde sem regressao); NUT005 implementado e validado nesta branch (INTEGRATED apos merge do PR); READY_FOR_NUT006=YES apos merge. NUT006/OFF/barcode nao iniciados.
+
+## GOAL-106-MERGE - GYMFLOW-NUT005-FINAL-MERGE-106 merge controlado do PR #47 (2026-09-16)
+
+- **Pre-flight:** PR #47 OPEN; headRefOid `fc1c0781dd877f46d1c78bb774995e0dda4b5115`; origin/master `91d908d5f985acc692e4d83477db662842bcb663` (confere com a base esperada, sem avanco); mergeable MERGEABLE; mergeStateStatus CLEAN.
+- **CI no HEAD aprovada:** Build & Simulator Validation (macOS 26) pass 9m3s; Release Archive & Distribution Gate (macOS 26) pass 3m19s; zero checks failing/pending.
+- **Merge:** merge commit `ccae3dca2619e5f6287913f829075d53dd37499a` (metodo merge, sem squash/rebase/admin/force); pais `91d908d...` + `fc1c078...`; HEAD aprovado na ancestralidade da nova master.
+- **Status:** NUT004_STATUS=INTEGRATED; NUT005_STATUS=INTEGRATED; READY_FOR_NUT006=YES. Fechados nesta entrega: FoodReference + proveniencias V1 exatas, catalogo CANONICAL_BR 160 itens auditavel, contrato USDA_FDC offline, USER_CONFIRMED com trava 15% e confirmacao explicita, busca local deterministica (0.0206ms media), escala de porcao em etapa unica, favoritos/recentes por IDs sem IDB novo, ponte sem escrita no ledger. Nao iniciados: NUT-006, NUT-007, OFF/barcode (V1.5).
+- **Validacao:** docs-only (markdown); `git diff --check` OK; arvore de codigo byte-identica a validada pela CI no merge.
