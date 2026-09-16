@@ -2100,6 +2100,11 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - D106-003: favoritos/recentes como listas de IDs em chave/valor textual versionado (`gymflow:nutrition:*Ids:v1`), sem novo store IDB e sem bump (listas curtas de strings nao justificam entidade relacional); limite de recentes 30 (V1, sem teto canonico); sem wiring no Provider - NUT-006 conecta; payload corrompido = quarentena para [] sem throw.
 - D106-004: USDA_FDC apenas como contrato offline puro (`foodReferenceFromUsdaFdc` preserva `FDC:<id>`); catalogo V1 100% CANONICAL_BR; busca vazia retorna [] deterministico; `toFoodEntryInput` monta input do ledger sem gravar nada (ledger segue source of truth).
 
+## GOAL-107 - GYMFLOW-NUT006-MOBILE-UX-ENDTOEND-107 (2026-09-16)
+
+- D107-001: superfície NUT-006 mínima no Provider (`nutritionDay/activeDate/timezone/targetState/loading/error/favorites/recents` + `logFoodReference/getNutritionHistory/refreshNutrition/toggleNutritionFavorite`); `logWater/logMacros` preservados para regressão; meal canônica por tipo+dia (`meal-{tipo}-{data}`); porção sugerida = `servingReferenceGrams` da referência (nunca inventada); meta de hidratação só do engine (MANUAL_ONLY mostra consumo real sem meta); tendência usa último dia existente como referência e nunca interpola.
+- D107-002: dev-server local (`npm run dev`/Turbopack) falha neste ambiente ao gerar processo filho do PostCSS (`0xc0000142`, antes de qualquer código do escopo) — QA visual via servidor `next start` de produção (200 OK) + testes de estrutura/interação + checagem estática (20/20 botões ≥44px, sem alert/confirm, sem rótulo IA); `npm run build` + `build:mobile` verdes cobrem a compilação.
+
 ## GOAL-106-MERGE - GYMFLOW-NUT005-FINAL-MERGE-106 fechamento docs-only sobre master
 
 - D106M-001: fechamento persistido como commit docs-only direto sobre master (GOALS_LOG + 1 linha DECISOES), sem PR novo e sem tocar na branch de feature ja mergeada; arvore de codigo inalterada, entao build/typecheck herdados da CI do merge; PR #47 CLEAN/MERGEABLE com 2 checks SUCCESS; merge commit `ccae3dc` (metodo merge); NUT004_STATUS=INTEGRATED, NUT005_STATUS=INTEGRATED, READY_FOR_NUT006=YES.

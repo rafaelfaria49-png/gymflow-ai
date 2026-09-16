@@ -20,3 +20,5 @@ export * from './lifecycle';
 export * from './food-types';
 export * from './food-database';
 export * from './food-preferences';
+export * from './suggestions';
+export * from './trend';

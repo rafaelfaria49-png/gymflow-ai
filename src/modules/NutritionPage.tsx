@@ -1,337 +1,85 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useGymFlow } from '../providers/GymFlowContext';
-import { Droplet, Utensils, Apple, GlassWater } from 'lucide-react';
-import { useToast } from '../components/ui/Toast';
-import { parseMacroFormInputs, isValidWaterInput } from '../lib/nutrition-validation';
+import { CalendarDays, ClipboardList, LineChart, NotebookPen, Sparkles } from 'lucide-react';
+import { TodaySection } from '../components/nutrition/TodaySection';
+import { RegisterSection } from '../components/nutrition/RegisterSection';
+import { TargetsSection } from '../components/nutrition/TargetsSection';
+import { TrendSection } from '../components/nutrition/TrendSection';
+import { SuggestionsSection } from '../components/nutrition/SuggestionsSection';
 
+type NutritionTab = 'today' | 'register' | 'targets' | 'trend' | 'suggestions';
+
+const TABS: { value: NutritionTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { value: 'today', label: 'Hoje', icon: CalendarDays },
+  { value: 'register', label: 'Registrar', icon: NotebookPen },
+  { value: 'targets', label: 'Metas', icon: ClipboardList },
+  { value: 'trend', label: 'Tendência', icon: LineChart },
+  { value: 'suggestions', label: 'Sugestões', icon: Sparkles },
+];
+
+/**
+ * NUT-006 — Experiência mobile-first de Nutrição sobre os contratos reais:
+ * - Ledger (NUT-004) como source of truth do consumo;
+ * - NutritionEngine como autoridade exclusiva dos targets;
+ * - FoodDatabase (NUT-005) para busca, porções, USER_CONFIRMED, favoritos e recentes.
+ *
+ * Sem formulário manual de macros, sem sugestões estáticas, sem rótulo de IA.
+ */
 export const NutritionPage = () => {
-  const { nutrition, logWater, logMacros, user } = useGymFlow();
-  const toast = useToast();
-  const [waterInput, setWaterInput] = useState('250');
-  const [kcalInput, setKcalInput] = useState('');
-  const [protInput, setProtInput] = useState('');
-  const [carbInput, setCarbInput] = useState('');
-  const [fatInput, setFatInput] = useState('');
-
-  const handleWaterLog = (amount: number) => {
-    if (!isValidWaterInput(amount)) return;
-    void logWater(amount);
-  };
-
-  const handleCustomWaterLog = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!waterInput.trim()) {
-      toast.error('Informe uma quantidade de água.');
-      return;
-    }
-    const amount = Number(waterInput);
-    if (!isValidWaterInput(amount)) {
-      toast.error('Informe uma quantidade positiva de água em ml (> 0).');
-      return;
-    }
-    const success = await logWater(amount);
-    if (success) {
-      setWaterInput('');
-      toast.success(`${amount}ml de água registrados!`);
-    } else {
-      toast.error('Quantidade de água fora dos limites.');
-    }
-  };
-
-  const handleMacroSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const parsed = parseMacroFormInputs(kcalInput, protInput, carbInput, fatInput);
-    if (!parsed.valid) {
-      toast.error('Informe valores válidos: calorias (1 a 14.999 kcal) e macronutrientes (0 a 999g).');
-      return;
-    }
-    const { calories, protein, carbs, fat } = parsed.values;
-    const success = await logMacros(calories, protein, carbs, fat);
-    if (success) {
-      setKcalInput('');
-      setProtInput('');
-      setCarbInput('');
-      setFatInput('');
-      toast.success('Refeição registrada na dieta!');
-    } else {
-      toast.error('Valores nutricionais fora dos limites permitidos.');
-    }
-  };
-
-  // Sugestões de Refeições Baseadas no Objetivo (Exemplos Gerais)
-  const getMealSuggestions = () => {
-    const goal = user?.goal || 'hypertrophy';
-    if (goal === 'slimming') {
-      return [
-        {
-          type: 'Café da Manhã',
-          meal: 'Omelete de 3 ovos inteiros com espinafre e 1 fatia de pão integral.',
-          macros: '28g P • 15g C • 18g G • 320 kcal'
-        },
-        {
-          type: 'Almoço',
-          meal: 'Grelhado de peito de frango (150g), brócolis cozido no vapor (150g) e batata doce cozida (100g).',
-          macros: '46g P • 24g C • 5g G • 345 kcal'
-        },
-        {
-          type: 'Jantar',
-          meal: 'Filé de tilápia grelhado (150g) com mix de salada verde e azeite de oliva extra virgem.',
-          macros: '35g P • 5g C • 12g G • 270 kcal'
-        }
-      ];
-    }
-    // Padrão Hypertrophy / Força
-    return [
-      {
-        type: 'Café da Manhã',
-        meal: 'Mingau de aveia (60g) com 1 scoop de Whey Protein, 1 banana picada e pasta de amendoim (15g).',
-        macros: '35g P • 58g C • 10g G • 460 kcal'
-      },
-      {
-        type: 'Almoço',
-        meal: 'Patinho bovino moído (150g), arroz branco cozido (200g) e feijão carioca (100g).',
-        macros: '44g P • 62g C • 12g G • 540 kcal'
-      },
-      {
-        type: 'Jantar',
-        meal: 'Peito de frango desfiado (150g), purê de batata inglesa (180g) e salada de folhas.',
-        macros: '42g P • 38g C • 6g G • 380 kcal'
-      }
-    ];
-  };
-
-  const calculatedWaterGoalPercent = Math.min(100, Math.round((nutrition.water / (user?.waterGoal || 3000)) * 100));
+  const [activeTab, setActiveTab] = useState<NutritionTab>('today');
 
   return (
-    <div className="space-y-6 pb-20 lg:pb-6">
-      {/* HEADER */}
-      <div>
-        <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight">Dieta e Hidratação</h1>
-        <p className="text-xs text-gym-text-muted mt-0.5 font-medium">
-          Acompanhe o consumo diário de água, calorias e macronutrientes recomendados.
+    <div className="space-y-4 pb-24 lg:pb-6 max-w-2xl mx-auto w-full min-w-0">
+      <div className="px-0.5">
+        <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight">Nutrição</h1>
+        <p className="text-xs text-gym-text-muted mt-0.5 font-medium leading-relaxed">
+          Diário real do ledger com metas do motor e catálogo verificado.
         </p>
       </div>
 
-      {/* EMPTY STATE COM CTA (GOAL-11) — nada registrado hoje ainda */}
-      {nutrition.water === 0 && nutrition.calories === 0 && (
-        <div className="glass border border-gym-accent/20 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gym-accent/15 border border-gym-accent/20 flex items-center justify-center flex-shrink-0">
-              <GlassWater className="w-5 h-5 text-gym-accent" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white">Comece registrando sua hidratação</h3>
-              <p className="text-xs text-gym-text-muted mt-0.5">
-                Nada registrado hoje — um copo de água já inicia seu diário.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => handleWaterLog(250)}
-            className="min-h-[44px] px-5 bg-gym-accent hover:bg-gym-accent-hover active:scale-[0.98] text-gym-dark font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center justify-center gap-1.5 flex-shrink-0"
-          >
-            <Droplet className="w-4 h-4" />
-            +250ml agora
-          </button>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* COLUNA ESQUERDA: DIÁRIO DE HIDRATAÇÃO */}
-        <div className="glass p-5 rounded-3xl border border-white/5 space-y-6 flex flex-col justify-between">
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-              <Droplet className="w-4.5 h-4.5 text-gym-accent animate-pulse" />
-              Monitor de Água Diário
-            </h3>
-
-            {/* Círculo do Copo de água visual */}
-            <div className="w-36 h-36 border-4 border-white/10 rounded-full flex flex-col items-center justify-center mx-auto relative overflow-hidden bg-white/5">
-              <div
-                className="absolute bottom-0 left-0 right-0 bg-gym-accent/25 transition-all duration-500 ease-out"
-                style={{ height: `${calculatedWaterGoalPercent}%` }}
-              ></div>
-              <span className="text-2xl font-black text-white z-10 font-mono">{nutrition.water}ml</span>
-              <span className="text-[10px] text-gym-text-muted z-10 font-bold">Meta: {user?.waterGoal || 3000}ml</span>
-            </div>
-
-            {/* Quick logs */}
-            <div className="grid grid-cols-3 gap-2">
+      {/* Abas internas — 360–430px sem overflow, alvos >= 44px, scroll horizontal contido */}
+      <div
+        className="sticky top-0 z-10 -mx-1 px-1 py-1.5 bg-gym-dark/90 backdrop-blur-xl"
+        role="tablist"
+        aria-label="Seções da nutrição"
+      >
+        <div className="grid grid-cols-5 gap-1 bg-white/5 border border-white/10 rounded-2xl p-1">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.value;
+            return (
               <button
-                onClick={() => handleWaterLog(250)}
-                className="min-h-[44px] py-2.5 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/20 text-white hover:text-gym-accent rounded-xl text-[10px] font-bold transition-all flex items-center justify-center"
+                key={tab.value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                aria-controls={`nut-panel-${tab.value}`}
+                id={`nut-tab-${tab.value}`}
+                onClick={() => setActiveTab(tab.value)}
+                className={`min-h-[44px] flex flex-col items-center justify-center gap-0.5 rounded-xl text-[9px] font-extrabold uppercase tracking-wide transition-all active:scale-[0.97] min-w-0 ${
+                  active ? 'bg-gym-accent text-gym-dark' : 'text-gym-text-muted hover:text-white'
+                }`}
               >
-                +250ml (Copo)
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate max-w-full px-0.5">{tab.label}</span>
               </button>
-              <button
-                onClick={() => handleWaterLog(500)}
-                className="min-h-[44px] py-2.5 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/20 text-white hover:text-gym-accent rounded-xl text-[10px] font-bold transition-all flex items-center justify-center"
-              >
-                +500ml (Garrafa)
-              </button>
-              <button
-                onClick={() => handleWaterLog(1000)}
-                className="min-h-[44px] py-2.5 bg-white/5 hover:bg-gym-accent/15 border border-white/10 hover:border-gym-accent/20 text-white hover:text-gym-accent rounded-xl text-[10px] font-bold transition-all flex items-center justify-center"
-              >
-                +1L (Garrafa G)
-              </button>
-            </div>
-          </div>
-
-          {/* Form água */}
-          <form onSubmit={handleCustomWaterLog} className="flex gap-2 pt-4 border-t border-white/5">
-            <input
-              type="number"
-              placeholder="Outro valor em ml"
-              value={waterInput}
-              onChange={(e) => setWaterInput(e.target.value)}
-              className="flex-1 min-h-[44px] bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl px-3 py-2 text-xs text-white placeholder-gym-text-muted outline-none"
-              min="1"
-              required
-            />
-            <button
-              type="submit"
-              className="min-h-[44px] bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-bold px-4 py-2 rounded-xl text-xs flex items-center justify-center"
-            >
-              Registrar
-            </button>
-          </form>
+            );
+          })}
         </div>
+      </div>
 
-        {/* COLUNA DO MEIO: CALCULADOR DE CALORIAS */}
-        <div className="glass p-5 rounded-3xl border border-white/5 space-y-4">
-          <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-            <Utensils className="w-4.5 h-4.5 text-gym-emerald" />
-            Adicionar Alimento (Refeição)
-          </h3>
-
-          <form onSubmit={handleMacroSubmit} className="space-y-3.5">
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-gym-text-muted mb-1">Calorias (kcal)</label>
-              <input
-                type="number"
-                placeholder="Ex: 450"
-                value={kcalInput}
-                onChange={(e) => setKcalInput(e.target.value)}
-                className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl px-4 py-2.5 text-xs text-white outline-none"
-                min="1"
-                max="14999"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="block text-[9px] font-bold uppercase text-gym-text-muted mb-1 text-center">Proteínas (g)</label>
-                <input
-                  type="number"
-                  placeholder="30"
-                  value={protInput}
-                  onChange={(e) => setProtInput(e.target.value)}
-                  className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl py-2 text-center text-xs text-white outline-none"
-                  min="0"
-                  max="999"
-                  step="any"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-[9px] font-bold uppercase text-gym-text-muted mb-1 text-center">Carbos (g)</label>
-                <input
-                  type="number"
-                  placeholder="50"
-                  value={carbInput}
-                  onChange={(e) => setCarbInput(e.target.value)}
-                  className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl py-2 text-center text-xs text-white outline-none"
-                  min="0"
-                  max="999"
-                  step="any"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-[9px] font-bold uppercase text-gym-text-muted mb-1 text-center">Gorduras (g)</label>
-                <input
-                  type="number"
-                  placeholder="10"
-                  value={fatInput}
-                  onChange={(e) => setFatInput(e.target.value)}
-                  className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 focus:border-gym-accent rounded-xl py-2 text-center text-xs text-white outline-none"
-                  min="0"
-                  max="999"
-                  step="any"
-                  required
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full min-h-[44px] bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-extrabold py-3 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-gym-accent/15 flex items-center justify-center"
-            >
-              Registrar Alimento
-            </button>
-          </form>
-
-          {/* Resumo Consumo */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3 mt-4">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Registrado hoje</h4>
-            <div className="grid grid-cols-4 gap-2 text-center text-xs">
-              <div>
-                <span className="block font-mono font-bold text-white">{nutrition.calories}</span>
-                <span className="block text-[9px] text-gym-text-muted">kcal</span>
-              </div>
-              <div>
-                <span className="block font-mono font-bold text-gym-accent">{nutrition.protein}g</span>
-                <span className="block text-[9px] text-gym-text-muted">Prot</span>
-              </div>
-              <div>
-                <span className="block font-mono font-bold text-gym-emerald">{nutrition.carbs}g</span>
-                <span className="block text-[9px] text-gym-text-muted">Carbo</span>
-              </div>
-              <div>
-                <span className="block font-mono font-bold text-yellow-500">{nutrition.fat}g</span>
-                <span className="block text-[9px] text-gym-text-muted">Gord</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* COLUNA DIREITA: SUGESTÕES DE REFEIÇÕES (EXEMPLOS GERAIS) */}
-        <div className="glass p-5 rounded-3xl border border-white/5 space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-              <Apple className="w-4.5 h-4.5 text-gym-accent" />
-              Sugestões de refeições
-            </h3>
-            <span className="text-[9px] bg-gym-accent/15 text-gym-accent font-black uppercase px-2 py-0.5 rounded-full">
-              {user?.goal === 'slimming' ? 'Cutting' : 'Bulking'}
-            </span>
-          </div>
-
-          <p className="text-[11px] text-gym-text-muted">
-            Exemplos gerais de refeições para referência de acordo com o objetivo selecionado.
-          </p>
-
-          <div className="space-y-3.5">
-            {getMealSuggestions().map((meal, idx) => (
-              <div key={idx} className="bg-white/5 border border-white/10 p-3 rounded-2xl space-y-1">
-                <span className="text-[10px] text-gym-accent font-extrabold uppercase">{meal.type}</span>
-                <p className="text-xs text-white/90 leading-relaxed">{meal.meal}</p>
-                <p className="text-[9px] font-mono text-gym-text-muted pt-1 border-t border-white/5 mt-1 font-bold">
-                  {meal.macros}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          {/* Aviso responsabilidade */}
-          <div className="bg-gym-rose/5 border border-gym-rose/10 text-gym-rose rounded-xl p-3.5 text-[10px] leading-relaxed">
-            ⚠️ <span className="font-bold">Nota de Responsabilidade:</span> As sugestões de refeições são apenas exemplos gerais baseados no objetivo e não constituem planejamento alimentar individualizado nem prescrição dietética. O aplicativo não substitui o acompanhamento de um nutricionista clínico qualificado.
-          </div>
-        </div>
+      <div
+        role="tabpanel"
+        id={`nut-panel-${activeTab}`}
+        aria-labelledby={`nut-tab-${activeTab}`}
+        className="min-w-0"
+      >
+        {activeTab === 'today' ? <TodaySection /> : null}
+        {activeTab === 'register' ? <RegisterSection /> : null}
+        {activeTab === 'targets' ? <TargetsSection /> : null}
+        {activeTab === 'trend' ? <TrendSection /> : null}
+        {activeTab === 'suggestions' ? <SuggestionsSection /> : null}
       </div>
     </div>
   );
