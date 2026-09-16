@@ -178,11 +178,6 @@ import {
 } from '../lib/nutrition/provider-bridge';
 import { normalizePersistedNutritionProfile } from '../lib/nutrition/profile-validation';
 import {
-  hasActiveNutritionLedger,
-  NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
-  type NutritionLedgerAdminDeferredReason,
-} from '../lib/nutrition/admin-gate';
-import {
   isNutritionAdminFencedError,
   type NutritionAdminFenceOperationKind,
   type NutritionAdminFenceV1,
@@ -333,7 +328,6 @@ export type LogicalBackupExportFailureReason =
   | 'crypto-unavailable'
   | 'serialization'
   | 'too-large'
-  | NutritionLedgerAdminDeferredReason
   | NutritionAdminLockUnavailableReason;
 
 export type PublicLogicalExportResult =
@@ -359,7 +353,7 @@ export type PublicLogicalImportFailureReason =
   | 'import-failed'
   | 'recovery-required'
   | 'compensation-failed'
-  | NutritionLedgerAdminDeferredReason
+  | 'legacy-backup-with-active-ledger'
   | NutritionAdminLockUnavailableReason;
 
 export type PublicLogicalImportResult =
@@ -383,7 +377,7 @@ export type PublicLogicalRestoreFailureReason =
   | 'proof-diverged'
   | 'restore-failed'
   | 'recovery-required'
-  | NutritionLedgerAdminDeferredReason
+  | 'legacy-backup-with-active-ledger'
   | NutritionAdminLockUnavailableReason;
 
 export interface PublicLogicalRestorePreview {
@@ -430,7 +424,6 @@ export type PublicLogicalResetFailureReason =
   | 'owner-token-busy'
   | 'reset-failed'
   | 'recovery-required'
-  | NutritionLedgerAdminDeferredReason
   | NutritionAdminLockUnavailableReason;
 
 export interface PublicLogicalResetPreview {
@@ -681,7 +674,7 @@ const RESTORE_FAILURE_MESSAGES: Record<PublicLogicalRestoreFailureReason, string
   'proof-diverged': 'O backup anterior mudou desde a verificação. Tente novamente.',
   'restore-failed': 'Não foi possível restaurar o backup anterior.',
   'recovery-required': 'A restauração requer recuperação. O aplicativo será recarregado.',
-  'nutrition-ledger-admin-deferred': NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
+  'legacy-backup-with-active-ledger': 'O ponto de restauração legado não cobre o histórico nutricional ativo.',
   'nutrition-admin-lock-unavailable': NUTRITION_ADMIN_LOCK_UNAVAILABLE_MESSAGE,
 };
 
@@ -707,7 +700,6 @@ const RESET_FAILURE_MESSAGES: Record<PublicLogicalResetFailureReason, string> = 
   'owner-token-busy': 'Outra aba está executando uma operação administrativa.',
   'reset-failed': 'Não foi possível zerar os dados do GymFlow.',
   'recovery-required': 'O reset requer recuperação. O aplicativo será recarregado.',
-  'nutrition-ledger-admin-deferred': NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
   'nutrition-admin-lock-unavailable': NUTRITION_ADMIN_LOCK_UNAVAILABLE_MESSAGE,
 };
 
@@ -4145,44 +4137,22 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     toast.info(`Conteúdo original exportado (${recovery.bytes.toLocaleString('pt-BR')} bytes).`);
   };
 
-  // GOAL-085 — gate temporário do admin lógico (decisão temporária, sem NUT-004C).
-  //
-  // Enquanto nutritionDays + nutritionMetadata não participam do formato
-  // lógico, qualquer operação lógica sobre um ledger com consumo real seria
-  // parcial: o export geraria um arquivo que omite o ledger ativo, e
-  // import/restore/reset tocariam o core sem tocar o ledger (ressurreição de
-  // consumo zerado no próximo boot). Por isso o Provider bloqueia as seis
-  // operações lógicas em runtime hybrid-v2 quando há consumo real persistido
-  // — sempre ANTES do primeiro write, sem sucesso parcial, sem reload.
-  // Ledger vazio (sem FoodEntry/HydrationEntry) segue liberado: nada do
-  // usuário seria omitido ou ressuscitado.
-  //
-  // GOAL-087: o gate acima tinha TOCTOU (sonda read-only fora de transação).
-  // A partir daqui cada operação usa o fence durável:
-  // acquire → sondar novamente SOB o fence → se consumo: deferred →
-  // se vazio: executar mantendo o fence → release em finally.
-  const isNutritionLedgerAdminDeferred = useCallback(async (): Promise<boolean> => {
-    if (storageModeRef.current !== 'hybrid-v2') return false;
-    return hasActiveNutritionLedger({
-      currentDay: nutritionDayRef.current,
-      repository: historyAdapterRef.current,
-    });
-  }, []);
-
+  // GOAL-100 (NUT-004C LEDGER ADMIN): gate temporário REMOVIDO.
+  // Export/import/restore/reset são ledger-aware (schema 2 com section
+  // nutritionLedger obrigatória; schema 1 + ledger ativo => fail-closed
+  // tipado legacy-backup-with-active-ledger). Locks (Web Lock EXCLUSIVE) e
+  // fence durável permanecem permanentes (ordem: Web Lock → fence → owner-token).
   const exportLogicalBackupV2 = useCallback(async (): Promise<PublicLogicalExportResult> => {
     const adapter = historyAdapterRef.current;
     if (!adapter || typeof window === 'undefined') {
       return { ok: false, reason: 'administration-unavailable' };
     }
     // GOAL-087: fence durante TODA a captura do snapshot lógico.
-    // Probe vazio → gravação concorrente → export ok omitindo a gravação:
-    // fechado porque writers veem o fence ativo e são bloqueados, e writers
-    // já iniciados commitam antes do acquire (serialização IDB) e são vistos
-    // pela sonda sob o fence.
-    //
-    // GOAL-089: o Web Lock EXCLUSIVE é retido durante TODA a operação
-    // (ordem: Web Lock → fence IDB → token de posse). Writers nutricionais
-    // (SHARED) aguardam sem commitar; a segurança não depende do TTL.
+    // GOAL-089: Web Lock EXCLUSIVE retido durante TODA a operação
+    // (ordem: Web Lock → fence IDB → token de posse).
+    // GOAL-100: export ledger-aware — sem gate temporário; a section
+    // nutritionLedger (sempre presente, inclusive days:[]) é capturada de modo
+    // estabilizado sob o mesmo lock+fence (core+history+ledger revalidados).
     try {
       return await adapter.runNutritionAdminWithExclusiveLock<PublicLogicalExportResult>(async () => {
         let fence: NutritionAdminFenceV1 | null = null;
@@ -4199,18 +4169,15 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
             }
             throw acquireError;
           }
-          if (await hasActiveNutritionLedger({
-            currentDay: nutritionDayRef.current,
-            repository: adapter,
-          })) {
-            return { ok: false, reason: 'nutrition-ledger-admin-deferred' };
-          }
           const runtime = createStorageAdminRuntime({
             key: STORAGE_KEY,
             storage: window.localStorage,
             adapter,
           });
-          const result = await createLogicalStorageExportV2({ runtime });
+          const result = await createLogicalStorageExportV2({
+            runtime,
+            readNutritionLedger: () => adapter.snapshotNutritionLedger(),
+          });
           if (result.ok) {
             return {
               ok: true,
@@ -4248,7 +4215,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     'import-failed': 'Não foi possível importar o backup selecionado.',
     'recovery-required': 'A importação requer recuperação. O aplicativo será recarregado.',
     'compensation-failed': 'A importação falhou e não pôde ser revertida. O aplicativo será recarregado.',
-    'nutrition-ledger-admin-deferred': NUTRITION_LEDGER_ADMIN_DEFERRED_MESSAGE,
+    'legacy-backup-with-active-ledger': 'O backup legado não cobre o histórico nutricional ativo. Exporte um backup atual (schema 2) para migrar.',
     'nutrition-admin-lock-unavailable': NUTRITION_ADMIN_LOCK_UNAVAILABLE_MESSAGE,
   };
 
@@ -4336,19 +4303,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
             throw acquireError;
           }
 
-          // Sonda novamente SOB o fence (nunca antes do acquire).
-          if (await hasActiveNutritionLedger({
-            currentDay: nutritionDayRef.current,
-            repository: adapter,
-          })) {
-            return {
-              ok: false,
-              reason: 'nutrition-ledger-admin-deferred',
-              requiresReload: false,
-              message: IMPORT_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
-            };
-          }
-
+          // GOAL-100: sem gate temporário — o commit ledger-aware valida tudo
+          // antes do primeiro write (schema 1 + ledger ativo => fail-closed
+          // tipado, sem reload; schema 2 => stage/apply/verify cruzado).
           // Pré-flight: owner-token disponível (sob o fence; saída libera o fence).
           const ownerTokenInspection = inspectStorageAdminOwnerToken({
             key: STORAGE_KEY,
@@ -4403,6 +4360,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
                 revertStorageOperationAfterTransitionConflict: adapter.revertStorageOperationAfterTransitionConflict.bind(adapter),
                 readStorageOperationReceipt: adapter.readStorageOperationReceipt.bind(adapter),
                 clearInactiveGeneration: adapter.clearInactiveGeneration.bind(adapter),
+                snapshotNutritionLedger: adapter.snapshotNutritionLedger.bind(adapter),
+                replaceNutritionLedgerDaysAsAdmin: adapter.replaceNutritionLedgerDaysAsAdmin.bind(adapter),
+                applyNutritionLedgerMetadataAsAdmin: adapter.applyNutritionLedgerMetadataAsAdmin.bind(adapter),
+                replaceNutritionLedgerAsAdmin: adapter.replaceNutritionLedgerAsAdmin.bind(adapter),
               },
               storage: window.localStorage,
               key: STORAGE_KEY,
@@ -4438,6 +4399,20 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
                 reason: 'compensation-failed',
                 requiresReload: true,
                 message: IMPORT_FAILURE_MESSAGES['compensation-failed'],
+              };
+            }
+
+            // GOAL-100: legado + ledger ativo => fail-closed tipado, sem reload,
+            // sem apagar ledger, sem substituir por vazio.
+            if (result.reason === 'legacy-backup-with-active-ledger') {
+              storageBlockedRef.current = wasBlocked;
+              importInProgressRef.current = false;
+              toast.error(IMPORT_FAILURE_MESSAGES['legacy-backup-with-active-ledger']);
+              return {
+                ok: false,
+                reason: 'legacy-backup-with-active-ledger',
+                requiresReload: false,
+                message: IMPORT_FAILURE_MESSAGES['legacy-backup-with-active-ledger'],
               };
             }
 
@@ -4516,10 +4491,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       };
     }
 
-    // GOAL-087: inspect sob fence — a prévia nunca sugere um restore que a
-    // execução recusaria, e nenhum writer entra entre a sonda e a prévia.
-    //
-    // GOAL-089: inspect sob Web Lock EXCLUSIVE (ordem: Web Lock → fence IDB).
+    // GOAL-087: inspect sob fence. GOAL-089: sob Web Lock EXCLUSIVE.
+    // GOAL-100: sem gate temporário — o commit ledger-aware decide (legado +
+    // ativo => fail-closed tipado; com ledger => restore completo).
     try {
       return await adapter.runNutritionAdminWithExclusiveLock<PublicLogicalRestoreAvailability>(async () => {
         let fence: NutritionAdminFenceV1 | null = null;
@@ -4539,16 +4513,6 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
               };
             }
             throw acquireError;
-          }
-          if (await hasActiveNutritionLedger({
-            currentDay: nutritionDayRef.current,
-            repository: adapter,
-          })) {
-            return {
-              status: 'error',
-              reason: 'nutrition-ledger-admin-deferred',
-              message: RESTORE_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
-            };
           }
 
           try {
@@ -4637,13 +4601,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
             }
             throw acquireError;
           }
-          if (await hasActiveNutritionLedger({
-            currentDay: nutritionDayRef.current,
-            repository: adapter,
-          })) {
-            return failRestore('nutrition-ledger-admin-deferred');
-          }
-
+          // GOAL-100: sem gate — o commit ledger-aware valida e falha fechado
+          // (legado + ativo) ou restaura core+ledger com verificação cruzada.
           const ownerTokenInspection = inspectStorageAdminOwnerToken({
             key: STORAGE_KEY,
             storage: window.localStorage,
@@ -4739,6 +4698,10 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
                 readMetadata: adapter.readMetadata.bind(adapter),
                 rollbackToHistoryGeneration: adapter.rollbackToHistoryGeneration.bind(adapter),
                 transitionStorageOperationIfUnambiguous: adapter.transitionStorageOperationIfUnambiguous.bind(adapter),
+                snapshotNutritionLedger: adapter.snapshotNutritionLedger.bind(adapter),
+                replaceNutritionLedgerDaysAsAdmin: adapter.replaceNutritionLedgerDaysAsAdmin.bind(adapter),
+                applyNutritionLedgerMetadataAsAdmin: adapter.applyNutritionLedgerMetadataAsAdmin.bind(adapter),
+                replaceNutritionLedgerAsAdmin: adapter.replaceNutritionLedgerAsAdmin.bind(adapter),
               },
               storage: window.localStorage,
               key: STORAGE_KEY,
@@ -4771,7 +4734,9 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
                 ? 'proof-diverged'
                 : result.reason === 'operation-conflict'
                   ? 'operation-open'
-                  : 'restore-failed';
+                  : result.reason === 'legacy-backup-with-active-ledger'
+                    ? 'legacy-backup-with-active-ledger'
+                    : 'restore-failed';
             toast.error(RESTORE_FAILURE_MESSAGES[publicReason]);
             return failRestore(publicReason);
           } catch {
@@ -4828,9 +4793,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       };
     }
 
-    // GOAL-087: inspect sob fence.
-    //
-    // GOAL-089: inspect sob Web Lock EXCLUSIVE (ordem: Web Lock → fence IDB).
+    // GOAL-087: inspect sob fence. GOAL-089: sob Web Lock EXCLUSIVE.
+    // GOAL-100: reset seletivo sempre permitido (zera core + ledger); sem gate.
     try {
       return await adapter.runNutritionAdminWithExclusiveLock<PublicLogicalResetAvailability>(async () => {
         let fence: NutritionAdminFenceV1 | null = null;
@@ -4850,16 +4814,6 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
               };
             }
             throw acquireError;
-          }
-          if (await hasActiveNutritionLedger({
-            currentDay: nutritionDayRef.current,
-            repository: adapter,
-          })) {
-            return {
-              status: 'error',
-              reason: 'nutrition-ledger-admin-deferred',
-              message: RESET_FAILURE_MESSAGES['nutrition-ledger-admin-deferred'],
-            };
           }
 
           try {
@@ -4976,13 +4930,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
             }
             throw acquireError;
           }
-          if (await hasActiveNutritionLedger({
-            currentDay: nutritionDayRef.current,
-            repository: adapter,
-          })) {
-            return failReset('nutrition-ledger-admin-deferred');
-          }
-
+          // GOAL-100: reset seletivo com ledger ativo é o caso de uso (zera
+          // days/activeDate/marker + core); sem gate temporário.
           const ownerTokenInspection = inspectStorageAdminOwnerToken({
             key: STORAGE_KEY,
             storage: window.localStorage,
@@ -5047,6 +4996,11 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
                 stageHistoryGenerationForOperation: adapter.stageHistoryGenerationForOperation.bind(adapter),
                 rollbackToHistoryGeneration: adapter.rollbackToHistoryGeneration.bind(adapter),
                 transitionStorageOperationIfUnambiguous: adapter.transitionStorageOperationIfUnambiguous.bind(adapter),
+                snapshotNutritionLedger: adapter.snapshotNutritionLedger.bind(adapter),
+                replaceNutritionLedgerDaysAsAdmin: adapter.replaceNutritionLedgerDaysAsAdmin.bind(adapter),
+                applyNutritionLedgerMetadataAsAdmin: adapter.applyNutritionLedgerMetadataAsAdmin.bind(adapter),
+                replaceNutritionLedgerAsAdmin: adapter.replaceNutritionLedgerAsAdmin.bind(adapter),
+                clearNutritionLedgerAsAdmin: adapter.clearNutritionLedgerAsAdmin.bind(adapter),
               },
               storage: window.localStorage,
               key: STORAGE_KEY,

@@ -41,7 +41,17 @@ export type LogicalRestoreAdapter = Pick<
   | 'readMetadata'
   | 'rollbackToHistoryGeneration'
   | 'transitionStorageOperationIfUnambiguous'
->;
+> & {
+  snapshotNutritionLedger: () => Promise<import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection>;
+  replaceNutritionLedgerDaysAsAdmin: (days: import('./nutrition/ledger-types').NutritionDay[]) => Promise<void>;
+  applyNutritionLedgerMetadataAsAdmin: (input: {
+    activeDate: string | null;
+    migrationMarker: import('./nutrition/ledger-types').LedgerMigrationMarker | null;
+  }) => Promise<void>;
+  replaceNutritionLedgerAsAdmin: (
+    section: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection,
+  ) => Promise<void>;
+};
 
 export interface LogicalStorageRestoreTargetV2 {
   readonly sourceOperationId: string;
@@ -231,6 +241,7 @@ export async function proveLogicalStorageRestoreTargetV2(
 export type LogicalRestoreFailureReason =
   | 'invalid-target-proof'
   | 'provenance-diverged'
+  | 'legacy-backup-with-active-ledger'
   | 'administration-unavailable'
   | 'operation-conflict'
   | 'owner-token-conflict'
@@ -258,9 +269,12 @@ export type LogicalStorageRestoreV2Result =
 
 export type LogicalRestoreCommitStep =
   | 'journal-created'
+  | 'ledger-staged'
   | 'activating'
   | 'generation-activated'
   | 'core-committed'
+  | 'ledger-applied'
+  | 'verified'
   | 'receipt-activated'
   | 'settled';
 
@@ -410,6 +424,61 @@ export async function commitLogicalStorageRestoreV2(
     recoveryRequired: journalCreated,
   });
 
+  // GOAL-100: journal nutricional (previous=current, target=previous do source).
+  // Source legado sem ledger + consumo real => fail-closed antes do write.
+  let previousLedger: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection;
+  let targetLedger: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection;
+  let targetLedgerRaw = '';
+  let previousLedgerRaw = '';
+  let targetLedgerDigest: string | null = null;
+  try {
+    const {
+      validateNutritionLedgerBackupSection,
+      createEmptyNutritionLedgerSection,
+      nutritionLedgerSectionHasConsumption,
+      serializeNutritionLedgerCanonically,
+      computeNutritionLedgerDigest,
+    } = await import('./storage-nutrition-ledger-backup');
+    const currentSnapshot = await adapter.snapshotNutritionLedger();
+    const currentChecked = validateNutritionLedgerBackupSection(currentSnapshot);
+    if (currentChecked.status !== 'valid') return fail('verification-failed');
+    previousLedger = currentChecked.section;
+    const sourceReceipt = await adapter.readStorageOperationReceipt(target.sourceOperationId).catch(() => null);
+    const sourcePreviousRaw = (sourceReceipt as unknown as Record<string, unknown> | null)?.previousNutritionLedgerRaw;
+    const sourceTargetRaw = (sourceReceipt as unknown as Record<string, unknown> | null)?.targetNutritionLedgerRaw;
+    // Alvo do restore = mundo anterior do source (previous do source). Se o source
+    // for legado (sem ledger), usa-se o target do source como fallback (mundo final
+    // anterior à cadeia?) — na prática, legado + vazio permite; legado + ativo bloqueia.
+    const candidateRaw = typeof sourcePreviousRaw === 'string'
+      ? sourcePreviousRaw
+      : typeof sourceTargetRaw === 'string'
+        ? sourceTargetRaw
+        : null;
+    if (candidateRaw === null) {
+      if (nutritionLedgerSectionHasConsumption(previousLedger)) {
+        return fail('legacy-backup-with-active-ledger');
+      }
+      targetLedger = previousLedger;
+    } else {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(candidateRaw);
+      } catch {
+        return fail('verification-failed');
+      }
+      const targetChecked = validateNutritionLedgerBackupSection(parsed);
+      if (targetChecked.status !== 'valid') return fail('verification-failed');
+      targetLedger = targetChecked.section;
+    }
+    targetLedgerRaw = serializeNutritionLedgerCanonically(targetLedger);
+    targetLedgerDigest = await computeNutritionLedgerDigest(targetLedger);
+    previousLedgerRaw = serializeNutritionLedgerCanonically(previousLedger);
+    void createEmptyNutritionLedgerSection;
+  } catch (error) {
+    if (error instanceof Error && /legacy/.test(error.message)) throw error;
+    return fail('administration-unavailable');
+  }
+
   try {
     // Verificacao integral imediatamente antes do primeiro write. A primitiva de
     // ativacao repete a prova dentro da transacao que move o ponteiro.
@@ -425,17 +494,27 @@ export async function commitLogicalStorageRestoreV2(
       expectedPreviousGenerationId: target.currentGenerationId,
       targetGenerationId: target.targetGenerationId,
       targetCoreRaw: target.targetCoreRaw,
+      nutritionLedgerStatus: 'pending',
+      nutritionLedgerDigest: targetLedgerDigest,
+      nutritionLedgerActiveDate: targetLedger.activeDate,
+      nutritionLedgerMarker: targetLedger.migrationMarker,
+      previousNutritionLedgerRaw: previousLedgerRaw,
+      targetNutritionLedgerRaw: targetLedgerRaw,
     }));
     journalCreated = true;
     if (!restoreReceiptMatchesTarget(begun, target, operationId) || begun.status !== 'staged') {
       return fail('readback-failed');
     }
     await input.afterStep?.('journal-created');
+    // Stage dos dias (antes do core) + sonda para fault injection.
+    await ownerLease.execute(() => adapter.replaceNutritionLedgerDaysAsAdmin(targetLedger.days));
+    await input.afterStep?.('ledger-staged');
 
     const activating = await ownerLease.execute(() => runtime.transitionStorageOperation({
       operationId,
       expectedStatus: 'staged',
       nextStatus: 'activating',
+      patch: { nutritionLedgerStatus: 'staged' },
     }));
     if (!restoreReceiptMatchesTarget(activating, target, operationId)) {
       return fail('readback-failed');
@@ -464,12 +543,40 @@ export async function commitLogicalStorageRestoreV2(
     if (committed !== 'committed') return fail(committed);
     await input.afterStep?.('core-committed');
 
+    // GOAL-100: ativar ledger (metadata) após o core + verificação cruzada.
+    try {
+      await ownerLease.execute(() => adapter.applyNutritionLedgerMetadataAsAdmin({
+        activeDate: targetLedger.activeDate,
+        migrationMarker: targetLedger.migrationMarker,
+      }));
+    } catch (error) {
+      if (isStorageAdminOwnerTokenConflict(error)) throw error;
+      return fail('recovery-required');
+    }
+    await input.afterStep?.('ledger-applied');
+    try {
+      const ledgerAfterApply = await adapter.snapshotNutritionLedger();
+      const {
+        validateNutritionLedgerBackupSection: validateRestoreLedger,
+        serializeNutritionLedgerCanonically: serializeRestoreLedger,
+      } = await import('./storage-nutrition-ledger-backup');
+      const ledgerChecked = validateRestoreLedger(ledgerAfterApply);
+      if (ledgerChecked.status !== 'valid') return fail('recovery-required');
+      if (serializeRestoreLedger(ledgerChecked.section) !== targetLedgerRaw) {
+        return fail('recovery-required');
+      }
+    } catch {
+      return fail('recovery-required');
+    }
+    await input.afterStep?.('verified');
+
     const activated = await ownerLease.execute(() => (
       adapter.transitionStorageOperationIfUnambiguous({
         operationId,
         expectedStatus: 'activating',
         nextStatus: 'activated',
         expectedActiveGenerationId: target.targetGenerationId,
+        patch: { nutritionLedgerStatus: 'applied' },
       })
     ));
     if (!restoreReceiptMatchesTarget(activated, target, operationId)) {
@@ -481,6 +588,7 @@ export async function commitLogicalStorageRestoreV2(
       operationId,
       expectedStatus: 'activated',
       nextStatus: 'settled',
+      patch: { nutritionLedgerStatus: 'verified' },
     }));
     if (!restoreReceiptMatchesTarget(settled, target, operationId) || settled.status !== 'settled') {
       return fail('readback-failed');

@@ -64,7 +64,10 @@ import { isNutritionProfile } from './nutrition/profile-validation';
 // `formatVersion: 2`.
 
 export const LOGICAL_BACKUP_FORMAT_VERSION = 2 as const;
-export const LOGICAL_BACKUP_SCHEMA_VERSION = 1 as const;
+// GOAL-100: schema lógico 2 (ledger-aware). Schema 1 permanece legível para
+// compatibilidade (OLD_BACKUP_SAFE); export sempre gera 2 com section obrigatória.
+export const LOGICAL_BACKUP_SCHEMA_VERSION = 2 as const;
+export const LOGICAL_BACKUP_LEGACY_SCHEMA_VERSION = 1 as const;
 
 // Único valor físico que sobrevive no arquivo: ele diz de QUE armazenamento o
 // estado lógico saiu, não como esse armazenamento estava organizado por dentro.
@@ -98,7 +101,24 @@ export interface GymFlowLogicalBackupV2 {
   sourceSavedAt: string;
   payloadDigest: string;
   payload: PersistedState;
+  // GOAL-100: section canônica obrigatória para schema 2 (sempre presente,
+  // inclusive com days=[]). Schema 2 sem nutritionLedger = inválido.
+  nutritionLedger: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection;
 }
+
+/** Backup legado schema 1 (sem ledger) — somente leitura para compatibilidade. */
+export interface GymFlowLogicalBackupV1Legacy {
+  format: 'gymflow-backup';
+  formatVersion: typeof LOGICAL_BACKUP_FORMAT_VERSION;
+  logicalSchemaVersion: typeof LOGICAL_BACKUP_LEGACY_SCHEMA_VERSION;
+  exportedAt: string;
+  sourcePhysicalStorageVersion: typeof LOGICAL_BACKUP_SOURCE_PHYSICAL_STORAGE_VERSION;
+  sourceSavedAt: string;
+  payloadDigest: string;
+  payload: PersistedState;
+}
+
+export type GymFlowLogicalBackupFile = GymFlowLogicalBackupV2 | GymFlowLogicalBackupV1Legacy;
 
 export interface LogicalBackupPreview {
   exportedAt: string;
@@ -155,7 +175,7 @@ export type LogicalBackupInspectionFailureReason =
   | 'crypto-unavailable';
 
 export type LogicalStorageBackupV2Inspection =
-  | { ok: true; backup: GymFlowLogicalBackupV2; preview: LogicalBackupPreview }
+  | { ok: true; backup: GymFlowLogicalBackupFile; preview: LogicalBackupPreview }
   | {
       ok: false;
       reason: LogicalBackupInspectionFailureReason;
@@ -176,6 +196,9 @@ export type LogicalBackupRuntime = Pick<
 export interface LogicalBackupSnapshot {
   state: PersistedState;
   sourceSavedAt: string;
+  // GOAL-100: snapshot ledger-aware (sempre presente no export schema 2,
+  // inclusive vazio). Capturado de modo estabilizado junto ao core/history.
+  nutritionLedger: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection;
 }
 
 export type LogicalBackupSnapshotResult =
@@ -205,7 +228,16 @@ export const LOGICAL_BACKUP_ENVELOPE_FIELDS: readonly string[] = [
   'payload',
 ];
 
+// GOAL-100: nono campo canônico, obrigatório somente no schema 2.
+export const NUTRITION_LEDGER_ENVELOPE_FIELD = 'nutritionLedger' as const;
+
+export const LOGICAL_BACKUP_ENVELOPE_FIELDS_V2: readonly string[] = [
+  ...LOGICAL_BACKUP_ENVELOPE_FIELDS,
+  NUTRITION_LEDGER_ENVELOPE_FIELD,
+];
+
 const ENVELOPE_FIELD_SET = new Set(LOGICAL_BACKUP_ENVELOPE_FIELDS);
+const ENVELOPE_FIELD_SET_V2 = new Set(LOGICAL_BACKUP_ENVELOPE_FIELDS_V2);
 
 // Campos físicos que NUNCA podem aparecer na raiz de um payload lógico. Desde o
 // corretivo 046 o payload é fechado nos 16 campos lógicos, então esta lista não
@@ -458,12 +490,12 @@ function declaredFormatVersion(value: unknown): unknown {
   return descriptor.value;
 }
 
-// Contrato externo FECHADO: exatamente oito chaves próprias, enumeráveis, de
-// dados. Vale tanto para o objeto vindo de `JSON.parse` quanto para um objeto de
+// Contrato externo FECHADO (GOAL-100: schema-aware).
+// - Schema 1 legado: exatamente oito chaves próprias (sem nutritionLedger).
+// - Schema 2: exatamente nove chaves (oito + nutritionLedger obrigatório).
+// Vale tanto para o objeto vindo de `JSON.parse` quanto para um objeto de
 // memória — e por isso a checagem é feita com `Reflect.ownKeys` e descritores,
-// não com `in` nem com `Object.keys`: símbolo, propriedade não enumerável e
-// getter são invisíveis para os dois últimos, e um getter ainda por cima
-// executaria código do payload durante a validação.
+// não com `in` nem com `Object.keys`.
 export function validateLogicalBackupEnvelopeContract(value: unknown): LogicalBackupContractResult {
   if (!isPlainObject(value)) {
     const objectLike = value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -475,21 +507,23 @@ export function validateLogicalBackupEnvelopeContract(value: unknown): LogicalBa
   }
 
   const ownKeys = Reflect.ownKeys(value);
+  const hasLedger = ownKeys.includes(NUTRITION_LEDGER_ENVELOPE_FIELD);
+  const allowed = hasLedger ? ENVELOPE_FIELD_SET_V2 : ENVELOPE_FIELD_SET;
   for (const key of ownKeys) {
     if (typeof key === 'symbol') return { status: 'invalid', violation: 'symbol-key', field: null };
     if (DANGEROUS_KEYS.includes(key)) {
       return { status: 'invalid', violation: 'dangerous-key', field: null };
     }
-    if (!ENVELOPE_FIELD_SET.has(key)) {
+    if (!allowed.has(key as string)) {
       return { status: 'invalid', violation: 'unknown-field', field: null };
     }
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (descriptor === undefined) return { status: 'invalid', violation: 'unknown-field', field: null };
     if (typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
-      return { status: 'invalid', violation: 'accessor-field', field: key };
+      return { status: 'invalid', violation: 'accessor-field', field: key as string };
     }
     if (!descriptor.enumerable) {
-      return { status: 'invalid', violation: 'non-enumerable-field', field: key };
+      return { status: 'invalid', violation: 'non-enumerable-field', field: key as string };
     }
   }
 
@@ -498,7 +532,9 @@ export function validateLogicalBackupEnvelopeContract(value: unknown): LogicalBa
       return { status: 'invalid', violation: 'missing-field', field };
     }
   }
-
+  // Nove chaves sem ser o ledger canônico já caiu em unknown-field acima.
+  // Aqui só falta o caso schema 2 sem section — que a inspeção versionada
+  // recusa como invalid-payload (contrato canônico do GOAL-100).
   return { status: 'valid' };
 }
 
@@ -886,6 +922,13 @@ export function logicalPayloadDigestMaterial(canonicalPayload: string): string {
   return `${LOGICAL_BACKUP_DIGEST_DOMAIN}${canonicalPayload}`;
 }
 
+// GOAL-100: material do digest schema 2 — payload + section ledger (a section
+// FAZ PARTE do payloadDigest; sem ela o digest legado não detectaria troca do
+// ledger). Separador '\n' nunca ocorre cru no JSON canônico (stringify escapa).
+export function logicalBackupDigestMaterialV2(canonicalPayload: string, canonicalLedger: string): string {
+  return `${LOGICAL_BACKUP_DIGEST_DOMAIN}${canonicalPayload}\n${canonicalLedger}`;
+}
+
 // Digest do payload LÓGICO, com domínio explícito. Reutiliza `sha256Checksum`
 // — não existe uma segunda implementação de SHA-256 no projeto e não é aqui que
 // vai nascer. Sem Web Crypto ele lança `HistoryDigestCryptoUnavailableError`, e
@@ -896,6 +939,22 @@ export async function computeLogicalPayloadDigest(
 ): Promise<string> {
   return sha256Checksum(
     logicalPayloadDigestMaterial(serializeLogicalPayloadCanonically(payload)),
+    subtleCrypto,
+  );
+}
+
+// GOAL-100: digest schema 2 (payload + ledger). Reutiliza o mesmo sha256.
+export async function computeLogicalBackupDigestV2(
+  payload: PersistedState,
+  ledger: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection,
+  subtleCrypto?: SubtleCrypto | null,
+): Promise<string> {
+  const { serializeNutritionLedgerCanonically } = await import('./storage-nutrition-ledger-backup');
+  return sha256Checksum(
+    logicalBackupDigestMaterialV2(
+      serializeLogicalPayloadCanonically(payload),
+      serializeNutritionLedgerCanonically(ledger),
+    ),
     subtleCrypto,
   );
 }
@@ -1051,8 +1110,16 @@ function readSnapshotGeneration(snapshot: StorageAdministrationSnapshot): Verifi
 // intermediária × B → só então o payload.
 //
 // Read-only por construção: `LogicalBackupRuntime` não expõe nenhuma escrita.
+//
+// GOAL-100: captura ledger-aware. `readNutritionLedger` é o snapshot readonly
+// consistente do adapter (`snapshotNutritionLedger`); o chamador (Provider)
+// retém Web Lock EXCLUSIVE + fence durante toda a captura. O ledger é lido
+// duas vezes (antes e depois do core/history) e qualquer divergência falha
+// fechado com snapshot-changed-during-export. Sem retry (nunca ilimitado);
+// sem retry-until-green.
 export async function captureLogicalBackupSnapshot(
   runtime: LogicalBackupRuntime,
+  readNutritionLedger?: () => Promise<import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection>,
 ): Promise<LogicalBackupSnapshotResult> {
   const first = await runtime.inspectStorageAdministration();
   if (first.state.status === 'unavailable') {
@@ -1109,6 +1176,27 @@ export async function captureLogicalBackupSnapshot(
   const firstGeneration = readSnapshotGeneration(first);
   if (firstGeneration.status !== 'ok') {
     return snapshotFailure('invalid-core', firstGeneration.detail);
+  }
+
+  // GOAL-100: primeira leitura estabilizada do ledger (antes da leitura
+  // verificada do histórico). Falha de leitura/validação => fail-closed.
+  let firstLedger: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection | null = null;
+  if (readNutritionLedger) {
+    try {
+      const raw = await readNutritionLedger();
+      const { validateNutritionLedgerBackupSection } = await import('./storage-nutrition-ledger-backup');
+      const checked = validateNutritionLedgerBackupSection(raw);
+      if (checked.status !== 'valid') {
+        return snapshotFailure('invalid-logical-state', checked.detail);
+      }
+      firstLedger = checked.section;
+    } catch (error) {
+      return snapshotFailure(
+        'administration-conflicted',
+        'A leitura do ledger nutricional falhou durante a exportação.',
+        error,
+      );
+    }
   }
 
   let verified: VerifiedHistoryGeneration;
@@ -1195,6 +1283,51 @@ export async function captureLogicalBackupSnapshot(
     }
   }
 
+  // GOAL-100: segunda leitura estabilizada do ledger + revalidação cruzada.
+  // Core/history/ledger não podem ter mudado entre as leituras necessárias.
+  let nutritionLedger: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection;
+  if (readNutritionLedger) {
+    try {
+      const raw = await readNutritionLedger();
+      const {
+        validateNutritionLedgerBackupSection,
+        serializeNutritionLedgerCanonically,
+      } = await import('./storage-nutrition-ledger-backup');
+      const checked = validateNutritionLedgerBackupSection(raw);
+      if (checked.status !== 'valid') {
+        return snapshotFailure('invalid-logical-state', checked.detail);
+      }
+      nutritionLedger = checked.section;
+      if (firstLedger) {
+        const firstCanonical = serializeNutritionLedgerCanonically(firstLedger);
+        const secondCanonical = serializeNutritionLedgerCanonically(nutritionLedger);
+        if (firstCanonical !== secondCanonical) {
+          return snapshotFailure(
+            'snapshot-changed-during-export',
+            'O armazenamento mudou durante a exportação: o ledger nutricional mudou.',
+          );
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error && /ledger nutricional mudou/.test(error.message)
+        ? error.message
+        : 'A leitura do ledger nutricional falhou durante a exportação.';
+      const reason = /ledger nutricional mudou/.test(message)
+        ? 'snapshot-changed-during-export' as const
+        : 'administration-conflicted' as const;
+      // Se o erro já é o snapshotFailure acima (string comparada), ele teria
+      // retornado; aqui é falha de leitura. Revalidar divergência via exceção
+      // não ocorre — comparação é por string canônica acima.
+      if (reason === 'snapshot-changed-during-export') {
+        return snapshotFailure(reason, message);
+      }
+      return snapshotFailure(reason, message, error);
+    }
+  } else {
+    const { createEmptyNutritionLedgerSection } = await import('./storage-nutrition-ledger-backup');
+    nutritionLedger = createEmptyNutritionLedgerSection();
+  }
+
   // Core lógico: `historyStorage` sai, `workoutHistory` verificado entra.
   const state = combineCoreWithHistory(parsed.envelope.data, [...verified.sessions]);
   const validation = validateLogicalBackupPayload(state);
@@ -1207,7 +1340,7 @@ export async function captureLogicalBackupSnapshot(
 
   return {
     status: 'ok',
-    snapshot: { state: validation.payload, sourceSavedAt: parsed.envelope.savedAt },
+    snapshot: { state: validation.payload, sourceSavedAt: parsed.envelope.savedAt, nutritionLedger },
   };
 }
 
@@ -1217,6 +1350,9 @@ export interface CreateLogicalStorageExportV2Input {
   // Injeção permitida apenas para teste: em produção `sha256Checksum` já usa o
   // Web Crypto global. `null` força o caminho `crypto-unavailable`.
   subtleCrypto?: SubtleCrypto | null;
+  // GOAL-100: snapshot ledger-aware. Ausente (testes legados), exporta section
+  // vazia explícita (schema 2 sempre representa days:[]).
+  readNutritionLedger?: () => Promise<import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection>;
 }
 
 // Exportação LÓGICA v2, read-only de ponta a ponta.
@@ -1247,7 +1383,7 @@ export async function createLogicalStorageExportV2(
     };
   }
 
-  const captured = await captureLogicalBackupSnapshot(input.runtime);
+  const captured = await captureLogicalBackupSnapshot(input.runtime, input.readNutritionLedger);
   if (captured.status !== 'ok') {
     return { ok: false, reason: captured.reason, error: captured.error, cause: captured.cause };
   }
@@ -1260,6 +1396,7 @@ export async function createLogicalStorageExportV2(
   }
 
   let canonicalPayload: string;
+  let canonicalLedger: string;
   try {
     canonicalPayload = serializeLogicalPayloadCanonically(captured.snapshot.state);
   } catch (error) {
@@ -1273,11 +1410,21 @@ export async function createLogicalStorageExportV2(
         : 'Não foi possível serializar o payload lógico.',
     };
   }
+  try {
+    const { serializeNutritionLedgerCanonically } = await import('./storage-nutrition-ledger-backup');
+    canonicalLedger = serializeNutritionLedgerCanonically(captured.snapshot.nutritionLedger);
+  } catch {
+    return {
+      ok: false,
+      reason: 'serialization',
+      error: 'Não foi possível serializar a section nutricional.',
+    };
+  }
 
   let payloadDigest: string;
   try {
     payloadDigest = await sha256Checksum(
-      logicalPayloadDigestMaterial(canonicalPayload),
+      logicalBackupDigestMaterialV2(canonicalPayload, canonicalLedger),
       input.subtleCrypto,
     );
   } catch (error) {
@@ -1309,6 +1456,7 @@ export async function createLogicalStorageExportV2(
     // assinado garante que `payloadDigest` descreve exatamente o que está
     // publicado, e não uma variante com outra ordem de chaves.
     payload: JSON.parse(canonicalPayload) as PersistedState,
+    nutritionLedger: JSON.parse(canonicalLedger) as import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection,
   };
 
   // Compacto de propósito: sem `null, 2`. O histórico completo já é grande o
@@ -1412,7 +1560,11 @@ export async function inspectLogicalStorageBackupV2(
   if (envelope.formatVersion !== LOGICAL_BACKUP_FORMAT_VERSION) {
     return inspectionFailure('unsupported-version', 'Versão de formato de backup não suportada.');
   }
-  if (envelope.logicalSchemaVersion !== LOGICAL_BACKUP_SCHEMA_VERSION) {
+  // GOAL-100: schema 1 legado legível; schema 2 corrente; demais => unsupported-schema.
+  const schemaVersion = envelope.logicalSchemaVersion;
+  const isLegacySchema = schemaVersion === LOGICAL_BACKUP_LEGACY_SCHEMA_VERSION;
+  const isCurrentSchema = schemaVersion === LOGICAL_BACKUP_SCHEMA_VERSION;
+  if (!isLegacySchema && !isCurrentSchema) {
     return inspectionFailure('unsupported-schema', 'Versão de esquema lógico não suportada.');
   }
   if (!isCanonicalIsoInstant(envelope.exportedAt) || !isCanonicalIsoInstant(envelope.sourceSavedAt)) {
@@ -1435,12 +1587,43 @@ export async function inspectLogicalStorageBackupV2(
     return inspectionFailure('invalid-format', 'O digest declarado não está no formato sha256:<hex>.');
   }
 
+  // GOAL-100: schema 2 exige section canônica (sempre presente, inclusive vazia).
+  // Schema 2 sem nutritionLedger / corrompida => invalid-payload (fail-closed).
+  // Schema 1 nunca carrega a section (fluxo legado).
+  let ledgerSection: import('./storage-nutrition-ledger-backup').NutritionLedgerBackupSection | null = null;
+  if (isCurrentSchema) {
+    if (!Object.prototype.hasOwnProperty.call(envelope, NUTRITION_LEDGER_ENVELOPE_FIELD)) {
+      return inspectionFailure('invalid-payload', 'O backup schema 2 não declara a section nutritionLedger.');
+    }
+    const { validateNutritionLedgerBackupSection } = await import('./storage-nutrition-ledger-backup');
+    const ledgerValidation = validateNutritionLedgerBackupSection(envelope.nutritionLedger);
+    if (ledgerValidation.status !== 'valid') {
+      return inspectionFailure('invalid-payload', ledgerValidation.detail);
+    }
+    ledgerSection = ledgerValidation.section;
+  } else {
+    if (Object.prototype.hasOwnProperty.call(envelope, NUTRITION_LEDGER_ENVELOPE_FIELD)) {
+      return inspectionFailure('invalid-payload', 'O backup schema 1 não pode carregar section nutricional.');
+    }
+  }
+
   let recomputed: string;
   try {
-    recomputed = await sha256Checksum(
-      logicalPayloadDigestMaterial(serializeLogicalPayloadCanonically(validation.payload)),
-      subtleCrypto,
-    );
+    if (isCurrentSchema && ledgerSection) {
+      const { serializeNutritionLedgerCanonically } = await import('./storage-nutrition-ledger-backup');
+      recomputed = await sha256Checksum(
+        logicalBackupDigestMaterialV2(
+          serializeLogicalPayloadCanonically(validation.payload),
+          serializeNutritionLedgerCanonically(ledgerSection),
+        ),
+        subtleCrypto,
+      );
+    } else {
+      recomputed = await sha256Checksum(
+        logicalPayloadDigestMaterial(serializeLogicalPayloadCanonically(validation.payload)),
+        subtleCrypto,
+      );
+    }
   } catch (error) {
     if (error instanceof LogicalBackupSerializationError) {
       return inspectionFailure('invalid-payload', 'O payload do arquivo não é serializável.');
@@ -1456,16 +1639,29 @@ export async function inspectLogicalStorageBackupV2(
     return inspectionFailure('digest-mismatch', 'O digest do payload não confere com o conteúdo do arquivo.');
   }
 
-  const backup: GymFlowLogicalBackupV2 = {
+  if (isCurrentSchema && ledgerSection) {
+    const backup: GymFlowLogicalBackupV2 = {
+      format: 'gymflow-backup',
+      formatVersion: LOGICAL_BACKUP_FORMAT_VERSION,
+      logicalSchemaVersion: LOGICAL_BACKUP_SCHEMA_VERSION,
+      exportedAt: envelope.exportedAt as string,
+      sourcePhysicalStorageVersion: LOGICAL_BACKUP_SOURCE_PHYSICAL_STORAGE_VERSION,
+      sourceSavedAt: envelope.sourceSavedAt as string,
+      payloadDigest: declaredDigest,
+      payload: validation.payload,
+      nutritionLedger: ledgerSection,
+    };
+    return { ok: true, backup, preview: buildPreview(backup, bytes) };
+  }
+  const legacy: GymFlowLogicalBackupV1Legacy = {
     format: 'gymflow-backup',
     formatVersion: LOGICAL_BACKUP_FORMAT_VERSION,
-    logicalSchemaVersion: LOGICAL_BACKUP_SCHEMA_VERSION,
-    exportedAt: envelope.exportedAt,
+    logicalSchemaVersion: LOGICAL_BACKUP_LEGACY_SCHEMA_VERSION,
+    exportedAt: envelope.exportedAt as string,
     sourcePhysicalStorageVersion: LOGICAL_BACKUP_SOURCE_PHYSICAL_STORAGE_VERSION,
-    sourceSavedAt: envelope.sourceSavedAt,
+    sourceSavedAt: envelope.sourceSavedAt as string,
     payloadDigest: declaredDigest,
     payload: validation.payload,
   };
-
-  return { ok: true, backup, preview: buildPreview(backup, bytes) };
+  return { ok: true, backup: legacy, preview: buildPreview(legacy as unknown as GymFlowLogicalBackupV2, bytes) };
 }

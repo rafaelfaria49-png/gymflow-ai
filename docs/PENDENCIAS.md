@@ -1205,15 +1205,14 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
 
 ## GOAL-085 — diferidos do NUT-004B (revisão 084; NUT-004C não implementado)
 
-- **NUT004C_LEDGER_ADMIN_DEFERRED.** *Ativo (gate temporário) · P1 diferido.* Backup,
-  import, restore e reset lógicos seguem sem `nutritionDays` + `nutritionMetadata`; o
-  Provider bloqueia as seis operações com `nutrition-ledger-admin-deferred` quando há
-  consumo real (`src/lib/nutrition/admin-gate.ts`). Remover o gate SOMENTE quando o
-  NUT-004C integrar o ledger ao snapshot completo (formato + restore + reset + provas).
-- **ADMIN_GATE_EMPTY_LEDGER_PASS_THROUGH.** *Documentado · P2.* Ledger sem nenhuma
-  FoodEntry/HydrationEntry (só dia vazio + marker) não dispara o gate: nada do usuário
-  seria omitido ou ressuscitado. Reavaliar no NUT-004C se dia vazio com targets
-  AUTOMATED passar a carregar dado não-regenerável.
+- **NUT004C_LEDGER_ADMIN_DEFERRED.** *Resolvido no GOAL-100 (2026-09-15).*
+  Backup schema 2 com section `nutritionLedger` obrigatória; import/restore/reset
+  ledger-aware com journal (pending/staged/applied/verified), verificação cruzada
+  core↔ledger e recovery no boot; gate `nutrition-ledger-admin-deferred` removido do
+  Provider (seis sondas); locks Web Lock EXCLUSIVE + fence durável permanecem.
+- **ADMIN_GATE_EMPTY_LEDGER_PASS_THROUGH.** *Eliminado no GOAL-100 (2026-09-15).*
+  Schema 2 representa explicitamente `days:[]` (vazio não é mais pass-through
+  implícito); section sempre presente, digest cobre o ledger.
 - **DIAS_083_SEM_GATE_REJEITADOS.** *Documentado · P3.* Dias persistidos pelo bridge 083
   (com `targetState`, sem `gateSnapshot`) viram ilegíveis fail-closed após este GOAL
   (`isNutritionDay` rejeita, IDB lança `NutritionDayIntegrityError`). Aceito porque o

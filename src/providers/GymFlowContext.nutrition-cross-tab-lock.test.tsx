@@ -234,7 +234,7 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
     else Reflect.deleteProperty(globalThis, 'indexedDB');
   });
 
-  it('WRITER_BEFORE_ADMIN = OBSERVED_BY_PROBE: write commita primeiro, export defere', async () => {
+  it('WRITER_BEFORE_ADMIN = OBSERVED_BY_SNAPSHOT (GOAL-100): write commita primeiro, export inclui', async () => {
     seedEmptyLedger();
     const app = await mountAndGet();
     // GOAL-091: mount já garante ready+hybrid-v2.
@@ -244,14 +244,17 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
     try {
       let exportResult: Awaited<ReturnType<GymFlowValue['exportLogicalBackupV2']>> | null = null;
       await act(async () => {
-        // Writer SHARED primeiro; export EXCLUSIVE enfileira atrás e a sonda
-        // sob o fence vê o consumo commitado.
+        // Writer SHARED primeiro; export EXCLUSIVE enfileira atrás e o snapshot
+        // estabilizado inclui o consumo commitado (schema 2, sem omissão).
         const writePromise = writer.putNutritionDay(makeConsumptionDay('2026-09-12'));
         const exportPromise = app.get().exportLogicalBackupV2();
         const [, exp] = await Promise.all([writePromise, exportPromise]);
         exportResult = exp;
       });
-      expect(exportResult).toEqual({ ok: false, reason: 'nutrition-ledger-admin-deferred' });
+      expect(exportResult).toMatchObject({ ok: true });
+      const exportContent = (exportResult as unknown as { ok: boolean; content?: string }).content as string;
+      expect(exportContent).toContain('2026-09-12');
+      expect(exportContent).toContain('nutritionLedger');
       expect(reloadSpy).not.toHaveBeenCalled();
     } finally {
       await writer.close();
@@ -494,8 +497,8 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
     }
 
     // Consumo commita (stale removido na transação do writer) e o export do
-    // Provider — mesmo com o fence expirado no caminho — defere em vez de
-    // omitir.
+    // Provider — mesmo com o fence expirado no caminho — inclui o consumo
+    // (schema 2) em vez de omitir (GOAL-100: sem gate, sem omissão).
     const writer = new IndexedDbWorkoutHistoryStorage();
     await writer.open();
     try {
@@ -508,8 +511,8 @@ describe('GOAL-089 — Provider sob Web Locks (cross-tab)', () => {
     await act(async () => {
       result = await app.get().exportLogicalBackupV2();
     });
-    expect(result).toEqual({ ok: false, reason: 'nutrition-ledger-admin-deferred' });
-    expect(storage.getItem(STORAGE_KEY)).toBe(coreBefore);
+    expect(result).toMatchObject({ ok: true });
+    expect((result as unknown as { content: string }).content).toContain('2026-09-12');
     expect(reloadSpy).not.toHaveBeenCalled();
   });
 

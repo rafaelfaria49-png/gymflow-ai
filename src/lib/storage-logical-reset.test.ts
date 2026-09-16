@@ -1089,6 +1089,8 @@ describe('dispatcher, boot e isolamento estrutural', () => {
       'src/lib/storage-boot-recovery.test.ts',
       'src/lib/storage-logical-reset.test.ts',
       'src/lib/storage-logical-reset.ts',
+      // GOAL-100: prova ledger-aware do reset seletivo.
+      'src/lib/storage-nutrition-ledger-admin.test.ts',
       'src/lib/storage-retirement-journal.test.ts',
       'src/lib/storage-retirement-readiness.test.ts',
       'src/providers/GymFlowContext.logical-reset.test.tsx',
