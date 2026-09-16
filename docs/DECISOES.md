@@ -2108,3 +2108,11 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 ## GOAL-106-MERGE - GYMFLOW-NUT005-FINAL-MERGE-106 fechamento docs-only sobre master
 
 - D106M-001: fechamento persistido como commit docs-only direto sobre master (GOALS_LOG + 1 linha DECISOES), sem PR novo e sem tocar na branch de feature ja mergeada; arvore de codigo inalterada, entao build/typecheck herdados da CI do merge; PR #47 CLEAN/MERGEABLE com 2 checks SUCCESS; merge commit `ccae3dc` (metodo merge); NUT004_STATUS=INTEGRATED, NUT005_STATUS=INTEGRATED, READY_FOR_NUT006=YES.
+
+## GOAL-108 - GYMFLOW-NUT007-CONTROLLED-AI-NUTRITION-ENDTOEND-108 (2026-09-16)
+
+- D108-001: sem infraestrutura de IA no projeto/deploy (auditoria: zero ocorrencias de GYMFLOW_AI_/OPENAI em src; training-assistant e 100% offline deterministico) -> adapter server-side OpenAI-compatible via fetch, sem SDK; segredos so server-only (GYMFLOW_AI_ENABLED/BASE_URL/API_KEY/MODEL), nenhum NEXT_PUBLIC_* com segredo.
+- D108-002: grounding com politicas por caso - substitute_food rejeita a proposta inteira em ID inexistente (reject-all, equivalencia 1:1); demais casos descartam so o item (reject-item) e exigem >=1 sobrevivente, senao EMPTY_PROPOSAL; duplicatas mesclam deterministicamente (soma, nota da 1a ocorrencia); gramagem fora de [1,1000]g nunca sofre clamp silencioso.
+- D108-003: casos 1 e 4 (completar proteina, lanches) filtram pelo saldo calorico restante com numeros locais recalculados; se nada couber, EMPTY honesto em vez de estourar o saldo; substituicao exibe delta local (proposta - substituido), nunca delta do modelo.
+- D108-004: mobile Capacitor usa somente origem publica NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL (sem chave); rota POST-only sem 'export const dynamic' para nao quebrar o 'output: export' (POST nao e pre-renderizado; web segue dinamica via request); client resolve same-origin na web e remote/unavailable no nativo.
+- D108-005: 'nutritionProfile' exposto no GymFlowContext como leitura (dietaryPattern/goal para o contexto minimo); sem escrita, sem identidade; NUT-006 intacto (SuggestionsSection ganha so o botao de abertura do modal).

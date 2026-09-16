@@ -1218,3 +1218,9 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   (`isNutritionDay` rejeita, IDB lança `NutritionDayIntegrityError`). Aceito porque o
   083 não foi mergeado (nenhum usuário real tem esses dias); não há reparo/backfill —
   fabricar gate histórico violaria a honestidade de proveniência.
+
+## GOAL-108 - NUT-007 assistente IA controlada (2026-09-16)
+
+- **AI_RUNTIME_PROVIDER = UNCONFIGURED.** *Blocker operacional legitimo (nao P0 de codigo).* Nenhuma credencial GYMFLOW_AI_* disponivel no ambiente (so VERCEL_OIDC_TOKEN no .env.local); nenhuma credencial foi inventada. A implementacao esta pronta, testavel e segura; READY_FOR_NUT008=NO ate um smoke real com provedor configurado (registrar modelo/provedor sem expor segredo). Nao criar integracao insegura nem fingir runtime validado.
+- **Filtro dietetico da allowlist e por nome/ranking, sem tags no catalogo.** *Aberto - P3.* O V1 do CANONICAL_BR nao tem tags dieteticas (vegan/vegetariano), entao dietaryPattern vai ao modelo como restricao textual e o grounding garante validade de catalogo, mas nao impede semanticamente ex. carne para vegano. *Proximo passo:* tags dieteticas no catalogo (V1.5) + filtro deterministico em selectCandidateReferences.
+- **Facts do explain_target_change produzidos no client.** *Aceito (documentado).* O gateway ecoa de volta exatamente os facts recebidos (validados como finitos) sem parsear numeros do texto do modelo; o modelo ameacador aqui e alucinacao, nao client malicioso (app do proprio usuario). Se um backend proprio futuro quiser prova, assinar os facts no servidor.

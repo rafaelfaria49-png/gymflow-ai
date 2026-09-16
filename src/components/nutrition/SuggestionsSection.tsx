@@ -8,6 +8,7 @@ import { calculateActuals } from '../../lib/nutrition/ledger';
 import { buildNutritionSuggestions } from '../../lib/nutrition/suggestions';
 import type { MealType } from '../../lib/nutrition/ledger-types';
 import { EmptyState, NUTRITION_MEAL_OPTIONS, SectionCard } from './shared';
+import { AiMealAssistantModal } from './AiMealAssistantModal';
 
 export const SuggestionsSection = () => {
   const { nutritionDay, nutritionLoading, logFoodReference } = useGymFlow();
@@ -15,6 +16,9 @@ export const SuggestionsSection = () => {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [confirmMeal, setConfirmMeal] = useState<MealType>('lunch');
   const [savingId, setSavingId] = useState<string | null>(null);
+  // NUT-007: assistente IA em modal separado — as sugestões determinísticas
+  // offline abaixo continuam intactas e honestamente separadas da IA.
+  const [aiOpen, setAiOpen] = useState(false);
 
   const suggestions = useMemo(() => {
     if (!nutritionDay) return [];
@@ -72,6 +76,14 @@ export const SuggestionsSection = () => {
 
   return (
     <div className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setAiOpen(true)}
+        className="min-h-[44px] w-full bg-gym-accent/10 hover:bg-gym-accent/20 border border-gym-accent/30 text-gym-accent font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all active:scale-[0.99]"
+      >
+        Assistente IA · propostas do catálogo
+      </button>
+      <AiMealAssistantModal open={aiOpen} onClose={() => setAiOpen(false)} />
       <SectionCard
         title="Sugestões do catálogo"
         subtitle="Somente alimentos verificados com cálculo determinístico. Sem rótulo de IA, sem prescrição — qualquer inclusão no diário exige confirmação explícita."

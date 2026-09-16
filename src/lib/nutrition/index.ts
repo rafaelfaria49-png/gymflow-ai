@@ -22,3 +22,10 @@ export * from './food-database';
 export * from './food-preferences';
 export * from './suggestions';
 export * from './trend';
+export * from './ai-assistant-types';
+export * from './ai-assistant';
+// NUT-007: `ai-assistant-client` ('use client') é importado direto pelos
+// componentes; `ai-assistant-provider` e `ai-assistant-gateway` são
+// SERVER-ONLY (chave GYMFLOW_AI_API_KEY) — importados apenas pela Route
+// Handler `src/app/api/nutrition/assistant/route.ts`. Nenhum dos três entra
+// neste barrel.
