@@ -2120,3 +2120,7 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 ## GOAL-108-MERGE - GYMFLOW-NUT007-FINAL-MERGE-108 fechamento docs-only sobre master
 
 - D108M-001: fechamento persistido como commit docs-only direto sobre master (GOALS_LOG + 1 linha DECISOES), sem PR novo e sem tocar na branch de feature ja mergeada; arvore de codigo inalterada, entao build/typecheck herdados da CI do merge; PR #49 CLEAN/MERGEABLE com 2 checks SUCCESS; merge commit c3d1af0 (metodo merge); NUT007_STATUS=INTEGRATED (AI_RUNTIME_PROVIDER=UNCONFIGURED, READY_FOR_NUT008=NO).
+
+## GOAL-109 - GYMFLOW-NUT007-AI-RUNTIME-ACTIVATION-ENDTOEND-109 tentativa de ativacao (2026-09-16)
+
+- D109-001: sem credencial utilizavel em nenhuma fonte segura auditada (Vercel/env-local/shell/secrets), o GOAL para no §2/§4 sem inventar chave, sem configurar nada, sem deploy e sem smoke real; fechamento docs-only direto sobre master (GOALS_LOG + PENDENCIAS + 1 linha DECISOES), sem PR/branch; testes focados NUT-007 53/53 + secret scan (SECRET_EXPOSURE=NO) como evidencia de integridade preservada; NUT007_RUNTIME_STATUS=BLOCKED_EXTERNAL_CREDENTIAL, READY_FOR_NUT008=NO; NUT-008 e OFF/barcode nao iniciados.
