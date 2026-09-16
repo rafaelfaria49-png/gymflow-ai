@@ -2116,3 +2116,7 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - D108-003: casos 1 e 4 (completar proteina, lanches) filtram pelo saldo calorico restante com numeros locais recalculados; se nada couber, EMPTY honesto em vez de estourar o saldo; substituicao exibe delta local (proposta - substituido), nunca delta do modelo.
 - D108-004: mobile Capacitor usa somente origem publica NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL (sem chave); rota POST-only sem 'export const dynamic' para nao quebrar o 'output: export' (POST nao e pre-renderizado; web segue dinamica via request); client resolve same-origin na web e remote/unavailable no nativo.
 - D108-005: 'nutritionProfile' exposto no GymFlowContext como leitura (dietaryPattern/goal para o contexto minimo); sem escrita, sem identidade; NUT-006 intacto (SuggestionsSection ganha so o botao de abertura do modal).
+
+## GOAL-108-MERGE - GYMFLOW-NUT007-FINAL-MERGE-108 fechamento docs-only sobre master
+
+- D108M-001: fechamento persistido como commit docs-only direto sobre master (GOALS_LOG + 1 linha DECISOES), sem PR novo e sem tocar na branch de feature ja mergeada; arvore de codigo inalterada, entao build/typecheck herdados da CI do merge; PR #49 CLEAN/MERGEABLE com 2 checks SUCCESS; merge commit c3d1af0 (metodo merge); NUT007_STATUS=INTEGRATED (AI_RUNTIME_PROVIDER=UNCONFIGURED, READY_FOR_NUT008=NO).
