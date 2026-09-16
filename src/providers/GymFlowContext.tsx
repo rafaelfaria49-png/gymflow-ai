@@ -614,6 +614,9 @@ interface GymFlowContextType {
   nutritionActiveDate: string | null;
   nutritionTimezone: string | null;
   nutritionTargetState: 'AUTOMATED' | 'MANUAL_ONLY' | null;
+  // NUT-007: perfil nutricional somente-leitura para o contexto mínimo do
+  // assistente IA (dietaryPattern/goal). Sem escrita, sem identidade.
+  nutritionProfile: import('../types/nutrition').NutritionProfile | null;
   nutritionLoading: boolean;
   nutritionError: string | null;
   nutritionFavorites: string[];
@@ -5443,6 +5446,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
         nutritionActiveDate,
         nutritionTimezone,
         nutritionTargetState,
+        // NUT-007: somente leitura (contexto mínimo do assistente IA).
+        nutritionProfile,
         nutritionLoading,
         nutritionError,
         nutritionFavorites,
