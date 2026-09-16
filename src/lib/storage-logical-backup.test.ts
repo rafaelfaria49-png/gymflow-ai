@@ -1701,6 +1701,8 @@ describe('backup lógico v2 — regressão do fluxo v1', () => {
       'src/lib/storage-logical-restore.test.ts',
       // GOAL-100: prova ledger-aware do backup schema 2 (importa o módulo v2).
       'src/lib/storage-nutrition-ledger-admin.test.ts',
+      // GOAL-102: prova fail-closed sem Web Lock (importa o módulo v2).
+      'src/lib/storage-nutrition-ledger-recovery-nolock.test.ts',
       'src/lib/storage-retirement-journal.test.ts',
       'src/lib/storage-retirement-readiness.test.ts',
       'src/providers/GymFlowContext.logical-import.real.test.tsx',

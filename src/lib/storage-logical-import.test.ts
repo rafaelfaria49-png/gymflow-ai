@@ -1476,6 +1476,8 @@ describe('importação lógica v2 — idempotência e invariantes', () => {
         'src/lib/storage-logical-restore.test.ts',
         // GOAL-100: prova ledger-aware (import + recovery via dispatcher).
         'src/lib/storage-nutrition-ledger-admin.test.ts',
+        // GOAL-102: prova fail-closed sem Web Lock (import + recovery via dispatcher).
+        'src/lib/storage-nutrition-ledger-recovery-nolock.test.ts',
         'src/lib/storage-retirement-journal.test.ts',
         'src/lib/storage-retirement-readiness.test.ts',
       ]);
@@ -5117,6 +5119,8 @@ describe('recuperação da importação v2 — ausência de call site', () => {
       'src/lib/storage-logical-restore.test.ts',
       // GOAL-100: prova ledger-aware.
       'src/lib/storage-nutrition-ledger-admin.test.ts',
+      // GOAL-102: prova fail-closed sem Web Lock.
+      'src/lib/storage-nutrition-ledger-recovery-nolock.test.ts',
       'src/lib/storage-retirement-journal.test.ts',
       'src/lib/storage-retirement-readiness.test.ts',
       'src/providers/GymFlowContext.logical-import.test.tsx',

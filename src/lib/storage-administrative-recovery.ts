@@ -1,6 +1,8 @@
 import type { AdministrableWorkoutHistoryStorageAdapter } from './storage-adapter';
 import type { StorageAdminRuntime } from './storage-admin-runtime';
 import type { StorageAdminOwnerTokenCoordinator } from './storage-admin-owner-token';
+import { isNutritionAdminLockUnavailableError } from './nutrition/admin-lock';
+import type { StorageOperationReceipt } from './storage-operation-receipt';
 import {
   type LogicalStorageImportRecoveryResult,
   recoverLogicalStorageImportV2,
@@ -62,7 +64,85 @@ type LedgerCapableAdapter = {
  * - no-operation/legado sem raws => nada a fazer;
  * - divergente => aplica o esperado (full replace, preserva fence) e revalida;
  * - falha => blocked (recoveryRequired, sem hidratação híbrida).
+ *
+ * GOAL-102 (NOLOCK fail-closed): a prova/convergência do ledger exige Web
+ * Lock EXCLUSIVE. Sem a primitiva `runNutritionAdminWithExclusiveLock`, ou
+ * quando ela lança `NutritionAdminLockUnavailableError`, o recovery retorna
+ * recovery-required com o journal preservado. Nunca converge direto, nunca
+ * declara convergência sem prova sob exclusão, e nunca usa o fence como
+ * substituto de exclusão cross-tab (o fence segue só defesa em profundidade).
  */
+function ledgerConvergenceBlocked(
+  coreResult: LogicalStorageAdministrativeRecoveryResult,
+): LogicalStorageAdministrativeRecoveryResult {
+  return {
+    ...coreResult,
+    ok: false as const,
+    reason: 'recovery-required' as never,
+    error: 'A convergência do ledger nutricional não pôde ser comprovada; o journal foi preservado.',
+    recoveryRequired: true as const,
+  };
+}
+
+/**
+ * GOAL-102 (NOLOCK fail-closed): gate pré-core do proof do ledger.
+ *
+ * Se o receipt selecionado carrega raws do ledger, o boot pode precisar
+ * provar/convergir o ledger — e isso exige Web Lock EXCLUSIVE ANTES de
+ * qualquer mutação do core. Retorna o resultado fail-closed quando a
+ * exclusão está indisponível (primitiva ausente ou sonda recusada), com o
+ * journal intacto em aberto para o próximo boot: nenhum settle/remove do
+ * journal, nenhum write no ledger, nenhuma declaração de convergência.
+ * Retorna null quando o lock existe (seguir) ou quando o receipt não pode
+ * exigir prova do ledger (legado sem raws).
+ */
+async function gateNutritionLedgerProofLock(
+  adapter: AdministrableWorkoutHistoryStorageAdapter,
+  receipt: StorageOperationReceipt,
+): Promise<LogicalStorageAdministrativeRecoveryResult | null> {
+  const targetRaw = receipt.targetNutritionLedgerRaw;
+  const previousRaw = receipt.previousNutritionLedgerRaw;
+  const mayRequireProof =
+    (typeof targetRaw === 'string' && targetRaw.length > 0)
+    || (typeof previousRaw === 'string' && previousRaw.length > 0);
+  if (!mayRequireProof) return null;
+  const candidate = (adapter as unknown as LedgerCapableAdapter).runNutritionAdminWithExclusiveLock;
+  // Primitiva ausente: fail-closed antes de qualquer mutação. A ausência da
+  // função nunca é lida como "single-tab seguro".
+  if (typeof candidate !== 'function') {
+    return {
+      ok: false as const,
+      reason: 'recovery-required' as never,
+      error: 'A convergência do ledger nutricional exige exclusão cross-tab indisponível; o journal foi preservado para o próximo boot.',
+      operationId: receipt.operationId,
+      generationId: receipt.stagedGenerationId ?? null,
+      steps: 0,
+      finalAction: 'observe' as never,
+      recoveryRequired: true as const,
+      cleanupPending: false as const,
+    };
+  }
+  // Sonda de disponibilidade: adquire+libera sem mutar nada. Se a exclusão
+  // cross-tab está indisponível, o core NÃO é tocado — o journal segue em
+  // aberto para o próximo boot. O fence isolado não substitui esta sonda.
+  try {
+    await candidate.bind(adapter)(async () => undefined);
+  } catch {
+    return {
+      ok: false as const,
+      reason: 'recovery-required' as never,
+      error: 'A convergência do ledger nutricional exige exclusão cross-tab indisponível; o journal foi preservado para o próximo boot.',
+      operationId: receipt.operationId,
+      generationId: receipt.stagedGenerationId ?? null,
+      steps: 0,
+      finalAction: 'observe' as never,
+      recoveryRequired: true as const,
+      cleanupPending: false as const,
+    };
+  }
+  return null;
+}
+
 async function convergeNutritionLedgerAfterCoreRecovery(
   input: RecoverLogicalStorageAdministrationV2Input,
   coreResult: LogicalStorageAdministrativeRecoveryResult,
@@ -166,49 +246,33 @@ async function convergeNutritionLedgerAfterCoreRecovery(
     }
   };
   try {
+    // GOAL-102: sem a primitiva EXCLUSIVE não há como provar convergência
+    // cross-tab. Fail-closed antes de qualquer snapshot+replace: nenhum
+    // write no ledger, nenhuma declaração de convergência, nenhuma
+    // liquidação do journal por causa do ledger. A ausência da função nunca
+    // é lida como "single-tab seguro".
+    if (typeof runExclusive !== 'function') {
+      return ledgerConvergenceBlocked(coreResult);
+    }
     let converged: boolean;
-    if (typeof runExclusive === 'function') {
-      try {
-        converged = await runExclusive(converge);
-      } catch (lockError) {
-        // Sem Web Locks (testes single-tab / ambientes sem cross-tab): converge
-        // direto. Em produção com locks, o exclusive serializa com writers.
-        try {
-          const { isNutritionAdminLockUnavailableError } = await import('./nutrition/admin-lock');
-          if (isNutritionAdminLockUnavailableError(lockError)) {
-            converged = await converge();
-          } else {
-            converged = false;
-          }
-        } catch {
-          try {
-            converged = await converge();
-          } catch {
-            converged = false;
-          }
-        }
+    try {
+      converged = await runExclusive(converge);
+    } catch (lockError) {
+      // GOAL-102: Web Lock indisponível => fail-closed. O fence isolado não
+      // substitui a exclusão cross-tab, então não há converge() direto aqui:
+      // o journal é preservado para o próximo boot e a hidratação híbrida
+      // segue bloqueada.
+      if (isNutritionAdminLockUnavailableError(lockError)) {
+        return ledgerConvergenceBlocked(coreResult);
       }
-    } else {
-      converged = await converge();
+      converged = false;
     }
     if (!converged) {
-      return {
-        ...coreResult,
-        ok: false as const,
-        reason: 'recovery-required' as never,
-        error: 'A convergência do ledger nutricional não pôde ser comprovada; o journal foi preservado.',
-        recoveryRequired: true as const,
-      };
+      return ledgerConvergenceBlocked(coreResult);
     }
     return coreResult;
   } catch {
-    return {
-      ...coreResult,
-      ok: false as const,
-      reason: 'recovery-required' as never,
-      error: 'A convergência do ledger nutricional não pôde ser comprovada; o journal foi preservado.',
-      recoveryRequired: true as const,
-    };
+    return ledgerConvergenceBlocked(coreResult);
   }
 }
 
@@ -255,6 +319,16 @@ export async function recoverLogicalStorageAdministrationV2(
   // sem restore continua com o mesmo contrato publico.
   // GOAL-100: o adapter real (IDB v5) implementa as primitivas ledger-aware;
   // o tipo base não as declara. Cast seguro em runtime (falha vira blocked).
+  // GOAL-102: gate pré-core — se o receipt selecionado pode exigir prova do
+  // ledger, a exclusão cross-tab precisa existir ANTES de qualquer mutação do
+  // core. Sem ela, fail-closed com o journal intacto para o próximo boot.
+  if (
+    receipt !== null
+    && (receipt.kind === 'import' || receipt.kind === 'restore' || receipt.kind === 'reset')
+  ) {
+    const gate = await gateNutritionLedgerProofLock(input.adapter, receipt);
+    if (gate !== null) return gate;
+  }
   let coreResult: LogicalStorageAdministrativeRecoveryResult;
   if (receipt === null || receipt.kind === 'import') {
     coreResult = await recoverLogicalStorageImportV2(input as never);
