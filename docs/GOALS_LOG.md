@@ -4646,4 +4646,4 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
 - **CI no HEAD aprovada:** Build & Simulator Validation (macOS 26) SUCCESS; Release Archive & Distribution Gate (macOS 26) SUCCESS; zero checks failing/pending.
 - **Merge:** merge commit 47e025cbc6a27e3c14e6f7ff5fe62bcda4763f4a (metodo merge, sem squash/rebase/admin/force); pais a4fbf15... + 7aab83e...; HEAD aprovado na ancestralidade da nova master; arvore do merge identica a validada pela CI.
 - **Status:** NUT008_STATUS=INTEGRATED; NUTRITION_V1_ENGINEERING_STATUS=COMPLETE; READY_FOR_EXTERNAL_REVIEW=YES; D_NUT_08_EXTERNAL_APPROVAL=PENDING; D_NUT_09_EXTERNAL_APPROVAL=PENDING; READY_FOR_PUBLIC_BETA=NO. Nao iniciados: V1.5, OFF/barcode, beta publico.
-- **Validacao:** docs-only (markdown); git diff --check OK.
+- **Validacao:** docs-only (markdown); git diff --check OK. CI pos-merge em master: nao disparada (workflows so pull_request/workflow_dispatch). CI do HEAD mergeado 7aab83e permanece SUCCESS 2/2.
