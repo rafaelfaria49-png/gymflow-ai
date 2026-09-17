@@ -1,6 +1,10 @@
 ﻿# Decisões
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
+## GOAL-112 — Handoff de revisão externa Nutrição V1 (2026-09-17)
+
+- **Pacote único em `docs/nutrition/external-review/`:** índice + checklists D-NUT-08/09 + formulários vazios; dossiês permanecem a fonte de detalhe; aprovação externa não é preenchida; código produtivo e parâmetros do motor não mudam; `READY_FOR_PUBLIC_BETA` permanece `NO`.
+
 ## NUT-003 — Corretivo de Simetria Hipercalórica (2026-09-11, revisão 065)
 
 - **Trava dura passa a ser simétrica:** a revisão 065 provou que `goalAdjustments` positivos e os pisos calóricos produziam metas arbitrárias (+10000 kcal/dia gerava 12.283 kcal e 2.847 g de carboidrato, com `isReconciled: true`). `ENGINE_HARD_SAFETY_LIMITS` ganhou `MAX_GOAL_SURPLUS_KCAL: 400` — o maior ajuste positivo **já canonizado** em `DEFAULT_CALCULATION_CONFIG` (`hypertrophy_aggressive`), sem inventar valor clínico novo — e `MAX_TRAINING_KCAL_PER_MINUTE: 6`, fechando a via alternativa de superávit pelo componente de treino do TDEE.
