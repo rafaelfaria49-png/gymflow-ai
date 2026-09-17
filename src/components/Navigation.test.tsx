@@ -59,6 +59,50 @@ function renderBottomNavigation(context: Record<string, unknown>) {
   return renderer!;
 }
 
+function collectText(node: unknown): string {
+  const parts: string[] = [];
+  const visit = (current: unknown) => {
+    if (typeof current === 'string') parts.push(current);
+    if (Array.isArray(current)) current.forEach(visit);
+    if (current && typeof current === 'object') visit((current as TestNode).children);
+  };
+  visit(node);
+  return parts.join(' ');
+}
+
+describe('BottomNavigation — D-NUT-06 slots globais inalterados (NUT-008)', () => {
+  beforeEach(() => {
+    mockSetActiveView.mockClear();
+  });
+
+  it('os 4 slots fixos permanecem Hoje / Planejar / Exercícios / Evolução; Nutrição só no menu Mais', () => {
+    const renderer = renderBottomNavigation(buildContext());
+    const text = collectText(renderer.toJSON());
+    expect(text).toContain('Hoje');
+    expect(text).toContain('Planejar');
+    expect(text).toContain('Exercícios');
+    expect(text).toContain('Evolução');
+    expect(text).toContain('Mais');
+    expect(text).not.toContain('Nutrição');
+  });
+
+  it('Nutrição aparece no bottom sheet Mais, sem promover a slot fixo', () => {
+    const renderer = renderBottomNavigation(buildContext());
+    const more = renderer.root.findAllByType('button').find((button) => {
+      const label = collectText(button.children as unknown);
+      return label.includes('Mais');
+    });
+    expect(more).toBeDefined();
+    act(() => {
+      more!.props.onClick();
+    });
+    const openText = collectText(renderer.toJSON());
+    expect(openText).toContain('Nutrição');
+    expect(openText).toContain('Hoje');
+    expect(openText).toContain('Planejar');
+  });
+});
+
 describe('BottomNavigation — FAB Treinar/Continuar (GOAL-049)', () => {
   beforeEach(() => {
     mockSetActiveView.mockClear();

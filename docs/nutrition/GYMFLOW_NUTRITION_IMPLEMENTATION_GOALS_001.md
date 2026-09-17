@@ -206,6 +206,7 @@ flowchart TD
   4. Emissão dos dossiês técnicos para os gates formais:
      - *Dossiê Científico para Revisão por Nutricionista (D-NUT-08);*
      - *Dossiê Regulatório/Legal para Revisão Jurídica de Termos e Responsabilidade (D-NUT-09).*
+* **Status de engenharia (GOAL-111 / NUT-008):** `INTEGRATED`. Dossiês D-NUT-08/09 emitidos. `READY_FOR_PUBLIC_BETA = NO` até chancela humana.
 * **Gate Seguinte:**
   - **Revisão Externa:** Liberação para Beta Público após chancela formal do nutricionista e do departamento jurídico.
 

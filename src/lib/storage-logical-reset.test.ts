@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { IDBFactory } from 'fake-indexeddb';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from './nutrition/admin-lock-fake';
 import type { WorkoutSession } from '../types';
 import { createStorageAdminRuntime } from './storage-admin-runtime';
 import { recoverLogicalStorageAdministrationV2 } from './storage-administrative-recovery';
@@ -247,6 +248,13 @@ async function assertWorldAPreserved(world: World): Promise<void> {
     expect(after).toContain(id);
   }
 }
+
+beforeEach(() => {
+  installFakeNutritionCrossTabLocks();
+});
+afterEach(() => {
+  restoreFakeNutritionCrossTabLocks();
+});
 
 describe('estado vazio canonico', () => {
   it('a factory nao duplica defaults no protocolo e hidrata hybrid-v2 saudavel', async () => {

@@ -2128,3 +2128,10 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 ## GOAL-110 - GYMFLOW-NUT007-OPENROUTER-RUNTIME-VALIDATION-ENDTOEND-110 homologacao runtime (2026-09-16)
 
 - D110-001: retomada a partir do estado persistido (HEAD/origin 3f1ed1f + projeto Vercel gymflow com 4 deploys Production READY e GYMFLOW_AI_* ja presentes); sem reconfigurar env, sem redeploy, smoke real OpenRouter via gateway de producao nos 5 casos + negativos fail-closed; SECRET_EXPOSURE=NO; sem mudanca de codigo/PR; fechamento docs-only direto sobre master; NUT007_RUNTIME_STATUS=VALIDATED, READY_FOR_NUT008=YES; NUT-008 e OFF/barcode nao iniciados.
+
+## GOAL-111 - GYMFLOW-NUT008-INTEGRATED-QA-BETA-READINESS-ENDTOEND-111 (2026-09-17)
+
+- D111-001: `facts.energyBalanceKcal` do caso `explain_target_change` passa a ser validado como numero finito assinado (deficit negativo / superavit positivo), alinhado ao `DailyTargets` do NutritionEngine; demais facts continuam >= 0. Correcao local NUT-007, sem nova regra clinica.
+- D111-002: harnesses de recovery ledger-aware (`storage-nutrition-ledger-admin.test.ts`, `storage-logical-reset.test.ts`, `storage-logical-restore.test.ts`) instalam Web Locks fake como os demais testes admin, para provas de dispatcher/boot nao dependerem de `navigator.locks` nativo (ausente no Node 22, presente no Node 24). Fail-closed sem lock permanece o contrato de produto.
+- D111-003: modal do assistente IA ganha `env(safe-area-inset-bottom)` no sheet mobile; overlay full-screen de fechar permanece sem min-h proprio por cobrir o viewport.
+- D111-004: D-NUT-08/09 encerram a engenharia V1 com dossies + matriz; aprovacao externa permanece PENDING e `READY_FOR_PUBLIC_BETA = NO` por governanca, nao por falha de codigo.

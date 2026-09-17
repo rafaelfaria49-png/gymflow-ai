@@ -4630,3 +4630,12 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
 - **Correcoes:** nenhum bug de codigo do NUT-007 revelado. CODE_CHANGE_REQUIRED=NO; sem branch/PR.
 - **Status:** NUT007_RUNTIME_STATUS=VALIDATED; NUT007_STATUS=INTEGRATED (inalterado); READY_FOR_NUT008=YES. Nao iniciados: NUT-008, OFF/barcode.
 - **Validacao:** docs-only (markdown); git diff --check OK.
+
+## GOAL-111 - GYMFLOW-NUT008-INTEGRATED-QA-BETA-READINESS-ENDTOEND-111 QA integrada (2026-09-17)
+
+- **Base:** origin/master a4fbf15d267c4fa9efcafe5756c8deb4d394c541 (confere com a base esperada); branch cursor/gymflow-nut008-integrated-qa-f19a.
+- **Antes:** NUT001..007 INTEGRATED; NUT007_RUNTIME_STATUS=VALIDATED; READY_FOR_NUT008=YES; sem suite ponta a ponta NUT-008, sem dossies D-NUT-08/09, sem matriz formal codigo+teste, sem harness de stress ~2 anos.
+- **Depois:** fluxo integrado perfil→ledger→IA→backup; matriz de dados; stress 30/180/730 dias; performance (busca 0.022ms <15ms); matriz D-NUT-01..10; dossies cientifico e juridico; smoke Production dos 5 casos via gateway GymFlow; correcao P1 de energyBalanceKcal assinado; harness admin com Web Locks fake no Node 22; safe-area do modal IA.
+- **Arquivos:** src/lib/nutrition/nut008-*.ts(+.test), src/lib/nutrition/ai-assistant.ts(+.test), src/lib/storage-nutrition-ledger-admin.test.ts, src/components/nutrition/AiMealAssistantModal.tsx, src/components/Navigation.test.tsx, scripts/nutrition/nut008-production-ai-smoke.mjs, docs/nutrition/GYMFLOW_NUTRITION_NUT008_*, D_NUT_01_10_MATRIX, SCIENTIFIC_DOSSIER_D_NUT_08, LEGAL_DOSSIER_D_NUT_09, DECISOES, PENDENCIAS, GOALS_LOG.
+- **Validacoes:** focados Nutrition 41 arquivos / 644 testes PASS; FULL_RUN_1 e FULL_RUN_2 = 157 arquivos / 3459 testes PASS cada (sem retry-until-green); npx tsc --noEmit 0 erros; npm run build OK; npm run build:mobile OK (out/api ausente); npm run ios:validate 17/17; git diff --check limpo; smoke Production 5 casos 200 + MANUAL_ONLY 409 + CLINICAL_GATE 403 via gateway GymFlow; busca FoodDatabase 0.022 ms (contrato <15 ms); stress 730 dias digest ~25 ms; secret scan .next/static + out/ = 0 chave / 0 openrouter.ai / 0 chat/completions. REAL_DEVICE_QA=NOT_AVAILABLE (sem adb).
+- **Status:** NUT008_STATUS=INTEGRATED; NUTRITION_V1_ENGINEERING_STATUS=COMPLETE; READY_FOR_EXTERNAL_REVIEW=YES; D_NUT_08_EXTERNAL_APPROVAL=PENDING; D_NUT_09_EXTERNAL_APPROVAL=PENDING; READY_FOR_PUBLIC_BETA=NO. PR #50. Nao iniciados: V1.5, OFF/barcode.

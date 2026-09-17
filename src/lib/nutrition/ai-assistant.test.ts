@@ -74,6 +74,18 @@ describe('NUT-007 tipos: 5 casos canônicos + validação estrita da requisiçã
     ).toBe('build_meal_from_ingredients');
     expect(validateGatewayRequest({ useCase: 'snacks_within_balance', context: validContext() }).useCase).toBe('snacks_within_balance');
     expect(validateGatewayRequest({ useCase: 'explain_target_change', facts: validFacts() }).useCase).toBe('explain_target_change');
+    expect(
+      validateGatewayRequest({
+        useCase: 'explain_target_change',
+        facts: { ...validFacts(), energyBalanceKcal: -500, goal: 'fat_loss_aggressive' },
+      }).useCase,
+    ).toBe('explain_target_change');
+    expect(
+      validateGatewayRequest({
+        useCase: 'explain_target_change',
+        facts: { ...validFacts(), energyBalanceKcal: 400, goal: 'hypertrophy_aggressive' },
+      }).useCase,
+    ).toBe('explain_target_change');
   });
 
   it('payload malformado falha fechado (caso, gramagem, ingredientes, facts)', () => {
@@ -85,6 +97,7 @@ describe('NUT-007 tipos: 5 casos canônicos + validação estrita da requisiçã
     expect(() => validateGatewayRequest({ useCase: 'build_meal_from_ingredients', context: validContext(), ingredients: [] })).toThrow(AiAssistantError);
     expect(() => validateGatewayRequest({ useCase: 'build_meal_from_ingredients', context: validContext(), ingredients: new Array(13).fill('arroz') })).toThrow(AiAssistantError);
     expect(() => validateGatewayRequest({ useCase: 'explain_target_change', facts: { ...validFacts(), targetCalories: Number.NaN } })).toThrow(AiAssistantError);
+    expect(() => validateGatewayRequest({ useCase: 'explain_target_change', facts: { ...validFacts(), energyBalanceKcal: Number.NaN } })).toThrow(AiAssistantError);
     expect(() => validateGatewayRequest({ useCase: 'complete_protein', context: { remaining: { calories: -1, protein: 0, carbs: 0, fat: 0 }, targets: validContext().targets } })).toThrow(AiAssistantError);
     expect(() => validateGatewayRequest({ useCase: 'complete_protein', context: validContext(), availability: { state: 'WEIRD' } })).toThrow(AiAssistantError);
   });
