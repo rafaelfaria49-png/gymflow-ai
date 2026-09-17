@@ -14,10 +14,10 @@ Este é o relatório final único do NUT-008. Aprovações humanas (nutricionist
 | :--- | :--- |
 | BASE_SHA | `a4fbf15d267c4fa9efcafe5756c8deb4d394c541` |
 | BRANCH | `cursor/gymflow-nut008-integrated-qa-f19a` |
-| COMMITS | (preenchido no fechamento) |
-| PR_NUMBER | (preenchido no fechamento) |
-| MERGE_SHA | (preenchido no fechamento) |
-| ORIGIN_MASTER_AFTER | (preenchido no fechamento) |
+| COMMITS | `51b9a11` feat QA; `b57aec1` tsc harness; `ee80cb0` fake locks reset/restore; `db2d662` D111-002; + este fechamento docs |
+| PR_NUMBER | `#50` |
+| MERGE_SHA | (preenchido após merge commit) |
+| ORIGIN_MASTER_AFTER | (preenchido após merge commit) |
 
 ---
 
@@ -76,8 +76,8 @@ Cinco abas, alvos ≥44px, estados empty/erro/offline/MANUAL_ONLY/clinical-block
 
 | Item | Status |
 | :--- | :--- |
-| `npm run build:mobile` | (preenchido na validação) |
-| `npm run ios:validate` | (preenchido na validação) |
+| `npm run build:mobile` | **PASS** (Next.js 16.2.6 export; `/api/nutrition/assistant` dinâmica; `out/api` ausente) |
+| `npm run ios:validate` | **PASS** 1 arquivo / 17 testes |
 | Android/ADB / Galaxy S22 | **REAL_DEVICE_QA = NOT_AVAILABLE** (sem `adb` neste ambiente; sem fabricar PASS) |
 
 Smoke mobile = o mesmo POST do gateway de produção (caminho nativo Capacitor: origem pública + `/api/nutrition/assistant`).
@@ -116,7 +116,9 @@ Nenhuma chancela profissional ou parecer jurídico neste GOAL.
 
 ### SECRET_EXPOSURE = NO / PRIVACY_REVIEW_RESULT = PASS
 
-Auditoria automatizada (`nut008-secrets.test.ts`): fonte, docs e artefatos de build (quando existirem) sem valor de chave, sem `NEXT_PUBLIC_*KEY/SECRET/TOKEN`, client sem `openrouter.ai` / `chat/completions`. Chave somente em `ai-assistant-provider.ts` (server-only).
+Auditoria automatizada (`nut008-secrets.test.ts` 3/3, reexecutada com artefatos presentes): fonte, docs e artefatos de build sem valor de chave, sem `NEXT_PUBLIC_*KEY/SECRET/TOKEN`, client sem `openrouter.ai` / `chat/completions`. Chave somente em `ai-assistant-provider.ts` (server-only).
+
+Scan pós-`build:mobile` em `.next/static` e `out/`: 0 `GYMFLOW_AI_API_KEY`, 0 `openrouter.ai`, 0 `chat/completions`, 0 `sk-or-`, 0 `Bearer`, `out/api` ausente. `API_KEY_EXPOSURE = NO`. `DIRECT_OPENROUTER_CLIENT_CALL = NO`.
 
 Dados ao provedor: prompt mínimo (saldo/metas numéricas, caso, allowlist, ingredientes/userText como dados). Sem nome, biometria, flags de saúde, IDs de ledger.
 
@@ -150,15 +152,15 @@ P0 = 0 após correções.
 | Item | Resultado |
 | :--- | :--- |
 | FOCUSED_TESTS | 41 arquivos / 644 testes PASS (domínio Nutrition + D-NUT-06) |
-| FULL_RUN_1 | (pendente) |
-| FULL_RUN_2 | (pendente) |
-| TYPECHECK | (pendente) |
-| BUILD | (pendente) |
-| MOBILE_BUILD | (pendente) |
-| IOS_VALIDATE | (pendente) |
-| DIFF_CHECK | (pendente) |
-| CI_STATUS | (pendente) |
-| POSTMERGE_STATUS | (pendente) |
+| FULL_RUN_1 | **PASS** 157 arquivos / 3459 testes (`npm test`, 1ª execução planejada) |
+| FULL_RUN_2 | **PASS** 157 arquivos / 3459 testes (`npm test`, 2ª execução planejada; sem retry-until-green) |
+| TYPECHECK | **PASS** `npx tsc --noEmit` 0 erros |
+| BUILD | **PASS** `npm run build` (rota `/api/nutrition/assistant` dinâmica) |
+| MOBILE_BUILD | **PASS** `npm run build:mobile` |
+| IOS_VALIDATE | **PASS** 17/17 `npm run ios:validate` |
+| DIFF_CHECK | **PASS** `git diff --check` limpo |
+| CI_STATUS | (preenchido após checks do PR #50) |
+| POSTMERGE_STATUS | (preenchido após merge) |
 
 ---
 
