@@ -160,7 +160,7 @@ P0 = 0 após correções.
 | IOS_VALIDATE | **PASS** 17/17 `npm run ios:validate` |
 | DIFF_CHECK | **PASS** `git diff --check` limpo |
 | CI_STATUS | **SUCCESS** 2/2 no HEAD `7aab83e` (Build & Simulator Validation + Release Archive & Distribution Gate, macOS 26) |
-| POSTMERGE_STATUS | PR #50 MERGED; merge commit `47e025c` (método merge; pais `a4fbf15` + `7aab83e`); `7aab83e` ancestral de `origin/master`; CI pós-merge em acompanhamento |
+| POSTMERGE_STATUS | PR #50 MERGED; merge commit `47e025c` (método merge; pais `a4fbf15` + `7aab83e`); `7aab83e` ancestral de `origin/master`. Workflows iOS são `pull_request` + `workflow_dispatch` apenas — nenhum run em push para `master` (esperado; sem fabricar PASS) |
 
 ---
 
