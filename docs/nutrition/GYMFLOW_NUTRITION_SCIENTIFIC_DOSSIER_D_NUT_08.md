@@ -4,8 +4,11 @@
 **GOAL:** GYMFLOW-NUT008-INTEGRATED-QA-BETA-READINESS-ENDTOEND-111  
 **Público:** nutricionista registrado (CRN) para revisão profissional  
 **Status deste dossiê:** pronto para revisão humana  
-**D_NUT_08_EXTERNAL_APPROVAL = PENDING**  
+**D_NUT_08_EXTERNAL_APPROVAL = PENDING**
+
 **PROFESSIONAL_REVIEW_REQUIRED = YES**
+
+**Pacote de envio humano:** `docs/nutrition/external-review/` (GOAL-112). Este dossiê não declara aprovação.
 
 Este dossiê descreve o motor determinístico vigente no código. **Não declara aprovação profissional, chancela clínica, nem homologação pelo CRN.** Nenhum parâmetro provisório deixa de ser provisório por existir este texto.
 

@@ -6,6 +6,8 @@
 **Status deste dossiê:** pronto para revisão humana  
 **D_NUT_09_EXTERNAL_APPROVAL = PENDING**
 
+**Pacote de envio humano:** `docs/nutrition/external-review/` (GOAL-112). Este dossiê não é parecer jurídico.
+
 Este dossiê **não é parecer jurídico**, **não declara conformidade legal final** e **não autoriza comercialização, cobrança ou beta público** da Nutrição. A decisão canônica D-NUT-09 permanece: validação jurídica é gate antes de cobrança comercial ou campanha publicitária voltada à nutrição.
 
 Código e UI de referência:

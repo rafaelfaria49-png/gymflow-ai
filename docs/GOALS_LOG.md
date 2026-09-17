@@ -4647,3 +4647,12 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
 - **Merge:** merge commit 47e025cbc6a27e3c14e6f7ff5fe62bcda4763f4a (metodo merge, sem squash/rebase/admin/force); pais a4fbf15... + 7aab83e...; HEAD aprovado na ancestralidade da nova master; arvore do merge identica a validada pela CI.
 - **Status:** NUT008_STATUS=INTEGRATED; NUTRITION_V1_ENGINEERING_STATUS=COMPLETE; READY_FOR_EXTERNAL_REVIEW=YES; D_NUT_08_EXTERNAL_APPROVAL=PENDING; D_NUT_09_EXTERNAL_APPROVAL=PENDING; READY_FOR_PUBLIC_BETA=NO. Nao iniciados: V1.5, OFF/barcode, beta publico.
 - **Validacao:** docs-only (markdown); git diff --check OK. CI pos-merge em master: nao disparada (workflows so pull_request/workflow_dispatch). CI do HEAD mergeado 7aab83e permanece SUCCESS 2/2.
+
+## GOAL-112 - GYMFLOW-NUTRITION-EXTERNAL-REVIEW-HANDOFF-112 pacote de envio D-NUT-08/09 (2026-09-17)
+
+- **Base:** origin/master 7f9a300c79086f27902a7c0679e41aacd2085b5f (confere com a base esperada).
+- **Antes:** NUT008_STATUS=INTEGRATED; NUTRITION_V1_ENGINEERING_STATUS=COMPLETE; dossies D-NUT-08/09 e QA NUT-008 em docs/nutrition/; READY_FOR_NUTRITIONIST_REVIEW=YES; READY_FOR_LEGAL_REVIEW=YES; D_NUT_08_EXTERNAL_APPROVAL=PENDING; D_NUT_09_EXTERNAL_APPROVAL=PENDING; READY_FOR_PUBLIC_BETA=NO; sem pasta unica de handoff com checklist e formulario de retorno.
+- **Depois:** pasta `docs/nutrition/external-review/` com indice unico, checklists objetivos (nutricionista e juridico) e formularios de STATUS vazios (APPROVED / APPROVED_WITH_CONDITIONS / CHANGES_REQUIRED). Ponteiros curtos nos dossies. Sem parecer, sem aprovacao fabricada, sem mudanca de codigo/formulas/gates.
+- **Arquivos:** docs/nutrition/external-review/* (novos); ponteiros em GYMFLOW_NUTRITION_SCIENTIFIC_DOSSIER_D_NUT_08.md e GYMFLOW_NUTRITION_LEGAL_DOSSIER_D_NUT_09.md; docs/DECISOES.md; docs/GOALS_LOG.md.
+- **Status:** SCIENTIFIC_HANDOFF=READY; LEGAL_HANDOFF=READY; ENGINEERING_CODE_CHANGED=NO; EXTERNAL_APPROVAL_FABRICATED=NO; D_NUT_08_EXTERNAL_APPROVAL=PENDING; D_NUT_09_EXTERNAL_APPROVAL=PENDING; READY_FOR_PUBLIC_BETA=NO. Nao iniciados: V1.5, OFF/barcode, beta publico, correcoes tecnicas.
+- **Validacao:** docs-only; `git diff --check`; suíte pesada nao executada (sem mudanca de codigo).
