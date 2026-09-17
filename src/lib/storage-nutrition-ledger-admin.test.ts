@@ -7,7 +7,8 @@
  * CROSS_TAB_SAFE. Preserva fixtures schema 1 para compatibilidade.
  */
 import { IDBFactory } from 'fake-indexeddb';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from './nutrition/admin-lock-fake';
 import type { WorkoutSession } from '../types';
 import { createStorageAdminRuntime } from './storage-admin-runtime';
 import {
@@ -274,6 +275,13 @@ async function makeSchema1Backup(payload: PersistedState): Promise<string> {
 }
 
 describe('GOAL-100 — ledger admin (NUT-004C)', () => {
+  beforeEach(() => {
+    installFakeNutritionCrossTabLocks();
+  });
+  afterEach(() => {
+    restoreFakeNutritionCrossTabLocks();
+  });
+
   it('EXPORT_LEDGER_COMPLETE: schema 2 com section obrigatória + digest cobre ledger', async () => {
     const harness = await createReadyHarness();
     const section: NutritionLedgerBackupSection = {

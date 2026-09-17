@@ -384,7 +384,7 @@ export function AiMealAssistantModal({ open, onClose }: { open: boolean; onClose
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label="Assistente nutricional com IA">
       <button type="button" aria-label="Fechar assistente" onClick={onClose} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-      <div className="relative w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto bg-gym-dark border border-white/10 rounded-t-3xl sm:rounded-3xl p-4 space-y-3">
+      <div className="relative w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto bg-gym-dark border border-white/10 rounded-t-3xl sm:rounded-3xl p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-3">
         <header className="flex items-start justify-between gap-2">
           <div>
             <h2 className="text-base font-black text-white tracking-tight">Assistente IA · Nutrição</h2>

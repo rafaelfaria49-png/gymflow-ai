@@ -1232,3 +1232,10 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
 ## GOAL-110 - NUT-007 homologacao runtime OpenRouter (2026-09-16)
 
 - Nenhuma pendencia nova de runtime. P3 herdado do GOAL-108 (tags dieteticas no catalogo) permanece aberto e fora do escopo desta homologacao.
+
+## GOAL-111 - NUT-008 QA integrada + prontidao de engenharia (2026-09-17)
+
+- **D-NUT-08 / D-NUT-09 revisoes humanas.** *Aberto - gate externo, nao bug.* Dossies emitidos; `D_NUT_08_EXTERNAL_APPROVAL = PENDING`; `D_NUT_09_EXTERNAL_APPROVAL = PENDING`; `READY_FOR_PUBLIC_BETA = NO`. Nao transformar ausencia de revisao humana em bug de codigo.
+- ~~**explain_target_change rejeitava energyBalanceKcal negativo.**~~ *Fechada neste GOAL (P1).* O motor emite deficit negativo; `assertValidFacts` passou a exigir numero finito assinado. Produção so passa a aceitar deficit apos deploy deste PR.
+- ~~**PARTIAL_FAILURE_RECOVERABLE falhava em Node 22 sem navigator.locks.**~~ *Fechada neste GOAL (harness).* Mesmo fake de Web Locks dos demais testes admin; fail-closed sem lock permanece coberto em `storage-nutrition-ledger-recovery-nolock.test.ts`.
+- P3 herdados inalterados: tags dieteticas no catalogo (V1.5); clamp de hidratacao nao sinalizado no output do motor; facts do explain assinados no servidor.

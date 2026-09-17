@@ -72,6 +72,11 @@ function isFiniteNonNegative(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
+/** Balanço energético do motor é assinado (déficit negativo, superávit positivo). */
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
 function assertMacroBudget(value: unknown, path: string): asserts value is AiMacroBudget {
   const record = value as Record<string, unknown> | null;
   if (typeof record !== 'object' || record === null || Array.isArray(record)) {
@@ -255,7 +260,6 @@ function assertValidFacts(value: unknown): asserts value is AiTargetChangeFacts 
     'targetFatGrams',
     'bmrKcal',
     'tdeeKcal',
-    'energyBalanceKcal',
   ] as const) {
     if (!isFiniteNonNegative(record[key])) {
       throw new AiAssistantError(
@@ -263,6 +267,12 @@ function assertValidFacts(value: unknown): asserts value is AiTargetChangeFacts 
         `facts.${key} deve ser um número finito maior ou igual a zero (produzido pelo engine).`,
       );
     }
+  }
+  if (!isFiniteNumber(record['energyBalanceKcal'])) {
+    throw new AiAssistantError(
+      'INVALID_REQUEST',
+      'facts.energyBalanceKcal deve ser um número finito (o motor emite déficit negativo e superávit positivo).',
+    );
   }
   if (typeof record['goal'] !== 'string' || (record['goal'] as string).trim().length === 0) {
     throw new AiAssistantError('INVALID_REQUEST', 'facts.goal deve ser textual não vazio.');
