@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { IDBFactory } from 'fake-indexeddb';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { installFakeNutritionCrossTabLocks, restoreFakeNutritionCrossTabLocks } from './nutrition/admin-lock-fake';
 import type { WorkoutSession } from '../types';
 import { createStorageAdminRuntime } from './storage-admin-runtime';
 import { recoverLogicalStorageAdministrationV2 } from './storage-administrative-recovery';
@@ -271,6 +272,13 @@ async function assertWorldA(world: World): Promise<void> {
   const snapshot = await world.adapter.readStorageAdministrationSnapshot();
   expect(snapshot.unsettledOperations).toEqual([]);
 }
+
+beforeEach(() => {
+  installFakeNutritionCrossTabLocks();
+});
+afterEach(() => {
+  restoreFakeNutritionCrossTabLocks();
+});
 
 describe('proveniencia exata do restore v2', () => {
   it('liga receipt fonte, rolling backup, core, generation, manifest e conteudo fisico', async () => {
