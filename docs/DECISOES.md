@@ -2135,3 +2135,7 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - D111-002: harnesses de recovery ledger-aware (`storage-nutrition-ledger-admin.test.ts`, `storage-logical-reset.test.ts`, `storage-logical-restore.test.ts`) instalam Web Locks fake como os demais testes admin, para provas de dispatcher/boot nao dependerem de `navigator.locks` nativo (ausente no Node 22, presente no Node 24). Fail-closed sem lock permanece o contrato de produto.
 - D111-003: modal do assistente IA ganha `env(safe-area-inset-bottom)` no sheet mobile; overlay full-screen de fechar permanece sem min-h proprio por cobrir o viewport.
 - D111-004: D-NUT-08/09 encerram a engenharia V1 com dossies + matriz; aprovacao externa permanece PENDING e `READY_FOR_PUBLIC_BETA = NO` por governanca, nao por falha de codigo.
+
+## GOAL-111-MERGE - GYMFLOW-NUT008-INTEGRATED-QA-BETA-READINESS-ENDTOEND-111 fechamento docs-only sobre master
+
+- D111M-001: fechamento persistido como commit docs-only direto sobre master (GOALS_LOG + NUT008 report + 1 linha DECISOES), sem PR novo e sem tocar na branch de feature ja mergeada; arvore de codigo inalterada, entao build/typecheck herdados da CI do merge; PR #50 CLEAN/MERGEABLE com 2 checks SUCCESS; merge commit 47e025c (metodo merge); NUT008_STATUS=INTEGRATED; NUTRITION_V1_ENGINEERING_STATUS=COMPLETE; D_NUT_08/09_EXTERNAL_APPROVAL=PENDING; READY_FOR_PUBLIC_BETA=NO.

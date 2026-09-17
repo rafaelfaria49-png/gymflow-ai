@@ -14,10 +14,10 @@ Este é o relatório final único do NUT-008. Aprovações humanas (nutricionist
 | :--- | :--- |
 | BASE_SHA | `a4fbf15d267c4fa9efcafe5756c8deb4d394c541` |
 | BRANCH | `cursor/gymflow-nut008-integrated-qa-f19a` |
-| COMMITS | `51b9a11` feat QA; `b57aec1` tsc harness; `ee80cb0` fake locks reset/restore; `db2d662` D111-002; + este fechamento docs |
+| COMMITS | `51b9a11` feat QA; `b57aec1` tsc harness; `ee80cb0` fake locks reset/restore; `db2d662` D111-002; `7aab83e` validação local |
 | PR_NUMBER | `#50` |
-| MERGE_SHA | (preenchido após merge commit) |
-| ORIGIN_MASTER_AFTER | (preenchido após merge commit) |
+| MERGE_SHA | `47e025cbc6a27e3c14e6f7ff5fe62bcda4763f4a` |
+| ORIGIN_MASTER_AFTER | `47e025cbc6a27e3c14e6f7ff5fe62bcda4763f4a` (merge; docs-only de fechamento segue neste commit) |
 
 ---
 
@@ -159,8 +159,8 @@ P0 = 0 após correções.
 | MOBILE_BUILD | **PASS** `npm run build:mobile` |
 | IOS_VALIDATE | **PASS** 17/17 `npm run ios:validate` |
 | DIFF_CHECK | **PASS** `git diff --check` limpo |
-| CI_STATUS | (preenchido após checks do PR #50) |
-| POSTMERGE_STATUS | (preenchido após merge) |
+| CI_STATUS | **SUCCESS** 2/2 no HEAD `7aab83e` (Build & Simulator Validation + Release Archive & Distribution Gate, macOS 26) |
+| POSTMERGE_STATUS | PR #50 MERGED; merge commit `47e025c` (método merge; pais `a4fbf15` + `7aab83e`); `7aab83e` ancestral de `origin/master`; CI pós-merge em acompanhamento |
 
 ---
 
