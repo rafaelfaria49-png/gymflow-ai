@@ -58,6 +58,7 @@ describe('NUT-008 matriz de dados', () => {
     expect(resolution.targetUnavailableReason).toBe('PROFILE_ABSENT');
     expect(resolution.targets).toBeNull();
     expect(resolution.gateSnapshot.kind).toBe('PROFILE_ABSENT');
+    if (resolution.gateSnapshot.kind !== 'PROFILE_ABSENT') throw new Error('unreachable');
     expect(resolution.gateSnapshot.allowManualTracking).toBe(true);
 
     const repo = createInMemoryNutritionDayRepository();

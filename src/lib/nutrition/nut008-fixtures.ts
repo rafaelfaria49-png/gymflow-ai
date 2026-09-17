@@ -13,8 +13,8 @@ import {
   addHydrationEntry,
   addMeal,
   createNutritionDay,
-  type NutritionDay,
 } from './ledger';
+import type { NutritionDay } from './ledger-types';
 import { evaluateNutritionGate } from './profile-gates';
 import { FOOD_DATABASE, toFoodEntryInput } from './food-database';
 

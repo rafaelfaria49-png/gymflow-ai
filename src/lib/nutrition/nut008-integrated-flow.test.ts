@@ -112,7 +112,7 @@ describe('NUT-008 fluxo integrado perfil → ledger → IA → backup', () => {
 
     const proposal = buildGroundedProposal({
       useCase: 'complete_protein',
-      rawItems: [{ foodReferenceId: chicken.id, grams: 120, calories: 1, protein: 999 }],
+      rawItems: [{ foodReferenceId: chicken.id, grams: 120, calories: 1, protein: 999 } as { foodReferenceId: string; grams: number }],
       catalog: FOOD_DATABASE,
     });
     expect(proposal.useCase).toBe('complete_protein');
