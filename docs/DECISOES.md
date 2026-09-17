@@ -2124,3 +2124,7 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 ## GOAL-109 - GYMFLOW-NUT007-AI-RUNTIME-ACTIVATION-ENDTOEND-109 tentativa de ativacao (2026-09-16)
 
 - D109-001: sem credencial utilizavel em nenhuma fonte segura auditada (Vercel/env-local/shell/secrets), o GOAL para no §2/§4 sem inventar chave, sem configurar nada, sem deploy e sem smoke real; fechamento docs-only direto sobre master (GOALS_LOG + PENDENCIAS + 1 linha DECISOES), sem PR/branch; testes focados NUT-007 53/53 + secret scan (SECRET_EXPOSURE=NO) como evidencia de integridade preservada; NUT007_RUNTIME_STATUS=BLOCKED_EXTERNAL_CREDENTIAL, READY_FOR_NUT008=NO; NUT-008 e OFF/barcode nao iniciados.
+
+## GOAL-110 - GYMFLOW-NUT007-OPENROUTER-RUNTIME-VALIDATION-ENDTOEND-110 homologacao runtime (2026-09-16)
+
+- D110-001: retomada a partir do estado persistido (HEAD/origin 3f1ed1f + projeto Vercel gymflow com 4 deploys Production READY e GYMFLOW_AI_* ja presentes); sem reconfigurar env, sem redeploy, smoke real OpenRouter via gateway de producao nos 5 casos + negativos fail-closed; SECRET_EXPOSURE=NO; sem mudanca de codigo/PR; fechamento docs-only direto sobre master; NUT007_RUNTIME_STATUS=VALIDATED, READY_FOR_NUT008=YES; NUT-008 e OFF/barcode nao iniciados.
