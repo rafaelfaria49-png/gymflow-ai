@@ -84,6 +84,10 @@ jobs:
           npm run build:mobile
           npx cap sync android
 
+      - name: 5b. Ensure Gradle Wrapper Is Executable
+        run: |
+          chmod +x android/gradlew
+
       - name: 6. Release APK + AAB (unsigned resilient, no secrets in CI)
         run: |
           npm run android:apk:release
