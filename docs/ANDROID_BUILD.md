@@ -76,10 +76,26 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 
 Um único comando encadeado: `npm run cap:sync && npm run android:build`.
 
-## 7. Limitações conhecidas
+## 7. Build release / distribuição interna (GOAL-115)
 
-- **APK de debug**, não assinado para produção (`webContentsDebuggingEnabled`
-  ligado). Não serve para publicar; serve para testar.
+```bash
+npm run android:apk:release      # APK release (assinado se houver chave local)
+npm run android:bundle:release   # AAB release (assinado se houver chave local)
+```
+
+Artefatos: `android/app/build/outputs/apk/release/app-release.apk` e
+`android/app/build/outputs/bundle/release/app-release.aab`. Sem credenciais de
+signing o Gradle gera release unsigned (CI/validação); com chave local
+(`npm run android:generate-release-key` + `release-signing.properties`
+git-ignorado ou env `GYMFLOW_RELEASE_*`) gera release assinado. Guia completo:
+`docs/mobile/ANDROID_INTERNAL_RELEASE_115.md`. Nunca usar o APK de debug para
+validar release. `webContentsDebuggingEnabled` é `false` por padrão desde o
+GOAL-115 (ligar temporariamente só para depurar debug).
+
+## 8. Limitações conhecidas (debug)
+
+- **APK de debug**, não assinado para produção. Não serve para publicar; serve
+  para testar.
 - **Sem backend**: tudo é local (localStorage). Nada sincroniza entre
   aparelhos. Zerar dados do app / desinstalar apaga tudo.
 - O **service worker** é redundante dentro do WebView (os assets já são locais),
@@ -89,7 +105,7 @@ Um único comando encadeado: `npm run cap:sync && npm run android:build`.
 - `poc-3d` entra no build por ser rota do app, mas não tem `.glb` ativo
   (placeholder honesto) — não pesa no APK.
 
-## 8. APK local × PWA × Play Store
+## 9. APK local × PWA × Play Store
 
 | | APK local (este doc) | PWA ("Adicionar à tela") | Play Store |
 |---|---|---|---|

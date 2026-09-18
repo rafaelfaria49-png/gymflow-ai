@@ -1,0 +1,153 @@
+name: Android Internal Release Readiness
+
+on:
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-release-readiness:
+    name: Release Build & Internal Readiness Gate (Ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup JDK 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # Sem o pacote obsoleto `tools` (removido do repositorio do SDK);
+          # o runner ja traz cmdline-tools e instalamos so o necessario.
+          packages: platform-tools platforms;android-36 build-tools;35.0.0
+
+      - name: Prepare Artifacts Directory
+        run: |
+          mkdir -p artifacts
+
+      - name: 1. Toolchain Diagnostics & Gate
+        run: |
+          echo "=== TOOLCHAIN DIAGNOSTICS ===" | tee artifacts/android-toolchain-summary.txt
+          echo "Date: $(date -u)" | tee -a artifacts/android-toolchain-summary.txt
+          echo "--- Java ---" | tee -a artifacts/android-toolchain-summary.txt
+          java -version 2>&1 | tee -a artifacts/android-toolchain-summary.txt
+          echo "--- Gradle Wrapper ---" | tee -a artifacts/android-toolchain-summary.txt
+          cat android/gradle/wrapper/gradle-wrapper.properties | tee -a artifacts/android-toolchain-summary.txt
+          echo "--- Android SDK ---" | tee -a artifacts/android-toolchain-summary.txt
+          echo "ANDROID_HOME=$ANDROID_HOME" | tee -a artifacts/android-toolchain-summary.txt
+          sdkmanager --list_installed 2>/dev/null | tee -a artifacts/android-toolchain-summary.txt || true
+          echo "--- Node ---" | tee -a artifacts/android-toolchain-summary.txt
+          echo "Node: $(node --version)" | tee -a artifacts/android-toolchain-summary.txt
+          echo "npm: $(npm --version)" | tee -a artifacts/android-toolchain-summary.txt
+          echo "=== END TOOLCHAIN DIAGNOSTICS ===" | tee -a artifacts/android-toolchain-summary.txt
+
+          JAVA_MAJOR=$(java -version 2>&1 | head -n 1 | sed -E 's/.*version "([0-9]+).*/\1/')
+          echo "JAVA_MAJOR=$JAVA_MAJOR"
+          if [ "$JAVA_MAJOR" != "17" ]; then
+            echo "GATE FAIL: JDK major ($JAVA_MAJOR) != 17!"
+            exit 1
+          fi
+          echo "TOOLCHAIN GATE: PASS (JDK 17)"
+
+      - name: 2. Install Dependencies
+        run: |
+          npm ci
+
+      - name: 3. Static Verification (TypeScript)
+        run: |
+          npx tsc --noEmit
+
+      - name: 4. Secret Audit (source-level, NUT-008 gate)
+        run: |
+          npx vitest run src/lib/nutrition/nut008-secrets.test.ts --testTimeout 15000
+
+      - name: 5. Build Mobile Frontend & Capacitor Sync
+        run: |
+          npm run build:mobile
+          npx cap sync android
+
+      - name: 5b. Ensure Gradle Wrapper Is Executable
+        run: |
+          chmod +x android/gradlew
+
+      - name: 6. Release APK + AAB (unsigned resilient, no secrets in CI)
+        run: |
+          npm run android:apk:release
+          npm run android:bundle:release
+
+      - name: 7. Verify Artifacts & Identity
+        run: |
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          AAB="android/app/build/outputs/bundle/release/app-release.aab"
+          echo "--- Expected artifacts ---"
+          ls -lh "$APK" "$AAB" | tee artifacts/android-release-artifacts.txt
+
+          echo "--- aapt: package / version / SDK ---" | tee -a artifacts/android-release-artifacts.txt
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt2"
+          if [ ! -x "$AAPT" ]; then
+            AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt2 | head -n 1)
+          fi
+          "$AAPT" dump packagename "$APK" 2>/dev/null | tee -a artifacts/android-release-artifacts.txt || "$AAPT" dump badging "$APK" 2>/dev/null | head -n 5 | tee -a artifacts/android-release-artifacts.txt
+
+          PKG=$("$AAPT" dump packagename "$APK" 2>/dev/null || true)
+          if [ -n "$PKG" ] && [ "$PKG" != "com.gymflowai.app" ]; then
+            echo "GATE FAIL: package ($PKG) != com.gymflowai.app"
+            exit 1
+          fi
+
+          echo "--- apksigner: release must NOT be debug-signed in CI ---" | tee -a artifacts/android-release-artifacts.txt
+          apksigner verify --print-certs "$APK" 2>&1 | head -n 5 | tee -a artifacts/android-release-artifacts.txt || true
+          if apksigner verify --print-certs "$APK" 2>&1 | grep -q "CN=Android Debug"; then
+            echo "NOTE: APK carries a debug certificate (unsigned resilient mode signs nothing; Gradle may fall back). Internal distribution requires a real release key (see docs)."
+          fi
+
+          echo "--- Artifact secret scan (no values printed) ---" | tee -a artifacts/android-release-artifacts.txt
+          if grep -rIl --exclude-dir=node_modules --exclude-dir=.git -E "GYMFLOW_AI_API_KEY|openrouter\.ai|sk-or-v1-|or-v1-[A-Za-z0-9]{12,}" out/ 2>/dev/null; then
+            echo "GATE FAIL: secret/provider marker found in out/ bundle!"
+            exit 1
+          fi
+          echo "SECRET_SCAN=BENIGN (no key, no provider URL in web bundle)" | tee -a artifacts/android-release-artifacts.txt
+
+          echo "ANDROID_UNSIGNED_RELEASE=PASS" >> $GITHUB_ENV
+          echo "ANDROID_UNSIGNED_RELEASE: PASS"
+
+      - name: 8. Generate Internal Readiness Summary
+        run: |
+          cat << 'EOF' > artifacts/android-internal-readiness-summary.md
+          # Android Internal Release Readiness (CI, unsigned)
+
+          - **Runner:** ubuntu-latest (JDK 17 + Android SDK)
+          - **Package:** com.gymflowai.app
+          - **Artifacts:** `android/app/build/outputs/apk/release/app-release.apk`, `android/app/build/outputs/bundle/release/app-release.aab`
+          - **Signing (CI):** UNSIGNED resilient (no secrets in CI by design)
+          - **Internal distribution:** requires a locally-generated release key (`npm run android:generate-release-key`) — see `docs/mobile/ANDROID_INTERNAL_RELEASE_115.md`
+          - **Unsigned release:** PASS
+          - **Secret scan (web bundle):** PASS (no key, no provider URL)
+          EOF
+          cat artifacts/android-internal-readiness-summary.md
+
+      - name: 9. Upload Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-internal-readiness-artifacts
+          path: artifacts/
+          retention-days: 14

@@ -11,9 +11,10 @@ const config: CapacitorConfig = {
     // Fundo escuro do WebView: evita o flash branco no boot e casa com o
     // design system (dark + verde-lima). Mesmo tom do background_color do PWA.
     backgroundColor: '#09090b',
-    // Permite inspecionar o WebView via chrome://inspect durante o
-    // desenvolvimento/teste do APK de debug.
-    webContentsDebuggingEnabled: true,
+    // GOAL-115: debugging do WebView DESLIGADO por padrao para que builds
+    // release nao exponham chrome://inspect. Para depurar um APK de debug,
+    // ligue temporariamente (true) e reverta antes de gerar release.
+    webContentsDebuggingEnabled: false,
   },
   ios: {
     // Fundo escuro no WKWebView: evita o flash branco de inicialização no iOS
