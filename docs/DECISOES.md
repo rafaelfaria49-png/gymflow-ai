@@ -2143,3 +2143,9 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 ## GOAL-111-MERGE - GYMFLOW-NUT008-INTEGRATED-QA-BETA-READINESS-ENDTOEND-111 fechamento docs-only sobre master
 
 - D111M-001: fechamento persistido como commit docs-only direto sobre master (GOALS_LOG + NUT008 report + 1 linha DECISOES), sem PR novo e sem tocar na branch de feature ja mergeada; arvore de codigo inalterada, entao build/typecheck herdados da CI do merge; PR #50 CLEAN/MERGEABLE com 2 checks SUCCESS; merge commit 47e025c (metodo merge); NUT008_STATUS=INTEGRATED; NUTRITION_V1_ENGINEERING_STATUS=COMPLETE; D_NUT_08/09_EXTERNAL_APPROVAL=PENDING; READY_FOR_PUBLIC_BETA=NO.
+
+## GOAL-115 - GYMFLOW-ANDROID-INTERNAL-RELEASE-READINESS-ENDTOEND-115
+
+- D115-001: webContentsDebuggingEnabled passa a false por padrao (release nao expoe chrome://inspect); debug liga temporariamente e reverte antes do release; sem mudanca funcional no WebView.
+- D115-002: chave gerada por android-generate-release-key.mjs e rotulada gymflow-internal para validacao interna/sideload; upload key definitiva do Play segue PENDING_HUMAN (cofre + backup offline + registro no Console).
+- D115-003: versao mantida em versionCode 1 / versionName 1.0; regra minima documentada (versionCode +1 por upload, sem reuso); sem bump arbitrario neste GOAL.
