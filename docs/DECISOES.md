@@ -1,4 +1,4 @@
-﻿# Decisões
+# Decisões
 
 Registro de decisões tomadas com autonomia durante os GOALs (1 linha por decisão).
 ## GOAL-112 — Handoff de revisão externa Nutrição V1 (2026-09-17)
@@ -2149,3 +2149,7 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 - D115-001: webContentsDebuggingEnabled passa a false por padrao (release nao expoe chrome://inspect); debug liga temporariamente e reverte antes do release; sem mudanca funcional no WebView.
 - D115-002: chave gerada por android-generate-release-key.mjs e rotulada gymflow-internal para validacao interna/sideload; upload key definitiva do Play segue PENDING_HUMAN (cofre + backup offline + registro no Console).
 - D115-003: versao mantida em versionCode 1 / versionName 1.0; regra minima documentada (versionCode +1 por upload, sem reuso); sem bump arbitrario neste GOAL.
+
+## GOAL-116 - GYMFLOW-ANDROID-REAL-DEVICE-RELEASE-QA-116
+
+- D116-001: smoke de release executado diretamente no hardware real Samsung Galaxy S22 SM-S901E (Android 16, API 36); confirmada ausencia total de ANRs e crashes (0 crash, 0 ANR); ANR de FocusEvent do GOAL-115 classificado como puramente ambiental (exaustao de RAM no host virtualizado) e fechado em definitivo (P2_ANR_GOAL115 = CLOSED); chamada ao backend de producao e resiliencia offline/online validadas com sucesso; fechamento docs-only sobre master conforme governanca (sem alteracao artificial de codigo).

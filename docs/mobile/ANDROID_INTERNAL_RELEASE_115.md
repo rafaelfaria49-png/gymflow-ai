@@ -130,6 +130,9 @@ ausência de crash. Rotação: somente se suportada (app é portrait).
 Sem aparelho: registrar `REAL_DEVICE_RELEASE_QA = NOT_AVAILABLE` (usar
 emulador/harness quando viável, sem fabricar PASS).
 
+Validação física de release concluída no **GOAL-116** em Samsung Galaxy S22 SM-S901E:
+`REAL_DEVICE_RELEASE_QA = PASS` · `P2_ANR_GOAL115 = CLOSED` (ver `docs/mobile/ANDROID_REAL_DEVICE_RELEASE_QA_116.md`).
+
 ## 8. Upload para Internal Testing (checklist de pré-upload, sem publicar)
 
 - [ ] AAB release **assinado** com a chave destinada ao Play.

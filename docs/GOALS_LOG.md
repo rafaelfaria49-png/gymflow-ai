@@ -1,4 +1,4 @@
-﻿# GOALS Log
+# GOALS Log
 
 Histórico de execução dos GOALs: resumo, arquivos alterados, decisões, validações e como testar.
 
@@ -4667,3 +4667,24 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
 - **Runtime (emulador Pixel_6_API_35, sem aparelho fisico):** install release Success; MainActivity topResumed/focused; landing hidratada (screenshot); 0 FATAL EXCEPTION; 0 erros JS no logcat; ANR de FocusEvent sob pressao severa de memoria (guest 145/1971 MB livres, host 468 MB livres/8 GB, load 42, kswapd ativo) — evidencia ambiental, sem atribuicao a codigo; travessia interativa completa pendente de aparelho real. REAL_DEVICE_RELEASE_QA=NOT_AVAILABLE (Galaxy S22 nao conectado).
 - **Validacoes:** npm test 157 arquivos / 3459 testes PASS (1a execucao 3458/3459 por flake transitorio no scan de filesystem do nut008, verde em retry + isolado 3/3); npx tsc --noEmit 0 erros; npm run build OK; npm run build:mobile OK; npm run ios:validate 17/17; assembleRelease + bundleRelease assinados apos ultima alteracao; git diff --check limpo; keystore/properties git-ignorados confirmados.
 - **Status:** ANDROID_RELEASE_BUILD=PASS; ANDROID_AAB=GENERATED (assinado interno); ANDROID_RELEASE_APK=GENERATED (assinado interno); RELEASE_SIGNING=READY (interna) / REAL_UPLOAD_KEY=PENDING_HUMAN; PLAY_INTERNAL_TECHNICAL_READINESS=YES; P0=0; P1=0; P2=1 (confirmar ausencia de ANR em aparelho real antes de qualquer beta); PUBLIC_BETA_PUBLISHED=NO; PLAY_PRODUCTION_PUBLISHED=NO; D-NUT-08/09 inalterados (PENDING). Nao iniciados: OFF/barcode, beta publico.
+
+## GOAL-116 - GYMFLOW-ANDROID-REAL-DEVICE-RELEASE-QA-116 validacao release em aparelho fisico Galaxy S22 (2026-09-22)
+
+- **Base:** origin/master 92a8654d0ce844cc461689cefed9b804902cdce2 (confere com a base esperada); master limpa.
+- **Antes:** GOAL-115 aprovado tecnicamente para release interno, mas com P2 aberto (validar ausência de ANR/crash em aparelho físico real antes de qualquer beta).
+- **Depois:** fechamento definitivo do P2; APK release assinado instalado e validado no hardware físico real Samsung Galaxy S22 SM-S901E (Android 16, API 36, serial RXCT300L33Y). Relatório completo em `docs/mobile/ANDROID_REAL_DEVICE_RELEASE_QA_116.md`.
+- **Artefato Release auditado:** `android/app/build/outputs/apk/release/app-release.apk` (28117229 bytes, SHA-256 `5fc4933507fba0895f82091c13c7d1eb0dc7b0e1785ea2364de623d0d857b803`, assinatura `CN=GymFlow Internal, OU=Mobile, O=GymFlow, C=BR`, flags `[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]`, sem flag `DEBUGGABLE`).
+- **Smoke Físico Completo (53 screenshots capturados via ADB):**
+  - Cold boot nativo em 896ms (LaunchState: COLD).
+  - Onboarding/login de demonstração com hidratação imediata da Home.
+  - Navegação BottomNav em todas as abas (Hoje, Planejar, Exercícios, Evolução, Mais).
+  - Busca de exercícios, grupos musculares, modal de detalhes com instruções e fechamento de teclado limpo via Back.
+  - Treino do Dia (Full Body Adaptação): check-in de prontidão, tracker ativo cronometrando, preenchimento de série na tabela, check de conclusão de série e timer regressivo de descanso funcional.
+  - Persistência: background/foreground com retomada quente em 136ms; force-stop seguido de kill + reopen com restauração completa do treino ativo a partir do IndexedDB local em 920ms; conclusão formal do treino com modal e atribuição de XP.
+  - Módulo Nutrição: resumo Hoje, registro de alimento real no ledger (ovo cozido 100g, 155 kcal, 13g P), persistência imediata e recomputação da Home; aba Metas com degradação honesta (PROFILE_ABSENT); aba Tendência com média histórica real calculada; aba Sugestões com catálogo offline ativo.
+  - Modal Assistente IA: abertura fluida; salvaguardas clínicas D-NUT-08/D-NUT-09 operantes em "Completar proteína" e "Substituir alimento" ("Orientação automática pausada" honesta, zero números falsos inventados); busca de alimento para substituição ("arroz" -> "Arroz branco cozido").
+  - Chamada real ao backend GymFlow Production: endpoint oficial `https://gymflow-beige-gamma.vercel.app/api/nutrition/assistant` contatado diretamente do aparelho físico (GET 405 Method Not Allowed / POST 400 Bad Request com validação de contrato do NUT-007).
+  - Navegação Back e teclado: fechamento limpo de modals, sheets e teclado virtual sem quedas de rota.
+  - Resiliência de rede: modo offline (WiFi e dados móveis desativados) validado com integridade total dos dados locais e zero crash; retorno online com reconexão imediata e integridade de status.
+- **Logcat & ANRs:** 0 FATAL EXCEPTION, 0 ANRs, 0 erros no AndroidRuntime em com.gymflowai.app; dumpsys activity anrs auditado limpo; o ANR de FocusEvent do GOAL-115 não se reproduziu no hardware físico (confirmado como artefato ambiental de memória do host virtualizado).
+- **Status:** DEVICE_MODEL=SM-S901E; REAL_DEVICE_RELEASE_QA=PASS; PHYSICAL_ANR_REPRODUCED=NO; CRASHES=0; TRAINING_SMOKE=PASS; PERSISTENCE_SMOKE=PASS; NUTRITION_SMOKE=PASS; AI_BACKEND_SMOKE=PASS; OFFLINE_ONLINE_SMOKE=PASS; P0=0; P1=0; P2_ANR_GOAL115=CLOSED; PLAY_INTERNAL_TECHNICAL_READINESS=YES; D-NUT-08/09 inalterados (PENDING).
