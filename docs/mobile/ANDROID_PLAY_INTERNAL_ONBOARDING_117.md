@@ -236,7 +236,17 @@ upload certificate, segredos, AAB, backend, debug e esta documentação.
   em qualquer arquivo, scan só em `base/` do AAB, gate humano sem
   autorização explícita de criação do app/Free. Todos corrigidos, exceto o
   backend (§9), que segue P1 aberto para decisão humana.
-- Rodada 3 (após correções): ver GOALS_LOG do GOAL-117.
+- Rodada 3 (commit `928cca2`): **P0=0 · P1=2 · P2=3** — N3/N4 confirmados;
+  N1 (backend) reconhecido como "aberto, corretamente documentado e com
+  gate" (waiver humano, não fix); F3 residual (a exceção de teste confiava no
+  subject do registro, editável), F7 residual (`.properties.example` não era
+  tratado como config; placeholder aceito por prefixo), N2 residual
+  (coocorrência no mesmo chunk), N5 novo (scan de dev sem 172.16/12,
+  0.0.0.0, `[::1]`, `.local`). Todos corrigidos: exceção de teste amarrada
+  ao certificado real do keystore/AAB; placeholders por gramática exata;
+  evidência do backend exige a expressão do resolvedor (validado nos dois
+  modos reais do bundle); definição única de host privado.
+- Rodada 4 (após correções): ver GOALS_LOG do GOAL-117.
 
 A revisão do **AAB final** e do certificado real só é possível após a upload
 key existir: repetir antes do gate do §12.

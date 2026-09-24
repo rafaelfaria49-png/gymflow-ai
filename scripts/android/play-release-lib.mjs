@@ -155,8 +155,17 @@ export const SIGNING_SECRET_NAMES = [
 ];
 
 const CONFIG_LIKE_EXT = /\.(properties|env|sh|bash|bat|cmd|ps1|ya?ml|toml|ini|cfg|conf|txt|gradle|kts|json)$|(^|\/)\.env[^/]*$/i;
-// Placeholders/referências aceitos: ***, $VAR, ${VAR}, %VAR%, <...>, SUA_/YOUR_.
-const PLACEHOLDER_VALUE = /^(\*+|\$|%|<|\{|SUA_|YOUR_|CHANGE_?ME|xxx|\.\.\.)/i;
+// Sufixos de template: `x.properties.example` é tratado como `x.properties`.
+const TEMPLATE_SUFFIX = /\.(example|sample|template|dist)$/i;
+// Placeholders/referências aceitos — gramáticas EXATAS (não prefixo):
+// ***, $VAR, ${VAR}, ${{ expr }}, %VAR%, <texto>, SUA_X / YOUR_X, CHANGEME, xxx, ...
+const PLACEHOLDER_VALUE =
+  /^(?:\*+|\$[A-Za-z_][A-Za-z0-9_]*|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$\{\{[^}]*\}\}|%[A-Za-z_][A-Za-z0-9_]*%|<[^<>]+>|(?:SUA|YOUR)_[A-Z0-9_]+|CHANGE_?ME|x{3,}|\.{3})$/i;
+
+function isConfigLike(filePath) {
+  const normalized = String(filePath).replace(/\\/g, "/").replace(TEMPLATE_SUFFIX, "");
+  return CONFIG_LIKE_EXT.test(normalized);
+}
 
 /**
  * Conta atribuições com VALOR literal a nomes de credencial de assinatura
@@ -178,7 +187,7 @@ export function committedSecretAssignments(filePath, text) {
     const value = m[1] ?? m[2] ?? m[3] ?? "";
     if (!PLACEHOLDER_VALUE.test(value)) count += 1;
   }
-  if (CONFIG_LIKE_EXT.test(String(filePath).replace(/\\/g, "/"))) {
+  if (isConfigLike(filePath)) {
     const bare = new RegExp(`\\b(?:${names})\\b\\s*[=:]\\s*([^\\s"'\`#;,]{4,})`, "g");
     for (const m of source.matchAll(bare)) {
       if (!PLACEHOLDER_VALUE.test(m[1])) count += 1;
@@ -277,8 +286,11 @@ export function uploadPasswordProblems(password) {
   return problems;
 }
 
-const PRIVATE_HOST_RE =
-  /^(localhost|.*\.local|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|\[?::1\]?)$/i;
+// Definição ÚNICA de host local/privado: usada para validar a origem do
+// backend e para varrer artefatos (DEV_BACKEND_MARKERS abaixo).
+const PRIVATE_HOST_SOURCE =
+  "localhost|[a-z0-9-]+(?:\\.[a-z0-9-]+)*\\.local|127(?:\\.\\d{1,3}){3}|0\\.0\\.0\\.0|10(?:\\.\\d{1,3}){3}|192\\.168(?:\\.\\d{1,3}){2}|172\\.(?:1[6-9]|2\\d|3[01])(?:\\.\\d{1,3}){2}|\\[::1\\]|::1";
+const PRIVATE_HOST_RE = new RegExp(`^(?:${PRIVATE_HOST_SOURCE})$`, "i");
 
 /**
  * Valida a origem pública do backend GymFlow embutida no bundle mobile.
@@ -324,10 +336,9 @@ export const SECRET_MARKERS = [
 // Marcadores de backend de desenvolvimento. O parser de URL do Next contém o
 // literal "localhost" (sem esquema) — por isso só esquema+host contam.
 export const DEV_BACKEND_MARKERS = [
-  { id: "HTTP_LOCALHOST", re: /https?:\/\/localhost[:/]/gi },
-  { id: "LOOPBACK_IP", re: /https?:\/\/127\.0\.0\.1/g },
+  // Esquema + host privado seguido de fim de host (porta, path, aspas...).
+  { id: "PRIVATE_HOST_URL", re: new RegExp(`https?:\\/\\/(?:${PRIVATE_HOST_SOURCE})(?=[:/?#"'\`\\s)]|$)`, "gi") },
   { id: "EMULATOR_HOST", re: /https?:\/\/10\.0\.2\.2/g },
-  { id: "LAN_IP", re: /https?:\/\/(?:192\.168|10)\.\d{1,3}\.\d{1,3}/g },
   { id: "TUNNEL_HOST", re: /https?:\/\/[a-z0-9.-]*(?:ngrok|localtunnel|trycloudflare)[a-z0-9.-]*/gi },
 ];
 
@@ -358,12 +369,17 @@ export function assistantBackendEvidence(files, origin = PRODUCTION_BACKEND_ORIG
   const resolverFiles = [];
   const resolverWithOrigin = [];
   const runtimeLookupFiles = [];
+  // A origem precisa aparecer como LITERAL de string e, logo adiante (janela
+  // limitada), o template que monta `${origem}/api/nutrition/assistant` — é a
+  // forma do resolvedor compilado. URL solta no mesmo chunk não conta.
+  const escapedOrigin = origin.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+  const resolverExpr = new RegExp(`["'\`]${escapedOrigin}["'\`][\\s\\S]{0,300}?\\$\\{\\w+\\}${ASSISTANT_PATH.replace(/\//g, "\\/")}`);
   for (const { name, text } of files) {
     const source = String(text ?? "");
     if (source.includes(RUNTIME_BACKEND_LOOKUP)) runtimeLookupFiles.push(name);
     if (source.includes(ASSISTANT_PATH)) {
       resolverFiles.push(name);
-      if (source.includes(origin)) resolverWithOrigin.push(name);
+      if (resolverExpr.test(source)) resolverWithOrigin.push(name);
     }
   }
   return {

@@ -143,6 +143,11 @@ if (!fingerprintsEqual(keyCert.sha256, record.sha256)) {
     `Keystore NÃO corresponde ao registro público: ${formatFingerprint(keyCert.sha256 ?? "")} != ${record.sha256}. Nada foi compilado.`
   );
 }
+// A exceção de teste vale pelo CERTIFICADO REAL, não pelo texto do registro
+// (editável): o subject do keystore precisa ter o marcador e bater com o registro.
+if (allowDirty && !(keyCert.owner === record.subject && isThrowawayRecord({ subject: keyCert.owner }))) {
+  fail("--allow-dirty recusado: o certificado real do keystore não é de chave descartável de teste.");
+}
 console.log(`${TAG} Upload key conferida: ${record.sha256}`);
 
 function step(label, command, commandArgs, { cwd = REPO_ROOT, extraEnv = {} } = {}) {

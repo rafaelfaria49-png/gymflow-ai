@@ -172,9 +172,9 @@ describe('GOAL-117 play-release-lib: backend e segredos', () => {
 
   it('ignora o literal "localhost" do parser de URL do Next, mas pega URL de dev', () => {
     expect(countMarkers('if("localhost"===e)return a', DEV_BACKEND_MARKERS)).toEqual({});
-    expect(countMarkers('fetch("http://localhost:3000/api")', DEV_BACKEND_MARKERS)).toMatchObject({ HTTP_LOCALHOST: 1 });
+    expect(countMarkers('fetch("http://localhost:3000/api")', DEV_BACKEND_MARKERS)).toMatchObject({ PRIVATE_HOST_URL: 1 });
     expect(countMarkers('u="http://10.0.2.2:3000"', DEV_BACKEND_MARKERS)).toMatchObject({ EMULATOR_HOST: 1 });
-    expect(countMarkers('u="http://192.168.0.6:3000"', DEV_BACKEND_MARKERS)).toMatchObject({ LAN_IP: 1 });
+    expect(countMarkers('u="http://192.168.0.6:3000"', DEV_BACKEND_MARKERS)).toMatchObject({ PRIVATE_HOST_URL: 1 });
   });
 
   it('lista hosts *.vercel.app para conferir que só há Production', () => {
@@ -337,5 +337,43 @@ describe('GOAL-117 play-release-lib: chave descartável e senha com espaço', ()
   it('pega senha com espaço interno entre aspas', () => {
     const name = 'GYMFLOW_UPLOAD_KEY_' + 'PASSWORD';
     expect(committedSecretAssignments('scripts/x.mjs', `${name}: "minha senha longa 42"`)).toBe(1);
+  });
+});
+
+describe('GOAL-117 play-release-lib: rodada 3 da revisão independente', () => {
+  it.each([
+    'http://172.16.0.5:3000/api',
+    'http://172.31.255.1/x',
+    'http://0.0.0.0:8080',
+    'http://[::1]:3000',
+    'http://meu-pc.local:3000',
+    'https://127.0.0.1',
+  ])('scan de artefato pega URL de host privado/loopback: %s', (url) => {
+    expect(countMarkers(`fetch("${url}")`, DEV_BACKEND_MARKERS)).toMatchObject({ PRIVATE_HOST_URL: 1 });
+  });
+
+  it('não confunde host público parecido com privado', () => {
+    expect(countMarkers('a="https://localhost.example.com";b="https://foo.locale.com";c="https://172.32.0.1"', DEV_BACKEND_MARKERS)).toEqual({});
+  });
+
+  it('template .properties.example é tratado como config (valor sem aspas conta)', () => {
+    const name = 'store' + 'Password';
+    expect(committedSecretAssignments('android/x.properties.example', `${name}=Real-Literal-99`)).toBe(1);
+    expect(committedSecretAssignments('android/x.properties.example', `${name}=SUA_SENHA_AQUI`)).toBe(0);
+    expect(committedSecretAssignments('android/x.properties.example', `${name}=<senha-do-keystore>`)).toBe(0);
+  });
+
+  it('placeholder é gramática exata, não prefixo', () => {
+    const name = 'GYMFLOW_UPLOAD_KEY_' + 'PASSWORD';
+    expect(committedSecretAssignments('scripts/x.mjs', `${name}: "$uperSecret-2026"`)).toBe(1);
+    expect(committedSecretAssignments('scripts/x.mjs', `${name}: "<abc>def"`)).toBe(1);
+    expect(committedSecretAssignments('ci/run.sh', `${name}=\${SECRET_FROM_VAULT}`)).toBe(0);
+  });
+
+  it('URL Production no mesmo chunk, longe do resolvedor, não certifica o backend', () => {
+    const resolverWithoutOrigin =
+      'let t=0===(e=(x??"").trim()).length?null:e;return t?{kind:"remote",url:`${t}/api/nutrition/assistant`}:{}';
+    const chunk = `${resolverWithoutOrigin};${'x'.repeat(2000)};const link="https://gymflow-beige-gamma.vercel.app";`;
+    expect(assistantBackendEvidence([{ name: 'c.js', text: chunk }]).embedded).toBe(false);
   });
 });

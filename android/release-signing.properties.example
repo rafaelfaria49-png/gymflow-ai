@@ -8,9 +8,9 @@
 ##
 ## ALTERNATIVA VIA VARIÁVEIS DE AMBIENTE (recomendado para CI/CD):
 ##   GYMFLOW_RELEASE_STORE_FILE=/caminho/para/gymflow-upload-key.jks
-##   GYMFLOW_RELEASE_STORE_PASSWORD=senha_do_keystore
+##   GYMFLOW_RELEASE_STORE_PASSWORD=<senha-do-keystore>
 ##   GYMFLOW_RELEASE_KEY_ALIAS=gymflow-upload
-##   GYMFLOW_RELEASE_KEY_PASSWORD=senha_da_chave
+##   GYMFLOW_RELEASE_KEY_PASSWORD=<senha-da-chave>
 ## ==============================================================================
 
 # Caminho relativo à pasta "android/" ou absoluto para o arquivo de keystore

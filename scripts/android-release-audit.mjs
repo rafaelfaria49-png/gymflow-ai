@@ -290,9 +290,12 @@ export function runAudit({ requireRecord = true, acceptBackendUnavailable = fals
 
     // O AAB precisa corresponder a um commit identificável. Exceção só para
     // teste com chave DESCARTÁVEL (subject com o marcador de teste).
-    const throwawayRecord = isThrowawayRecord(record);
+    // Vale o certificado REAL que assinou o AAB (o registro é editável): o
+    // subject do signer precisa ter o marcador e ser igual ao do registro.
+    const throwawayRecord =
+      isThrowawayRecord(record) && aabCert.owner === record.subject && isThrowawayRecord({ subject: aabCert.owner });
     if (allowDirty && !throwawayRecord) {
-      throw new Error("--allow-dirty só é aceito com registro de chave DESCARTÁVEL de teste, nunca com a upload key real.");
+      throw new Error("--allow-dirty só é aceito com AAB assinado por chave DESCARTÁVEL de teste, nunca com a upload key real.");
     }
     const gitDirty = gitOrThrow(["status", "--porcelain"]).trim().length > 0;
     gate("GIT_TREE_CLEAN", !gitDirty, gitDirty ? "working tree com alterações" : "limpa", { hard: !allowDirty });
