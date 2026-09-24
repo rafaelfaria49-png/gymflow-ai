@@ -138,9 +138,13 @@ npm run android:release:audit -- --accept-backend-unavailable
 - signer do APK == signer do AAB == `UPLOAD_CERT_SHA256` do registro;
 - bundle web do AAB **idêntico, arquivo a arquivo (sha256), ao `out/`** atual
   (extras só `cordova.js`/`cordova_plugins.js`, injetados pelo Capacitor);
-- árvore git limpa (`GIT_TREE_CLEAN`);
-- backend: origem Production embutida, ou FAIL — vira aviso somente com
-  `--accept-backend-unavailable` (aceite registrado no manifest);
+- árvore git limpa (`GIT_TREE_CLEAN`; `--allow-dirty` só é aceito com
+  registro de chave descartável de teste, nunca com a upload key real);
+- backend: o **resolvedor** do endpoint do assistente usa a origem Production
+  embutida e não resta leitura da variável em runtime em nenhum arquivo;
+  senão FAIL — vira aviso somente com `--accept-backend-unavailable` (aceite
+  registrado no manifest);
+- scan de segredos no AAB **inteiro** (base, módulos, BUNDLE-METADATA);
 - identidade de APK **e** AAB (manifest proto do AAB lido via `aapt2`):
   package, versionCode, versionName == `build.gradle`; sem `debuggable`;
 - `capacitor.config.json` embarcado: appId correto,
@@ -224,7 +228,15 @@ upload certificate, segredos, AAB, backend, debug e esta documentação.
   "fora do repo" sem resolver symlink/junction; backend FAIL virava aviso
   sem aceite humano; env de senha herdado por filhos; scan de senha no git
   estreito. **Todos corrigidos** (§6/§7).
-- Rodada 2 (após correções): ver GOALS_LOG do GOAL-117.
+- Rodada 2 (commit `0574d75`): **P0=0 · P1=3 · P2=3** — F1/F2/F4/F5/F6
+  confirmados corrigidos; F3 parcial (`--allow-dirty` ainda no comando
+  definitivo, exit code do git ignorado), F7 parcial (`.example`/arquivos
+  grandes pulados, senha com espaço entre aspas); novos: backend continua
+  indisponível (= achado §9, fora do escopo), gate de backend aceitava a URL
+  em qualquer arquivo, scan só em `base/` do AAB, gate humano sem
+  autorização explícita de criação do app/Free. Todos corrigidos, exceto o
+  backend (§9), que segue P1 aberto para decisão humana.
+- Rodada 3 (após correções): ver GOALS_LOG do GOAL-117.
 
 A revisão do **AAB final** e do certificado real só é possível após a upload
 key existir: repetir antes do gate do §12.
@@ -275,19 +287,26 @@ BACKEND_LIMITATION_ACCEPTED   (YES/NO — só quando NOT_CONFIGURED)
 INDEPENDENT_REVIEW_RESULT
 ```
 
-e responde explicitamente:
+e responde explicitamente, cada item em separado:
 
 ```
-PLAY_APP_SIGNING_AUTHORIZED = YES/NO
-INTERNAL_AAB_UPLOAD_AUTHORIZED = YES/NO
+PLAY_APP_CREATION_AUTHORIZED = YES/NO   (só se o app ainda não existe — P2)
+  PLAY_DEVELOPER_ACCOUNT = <conta/e-mail do Console que ficará dona do package>
+  PACKAGE_ID = com.gymflowai.app        (preso para sempre a essa conta)
+  PRICING = FREE | PAID                 (FREE não pode virar PAID depois)
+PLAY_APP_SIGNING_AUTHORIZED = YES/NO    (chave do app gerada pelo Google)
+INTERNAL_AAB_UPLOAD_AUTHORIZED = YES/NO (somente trilha Teste interno)
 ```
 
-Sem `YES` explícito, nada acontece no Play.
+Sem `YES` explícito em cada item, a ação correspondente não acontece no
+Play. Nenhum item autoriza outro por inferência.
 
 ## 13. Passos no Play Console (somente após autorização; conta/2FA do humano)
 
-1. **Criar app** (se P2 = não): nome GymFlow, idioma padrão pt-BR, App,
-   Gratuito (P6), aceitar declarações. Irreversível: gratuito não vira pago.
+1. **Criar app** (somente com `PLAY_APP_CREATION_AUTHORIZED = YES`, na conta
+   e com o `PRICING` autorizados): nome GymFlow, idioma padrão pt-BR, App,
+   gratuito/pago conforme autorizado, aceitar declarações. Irreversível:
+   gratuito não vira pago; o package fica preso à conta no 1º upload.
 2. **Testes → Teste interno → Testadores:** lista de e-mails autorizados
    (Google Groups ou lista); copiar o link de participação (opt-in).
 3. **Teste interno → Criar versão:** na primeira versão o Console pede a

@@ -17,7 +17,8 @@
 //   --accept-backend-unavailable: aceite humano da IA nativa indisponível
 //     (backend não embutido); sem ele esse gate FALHA.
 //   --no-record: audita sem exigir o registro da upload key (ex.: chave interna).
-//   --allow-dirty: árvore git suja vira aviso (somente teste).
+//   --allow-dirty: árvore git suja vira aviso — SÓ com registro de chave
+//     descartável de teste (subject "THROWAWAY TEST ONLY"); recusado com a real.
 import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, copyFileSync, mkdirSync } from "node:fs";
 import os from "node:os";
@@ -38,8 +39,10 @@ import {
   PRODUCTION_BACKEND_ORIGIN,
   SECRET_MARKERS,
   UPLOAD_CERT_RECORD,
+  assistantBackendEvidence,
   committedSecretAssignments,
   compareWebTrees,
+  isThrowawayRecord,
   countMarkers,
   fingerprintsEqual,
   formatFingerprint,
@@ -84,21 +87,25 @@ function archiveEntries(archive) {
 }
 
 /** Varre arquivos (texto e binário como latin1) somando marcadores. */
-function scanTree(files) {
+function scanTree(files, root) {
   const secrets = {};
   const dev = {};
   const vercelHosts = new Set();
-  let productionOriginHits = 0;
-  let runtimeEnvLookup = 0;
+  const texts = [];
   for (const file of files) {
     const text = readFileSync(file).toString("latin1");
     for (const [id, n] of Object.entries(countMarkers(text, SECRET_MARKERS))) secrets[id] = (secrets[id] ?? 0) + n;
     for (const [id, n] of Object.entries(countMarkers(text, DEV_BACKEND_MARKERS))) dev[id] = (dev[id] ?? 0) + n;
     for (const host of vercelAppHosts(text)) vercelHosts.add(host);
-    productionOriginHits += text.split(PRODUCTION_BACKEND_ORIGIN).length - 1;
-    runtimeEnvLookup += text.split("env.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL").length - 1;
+    texts.push({ name: path.relative(root, file).split(path.sep).join("/"), text });
   }
-  return { secrets, dev, vercelHosts: [...vercelHosts].sort(), productionOriginHits, runtimeEnvLookup };
+  return { secrets, dev, vercelHosts: [...vercelHosts].sort(), backend: assistantBackendEvidence(texts) };
+}
+
+function gitOrThrow(args) {
+  const res = run("git", args);
+  if (res.status !== 0) throw new Error(`git ${args[0]} falhou (exit ${res.status}); auditoria de git inconclusiva.`);
+  return res.stdout;
 }
 
 function treeHashes(dir) {
@@ -227,11 +234,10 @@ export function runAudit({ requireRecord = true, acceptBackendUnavailable = fals
         : `faltando=${webCompare.missing.length} diferentes=${webCompare.different.length} extras=${webCompare.unexpectedExtra.length}`
     );
 
-    const aabFiles = listFiles(path.join(work, "aab", "base"));
-    const apkFiles = listFiles(path.join(work, "apk"));
-    const aabScan = scanTree(aabFiles);
-    const apkScan = scanTree(apkFiles);
-    const outScan = scanTree(listFiles(path.join(REPO_ROOT, "out")));
+    // AAB inteiro (base, eventuais módulos, BUNDLE-METADATA, META-INF).
+    const aabScan = scanTree(listFiles(path.join(work, "aab")), path.join(work, "aab"));
+    const apkScan = scanTree(listFiles(path.join(work, "apk")), path.join(work, "apk"));
+    const outScan = scanTree(listFiles(path.join(REPO_ROOT, "out")), path.join(REPO_ROOT, "out"));
     for (const [label, scan] of [["AAB", aabScan], ["APK", apkScan], ["OUT", outScan]]) {
       gate(`${label}_SECRET_SCAN`, Object.keys(scan.secrets).length === 0, JSON.stringify(scan.secrets));
       gate(`${label}_DEV_BACKEND_SCAN`, Object.keys(scan.dev).length === 0, JSON.stringify(scan.dev));
@@ -239,15 +245,16 @@ export function runAudit({ requireRecord = true, acceptBackendUnavailable = fals
       const foreignVercel = scan.vercelHosts.filter((h) => h !== productionHost);
       gate(`${label}_ONLY_PRODUCTION_VERCEL_HOST`, foreignVercel.length === 0, foreignVercel.join(", ") || "ok");
     }
-    // Backend Production: sem a origem embutida, a IA nativa fica
-    // indisponível. Isso só passa (como WARN) com aceite humano explícito.
-    const backendEmbedded = aabScan.productionOriginHits > 0;
+    // Backend Production: o RESOLVEDOR do endpoint do assistente precisa usar
+    // a origem embutida (sem leitura em runtime restante). Sem isso, a IA
+    // nativa fica indisponível — só passa (WARN) com aceite humano explícito.
+    const backendEmbedded = aabScan.backend.embedded;
     gate(
       "BACKEND_PRODUCTION_ORIGIN_EMBEDDED",
       backendEmbedded,
       backendEmbedded
-        ? `${PRODUCTION_BACKEND_ORIGIN} embutida (${aabScan.productionOriginHits}x)`
-        : `origem do backend NÃO embutida: IA nativa 'unavailable' (aceite humano: ${acceptBackendUnavailable ? "SIM" : "NÃO"})`,
+        ? `resolvedor do assistente usa ${PRODUCTION_BACKEND_ORIGIN} (${aabScan.backend.resolverWithOrigin.join(", ")})`
+        : `origem NÃO embutida no resolvedor (leitura em runtime em ${aabScan.backend.runtimeLookupFiles.length} arquivo(s)): IA nativa 'unavailable' (aceite humano: ${acceptBackendUnavailable ? "SIM" : "NÃO"})`,
       { hard: !acceptBackendUnavailable }
     );
 
@@ -262,34 +269,39 @@ export function runAudit({ requireRecord = true, acceptBackendUnavailable = fals
     gate("CAPACITOR_NO_DEV_SERVER_URL", !capConfig?.server?.url, capConfig?.server?.url ? "server.url definido" : "ok");
 
     // --- Git: nada de chave/credencial versionada
-    const lsFiles = run("git", ["ls-files"]);
-    if (lsFiles.status !== 0) throw new Error("git ls-files falhou; auditoria de git inconclusiva.");
-    const tracked = lsFiles.stdout.split(/\r?\n/).filter(Boolean);
+    const tracked = gitOrThrow(["ls-files"]).split(/\r?\n/).filter(Boolean);
     const trackedSecrets = tracked.filter((f) =>
       /\.(jks|keystore|p12|pfx|pepk)$|(^|\/)release-signing\.properties$|(^|\/)keystore\.properties$|(^|\/)\.env(\.|$)/i.test(f)
     );
     gate("KEYSTORE_IN_GIT", trackedSecrets.length === 0, trackedSecrets.join(", ") || "0");
     // Valores literais atribuídos a nomes de senha em QUALQUER arquivo
-    // versionado (templates .example ficam de fora; valores nunca impressos).
+    // versionado de texto, templates incluídos (placeholders são aceitos pelo
+    // próprio detector); valores nunca impressos.
     const binaryExt = /\.(png|jpe?g|gif|webp|ico|glb|gltf|bin|mp4|mov|webm|woff2?|ttf|otf|pdf|zip|jar|aar|so|keystore|jks)$/i;
     const secretHits = [];
     for (const file of tracked) {
-      if (file.endsWith(".example") || binaryExt.test(file)) continue;
+      if (binaryExt.test(file)) continue;
       const full = path.join(REPO_ROOT, file);
-      if (!existsSync(full) || statSync(full).size > 2 * 1024 * 1024) continue;
+      if (!existsSync(full)) continue;
       const n = committedSecretAssignments(file, readFileSync(full, "utf8"));
       if (n > 0) secretHits.push(`${file} (${n})`);
     }
     gate("SIGNING_PASSWORD_IN_GIT", secretHits.length === 0, secretHits.length ? `${secretHits.join(", ")} — valores omitidos` : "0");
 
-    // O AAB precisa corresponder a um commit identificável.
-    const gitDirty = run("git", ["status", "--porcelain"]).stdout.trim().length > 0;
+    // O AAB precisa corresponder a um commit identificável. Exceção só para
+    // teste com chave DESCARTÁVEL (subject com o marcador de teste).
+    const throwawayRecord = isThrowawayRecord(record);
+    if (allowDirty && !throwawayRecord) {
+      throw new Error("--allow-dirty só é aceito com registro de chave DESCARTÁVEL de teste, nunca com a upload key real.");
+    }
+    const gitDirty = gitOrThrow(["status", "--porcelain"]).trim().length > 0;
     gate("GIT_TREE_CLEAN", !gitDirty, gitDirty ? "working tree com alterações" : "limpa", { hard: !allowDirty });
 
     const manifest = {
       schema: 1,
       generatedAt: new Date().toISOString(),
-      gitHead: run("git", ["rev-parse", "HEAD"]).stdout.trim(),
+      throwawayTestKey: throwawayRecord,
+      gitHead: gitOrThrow(["rev-parse", "HEAD"]).trim(),
       gitDirty,
       packageId: aabBadging.packageName,
       versionCode: aabBadging.versionCode,
@@ -309,8 +321,9 @@ export function runAudit({ requireRecord = true, acceptBackendUnavailable = fals
       backend: {
         productionOriginEmbedded: backendEmbedded,
         limitationAccepted: backendEmbedded ? null : acceptBackendUnavailable,
-        productionOriginHits: aabScan.productionOriginHits,
-        runtimeEnvLookup: aabScan.runtimeEnvLookup,
+        resolverFiles: aabScan.backend.resolverFiles,
+        resolverWithOrigin: aabScan.backend.resolverWithOrigin,
+        runtimeLookupFiles: aabScan.backend.runtimeLookupFiles,
         vercelHosts: aabScan.vercelHosts,
       },
       gates,

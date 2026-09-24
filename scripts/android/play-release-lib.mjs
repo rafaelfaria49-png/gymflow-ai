@@ -10,6 +10,14 @@ export const PACKAGE_ID = "com.gymflowai.app";
 // bata com este arquivo. Nunca contém senha nem material privado.
 export const UPLOAD_CERT_RECORD = "android/play-upload-certificate.json";
 
+// Marcador no subject de chave DESCARTÁVEL de teste. Só com ela o fluxo
+// aceita árvore git suja (--allow-dirty); a upload key real nunca o tem.
+export const THROWAWAY_SUBJECT_MARKER = "THROWAWAY TEST ONLY";
+
+export function isThrowawayRecord(record) {
+  return typeof record?.subject === "string" && record.subject.includes(THROWAWAY_SUBJECT_MARKER);
+}
+
 // Único backend GymFlow permitido no bundle mobile de release.
 export const PRODUCTION_BACKEND_ORIGIN = "https://gymflow-beige-gamma.vercel.app";
 
@@ -160,10 +168,15 @@ export function committedSecretAssignments(filePath, text) {
   const source = String(text ?? "");
   const names = SIGNING_SECRET_NAMES.join("|");
   let count = 0;
-  // Valor sem espaços: evita casar prosa entre crases do Markdown.
-  const quoted = new RegExp(`\\b(?:${names})\\b\\s*[=:]\\s*(["'\`])([^"'\`\\s]{4,})\\1`, "g");
+  // Aspas duplas/simples: valor completo (espaços internos contam — senha pode
+  // ter espaço). Crases: sem espaço, para não casar prosa do Markdown.
+  const quoted = new RegExp(
+    `\\b(?:${names})\\b\\s*[=:]\\s*(?:"([^"\\r\\n]{4,})"|'([^'\\r\\n]{4,})'|\`([^\`\\s]{4,})\`)`,
+    "g"
+  );
   for (const m of source.matchAll(quoted)) {
-    if (!PLACEHOLDER_VALUE.test(m[2])) count += 1;
+    const value = m[1] ?? m[2] ?? m[3] ?? "";
+    if (!PLACEHOLDER_VALUE.test(value)) count += 1;
   }
   if (CONFIG_LIKE_EXT.test(String(filePath).replace(/\\/g, "/"))) {
     const bare = new RegExp(`\\b(?:${names})\\b\\s*[=:]\\s*([^\\s"'\`#;,]{4,})`, "g");
@@ -327,6 +340,38 @@ export function countMarkers(text, markers) {
     if (found && found.length > 0) counts[marker.id] = found.length;
   }
   return counts;
+}
+
+// Leitura em runtime da origem (sobra quando a variável NÃO foi embutida no
+// build; quando embutida, o Next substitui a expressão pelo literal).
+export const RUNTIME_BACKEND_LOOKUP = "env.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL";
+export const ASSISTANT_PATH = "/api/nutrition/assistant";
+
+/**
+ * Evidência de que o RESOLVEDOR do endpoint do assistente usa a origem
+ * Production embutida — não basta a URL aparecer em qualquer arquivo.
+ * `files`: [{ name, text }]. Embutido = nenhuma leitura em runtime restante
+ * em arquivo algum E algum arquivo que monta `${origem}/api/nutrition/assistant`
+ * contém a origem Production.
+ */
+export function assistantBackendEvidence(files, origin = PRODUCTION_BACKEND_ORIGIN) {
+  const resolverFiles = [];
+  const resolverWithOrigin = [];
+  const runtimeLookupFiles = [];
+  for (const { name, text } of files) {
+    const source = String(text ?? "");
+    if (source.includes(RUNTIME_BACKEND_LOOKUP)) runtimeLookupFiles.push(name);
+    if (source.includes(ASSISTANT_PATH)) {
+      resolverFiles.push(name);
+      if (source.includes(origin)) resolverWithOrigin.push(name);
+    }
+  }
+  return {
+    embedded: runtimeLookupFiles.length === 0 && resolverWithOrigin.length > 0,
+    resolverFiles,
+    resolverWithOrigin,
+    runtimeLookupFiles,
+  };
 }
 
 /** Hosts *.vercel.app presentes no texto (para conferir que só há Production). */

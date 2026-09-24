@@ -10,6 +10,8 @@ import {
   countMarkers,
   parseJarsignerVerbose,
   parseKeytoolJarSigners,
+  assistantBackendEvidence,
+  isThrowawayRecord,
   fingerprintsEqual,
   formatFingerprint,
   isPathInside,
@@ -294,5 +296,46 @@ describe('GOAL-117 play-release-lib: senha versionada (prosa Markdown)', () => {
   it('não confunde texto entre crases com valor', () => {
     const name = 'store' + 'Password';
     expect(committedSecretAssignments('docs/x.md', `- \`${name}=\`, URLs de dev (\`http://localhost\`)`)).toBe(0);
+  });
+});
+
+describe('GOAL-117 play-release-lib: evidência do backend no resolvedor', () => {
+  // Trechos no formato real do bundle (ver GOAL-117): com e sem origem embutida.
+  const notEmbedded =
+    'let e,t=0===(e=(G.default.env.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL??"").trim()).length?null:e;' +
+    'return t?{kind:"remote",url:`${t}/api/nutrition/assistant`}:{kind:"unavailable"}';
+  const embedded =
+    'let e,t=0===(e="https://gymflow-beige-gamma.vercel.app".trim()).length?null:e;' +
+    'return t?{kind:"remote",url:`${t}/api/nutrition/assistant`}:{kind:"unavailable"}';
+
+  it('origem embutida no resolvedor = embedded', () => {
+    expect(assistantBackendEvidence([{ name: 'a.js', text: embedded }]).embedded).toBe(true);
+  });
+
+  it('leitura em runtime restante = não embutido', () => {
+    const ev = assistantBackendEvidence([{ name: 'a.js', text: notEmbedded }]);
+    expect(ev.embedded).toBe(false);
+    expect(ev.runtimeLookupFiles).toEqual(['a.js']);
+  });
+
+  it('URL Production solta em outro arquivo não certifica o backend', () => {
+    const ev = assistantBackendEvidence([
+      { name: 'a.js', text: notEmbedded },
+      { name: 'link.js', text: 'href="https://gymflow-beige-gamma.vercel.app/sobre"' },
+    ]);
+    expect(ev.embedded).toBe(false);
+  });
+});
+
+describe('GOAL-117 play-release-lib: chave descartável e senha com espaço', () => {
+  it('só subject com o marcador de teste é descartável', () => {
+    expect(isThrowawayRecord({ subject: 'CN=THROWAWAY TEST ONLY - NOT FOR PLAY, O=GymFlow, C=BR' })).toBe(true);
+    expect(isThrowawayRecord({ subject: 'CN=GymFlow Upload, OU=Mobile, O=GymFlow, C=BR' })).toBe(false);
+    expect(isThrowawayRecord(null)).toBe(false);
+  });
+
+  it('pega senha com espaço interno entre aspas', () => {
+    const name = 'GYMFLOW_UPLOAD_KEY_' + 'PASSWORD';
+    expect(committedSecretAssignments('scripts/x.mjs', `${name}: "minha senha longa 42"`)).toBe(1);
   });
 });

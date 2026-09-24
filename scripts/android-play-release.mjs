@@ -21,7 +21,8 @@
 //
 // Uso (terminal interativo):
 //   npm run android:play:release -- --keystore "D:\\Cofre\\GymFlow\\upload-key\\gymflow-upload-key.jks" --expect-version-code 1 [--accept-backend-unavailable]
-// Flag de teste: --allow-dirty (nunca para o AAB real).
+// Flag de teste: --allow-dirty — aceita SOMENTE com registro de chave
+// descartável (subject "THROWAWAY TEST ONLY"); recusada com a upload key real.
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -39,6 +40,7 @@ import {
   UPLOAD_CERT_RECORD,
   fingerprintsEqual,
   formatFingerprint,
+  isThrowawayRecord,
   parseGradleVersion,
   parseKeytoolCertificate,
 } from "./android/play-release-lib.mjs";
@@ -73,6 +75,9 @@ if (args.includes("--skip-web")) fail("--skip-web não existe no fluxo Play: o b
 const recordFile = path.join(REPO_ROOT, UPLOAD_CERT_RECORD);
 if (!existsSync(recordFile)) fail(`${UPLOAD_CERT_RECORD} ausente. Gere a upload key antes (npm run android:upload-key:generate).`);
 const record = JSON.parse(readFileSync(recordFile, "utf8"));
+if (allowDirty && !isThrowawayRecord(record)) {
+  fail("--allow-dirty só existe para teste com chave DESCARTÁVEL; com a upload key real a árvore precisa estar limpa.");
+}
 
 // 2. Keystore: caminho explícito, existente e FORA de repositório git
 // (symlink/junction resolvidos antes da checagem)
@@ -103,8 +108,9 @@ if (!backendOrigin && !acceptBackendUnavailable) {
 
 // 5. Árvore limpa: o AAB precisa corresponder a um commit identificável
 function assertCleanTree(moment) {
-  const dirty = run("git", ["status", "--porcelain"]).stdout.trim();
-  if (dirty && !allowDirty) fail(`Working tree com alterações ${moment}. Nada deve mudar arquivos versionados no release.`);
+  const status = run("git", ["status", "--porcelain"]);
+  if (status.status !== 0) fail(`git status falhou ${moment} (exit ${status.status}); proveniência inconclusiva.`);
+  if (status.stdout.trim() && !allowDirty) fail(`Working tree com alterações ${moment}. Nada deve mudar arquivos versionados no release.`);
 }
 assertCleanTree("antes do build");
 
