@@ -5,7 +5,11 @@ import {
   PRODUCTION_BACKEND_ORIGIN,
   SECRET_MARKERS,
   backendOriginProblems,
+  committedSecretAssignments,
+  compareWebTrees,
   countMarkers,
+  parseJarsignerVerbose,
+  parseKeytoolJarSigners,
   fingerprintsEqual,
   formatFingerprint,
   isPathInside,
@@ -176,5 +180,119 @@ describe('GOAL-117 play-release-lib: backend e segredos', () => {
       vercelAppHosts('a="https://gymflow-beige-gamma.vercel.app/x";b="https://gymflow-git-feat-x.vercel.app"'),
     ).toEqual(['gymflow-beige-gamma.vercel.app', 'gymflow-git-feat-x.vercel.app']);
     expect(vercelAppHosts('https://jmnpdtxahhb8xobk.public.blob.vercel-storage.com/a.mp4')).toEqual([]);
+  });
+});
+
+const JAR_DATE = 'Thu Jan 01 01:01:02 BRT 1981';
+function jarsignerOutput(entries: string[], signers: string[], warnings = ''): string {
+  return [
+    ...entries,
+    '',
+    '  s = signature was verified ',
+    ...signers.map((s) => `- Signed by "${s}"\n    Digest algorithm: SHA-256`),
+    '',
+    'jar verified.',
+    '',
+    'Warning: ',
+    'This jar contains entries whose signer certificate is self-signed.',
+    warnings,
+  ].join('\n');
+}
+
+describe('GOAL-117 play-release-lib: verificação do AAB (jarsigner/keytool)', () => {
+  const signedEntries = [
+    `sm       628 ${JAR_DATE} BundleConfig.pb`,
+    `sm       767 ${JAR_DATE} base/assets/capacitor.config.json`,
+    `      107562 ${JAR_DATE} META-INF/GYMFLOW-.SF`,
+    `        2051 ${JAR_DATE} META-INF/GYMFLOW-.RSA`,
+    `s     107513 ${JAR_DATE} META-INF/MANIFEST.MF`,
+  ];
+
+  it('aceita AAB com todas as entradas assinadas e um único signer', () => {
+    const parsed = parseJarsignerVerbose(jarsignerOutput(signedEntries, ['CN=GymFlow Upload']));
+    expect(parsed).toMatchObject({ verified: true, entries: 5, unsignedPayload: [], fatalWarnings: [] });
+    expect(parsed.signedBy).toEqual(['CN=GymFlow Upload']);
+  });
+
+  it('detecta entrada de payload não assinada mesmo com "jar verified."', () => {
+    const parsed = parseJarsignerVerbose(
+      jarsignerOutput(
+        [
+          ...signedEntries,
+          // Formato real do jarsigner para entrada não assinada: flag "?".
+          `    ?     16 Thu Sep 24 17:25:26 BRT 2026 base/assets/public/injetado.js`,
+          `         9 ${JAR_DATE} base/assets/public/sem-flag.js`,
+        ],
+        ['CN=GymFlow Upload'],
+        'This jar contains unsigned entries which have not been integrity-checked.',
+      ),
+    );
+    expect(parsed.verified).toBe(true);
+    expect(parsed.entries).toBe(7);
+    expect(parsed.unsignedPayload).toEqual(['base/assets/public/injetado.js', 'base/assets/public/sem-flag.js']);
+    expect(parsed.fatalWarnings.length).toBeGreaterThan(0);
+  });
+
+  it('expõe múltiplos signers', () => {
+    expect(parseJarsignerVerbose(jarsignerOutput(signedEntries, ['CN=A', 'CN=B'])).signedBy).toHaveLength(2);
+  });
+
+  it('lê todos os signers do keytool -printcert -jarfile', () => {
+    const one = `Signer #1:\n\n${KEYTOOL_PRINTCERT}\n`;
+    expect(parseKeytoolJarSigners(one)).toHaveLength(1);
+    expect(parseKeytoolJarSigners(one)[0].sha256).toBe('A3273A11A7C932F1397911AD02D62A8789522564F3AC6F7FF8D918DC1ADE547C');
+    const two = `${one}\nSigner #2:\n\n${KEYTOOL_PRINTCERT.replace('A3:27', 'B3:27')}\n`;
+    expect(parseKeytoolJarSigners(two)).toHaveLength(2);
+    expect(parseKeytoolJarSigners('keytool error: not a signed jar')).toEqual([]);
+  });
+});
+
+describe('GOAL-117 play-release-lib: proveniência do bundle web', () => {
+  const out = { 'index.html': 'h1', '_next/static/a.js': 'h2' };
+
+  it('aceita árvore idêntica com extras injetados pelo Capacitor', () => {
+    expect(compareWebTrees(out, { ...out, 'cordova.js': 'x', 'cordova_plugins.js': 'y' }).match).toBe(true);
+  });
+
+  it('recusa arquivo faltando, diferente ou extra inesperado', () => {
+    expect(compareWebTrees(out, { 'index.html': 'h1' }).missing).toEqual(['_next/static/a.js']);
+    expect(compareWebTrees(out, { ...out, 'index.html': 'velho' }).different).toEqual(['index.html']);
+    expect(compareWebTrees(out, { ...out, 'extra.js': 'z' }).unexpectedExtra).toEqual(['extra.js']);
+    expect(compareWebTrees({}, {}).match).toBe(false);
+  });
+});
+
+describe('GOAL-117 play-release-lib: senha versionada', () => {
+  // Nomes montados por concatenação: este arquivo de teste também é varrido.
+  const RELEASE_PW = 'GYMFLOW_RELEASE_STORE_' + 'PASSWORD';
+  const UPLOAD_PW = 'GYMFLOW_UPLOAD_KEY_' + 'PASSWORD';
+  const STORE_PW = 'store' + 'Password';
+  const literal = 'Lit' + 'eral-Val' + 'ue-42';
+
+  it('pega literal entre aspas em qualquer arquivo', () => {
+    expect(committedSecretAssignments('scripts/x.mjs', `const e = { ${RELEASE_PW}: "${literal}" };`)).toBe(1);
+    expect(committedSecretAssignments('docs/x.md', `${UPLOAD_PW}='${literal}'`)).toBe(1);
+  });
+
+  it('pega valor sem aspas em arquivo de configuração/script', () => {
+    expect(committedSecretAssignments('android/x.properties', `${STORE_PW}=${literal}`)).toBe(1);
+    expect(committedSecretAssignments('ci/run.sh', `export ${RELEASE_PW}=${literal}`)).toBe(1);
+    expect(committedSecretAssignments('.env.production', `${UPLOAD_PW}=${literal}`)).toBe(1);
+  });
+
+  it('ignora referências e placeholders', () => {
+    expect(committedSecretAssignments('scripts/x.mjs', `{ ${RELEASE_PW}: password }`)).toBe(0);
+    expect(committedSecretAssignments('docs/x.md', `set ${RELEASE_PW}=***`)).toBe(0);
+    expect(committedSecretAssignments('ci/w.yml', `${RELEASE_PW}: \${{ secrets.X }}`)).toBe(0);
+    expect(committedSecretAssignments('ci/run.sh', `${RELEASE_PW}=$SECRET`)).toBe(0);
+    expect(committedSecretAssignments('a.properties', `${STORE_PW}=SUA_SENHA_AQUI`)).toBe(0);
+    expect(committedSecretAssignments('build.gradle', `${STORE_PW} ${STORE_PW}Value`)).toBe(0);
+  });
+});
+
+describe('GOAL-117 play-release-lib: senha versionada (prosa Markdown)', () => {
+  it('não confunde texto entre crases com valor', () => {
+    const name = 'store' + 'Password';
+    expect(committedSecretAssignments('docs/x.md', `- \`${name}=\`, URLs de dev (\`http://localhost\`)`)).toBe(0);
   });
 });

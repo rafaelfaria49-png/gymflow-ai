@@ -2,7 +2,7 @@
 // Segredos só chegam aos processos filhos por variável de ambiente
 // (`-storepass:env`), nunca por argumento de linha de comando.
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 
 const isWin = process.platform === "win32";
@@ -86,13 +86,49 @@ export function run(command, args, { cwd = REPO_ROOT, extraEnv = {}, input } = {
   };
 }
 
+// Toda variável que pode carregar senha de assinatura/upload key.
+export const SECRET_ENV_NAMES = [
+  "GYMFLOW_RELEASE_STORE_PASSWORD",
+  "GYMFLOW_RELEASE_KEY_PASSWORD",
+  "GYMFLOW_UPLOAD_KEY_PASSWORD",
+  "GYMFLOW_UPLOAD_KEY_SECRET",
+];
+
+/**
+ * Retira do ambiente DESTE processo as variáveis de senha (devolvendo o
+ * valor pedido), para que nenhum filho as herde por acidente. Quem precisa
+ * da senha a repassa explicitamente via `extraEnv` a um filho específico.
+ */
+export function takeSecretEnv(name) {
+  const value = process.env[name] ?? "";
+  for (const secretName of SECRET_ENV_NAMES) delete process.env[secretName];
+  return value;
+}
+
 export function runApksigner(args) {
   return run(jdkTool("java"), ["-jar", path.join(buildToolsDir(), "lib", "apksigner.jar"), ...args]);
 }
 
-/** Raiz do repositório git que contém `target` (ou null). */
+/**
+ * Caminho canônico: resolve symlinks/junctions do trecho existente (o resto
+ * do caminho, se ainda não existe, é anexado ao ancestral resolvido).
+ */
+export function canonicalPath(target) {
+  let existing = path.resolve(target);
+  const pending = [];
+  while (!existsSync(existing)) {
+    const parent = path.dirname(existing);
+    if (parent === existing) break;
+    pending.unshift(path.basename(existing));
+    existing = parent;
+  }
+  const resolved = existsSync(existing) ? realpathSync.native(existing) : existing;
+  return path.join(resolved, ...pending);
+}
+
+/** Raiz do repositório git que contém `target` (após canonicalizar) ou null. */
 export function enclosingGitRoot(target) {
-  let current = path.resolve(target);
+  let current = canonicalPath(target);
   for (;;) {
     if (existsSync(path.join(current, ".git"))) return current;
     const parent = path.dirname(current);

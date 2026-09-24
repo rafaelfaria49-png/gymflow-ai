@@ -57,6 +57,123 @@ export function parseKeytoolCertificate(text) {
   };
 }
 
+/**
+ * Lê TODOS os signers de `keytool -printcert -jarfile` (blocos "Signer #N:").
+ * Um AAB de upload precisa ter exatamente um.
+ */
+export function parseKeytoolJarSigners(text) {
+  const blocks = String(text ?? "").split(/^Signer #\d+:\s*$/m).slice(1);
+  return blocks.map((block) => parseKeytoolCertificate(block));
+}
+
+// Avisos do jarsigner que invalidam o artefato. Cadeia/auto-assinado/sem
+// timestamp são esperados numa upload key (certificado auto-assinado).
+const JARSIGNER_FATAL_WARNINGS = [
+  /unsigned entries/i,
+  /has expired/i,
+  /not yet valid/i,
+  /not signed by/i,
+  /KeyUsage|ExtendedKeyUsage/i,
+  /weak algorithm|disabled algorithm|considered a security risk/i,
+];
+
+/**
+ * Lê `jarsigner -verify -verbose` (locale en). Toda entrada de payload
+ * (fora os arquivos de assinatura do META-INF e diretórios) precisa da flag
+ * "s" (assinatura verificada); "jar verified." sozinho não basta, pois o
+ * jarsigner só AVISA sobre entradas não assinadas.
+ */
+export function parseJarsignerVerbose(text) {
+  const source = String(text ?? "");
+  // Flags possíveis: s m k i x e "?" (= entrada NÃO assinada). Quem chama
+  // confere `entries` contra a listagem do zip: linha não reconhecida falha.
+  const entryRe = /^\s*([a-z?]*)\s+(\d+)\s+\S{3} \S{3} \d{2} \d{2}:\d{2}:\d{2} \S+ \d{4} (.+?)\s*$/gm;
+  const unsignedPayload = [];
+  let entries = 0;
+  let match;
+  while ((match = entryRe.exec(source)) !== null) {
+    const flags = match[1];
+    const name = match[3];
+    if (name.endsWith("/")) continue;
+    entries += 1;
+    const isSignatureFile = /^META-INF\/[^/]+\.(SF|RSA|DSA|EC)$/i.test(name);
+    if (!isSignatureFile && !flags.includes("s")) unsignedPayload.push(name);
+  }
+  const signedBy = [...source.matchAll(/^- Signed by "(.+)"\s*$/gm)].map((m) => m[1]);
+  const fatalWarnings = JARSIGNER_FATAL_WARNINGS.filter((re) => re.test(source)).map((re) => re.source);
+  return {
+    verified: /^jar verified\.\s*$/m.test(source),
+    entries,
+    unsignedPayload,
+    signedBy,
+    fatalWarnings,
+  };
+}
+
+// Arquivos que o `cap sync` injeta em assets/public além do export `out/`.
+export const CAPACITOR_INJECTED_WEB_FILES = ["cordova.js", "cordova_plugins.js"];
+
+/**
+ * Compara a árvore web embarcada com `out/`: mapas caminho-relativo -> sha256.
+ * Todo arquivo de out/ deve existir idêntico; extras só os injetados pelo
+ * Capacitor. Retorna contagens (sem conteúdo).
+ */
+export function compareWebTrees(outHashes, embeddedHashes) {
+  const missing = [];
+  const different = [];
+  for (const [rel, hash] of Object.entries(outHashes)) {
+    if (!(rel in embeddedHashes)) missing.push(rel);
+    else if (embeddedHashes[rel] !== hash) different.push(rel);
+  }
+  const unexpectedExtra = Object.keys(embeddedHashes).filter(
+    (rel) => !(rel in outHashes) && !CAPACITOR_INJECTED_WEB_FILES.includes(rel)
+  );
+  return {
+    match: Object.keys(outHashes).length > 0 && missing.length === 0 && different.length === 0 && unexpectedExtra.length === 0,
+    missing,
+    different,
+    unexpectedExtra,
+  };
+}
+
+// Nomes de credenciais de assinatura cujo VALOR nunca pode estar versionado.
+export const SIGNING_SECRET_NAMES = [
+  "storePassword",
+  "keyPassword",
+  "GYMFLOW_RELEASE_STORE_PASSWORD",
+  "GYMFLOW_RELEASE_KEY_PASSWORD",
+  "GYMFLOW_UPLOAD_KEY_PASSWORD",
+  "GYMFLOW_UPLOAD_KEY_SECRET",
+];
+
+const CONFIG_LIKE_EXT = /\.(properties|env|sh|bash|bat|cmd|ps1|ya?ml|toml|ini|cfg|conf|txt|gradle|kts|json)$|(^|\/)\.env[^/]*$/i;
+// Placeholders/referências aceitos: ***, $VAR, ${VAR}, %VAR%, <...>, SUA_/YOUR_.
+const PLACEHOLDER_VALUE = /^(\*+|\$|%|<|\{|SUA_|YOUR_|CHANGE_?ME|xxx|\.\.\.)/i;
+
+/**
+ * Conta atribuições com VALOR literal a nomes de credencial de assinatura
+ * num arquivo versionado (o valor nunca é devolvido). Literais entre aspas
+ * contam em qualquer arquivo; valores sem aspas só em arquivos de
+ * configuração/script (em código, `NOME: variavel` é referência, não segredo).
+ */
+export function committedSecretAssignments(filePath, text) {
+  const source = String(text ?? "");
+  const names = SIGNING_SECRET_NAMES.join("|");
+  let count = 0;
+  // Valor sem espaços: evita casar prosa entre crases do Markdown.
+  const quoted = new RegExp(`\\b(?:${names})\\b\\s*[=:]\\s*(["'\`])([^"'\`\\s]{4,})\\1`, "g");
+  for (const m of source.matchAll(quoted)) {
+    if (!PLACEHOLDER_VALUE.test(m[2])) count += 1;
+  }
+  if (CONFIG_LIKE_EXT.test(String(filePath).replace(/\\/g, "/"))) {
+    const bare = new RegExp(`\\b(?:${names})\\b\\s*[=:]\\s*([^\\s"'\`#;,]{4,})`, "g");
+    for (const m of source.matchAll(bare)) {
+      if (!PLACEHOLDER_VALUE.test(m[1])) count += 1;
+    }
+  }
+  return count;
+}
+
 /** Lê os signers da saída de `apksigner verify --print-certs -v`. */
 export function parseApksignerOutput(text) {
   const source = String(text ?? "");

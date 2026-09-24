@@ -9,30 +9,45 @@
 //   - web bundle embarcado + dex: marcadores de segredo/provedor, backend de
 //     desenvolvimento e hosts *.vercel.app (só Production é aceito);
 //   - WebView debugging desligado no capacitor.config.json embarcado;
-//   - git: nenhum keystore/credencial versionado.
+//   - git: nenhum keystore/credencial versionado; árvore limpa.
 // Grava android/app/build/outputs/play-release-manifest.json (git-ignorado)
 // com hashes e resultados. Nunca imprime trecho de segredo, só contagens.
 //
-// Uso: npm run android:release:audit [-- --require-backend] [--no-record]
+// Uso: npm run android:release:audit [-- --accept-backend-unavailable] [--no-record] [--allow-dirty]
+//   --accept-backend-unavailable: aceite humano da IA nativa indisponível
+//     (backend não embutido); sem ele esse gate FALHA.
 //   --no-record: audita sem exigir o registro da upload key (ex.: chave interna).
+//   --allow-dirty: árvore git suja vira aviso (somente teste).
 import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, copyFileSync, mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ANDROID_DIR, JAVA_EN_LOCALE, REPO_ROOT, aapt2Path, jdkTool, run, runApksigner } from "./android/android-tools.mjs";
+import {
+  ANDROID_DIR,
+  JAVA_EN_LOCALE,
+  REPO_ROOT,
+  aapt2Path,
+  jdkTool,
+  run,
+  runApksigner,
+  takeSecretEnv,
+} from "./android/android-tools.mjs";
 import {
   DEV_BACKEND_MARKERS,
   PACKAGE_ID,
   PRODUCTION_BACKEND_ORIGIN,
   SECRET_MARKERS,
   UPLOAD_CERT_RECORD,
+  committedSecretAssignments,
+  compareWebTrees,
   countMarkers,
   fingerprintsEqual,
   formatFingerprint,
   parseAapt2Badging,
   parseApksignerOutput,
   parseGradleVersion,
-  parseKeytoolCertificate,
+  parseJarsignerVerbose,
+  parseKeytoolJarSigners,
   vercelAppHosts,
 } from "./android/play-release-lib.mjs";
 
@@ -86,7 +101,21 @@ function scanTree(files) {
   return { secrets, dev, vercelHosts: [...vercelHosts].sort(), productionOriginHits, runtimeEnvLookup };
 }
 
-export function runAudit({ requireRecord = true, requireBackend = false, quiet = false } = {}) {
+function treeHashes(dir) {
+  const hashes = {};
+  for (const file of listFiles(dir)) hashes[path.relative(dir, file).split(path.sep).join("/")] = sha256File(file);
+  return hashes;
+}
+
+/**
+ * @param {object} options
+ * @param {boolean} [options.requireRecord] exige android/play-upload-certificate.json
+ * @param {boolean} [options.acceptBackendUnavailable] aceite humano explícito da
+ *   IA nativa indisponível (backend não embutido) — vira WARN registrado no
+ *   manifest; sem ele, backend não embutido é FAIL.
+ * @param {boolean} [options.allowDirty] árvore git suja vira WARN (só teste)
+ */
+export function runAudit({ requireRecord = true, acceptBackendUnavailable = false, allowDirty = false, quiet = false } = {}) {
   const log = (...m) => {
     if (!quiet) console.log(...m);
   };
@@ -115,11 +144,31 @@ export function runAudit({ requireRecord = true, requireBackend = false, quiet =
   gate("APK_SIGNATURE_VALID", apkSig.verified && apkSig.signers.length === 1, `verified=${apkSig.verified} signers=${apkSig.signers.length}`);
   gate("APK_NOT_DEBUG_SIGNED", !/CN=Android Debug/i.test(apkSigner.dn ?? ""), apkSigner.dn ?? "sem signer");
 
-  // --- Assinatura AAB
-  const jarsigner = run(jdkTool("jarsigner"), [...JAVA_EN_LOCALE, "-verify", AAB]);
-  const aabJarVerified = jarsigner.status === 0 && /jar verified\./i.test(jarsigner.output);
-  const aabCert = parseKeytoolCertificate(run(jdkTool("keytool"), [...JAVA_EN_LOCALE, "-printcert", "-jarfile", AAB]).output);
-  gate("AAB_JAR_SIGNATURE_VALID", aabJarVerified, aabJarVerified ? "jar verified" : "jarsigner não verificou");
+  // --- Assinatura AAB: "jar verified." não basta (jarsigner só AVISA sobre
+  // entradas não assinadas) — toda entrada de payload precisa da flag "s" e
+  // deve haver exatamente um signer.
+  const jarsignerRun = run(jdkTool("jarsigner"), [...JAVA_EN_LOCALE, "-verify", "-verbose", AAB]);
+  const jar = parseJarsignerVerbose(jarsignerRun.output);
+  const aabSigners = parseKeytoolJarSigners(
+    run(jdkTool("keytool"), [...JAVA_EN_LOCALE, "-printcert", "-jarfile", AAB]).output
+  );
+  const aabCert = aabSigners[0] ?? {};
+  gate(
+    "AAB_JAR_SIGNATURE_VALID",
+    jarsignerRun.status === 0 && jar.verified && jar.fatalWarnings.length === 0,
+    `verified=${jar.verified} avisos-fatais=${jar.fatalWarnings.length}`
+  );
+  const aabFileEntries = archiveEntries(AAB).filter((e) => !e.endsWith("/")).length;
+  gate(
+    "AAB_ALL_ENTRIES_SIGNED",
+    jar.entries > 0 && jar.entries === aabFileEntries && jar.unsignedPayload.length === 0,
+    `${jar.entries}/${aabFileEntries} entradas lidas; não assinadas: ${jar.unsignedPayload.length}`
+  );
+  gate(
+    "AAB_SINGLE_SIGNER",
+    aabSigners.length === 1 && jar.signedBy.length === 1,
+    `keytool=${aabSigners.length} jarsigner=${jar.signedBy.length}`
+  );
   gate("AAB_SIGNED", Boolean(aabCert.sha256), aabCert.owner ?? "sem certificado");
   gate(
     "APK_AAB_SAME_SIGNER",
@@ -162,13 +211,21 @@ export function runAudit({ requireRecord = true, requireBackend = false, quiet =
     const nativeLibs = aabEntries.filter((e) => e.endsWith(".so")).length;
 
     // Web bundle + dex + config embarcados. Scan vazio não pode virar PASS:
-    // o bundle web precisa estar no AAB (e, idealmente, ser o mesmo de out/).
-    const aabIndex = path.join(work, "aab", "base", "assets", "public", "index.html");
-    const aabWebFiles = listFiles(path.join(work, "aab", "base", "assets", "public")).length;
+    // o bundle web precisa estar no AAB e ser EXATAMENTE o export out/ atual
+    // (arquivo a arquivo, sha256), com extras só os injetados pelo Capacitor.
+    const aabPublic = path.join(work, "aab", "base", "assets", "public");
+    const aabIndex = path.join(aabPublic, "index.html");
+    const aabWebHashes = treeHashes(aabPublic);
+    const aabWebFiles = Object.keys(aabWebHashes).length;
     gate("AAB_WEB_BUNDLE_PRESENT", existsSync(aabIndex) && aabWebFiles > 0, `${aabWebFiles} arquivo(s) em base/assets/public`);
-    const outIndex = path.join(REPO_ROOT, "out", "index.html");
-    const sameWeb = existsSync(aabIndex) && existsSync(outIndex) && sha256File(aabIndex) === sha256File(outIndex);
-    gate("AAB_WEB_MATCHES_OUT", sameWeb, sameWeb ? "index.html idêntico" : "out/ diferente do bundle embarcado (ou ausente)", { hard: false });
+    const webCompare = compareWebTrees(treeHashes(path.join(REPO_ROOT, "out")), aabWebHashes);
+    gate(
+      "AAB_WEB_MATCHES_OUT",
+      webCompare.match,
+      webCompare.match
+        ? "árvore idêntica a out/"
+        : `faltando=${webCompare.missing.length} diferentes=${webCompare.different.length} extras=${webCompare.unexpectedExtra.length}`
+    );
 
     const aabFiles = listFiles(path.join(work, "aab", "base"));
     const apkFiles = listFiles(path.join(work, "apk"));
@@ -182,14 +239,16 @@ export function runAudit({ requireRecord = true, requireBackend = false, quiet =
       const foreignVercel = scan.vercelHosts.filter((h) => h !== productionHost);
       gate(`${label}_ONLY_PRODUCTION_VERCEL_HOST`, foreignVercel.length === 0, foreignVercel.join(", ") || "ok");
     }
+    // Backend Production: sem a origem embutida, a IA nativa fica
+    // indisponível. Isso só passa (como WARN) com aceite humano explícito.
     const backendEmbedded = aabScan.productionOriginHits > 0;
     gate(
       "BACKEND_PRODUCTION_ORIGIN_EMBEDDED",
       backendEmbedded,
       backendEmbedded
         ? `${PRODUCTION_BACKEND_ORIGIN} embutida (${aabScan.productionOriginHits}x)`
-        : "origem do backend NÃO embutida: IA nativa resolve para 'unavailable' (honesto)",
-      { hard: requireBackend }
+        : `origem do backend NÃO embutida: IA nativa 'unavailable' (aceite humano: ${acceptBackendUnavailable ? "SIM" : "NÃO"})`,
+      { hard: !acceptBackendUnavailable }
     );
 
     const capConfigFile = path.join(work, "aab", "base", "assets", "capacitor.config.json");
@@ -210,18 +269,28 @@ export function runAudit({ requireRecord = true, requireBackend = false, quiet =
       /\.(jks|keystore|p12|pfx|pepk)$|(^|\/)release-signing\.properties$|(^|\/)keystore\.properties$|(^|\/)\.env(\.|$)/i.test(f)
     );
     gate("KEYSTORE_IN_GIT", trackedSecrets.length === 0, trackedSecrets.join(", ") || "0");
-    // Linhas `storePassword=`/`keyPassword=` versionadas (template .example
-    // tem placeholders). git grep: 0 = achou, 1 = nada, outro = erro.
-    const pwGrep = run("git", ["grep", "-nIE", "^\\s*(store|key)Password\\s*[=:]", "--", ":!*.example"]);
-    if (pwGrep.status !== 0 && pwGrep.status !== 1) throw new Error("git grep falhou; auditoria de git inconclusiva.");
-    const pwLines = pwGrep.stdout.split(/\r?\n/).filter(Boolean);
-    gate("SIGNING_PASSWORD_IN_GIT", pwLines.length === 0, pwLines.length ? `${pwLines.length} linha(s) (valores omitidos)` : "0");
+    // Valores literais atribuídos a nomes de senha em QUALQUER arquivo
+    // versionado (templates .example ficam de fora; valores nunca impressos).
+    const binaryExt = /\.(png|jpe?g|gif|webp|ico|glb|gltf|bin|mp4|mov|webm|woff2?|ttf|otf|pdf|zip|jar|aar|so|keystore|jks)$/i;
+    const secretHits = [];
+    for (const file of tracked) {
+      if (file.endsWith(".example") || binaryExt.test(file)) continue;
+      const full = path.join(REPO_ROOT, file);
+      if (!existsSync(full) || statSync(full).size > 2 * 1024 * 1024) continue;
+      const n = committedSecretAssignments(file, readFileSync(full, "utf8"));
+      if (n > 0) secretHits.push(`${file} (${n})`);
+    }
+    gate("SIGNING_PASSWORD_IN_GIT", secretHits.length === 0, secretHits.length ? `${secretHits.join(", ")} — valores omitidos` : "0");
+
+    // O AAB precisa corresponder a um commit identificável.
+    const gitDirty = run("git", ["status", "--porcelain"]).stdout.trim().length > 0;
+    gate("GIT_TREE_CLEAN", !gitDirty, gitDirty ? "working tree com alterações" : "limpa", { hard: !allowDirty });
 
     const manifest = {
       schema: 1,
       generatedAt: new Date().toISOString(),
       gitHead: run("git", ["rev-parse", "HEAD"]).stdout.trim(),
-      gitDirty: run("git", ["status", "--porcelain"]).stdout.trim().length > 0,
+      gitDirty,
       packageId: aabBadging.packageName,
       versionCode: aabBadging.versionCode,
       versionName: aabBadging.versionName,
@@ -239,6 +308,7 @@ export function runAudit({ requireRecord = true, requireBackend = false, quiet =
       },
       backend: {
         productionOriginEmbedded: backendEmbedded,
+        limitationAccepted: backendEmbedded ? null : acceptBackendUnavailable,
         productionOriginHits: aabScan.productionOriginHits,
         runtimeEnvLookup: aabScan.runtimeEnvLookup,
         vercelHosts: aabScan.vercelHosts,
@@ -266,10 +336,13 @@ export function runAudit({ requireRecord = true, requireBackend = false, quiet =
 const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename);
 if (invokedDirectly) {
   const argv = process.argv.slice(2);
+  // A auditoria não usa senha: nenhuma variável de senha segue para filhos.
+  takeSecretEnv("");
   try {
     const manifest = runAudit({
       requireRecord: !argv.includes("--no-record"),
-      requireBackend: argv.includes("--require-backend"),
+      acceptBackendUnavailable: argv.includes("--accept-backend-unavailable"),
+      allowDirty: argv.includes("--allow-dirty"),
     });
     const failed = manifest.gates.filter((g) => g.status === "FAIL");
     if (failed.length > 0) {

@@ -1,27 +1,40 @@
 // GOAL-117 — Build FINAL para o Google Play assinado com a UPLOAD KEY.
 //
-// Sequência (a mesma do guia): build:mobile -> cap sync android ->
-// gradlew clean assembleRelease bundleRelease -> auditoria completa.
+// Sequência (a mesma do guia), sempre completa: build:mobile -> cap sync
+// android -> gradlew clean assembleRelease bundleRelease -> auditoria.
 //
 // Segurança:
 // - senha lida sem eco (ou GYMFLOW_RELEASE_STORE_PASSWORD já definida pelo
-//   operador); chega ao Gradle só por variável de ambiente do processo filho,
-//   com --no-daemon para nenhum daemon reter a senha após o build;
+//   operador — retirada do ambiente deste processo logo no início); chega ao
+//   keytool/Gradle só via env do filho específico, com --no-daemon para
+//   nenhum daemon reter a senha após o build;
 // - as 4 variáveis GYMFLOW_RELEASE_* são definidas juntas, então o
 //   android/release-signing.properties local (chave INTERNA) é ignorado;
 // - antes de compilar, confere que keystore+alias+senha produzem exatamente o
 //   fingerprint registrado em android/play-upload-certificate.json;
-// - o build web NÃO recebe nenhuma variável de assinatura;
+// - build web/cap sync/auditoria não recebem nenhuma variável de assinatura;
 // - --expect-version-code obriga o operador a confirmar o versionCode que o
-//   Play Console aceita (nada de incremento cego).
+//   Play Console aceita (nada de incremento cego);
+// - árvore git limpa antes, depois do cap sync e na auditoria;
+// - sem origem de backend embutida a IA nativa fica indisponível: exige
+//   --accept-backend-unavailable (aceite humano registrado no manifest).
 //
 // Uso (terminal interativo):
-//   npm run android:play:release -- --keystore "D:\\Cofre\\GymFlow\\upload-key\\gymflow-upload-key.jks" --expect-version-code 1
-// Flags: --skip-web (reusa out/ + cap sync já feitos) · --allow-dirty
+//   npm run android:play:release -- --keystore "D:\\Cofre\\GymFlow\\upload-key\\gymflow-upload-key.jks" --expect-version-code 1 [--accept-backend-unavailable]
+// Flag de teste: --allow-dirty (nunca para o AAB real).
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { ANDROID_DIR, JAVA_EN_LOCALE, REPO_ROOT, enclosingGitRoot, jdkTool, run } from "./android/android-tools.mjs";
+import {
+  ANDROID_DIR,
+  JAVA_EN_LOCALE,
+  REPO_ROOT,
+  canonicalPath,
+  enclosingGitRoot,
+  jdkTool,
+  run,
+  takeSecretEnv,
+} from "./android/android-tools.mjs";
 import {
   UPLOAD_CERT_RECORD,
   fingerprintsEqual,
@@ -44,12 +57,17 @@ function fail(message) {
   process.exit(1);
 }
 
-const SIGNING_ENV_NAMES = [
-  "GYMFLOW_RELEASE_STORE_FILE",
-  "GYMFLOW_RELEASE_STORE_PASSWORD",
-  "GYMFLOW_RELEASE_KEY_ALIAS",
-  "GYMFLOW_RELEASE_KEY_PASSWORD",
-];
+// 0. Senha opcional do ambiente sai JÁ do ambiente deste processo (todas as
+// variáveis de senha): nenhum filho a herda por acidente.
+let password = takeSecretEnv("GYMFLOW_RELEASE_STORE_PASSWORD");
+const SIGNING_ENV_NAMES = ["GYMFLOW_RELEASE_STORE_FILE", "GYMFLOW_RELEASE_KEY_ALIAS"];
+for (const name of SIGNING_ENV_NAMES) delete process.env[name];
+// O release só embute backend Production ou nada (ver build-mobile.mjs).
+delete process.env.GYMFLOW_ALLOW_NON_PRODUCTION_BACKEND;
+
+const allowDirty = args.includes("--allow-dirty");
+const acceptBackendUnavailable = args.includes("--accept-backend-unavailable");
+if (args.includes("--skip-web")) fail("--skip-web não existe no fluxo Play: o bundle web é sempre regenerado.");
 
 // 1. Registro público da upload key (contrato de assinatura)
 const recordFile = path.join(REPO_ROOT, UPLOAD_CERT_RECORD);
@@ -57,10 +75,11 @@ if (!existsSync(recordFile)) fail(`${UPLOAD_CERT_RECORD} ausente. Gere a upload 
 const record = JSON.parse(readFileSync(recordFile, "utf8"));
 
 // 2. Keystore: caminho explícito, existente e FORA de repositório git
+// (symlink/junction resolvidos antes da checagem)
 const keystoreArg = flagValue("--keystore", process.env.GYMFLOW_UPLOAD_STORE_FILE ?? "");
 if (!keystoreArg || !path.isAbsolute(keystoreArg)) fail("Informe --keystore com o caminho ABSOLUTO da upload key.");
-const keystore = path.resolve(keystoreArg);
-if (!existsSync(keystore)) fail(`Keystore não encontrado: ${keystore}`);
+if (!existsSync(keystoreArg)) fail(`Keystore não encontrado: ${keystoreArg}`);
+const keystore = canonicalPath(keystoreArg);
 if (enclosingGitRoot(keystore)) fail(`Recusado: ${keystore} está dentro de um repositório git.`);
 
 // 3. versionCode confirmado pelo operador == build.gradle
@@ -73,12 +92,23 @@ if (gradle.versionCode !== expectedCode) {
   fail(`versionCode do build.gradle (${gradle.versionCode}) != --expect-version-code (${expectedCode}). Ajuste via PR antes.`);
 }
 
-// 4. Árvore limpa: o AAB precisa corresponder a um commit identificável
-const dirty = run("git", ["status", "--porcelain"]).stdout.trim();
-if (dirty && !args.includes("--allow-dirty")) fail("Working tree com alterações. Faça commit/stash (ou --allow-dirty conscientemente).");
+// 4. Backend: sem origem embutida, exige aceite humano explícito
+const backendOrigin = (process.env.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL ?? "").trim();
+if (!backendOrigin && !acceptBackendUnavailable) {
+  fail(
+    "NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL não definida: a IA nativa ficará indisponível. " +
+      "Passe --accept-backend-unavailable somente se o humano aceitou essa limitação no gate."
+  );
+}
 
-// 5. Senha (sem eco) + conferência do fingerprint ANTES do build
-let password = process.env.GYMFLOW_RELEASE_STORE_PASSWORD ?? "";
+// 5. Árvore limpa: o AAB precisa corresponder a um commit identificável
+function assertCleanTree(moment) {
+  const dirty = run("git", ["status", "--porcelain"]).stdout.trim();
+  if (dirty && !allowDirty) fail(`Working tree com alterações ${moment}. Nada deve mudar arquivos versionados no release.`);
+}
+assertCleanTree("antes do build");
+
+// 6. Senha (sem eco) + conferência do fingerprint ANTES do build
 if (!password) {
   try {
     password = await promptSecret(`Senha da upload key (${path.basename(keystore)}): `);
@@ -109,13 +139,9 @@ if (!fingerprintsEqual(keyCert.sha256, record.sha256)) {
 }
 console.log(`${TAG} Upload key conferida: ${record.sha256}`);
 
-// Ambiente sem NENHUMA variável de assinatura (build web / cap sync) e sem a
-// exceção de backend não-Production: o release só embute Production ou nada.
-const cleanEnv = { ...process.env };
-for (const name of [...SIGNING_ENV_NAMES, "GYMFLOW_ALLOW_NON_PRODUCTION_BACKEND"]) delete cleanEnv[name];
-
-function step(label, command, commandArgs, { cwd = REPO_ROOT, env = cleanEnv } = {}) {
+function step(label, command, commandArgs, { cwd = REPO_ROOT, extraEnv = {} } = {}) {
   console.log(`\n${TAG} ${label}`);
+  const env = { ...process.env, ...extraEnv };
   // Windows: wrappers .cmd/.bat (npm/npx/gradlew) exigem shell; a linha é
   // montada aqui só com constantes deste script (nada vindo do usuário).
   const result =
@@ -125,18 +151,14 @@ function step(label, command, commandArgs, { cwd = REPO_ROOT, env = cleanEnv } =
   if (result.status !== 0) fail(`${label} falhou (exit ${result.status}).`);
 }
 
-if (!args.includes("--skip-web")) {
-  step("1/3 npm run build:mobile", "npm", ["run", "build:mobile"]);
-  step("2/3 npx cap sync android", "npx", ["cap", "sync", "android"]);
-} else {
-  console.log(`${TAG} --skip-web: reutilizando out/ e android/ já sincronizados.`);
-}
+step("1/3 npm run build:mobile", "npm", ["run", "build:mobile"]);
+step("2/3 npx cap sync android", "npx", ["cap", "sync", "android"]);
+assertCleanTree("depois do cap sync");
 
 const gradlew = process.platform === "win32" ? `"${path.join(ANDROID_DIR, "gradlew.bat")}"` : "./gradlew";
 step("3/3 gradlew --no-daemon clean assembleRelease bundleRelease (upload key)", gradlew, ["--no-daemon", "clean", "assembleRelease", "bundleRelease"], {
   cwd: ANDROID_DIR,
-  env: {
-    ...cleanEnv,
+  extraEnv: {
     GYMFLOW_RELEASE_STORE_FILE: keystore,
     GYMFLOW_RELEASE_STORE_PASSWORD: password,
     GYMFLOW_RELEASE_KEY_ALIAS: record.keyAlias,
@@ -147,9 +169,13 @@ step("3/3 gradlew --no-daemon clean assembleRelease bundleRelease (upload key)",
 password = "";
 
 console.log(`\n${TAG} Auditoria pós-build`);
-const manifest = runAudit({ requireRecord: true });
+const manifest = runAudit({ requireRecord: true, acceptBackendUnavailable, allowDirty });
 const failed = manifest.gates.filter((g) => g.status === "FAIL");
 if (failed.length > 0) fail(`Auditoria FALHOU: ${failed.map((g) => g.id).join(", ")}. NÃO enviar ao Play.`);
 console.log(`\n${TAG} OK — AAB pronto para o gate humano (não enviado a lugar nenhum).`);
 console.log(`  AAB_SHA256=${manifest.aab.sha256}`);
 console.log(`  UPLOAD_CERT_SHA256=${manifest.signer.sha256}`);
+console.log(
+  `  BACKEND_PRODUCTION=${manifest.backend.productionOriginEmbedded ? "EMBEDDED" : "NOT_CONFIGURED"}` +
+    (manifest.backend.productionOriginEmbedded ? "" : " (limitação aceita via --accept-backend-unavailable)")
+);

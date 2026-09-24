@@ -92,21 +92,27 @@ Status: `UPLOAD_KEY_BACKUP = HUMAN_KEY_BACKUP_DECISION_REQUIRED`.
 ## 6. Build final (executado pelo humano, pede a senha sem eco)
 
 ```bash
-npm run android:play:release -- --keystore "<dir seguro>\gymflow-upload-key.jks" --expect-version-code 1
+npm run android:play:release -- --keystore "<dir seguro>\gymflow-upload-key.jks" --expect-version-code 1 --accept-backend-unavailable
 ```
+
+`--accept-backend-unavailable` só entra se o humano aceitou no gate a IA
+nativa indisponível (§9); sem a flag e sem backend embutido o script recusa.
 
 O script (`scripts/android-play-release.mjs`):
 
-1. exige o registro público da upload key e keystore fora de repo git;
-2. exige árvore git limpa (o AAB corresponde a um commit identificável);
-3. confere keystore + alias + senha → fingerprint **igual** ao registro
+1. retira do próprio ambiente toda variável de senha logo no início (nenhum
+   filho a herda; keytool/Gradle recebem a senha só por env explícito);
+2. exige o registro público da upload key e keystore fora de repo git
+   (symlink/junction resolvidos antes da checagem);
+3. exige árvore git limpa antes do build e de novo depois do `cap sync`;
+4. confere keystore + alias + senha → fingerprint **igual** ao registro
    **antes** de compilar (senha errada ou chave errada = nada compilado);
-4. `npm run build:mobile` → `npx cap sync android` (sem nenhuma variável de
-   assinatura no ambiente);
-5. `gradlew --no-daemon clean assembleRelease bundleRelease` com as 4
+5. sempre regenera o web: `npm run build:mobile` → `npx cap sync android`
+   (não existe `--skip-web` no fluxo Play);
+6. `gradlew --no-daemon clean assembleRelease bundleRelease` com as 4
    `GYMFLOW_RELEASE_*` (o properties da chave interna é ignorado; `--no-daemon`
    impede daemon de reter a senha);
-6. roda a auditoria (§7) e falha se qualquer gate falhar.
+7. roda a auditoria (§7) e falha se qualquer gate falhar.
 
 Saídas: `android/app/build/outputs/apk/release/app-release.apk`,
 `android/app/build/outputs/bundle/release/app-release.aab` e
@@ -119,14 +125,22 @@ falha o build (impede misturar keystore de uma chave com alias/senha de outra).
 ## 7. Assinatura e auditoria (sem senha)
 
 ```bash
-npm run android:release:audit
+npm run android:release:audit -- --accept-backend-unavailable
 ```
 
 `scripts/android-release-audit.mjs` verifica e registra:
 
 - APK: `apksigner verify --print-certs` (1 signer, não-debug);
-- AAB: `jarsigner -verify` + `keytool -printcert -jarfile`;
+- AAB: `jarsigner -verify -verbose` — toda entrada de payload com assinatura
+  verificada (o jarsigner só *avisa* sobre entrada não assinada, então
+  "jar verified." sozinho não basta) — e exatamente **um** signer
+  (`keytool -printcert -jarfile` + jarsigner);
 - signer do APK == signer do AAB == `UPLOAD_CERT_SHA256` do registro;
+- bundle web do AAB **idêntico, arquivo a arquivo (sha256), ao `out/`** atual
+  (extras só `cordova.js`/`cordova_plugins.js`, injetados pelo Capacitor);
+- árvore git limpa (`GIT_TREE_CLEAN`);
+- backend: origem Production embutida, ou FAIL — vira aviso somente com
+  `--accept-backend-unavailable` (aceite registrado no manifest);
 - identidade de APK **e** AAB (manifest proto do AAB lido via `aapt2`):
   package, versionCode, versionName == `build.gradle`; sem `debuggable`;
 - `capacitor.config.json` embarcado: appId correto,
@@ -137,13 +151,16 @@ npm run android:release:audit
   variáveis server-side, `openrouter.ai`, `chat/completions`, PEM privado,
   `storePassword=`, URLs de dev (`http://localhost`, 127.0.0.1, 10.0.2.2,
   LAN, túneis) e hosts `*.vercel.app` ≠ Production;
-- git: `KEYSTORE_IN_GIT`, `SIGNING_PASSWORD_IN_GIT`.
+- git: `KEYSTORE_IN_GIT`; `SIGNING_PASSWORD_IN_GIT` = nenhum valor literal
+  atribuído a `storePassword`/`keyPassword`/`GYMFLOW_RELEASE_*_PASSWORD`/
+  `GYMFLOW_UPLOAD_KEY_*` em arquivo versionado (placeholders aceitos).
 
 Campos do gate: `AAB_SHA256`, `APK_SHA256`, `UPLOAD_CERT_SHA256`,
 `UPLOAD_CERT_SHA1`, `SIGNING_CERT_SUBJECT`.
 
-Baseline (artefatos atuais, chave interna, `--no-record`): todos os gates
-PASS; único aviso = backend não embutido (§9).
+Baseline (artefatos da chave interna, `--no-record`): todos os gates PASS
+exceto backend não embutido (§9). E2E com chave **descartável** (apagada
+depois): ver GOALS_LOG do GOAL-117.
 
 ## 8. Segredos
 
@@ -195,12 +212,22 @@ direto ou segredo no cliente.
 
 ## 10. Revisão independente
 
-Executada com Codex CLI (família OpenAI/GPT), sandbox read-only, escopo:
-identidade do pacote, versionamento, arquitetura de assinatura, upload
-certificate, segredos, AAB, backend, ausência de debug e esta documentação.
-Resultado registrado no GOALS_LOG do GOAL-117. A revisão do **AAB final** e
-do certificado real só é possível após a upload key existir (repetir antes do
-gate do §12).
+Codex CLI com GPT-5.6-Sol (família OpenAI), sem acesso a disco/rede: o
+conteúdo dos arquivos vai inline no prompt (o sandbox read-only do Codex no
+Windows bloqueia toda leitura — a 1ª tentativa se recusou a opinar sem ler,
+corretamente). Escopo: identidade, versionamento, arquitetura de assinatura,
+upload certificate, segredos, AAB, backend, debug e esta documentação.
+
+- Rodada 1 (commit `e77d03f`): **P0=0 · P1=5 · P2=2** — jarsigner aceitava
+  entrada não assinada e só o 1º signer era lido; `--skip-web` e comparação
+  web só por `index.html` (aviso); git checado só antes do `cap sync`;
+  "fora do repo" sem resolver symlink/junction; backend FAIL virava aviso
+  sem aceite humano; env de senha herdado por filhos; scan de senha no git
+  estreito. **Todos corrigidos** (§6/§7).
+- Rodada 2 (após correções): ver GOALS_LOG do GOAL-117.
+
+A revisão do **AAB final** e do certificado real só é possível após a upload
+key existir: repetir antes do gate do §12.
 
 ## 11. Checkpoint humano atual — `HUMAN_KEY_BACKUP_DECISION_REQUIRED`
 
@@ -217,7 +244,13 @@ Depois, num terminal interativo:
 
 ```bash
 npm run android:upload-key:generate -- --out-dir "<diretório seguro>"
-npm run android:play:release -- --keystore "<diretório seguro>\gymflow-upload-key.jks" --expect-version-code <N>
+```
+
+Depois o registro público (`android/play-upload-certificate.json`) entra no
+git via PR (o build exige árvore limpa), e então:
+
+```bash
+npm run android:play:release -- --keystore "<diretório seguro>\gymflow-upload-key.jks" --expect-version-code <N> [--accept-backend-unavailable]
 ```
 
 e avisa para a auditoria, a revisão independente final e o gate do §12.
@@ -237,6 +270,8 @@ UPLOAD_CERT_SHA256
 UPLOAD_CERT_SHA1
 KEY_BACKUP_STATUS
 SECRET_SCAN
+BACKEND_PRODUCTION            (EMBEDDED | NOT_CONFIGURED)
+BACKEND_LIMITATION_ACCEPTED   (YES/NO — só quando NOT_CONFIGURED)
 INDEPENDENT_REVIEW_RESULT
 ```
 

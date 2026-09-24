@@ -17,7 +17,15 @@
 // Flags: --alias gymflow-upload · --dname "CN=..., O=..., C=BR" · --record <json>
 import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { JAVA_EN_LOCALE, REPO_ROOT, enclosingGitRoot, jdkTool, run } from "./android/android-tools.mjs";
+import {
+  JAVA_EN_LOCALE,
+  REPO_ROOT,
+  canonicalPath,
+  enclosingGitRoot,
+  jdkTool,
+  run,
+  takeSecretEnv,
+} from "./android/android-tools.mjs";
 import {
   PACKAGE_ID,
   UPLOAD_CERT_RECORD,
@@ -39,6 +47,10 @@ function fail(message) {
   process.exit(1);
 }
 
+// Senha vinda do ambiente (só modo teste) sai do ambiente deste processo já
+// aqui: nenhum filho a herda; o keytool a recebe só via extraEnv.
+const envPassword = takeSecretEnv("GYMFLOW_UPLOAD_KEY_PASSWORD");
+
 const outDirArg = flagValue("--out-dir", "");
 const alias = flagValue("--alias", "gymflow-upload");
 const dname = flagValue("--dname", "CN=GymFlow Upload, OU=Mobile, O=GymFlow, C=BR");
@@ -48,10 +60,11 @@ if (!outDirArg) {
   fail("Informe --out-dir com o diretório seguro (fora do repo) confirmado para guardar a upload key.");
 }
 if (!path.isAbsolute(outDirArg)) fail("--out-dir precisa ser um caminho absoluto.");
-const outDir = path.resolve(outDirArg);
-if (!existsSync(outDir) || !statSync(outDir).isDirectory()) {
-  fail(`Diretório não existe: ${outDir}. Crie-o conscientemente antes (local seguro escolhido por você).`);
+if (!existsSync(outDirArg) || !statSync(outDirArg).isDirectory()) {
+  fail(`Diretório não existe: ${outDirArg}. Crie-o conscientemente antes (local seguro escolhido por você).`);
 }
+// Caminho canônico (symlink/junction resolvidos) antes de checar repo git.
+const outDir = canonicalPath(outDirArg);
 const gitRoot = enclosingGitRoot(outDir);
 if (gitRoot) fail(`Recusado: ${outDir} está dentro do repositório git ${gitRoot}. A upload key nunca fica em repo.`);
 
@@ -66,7 +79,7 @@ if (existsSync(recordPath)) {
 
 // Senha: interativa (padrão). GYMFLOW_UPLOAD_KEY_PASSWORD existe só para o
 // teste automatizado com chave descartável; nunca use para a chave real.
-let password = process.env.GYMFLOW_UPLOAD_KEY_PASSWORD ?? "";
+let password = envPassword;
 if (password) {
   console.warn(`${TAG} AVISO: senha lida de GYMFLOW_UPLOAD_KEY_PASSWORD (modo teste/descartável).`);
 } else {
