@@ -95,8 +95,12 @@ Status: `UPLOAD_KEY_BACKUP = HUMAN_KEY_BACKUP_DECISION_REQUIRED`.
 npm run android:play:release -- --keystore "<dir seguro>\gymflow-upload-key.jks" --expect-version-code 1 --accept-backend-unavailable
 ```
 
-`--accept-backend-unavailable` só entra se o humano aceitou no gate a IA
-nativa indisponível (§9); sem a flag e sem backend embutido o script recusa.
+Modo de backend obrigatório e exclusivo, igual ao aprovado no gate (§12):
+`--accept-backend-unavailable` (IA nativa indisponível, §9) ou
+`--expect-backend-production` (só depois do GOAL de backend). O script
+calcula a origem **efetiva** (ambiente + `.env*`, com o carregador do Next)
+antes de compilar e recusa se ela não bater com o modo; a auditoria confere
+de novo no bundle (`BACKEND_MODE_MATCHES_APPROVAL`).
 
 O script (`scripts/android-play-release.mjs`):
 
@@ -147,7 +151,11 @@ npm run android:release:audit -- --accept-backend-unavailable
   entrando no `.trim()` da origem e nenhuma leitura em runtime restante →
   PASS; resolvedor que comprovadamente lê em runtime sem literal → aviso
   somente com `--accept-backend-unavailable` (aceite registrado no
-  manifest); qualquer outro formato → FAIL;
+  manifest); qualquer outro formato → FAIL. A evidência exige a forma
+  compilada do resolvedor com **vínculo por identificador** (o valor que
+  entra no `.trim()` é o mesmo interpolado em `${x}/api/nutrition/assistant`);
+  se o minificador mudar essa forma, o gate falha (nunca passa por engano);
+  `BACKEND_MODE_MATCHES_APPROVAL` — bundle igual ao modo declarado;
 - scan de segredos no AAB **inteiro** (base, módulos, BUNDLE-METADATA);
 - identidade de APK **e** AAB (manifest proto do AAB lido via `aapt2`):
   package, versionCode, versionName == `build.gradle`; sem `debuggable`;
@@ -267,7 +275,18 @@ upload certificate, segredos, AAB, backend, debug e esta documentação.
   origem estrangeira → recusado antes do build; com Production → embutido e
   detectado; bundle real com origem estrangeira (exceção de QA) →
   `foreignOrigins` detectado.
-- Rodada 5 (após correções): ver GOALS_LOG do GOAL-117.
+- Rodada 5 (commit `d66bb9d`): **P0=0 · P1=2 · P2=3** — N6 (P0)
+  confirmado corrigido; N1 segue aberto por desenho; **N8 (P1)**: o release
+  decidia o waiver só pelo ambiente do processo, enquanto o `build:mobile`
+  podia obter a origem de um `.env` — a aprovação humana não restringia o
+  modo embutido; N2 (vínculo por identificador), N7 (aspas sem par, `#`
+  inline em `.properties`, chave JSON), N9 (resumo da CI apontava a chave
+  interna). Corrigidos: modos exclusivos `--accept-backend-unavailable` /
+  `--expect-backend-production` conferidos contra a origem efetiva antes do
+  build e contra o bundle depois; evidência com vínculo por identificador
+  (validada nos dois modos reais); leitura de config por formato; resumo da
+  CI separando CI sem assinatura / sideload / Play.
+- Rodada 6 (após correções): ver GOALS_LOG do GOAL-117.
 
 A revisão do **AAB final** e do certificado real só é possível após a upload
 key existir: repetir antes do gate do §12.
@@ -293,7 +312,7 @@ Depois o registro público (`android/play-upload-certificate.json`) entra no
 git via PR (o build exige árvore limpa), e então:
 
 ```bash
-npm run android:play:release -- --keystore "<diretório seguro>\gymflow-upload-key.jks" --expect-version-code <N> [--accept-backend-unavailable]
+npm run android:play:release -- --keystore "<diretório seguro>\gymflow-upload-key.jks" --expect-version-code <N> --accept-backend-unavailable
 ```
 
 e avisa para a auditoria, a revisão independente final e o gate do §12.
@@ -314,7 +333,8 @@ UPLOAD_CERT_SHA1
 KEY_BACKUP_STATUS
 SECRET_SCAN
 BACKEND_PRODUCTION            (EMBEDDED | NOT_CONFIGURED)
-BACKEND_LIMITATION_ACCEPTED   (YES/NO — só quando NOT_CONFIGURED)
+BACKEND_LIMITATION_ACCEPTED   (YES/NO — só quando NOT_CONFIGURED; define o
+                               modo do build: --accept-backend-unavailable)
 INDEPENDENT_REVIEW_RESULT
 ```
 

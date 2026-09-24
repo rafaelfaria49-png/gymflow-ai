@@ -162,41 +162,52 @@ const TEMPLATE_SUFFIX = /\.(example|sample|template|dist)$/i;
 const PLACEHOLDER_VALUE =
   /^(?:\*+|\$[A-Za-z_][A-Za-z0-9_]*|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$\{\{[^}]*\}\}|%[A-Za-z_][A-Za-z0-9_]*%|<[^<>]+>|(?:SUA|YOUR)_[A-Z0-9_]+|CHANGE_?ME|x{3,}|\.{3})$/i;
 
+function withoutTemplateSuffix(filePath) {
+  return String(filePath).replace(/\\/g, "/").replace(TEMPLATE_SUFFIX, "");
+}
+
 function isConfigLike(filePath) {
-  const normalized = String(filePath).replace(/\\/g, "/").replace(TEMPLATE_SUFFIX, "");
-  return CONFIG_LIKE_EXT.test(normalized);
+  return CONFIG_LIKE_EXT.test(withoutTemplateSuffix(filePath));
 }
 
 /**
  * Conta atribuições com VALOR literal a nomes de credencial de assinatura
- * num arquivo versionado (o valor nunca é devolvido). Literais entre aspas
- * contam em qualquer arquivo; valores sem aspas só em arquivos de
- * configuração/script (em código, `NOME: variavel` é referência, não segredo).
+ * num arquivo versionado (o valor nunca é devolvido).
+ * - Config/script (properties, env, sh, yaml, json, gradle...): cada
+ *   atribuição é lida até o fim da linha, inclusive linhas comentadas (senha
+ *   comentada continua vazada). Em `.properties` o valor é a linha inteira
+ *   (`#`/`;` no meio fazem parte do valor); nos demais, remove `,`/`;` final
+ *   e comentário ` #...` fora de aspas. Aspas pareadas são retiradas; aspa
+ *   sem par fica no valor.
+ * - Código/docs: só literais entre aspas contam (`NOME: variavel` é
+ *   referência, não segredo). Crases exigem valor sem espaço (prosa de .md).
+ * Chave entre aspas (JSON: `"storePassword": ...`) também é reconhecida.
  */
 export function committedSecretAssignments(filePath, text) {
   const source = String(text ?? "");
-  const names = SIGNING_SECRET_NAMES.join("|");
+  const assign = `\\b(?:${SIGNING_SECRET_NAMES.join("|")})\\b["']?\\s*[=:]\\s*`;
   let count = 0;
-  // Aspas duplas/simples: valor completo (espaços internos contam — senha pode
-  // ter espaço). Crases: sem espaço, para não casar prosa do Markdown.
-  const quoted = new RegExp(
-    `\\b(?:${names})\\b\\s*[=:]\\s*(?:"([^"\\r\\n]{4,})"|'([^'\\r\\n]{4,})'|\`([^\`\\s]{4,})\`)`,
-    "g"
-  );
+  if (isConfigLike(filePath)) {
+    const isProperties = /\.properties$/i.test(withoutTemplateSuffix(filePath));
+    for (const m of source.matchAll(new RegExp(`${assign}(.*)$`, "gm"))) {
+      let value = m[1].replace(/\r$/, "").trim();
+      const q = value[0];
+      const close = q === '"' || q === "'" || q === "`" ? value.indexOf(q, 1) : -1;
+      if (close > 0) {
+        // Literal entre aspas pareadas: o valor é o conteúdo (resto da linha,
+        // ex. `, "outra": 1 }` do JSON, não faz parte).
+        value = value.slice(1, close);
+      } else if (!isProperties) {
+        value = value.replace(/\s+#.*$/, "").replace(/[,;]$/, "").trim();
+      }
+      if (value.length >= 4 && !PLACEHOLDER_VALUE.test(value)) count += 1;
+    }
+    return count;
+  }
+  const quoted = new RegExp(`${assign}(?:"([^"\\r\\n]{4,})"|'([^'\\r\\n]{4,})'|\`([^\`\\s]{4,})\`)`, "g");
   for (const m of source.matchAll(quoted)) {
     const value = m[1] ?? m[2] ?? m[3] ?? "";
     if (!PLACEHOLDER_VALUE.test(value)) count += 1;
-  }
-  if (isConfigLike(filePath)) {
-    // Config/script: valor = tudo após o separador até o fim da linha
-    // (comentário só conta se vier após espaço: `x=#abc` é valor). Linhas
-    // comentadas também são lidas — senha comentada continua vazada.
-    const line = new RegExp(`\\b(?:${names})\\b\\s*[=:]\\s*(.*)$`, "gm");
-    for (const m of source.matchAll(line)) {
-      let value = m[1].replace(/\r$/, "").replace(/\s+#.*$/, "").replace(/[,;]\s*$/, "").trim();
-      if (/^["'`]/.test(value)) continue; // literal entre aspas: contado acima
-      if (value.length >= 4 && !PLACEHOLDER_VALUE.test(value)) count += 1;
-    }
   }
   return count;
 }
@@ -381,30 +392,53 @@ const RESOLVER_WINDOW = 400;
  *    (variável não embutida → IA nativa indisponível, único caso do waiver).
  * Refatorar o resolvedor faz o gate FALHAR (nunca passar por engano).
  */
+const JS_ID = "[A-Za-z_$][\\w$]*";
+
+/**
+ * Forma compilada de `resolveAssistantEndpoint()` com VÍNCULO por
+ * identificador: o valor-fonte `SRC` é atribuído a `tmp`, `out` recebe
+ * `tmp` normalizado e é o MESMO identificador interpolado em
+ * `${out}/api/nutrition/assistant` (medido no bundle real do Next/Turbopack):
+ *   t=0===(e=SRC).length?null:e.replace(/\/+$/,"");return t?{kind:"remote",url:`${t}/api/...`}
+ * Se o minificador/refatoração mudar essa forma, o gate FALHA (fail-closed).
+ */
+function boundResolverRe(src) {
+  return new RegExp(
+    `(${JS_ID})=0===\\((${JS_ID})=${src}\\)\\.length\\?null:\\2(?:\\.replace\\([^;]{0,40}\\))?;return \\1\\?\\{kind:"remote",url:\`\\$\\{\\1\\}\\/api\\/nutrition\\/assistant\``,
+    "g"
+  );
+}
+
 export function assistantBackendEvidence(files, origin = PRODUCTION_BACKEND_ORIGIN) {
   const escapedOrigin = origin.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
-  const originIntoTrim = new RegExp(`["'\`]${escapedOrigin}["'\`]\\s*(?:\\?\\?\\s*(?:""|''|\`\`)\\s*\\))?\\s*\\.trim\\(\\)`);
+  // Origem embutida: `"ORIGEM".trim()` ou `("ORIGEM"??"").trim()`.
+  const embeddedRe = boundResolverRe(`(?:"${escapedOrigin}"|\\("${escapedOrigin}"\\?\\?""\\))\\.trim\\(\\)`);
+  // Não embutida: `(X.env.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL??"").trim()`.
+  const runtimeRe = boundResolverRe(`\\([\\w$.]*env\\.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL\\?\\?""\\)\\.trim\\(\\)`);
   const templateRe = /\$\{[\w$]+\}\/api\/nutrition\/assistant/g;
   const urlLiteralRe = /["'`](https?:\/\/[^"'`\s]+?)\/*["'`]/g;
   const resolverFiles = [];
   const resolverOrigins = new Set();
   const runtimeLookupFiles = [];
-  let windows = 0;
-  let windowsWithOriginIntoTrim = 0;
-  let windowsWithRuntimeLookup = 0;
+  let templates = 0;
+  let boundEmbedded = 0;
+  let boundRuntime = 0;
   for (const { name, text } of files) {
     const source = String(text ?? "");
     if (source.includes(RUNTIME_BACKEND_LOOKUP)) runtimeLookupFiles.push(name);
     let found = false;
     for (const m of source.matchAll(templateRe)) {
       found = true;
-      windows += 1;
+      templates += 1;
+      // Toda URL literal perto do resolvedor (qualquer uma ≠ Production = estrangeira).
       const window = source.slice(Math.max(0, m.index - RESOLVER_WINDOW), m.index);
       for (const u of window.matchAll(urlLiteralRe)) resolverOrigins.add(u[1]);
-      if (originIntoTrim.test(window)) windowsWithOriginIntoTrim += 1;
-      if (window.includes(RUNTIME_BACKEND_LOOKUP)) windowsWithRuntimeLookup += 1;
     }
-    if (found) resolverFiles.push(name);
+    if (found) {
+      resolverFiles.push(name);
+      boundEmbedded += [...source.matchAll(embeddedRe)].length;
+      boundRuntime += [...source.matchAll(runtimeRe)].length;
+    }
   }
   const origins = [...resolverOrigins].sort();
   const foreignOrigins = origins.filter((o) => o !== origin);
@@ -413,12 +447,8 @@ export function assistantBackendEvidence(files, origin = PRODUCTION_BACKEND_ORIG
     resolverOrigins: origins,
     foreignOrigins,
     runtimeLookupFiles,
-    embedded:
-      windows > 0 &&
-      foreignOrigins.length === 0 &&
-      windowsWithOriginIntoTrim === windows &&
-      runtimeLookupFiles.length === 0,
-    unavailableProven: windows > 0 && origins.length === 0 && windowsWithRuntimeLookup === windows,
+    embedded: templates > 0 && boundEmbedded === templates && foreignOrigins.length === 0 && runtimeLookupFiles.length === 0,
+    unavailableProven: templates > 0 && boundRuntime === templates && origins.length === 0,
   };
 }
 

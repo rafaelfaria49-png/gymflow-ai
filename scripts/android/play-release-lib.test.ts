@@ -418,3 +418,38 @@ describe('GOAL-117 play-release-lib: rodada 4 da revisão independente', () => {
     expect(committedSecretAssignments('a.properties', `${name}=`)).toBe(0);
   });
 });
+
+describe('GOAL-117 play-release-lib: rodada 5 da revisão independente', () => {
+  const build = (src: string, interpolated = 't') =>
+    `let e,t=0===(e=${src}).length?null:e.replace(/\/+$/,"");return t?{kind:"remote",url:\`\${${interpolated}}/api/nutrition/assistant\`}:{kind:"unavailable"}`;
+
+  it('Production só conta se o MESMO identificador for interpolado no endpoint', () => {
+    expect(assistantBackendEvidence([{ name: 'a.js', text: build('"https://gymflow-beige-gamma.vercel.app".trim()') }]).embedded).toBe(true);
+    // Literal Production no .trim(), mas o template interpola outra variável.
+    const unbound = build('"https://gymflow-beige-gamma.vercel.app".trim()', 'dinamico');
+    const ev = assistantBackendEvidence([{ name: 'a.js', text: unbound }]);
+    expect(ev.embedded).toBe(false);
+    expect(ev.unavailableProven).toBe(false);
+  });
+
+  it('indisponibilidade só é comprovada com a leitura em runtime vinculada', () => {
+    const runtime = build('(G.default.env.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL??"").trim()');
+    expect(assistantBackendEvidence([{ name: 'a.js', text: runtime }]).unavailableProven).toBe(true);
+    const unbound = build('(G.default.env.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL??"").trim()', 'outro');
+    expect(assistantBackendEvidence([{ name: 'a.js', text: unbound }]).unavailableProven).toBe(false);
+  });
+
+  it('config: aspa sem par e "#" inline em .properties contam como valor', () => {
+    const name = 'store' + 'Password';
+    expect(committedSecretAssignments('a.properties', `${name}="Sem-Par-Senha-1`)).toBe(1);
+    expect(committedSecretAssignments('a.yml', `${name}: \`Sem-Par-Senha-2`)).toBe(1);
+    expect(committedSecretAssignments('a.properties', `${name}=abc #real-secret`)).toBe(1);
+    expect(committedSecretAssignments('a.sh', `${name}=abc #comentario`)).toBe(0);
+  });
+
+  it('chave JSON entre aspas é reconhecida', () => {
+    const name = 'store' + 'Password';
+    expect(committedSecretAssignments('x.json', `{ "${name}": "Real-Pass-77", "a": 1 }`)).toBe(1);
+    expect(committedSecretAssignments('x.json', `{ "${name}": "<senha>" }`)).toBe(0);
+  });
+});

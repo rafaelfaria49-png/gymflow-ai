@@ -4,6 +4,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
+import nextEnv from "@next/env";
 
 const isWin = process.platform === "win32";
 export const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..");
@@ -84,6 +85,28 @@ export function run(command, args, { cwd = REPO_ROOT, extraEnv = {}, input } = {
     stderr: result.stderr ?? "",
     output: `${result.stdout ?? ""}\n${result.stderr ?? ""}`,
   };
+}
+
+/**
+ * Origem do backend que o `next build` EFETIVAMENTE vai embutir: ambiente do
+ * processo + `.env*` (ignorados pelo git), calculada com o carregador do
+ * próprio Next (`@next/env`, mesmos arquivos e ordem do modo production).
+ * O ambiente deste processo é restaurado ao final (nada de `.env` vaza para
+ * filhos por aqui). Retorna só a origem pública e nomes de arquivo.
+ */
+export function effectiveBackendOrigin(cwd = REPO_ROOT) {
+  const snapshot = { ...process.env };
+  try {
+    const { combinedEnv, loadedEnvFiles } = nextEnv.loadEnvConfig(cwd, false, { info() {}, error: console.error }, true);
+    const fromProcess = (snapshot.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL ?? "").trim() !== "";
+    return {
+      origin: (combinedEnv.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL ?? "").trim().replace(/\/+$/, ""),
+      source: fromProcess ? "ambiente" : `arquivos .env (${loadedEnvFiles.map((f) => f.path).join(", ") || "nenhum"})`,
+    };
+  } finally {
+    for (const key of Object.keys(process.env)) if (!(key in snapshot)) delete process.env[key];
+    Object.assign(process.env, snapshot);
+  }
 }
 
 // Toda variável que pode carregar senha de assinatura/upload key.

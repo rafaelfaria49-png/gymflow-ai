@@ -16,11 +16,13 @@
 // - --expect-version-code obriga o operador a confirmar o versionCode que o
 //   Play Console aceita (nada de incremento cego);
 // - árvore git limpa antes, depois do cap sync e na auditoria;
-// - sem origem de backend embutida a IA nativa fica indisponível: exige
-//   --accept-backend-unavailable (aceite humano registrado no manifest).
+// - modo de backend declarado e exclusivo, conferido contra a origem EFETIVA
+//   antes do build e contra o bundle na auditoria:
+//   --accept-backend-unavailable (IA nativa indisponível, aceita no gate) ou
+//   --expect-backend-production (origem Production embutida).
 //
 // Uso (terminal interativo):
-//   npm run android:play:release -- --keystore "D:\\Cofre\\GymFlow\\upload-key\\gymflow-upload-key.jks" --expect-version-code 1 [--accept-backend-unavailable]
+//   npm run android:play:release -- --keystore "D:\\Cofre\\GymFlow\\upload-key\\gymflow-upload-key.jks" --expect-version-code 1 --accept-backend-unavailable
 // Flag de teste: --allow-dirty — aceita SOMENTE com registro de chave
 // descartável (subject "THROWAWAY TEST ONLY"); recusada com a upload key real.
 import { spawnSync } from "node:child_process";
@@ -31,12 +33,14 @@ import {
   JAVA_EN_LOCALE,
   REPO_ROOT,
   canonicalPath,
+  effectiveBackendOrigin,
   enclosingGitRoot,
   jdkTool,
   run,
   takeSecretEnv,
 } from "./android/android-tools.mjs";
 import {
+  PRODUCTION_BACKEND_ORIGIN,
   UPLOAD_CERT_RECORD,
   fingerprintsEqual,
   formatFingerprint,
@@ -69,6 +73,7 @@ delete process.env.GYMFLOW_ALLOW_NON_PRODUCTION_BACKEND;
 
 const allowDirty = args.includes("--allow-dirty");
 const acceptBackendUnavailable = args.includes("--accept-backend-unavailable");
+const expectBackendProduction = args.includes("--expect-backend-production");
 if (args.includes("--skip-web")) fail("--skip-web não existe no fluxo Play: o bundle web é sempre regenerado.");
 
 // 1. Registro público da upload key (contrato de assinatura)
@@ -97,14 +102,25 @@ if (gradle.versionCode !== expectedCode) {
   fail(`versionCode do build.gradle (${gradle.versionCode}) != --expect-version-code (${expectedCode}). Ajuste via PR antes.`);
 }
 
-// 4. Backend: sem origem embutida, exige aceite humano explícito
-const backendOrigin = (process.env.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL ?? "").trim();
-if (!backendOrigin && !acceptBackendUnavailable) {
+// 4. Backend: modo declarado pelo operador (o mesmo aprovado no gate humano)
+// precisa bater com a origem EFETIVA que o build:mobile vai embutir
+// (ambiente + .env*, calculada com o carregador do Next). Modos exclusivos.
+const { origin: effectiveOrigin, source: originSource } = effectiveBackendOrigin();
+if (acceptBackendUnavailable === expectBackendProduction) {
   fail(
-    "NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL não definida: a IA nativa ficará indisponível. " +
-      "Passe --accept-backend-unavailable somente se o humano aceitou essa limitação no gate."
+    "Declare exatamente um modo de backend: --accept-backend-unavailable (IA nativa indisponível, " +
+      "aceita no gate) ou --expect-backend-production (origem Production embutida)."
   );
 }
+if (acceptBackendUnavailable && effectiveOrigin) {
+  fail(`--accept-backend-unavailable, mas a origem efetiva é ${effectiveOrigin} (via ${originSource}). Nada foi compilado.`);
+}
+if (expectBackendProduction && effectiveOrigin !== PRODUCTION_BACKEND_ORIGIN) {
+  fail(
+    `--expect-backend-production, mas a origem efetiva é ${effectiveOrigin || "(nenhuma)"} (via ${originSource}). Nada foi compilado.`
+  );
+}
+const backendMode = acceptBackendUnavailable ? "unavailable" : "production";
 
 // 5. Árvore limpa: o AAB precisa corresponder a um commit identificável
 function assertCleanTree(moment) {
@@ -180,7 +196,7 @@ step("3/3 gradlew --no-daemon clean assembleRelease bundleRelease (upload key)",
 password = "";
 
 console.log(`\n${TAG} Auditoria pós-build`);
-const manifest = runAudit({ requireRecord: true, acceptBackendUnavailable, allowDirty });
+const manifest = runAudit({ requireRecord: true, backendMode, allowDirty });
 const failed = manifest.gates.filter((g) => g.status === "FAIL");
 if (failed.length > 0) fail(`Auditoria FALHOU: ${failed.map((g) => g.id).join(", ")}. NÃO enviar ao Play.`);
 console.log(`\n${TAG} OK — AAB pronto para o gate humano (não enviado a lugar nenhum).`);

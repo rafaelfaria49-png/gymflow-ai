@@ -13,9 +13,10 @@
 // Grava android/app/build/outputs/play-release-manifest.json (git-ignorado)
 // com hashes e resultados. Nunca imprime trecho de segredo, só contagens.
 //
-// Uso: npm run android:release:audit [-- --accept-backend-unavailable] [--no-record] [--allow-dirty]
+// Uso: npm run android:release:audit [-- --accept-backend-unavailable | --expect-backend-production] [--no-record] [--allow-dirty]
 //   --accept-backend-unavailable: aceite humano da IA nativa indisponível
 //     (backend não embutido); sem ele esse gate FALHA.
+//   --expect-backend-production: exige a origem Production embutida.
 //   --no-record: audita sem exigir o registro da upload key (ex.: chave interna).
 //   --allow-dirty: árvore git suja vira aviso — SÓ com registro de chave
 //     descartável de teste (subject "THROWAWAY TEST ONLY"); recusado com a real.
@@ -117,12 +118,17 @@ function treeHashes(dir) {
 /**
  * @param {object} options
  * @param {boolean} [options.requireRecord] exige android/play-upload-certificate.json
- * @param {boolean} [options.acceptBackendUnavailable] aceite humano explícito da
- *   IA nativa indisponível (backend não embutido) — vira WARN registrado no
- *   manifest; sem ele, backend não embutido é FAIL.
+ * @param {"unavailable"|"production"|undefined} [options.backendMode] modo de
+ *   backend aprovado no gate: "unavailable" = aceite humano da IA nativa
+ *   indisponível (exige resolvedor comprovadamente sem origem; vira WARN
+ *   registrado); "production" = exige Production embutida. Sem modo:
+ *   Production embutida passa, qualquer outra coisa falha. O bundle precisa
+ *   BATER com o modo declarado (embutir quando se aceitou "indisponível"
+ *   também falha).
  * @param {boolean} [options.allowDirty] árvore git suja vira WARN (só teste)
  */
-export function runAudit({ requireRecord = true, acceptBackendUnavailable = false, allowDirty = false, quiet = false } = {}) {
+export function runAudit({ requireRecord = true, backendMode, allowDirty = false, quiet = false } = {}) {
+  const acceptBackendUnavailable = backendMode === "unavailable";
   const log = (...m) => {
     if (!quiet) console.log(...m);
   };
@@ -273,6 +279,15 @@ export function runAudit({ requireRecord = true, acceptBackendUnavailable = fals
           : "resolvedor em formato inesperado: não comprova Production nem indisponibilidade",
       { hard: !waiverApplies }
     );
+    // O bundle precisa bater com o modo aprovado no gate humano.
+    if (backendMode) {
+      const matches = backendMode === "production" ? backendEmbedded : be.unavailableProven && !backendEmbedded;
+      gate(
+        "BACKEND_MODE_MATCHES_APPROVAL",
+        matches,
+        `modo aprovado=${backendMode}; bundle=${backendEmbedded ? "production" : be.unavailableProven ? "unavailable" : "indeterminado"}`
+      );
+    }
 
     const capConfigFile = path.join(work, "aab", "base", "assets", "capacitor.config.json");
     const capConfig = existsSync(capConfigFile) ? JSON.parse(readFileSync(capConfigFile, "utf8")) : null;
@@ -373,9 +388,12 @@ if (invokedDirectly) {
   // A auditoria não usa senha: nenhuma variável de senha segue para filhos.
   takeSecretEnv("");
   try {
+    const acceptUnavailable = argv.includes("--accept-backend-unavailable");
+    const expectProduction = argv.includes("--expect-backend-production");
+    if (acceptUnavailable && expectProduction) throw new Error("Modos de backend exclusivos: escolha um.");
     const manifest = runAudit({
       requireRecord: !argv.includes("--no-record"),
-      acceptBackendUnavailable: argv.includes("--accept-backend-unavailable"),
+      backendMode: acceptUnavailable ? "unavailable" : expectProduction ? "production" : undefined,
       allowDirty: argv.includes("--allow-dirty"),
     });
     const failed = manifest.gates.filter((g) => g.status === "FAIL");
