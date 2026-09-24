@@ -140,10 +140,14 @@ npm run android:release:audit -- --accept-backend-unavailable
   (extras só `cordova.js`/`cordova_plugins.js`, injetados pelo Capacitor);
 - árvore git limpa (`GIT_TREE_CLEAN`; `--allow-dirty` só é aceito com
   registro de chave descartável de teste, nunca com a upload key real);
-- backend: o **resolvedor** do endpoint do assistente usa a origem Production
-  embutida e não resta leitura da variável em runtime em nenhum arquivo;
-  senão FAIL — vira aviso somente com `--accept-backend-unavailable` (aceite
-  registrado no manifest);
+- backend, lido do **resolvedor compilado** do endpoint do assistente:
+  `BACKEND_ORIGIN_ONLY_PRODUCTION` — qualquer URL literal ≠ Production no
+  resolvedor é FAIL duro, sem waiver (seria o app mandando dados de nutrição
+  para outro servidor); `BACKEND_PRODUCTION_ORIGIN_EMBEDDED` — Production
+  entrando no `.trim()` da origem e nenhuma leitura em runtime restante →
+  PASS; resolvedor que comprovadamente lê em runtime sem literal → aviso
+  somente com `--accept-backend-unavailable` (aceite registrado no
+  manifest); qualquer outro formato → FAIL;
 - scan de segredos no AAB **inteiro** (base, módulos, BUNDLE-METADATA);
 - identidade de APK **e** AAB (manifest proto do AAB lido via `aapt2`):
   package, versionCode, versionName == `build.gradle`; sem `debuggable`;
@@ -198,7 +202,10 @@ O release Android **não aponta para backend nenhum** hoje:
 O que este GOAL fez (local e seguro): `build:mobile` passou a aceitar como
 origem **somente** `https://gymflow-beige-gamma.vercel.app` (ou nenhuma):
 HTTP, localhost/LAN/emulador, túneis, provedor de IA direto e outros hosts
-são recusados; o build Play remove a exceção de QA do ambiente.
+são recusados; o build Play remove a exceção de QA do ambiente. O valor
+validado é o **efetivo** — calculado com o carregador do próprio Next
+(`@next/env`, mesmos `.env*` e ordem), porque um `.env*` ignorado pelo git
+preencheria a variável depois da checagem — e é fixado no `next build`.
 
 O que **não** fez: embutir a origem (sem CORS, só trocaria "não configurado"
 por uma falha de rede enganosa) nem mexer no backend/deploy (fora do escopo
@@ -246,7 +253,21 @@ upload certificate, segredos, AAB, backend, debug e esta documentação.
   ao certificado real do keystore/AAB; placeholders por gramática exata;
   evidência do backend exige a expressão do resolvedor (validado nos dois
   modos reais do bundle); definição única de host privado.
-- Rodada 4 (após correções): ver GOALS_LOG do GOAL-117.
+- Rodada 4 (commit `7ee0d8a`): **P0=1 · P1=1 · P2=2** — F3/F7/N5
+  confirmados; N1 segue aberto por desenho; **N6 (P0)**: a trava do
+  `build:mobile` via só o ambiente do processo, e o `next build` carrega
+  `.env*` ignorados pelo git depois — um `.env.local` poderia embutir
+  qualquer backend HTTPS, e a auditoria só barrava hosts `*.vercel.app`;
+  N2 residual (literal próximo sem prova de fluxo); N7 (valor de config com
+  pontuação inicial escapava). Corrigidos: valor efetivo via `@next/env` +
+  fixado no build; auditoria extrai as origens do resolvedor (estrangeira =
+  FAIL duro, waiver só com indisponibilidade comprovada); evidência exige o
+  literal Production entrando no `.trim()` da origem; valores de config
+  lidos por linha. Provado em builds reais: `.env.production.local` com
+  origem estrangeira → recusado antes do build; com Production → embutido e
+  detectado; bundle real com origem estrangeira (exceção de QA) →
+  `foreignOrigins` detectado.
+- Rodada 5 (após correções): ver GOALS_LOG do GOAL-117.
 
 A revisão do **AAB final** e do certificado real só é possível após a upload
 key existir: repetir antes do gate do §12.

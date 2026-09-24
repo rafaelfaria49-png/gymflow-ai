@@ -245,17 +245,33 @@ export function runAudit({ requireRecord = true, acceptBackendUnavailable = fals
       const foreignVercel = scan.vercelHosts.filter((h) => h !== productionHost);
       gate(`${label}_ONLY_PRODUCTION_VERCEL_HOST`, foreignVercel.length === 0, foreignVercel.join(", ") || "ok");
     }
-    // Backend Production: o RESOLVEDOR do endpoint do assistente precisa usar
-    // a origem embutida (sem leitura em runtime restante). Sem isso, a IA
-    // nativa fica indisponível — só passa (WARN) com aceite humano explícito.
-    const backendEmbedded = aabScan.backend.embedded;
+    // Backend Production, lido do RESOLVEDOR compilado do assistente:
+    // 1) nenhuma origem literal ≠ Production (falha dura, sem waiver: seria o
+    //    app mandando dados de nutrição para outro servidor);
+    // 2) Production embutida → PASS; resolvedor comprovadamente sem origem
+    //    (leitura em runtime) → WARN só com aceite humano; qualquer outro
+    //    formato → FAIL.
+    const be = aabScan.backend;
+    gate(
+      "BACKEND_ORIGIN_ONLY_PRODUCTION",
+      be.resolverFiles.length > 0 && be.foreignOrigins.length === 0,
+      be.resolverFiles.length === 0
+        ? "resolvedor do assistente não encontrado no bundle"
+        : be.foreignOrigins.length
+          ? `origem(ns) NÃO Production no resolvedor: ${be.foreignOrigins.join(", ")}`
+          : `origens no resolvedor: ${be.resolverOrigins.join(", ") || "(nenhuma)"}`
+    );
+    const backendEmbedded = be.embedded;
+    const waiverApplies = !backendEmbedded && be.unavailableProven && acceptBackendUnavailable;
     gate(
       "BACKEND_PRODUCTION_ORIGIN_EMBEDDED",
       backendEmbedded,
       backendEmbedded
-        ? `resolvedor do assistente usa ${PRODUCTION_BACKEND_ORIGIN} (${aabScan.backend.resolverWithOrigin.join(", ")})`
-        : `origem NÃO embutida no resolvedor (leitura em runtime em ${aabScan.backend.runtimeLookupFiles.length} arquivo(s)): IA nativa 'unavailable' (aceite humano: ${acceptBackendUnavailable ? "SIM" : "NÃO"})`,
-      { hard: !acceptBackendUnavailable }
+        ? `resolvedor do assistente usa ${PRODUCTION_BACKEND_ORIGIN}`
+        : be.unavailableProven
+          ? `origem NÃO embutida (resolvedor lê em runtime): IA nativa 'unavailable' (aceite humano: ${acceptBackendUnavailable ? "SIM" : "NÃO"})`
+          : "resolvedor em formato inesperado: não comprova Production nem indisponibilidade",
+      { hard: !waiverApplies }
     );
 
     const capConfigFile = path.join(work, "aab", "base", "assets", "capacitor.config.json");
@@ -323,10 +339,12 @@ export function runAudit({ requireRecord = true, acceptBackendUnavailable = fals
       },
       backend: {
         productionOriginEmbedded: backendEmbedded,
-        limitationAccepted: backendEmbedded ? null : acceptBackendUnavailable,
-        resolverFiles: aabScan.backend.resolverFiles,
-        resolverWithOrigin: aabScan.backend.resolverWithOrigin,
-        runtimeLookupFiles: aabScan.backend.runtimeLookupFiles,
+        limitationAccepted: backendEmbedded ? null : waiverApplies,
+        resolverFiles: be.resolverFiles,
+        resolverOrigins: be.resolverOrigins,
+        foreignOrigins: be.foreignOrigins,
+        unavailableProven: be.unavailableProven,
+        runtimeLookupFiles: be.runtimeLookupFiles,
         vercelHosts: aabScan.vercelHosts,
       },
       gates,

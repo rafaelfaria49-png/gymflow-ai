@@ -377,3 +377,44 @@ describe('GOAL-117 play-release-lib: rodada 3 da revisão independente', () => {
     expect(assistantBackendEvidence([{ name: 'c.js', text: chunk }]).embedded).toBe(false);
   });
 });
+
+describe('GOAL-117 play-release-lib: rodada 4 da revisão independente', () => {
+  const RESOLVER_PREFIX = 'if(function(){try{let e=globalThis.Capacitor;return!0}catch{}return!1}()){let e,t=0===(e=';
+  const RESOLVER_SUFFIX = ').length?null:e.replace(/\/+$/,"");return t?{kind:"remote",url:`${t}/api/nutrition/assistant`}:{kind:"unavailable"}}';
+  const resolver = (expr: string) => `${RESOLVER_PREFIX}${expr}${RESOLVER_SUFFIX}`;
+
+  it('origem estrangeira embutida no resolvedor é detectada (sem waiver possível)', () => {
+    const ev = assistantBackendEvidence([{ name: 'c.js', text: resolver('"https://evil.example.com".trim()') }]);
+    expect(ev.foreignOrigins).toEqual(['https://evil.example.com']);
+    expect(ev.embedded).toBe(false);
+    expect(ev.unavailableProven).toBe(false);
+  });
+
+  it('Production embutida na forma real (literal no .trim()) = embedded', () => {
+    const ev = assistantBackendEvidence([{ name: 'c.js', text: resolver('"https://gymflow-beige-gamma.vercel.app".trim()') }]);
+    expect(ev).toMatchObject({ embedded: true, foreignOrigins: [], unavailableProven: false });
+  });
+
+  it('leitura em runtime sem literal = indisponibilidade comprovada', () => {
+    const ev = assistantBackendEvidence([
+      { name: 'c.js', text: resolver('(G.default.env.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL??"").trim()') },
+    ]);
+    expect(ev).toMatchObject({ embedded: false, unavailableProven: true, resolverOrigins: [] });
+  });
+
+  it('literal Production próximo que NÃO entra no .trim() da origem não certifica', () => {
+    const text = `const link="https://gymflow-beige-gamma.vercel.app";${resolver('other().trim()')}`;
+    const ev = assistantBackendEvidence([{ name: 'c.js', text }]);
+    expect(ev.embedded).toBe(false);
+    expect(ev.unavailableProven).toBe(false);
+  });
+
+  it('valor de config com pontuação inicial conta como senha', () => {
+    const name = 'store' + 'Password';
+    expect(committedSecretAssignments('a.properties', `${name}=#Correct-Horse-Battery-42`)).toBe(1);
+    expect(committedSecretAssignments('a.properties.example', `${name}=;Senha-Ruim-2026`)).toBe(1);
+    expect(committedSecretAssignments('a.properties', `# ${name}=Comentada-Mas-Real-9`)).toBe(1);
+    expect(committedSecretAssignments('ci/w.yml', `      ${'GYMFLOW_RELEASE_STORE_'}PASSWORD: \${{ secrets.STORE_PW }}`)).toBe(0);
+    expect(committedSecretAssignments('a.properties', `${name}=`)).toBe(0);
+  });
+});

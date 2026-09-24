@@ -188,9 +188,14 @@ export function committedSecretAssignments(filePath, text) {
     if (!PLACEHOLDER_VALUE.test(value)) count += 1;
   }
   if (isConfigLike(filePath)) {
-    const bare = new RegExp(`\\b(?:${names})\\b\\s*[=:]\\s*([^\\s"'\`#;,]{4,})`, "g");
-    for (const m of source.matchAll(bare)) {
-      if (!PLACEHOLDER_VALUE.test(m[1])) count += 1;
+    // Config/script: valor = tudo após o separador até o fim da linha
+    // (comentário só conta se vier após espaço: `x=#abc` é valor). Linhas
+    // comentadas também são lidas — senha comentada continua vazada.
+    const line = new RegExp(`\\b(?:${names})\\b\\s*[=:]\\s*(.*)$`, "gm");
+    for (const m of source.matchAll(line)) {
+      let value = m[1].replace(/\r$/, "").replace(/\s+#.*$/, "").replace(/[,;]\s*$/, "").trim();
+      if (/^["'`]/.test(value)) continue; // literal entre aspas: contado acima
+      if (value.length >= 4 && !PLACEHOLDER_VALUE.test(value)) count += 1;
     }
   }
   return count;
@@ -358,35 +363,62 @@ export function countMarkers(text, markers) {
 export const RUNTIME_BACKEND_LOOKUP = "env.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL";
 export const ASSISTANT_PATH = "/api/nutrition/assistant";
 
+// Janela (caracteres) antes do template `${x}/api/nutrition/assistant` que
+// contém o corpo do resolvedor compilado (medido no bundle real: ~170).
+const RESOLVER_WINDOW = 400;
+
 /**
- * Evidência de que o RESOLVEDOR do endpoint do assistente usa a origem
- * Production embutida — não basta a URL aparecer em qualquer arquivo.
- * `files`: [{ name, text }]. Embutido = nenhuma leitura em runtime restante
- * em arquivo algum E algum arquivo que monta `${origem}/api/nutrition/assistant`
- * contém a origem Production.
+ * Evidência do backend a partir do RESOLVEDOR compilado do endpoint do
+ * assistente (`ai-assistant-client.ts`), não de ocorrências soltas da URL.
+ * `files`: [{ name, text }]. Para cada template `${x}/api/nutrition/assistant`
+ * examina a janela anterior:
+ *  - `resolverOrigins`: TODA URL literal na janela (qualquer uma ≠ Production
+ *    é origem estrangeira embutida → falha dura, sem waiver);
+ *  - embedded: o literal Production entra no `.trim()` da leitura da origem
+ *    (forma de `(env ?? '').trim()` com o valor embutido) e não resta leitura
+ *    em runtime em arquivo algum;
+ *  - unavailableProven: janela sem URL literal e com a leitura em runtime
+ *    (variável não embutida → IA nativa indisponível, único caso do waiver).
+ * Refatorar o resolvedor faz o gate FALHAR (nunca passar por engano).
  */
 export function assistantBackendEvidence(files, origin = PRODUCTION_BACKEND_ORIGIN) {
-  const resolverFiles = [];
-  const resolverWithOrigin = [];
-  const runtimeLookupFiles = [];
-  // A origem precisa aparecer como LITERAL de string e, logo adiante (janela
-  // limitada), o template que monta `${origem}/api/nutrition/assistant` — é a
-  // forma do resolvedor compilado. URL solta no mesmo chunk não conta.
   const escapedOrigin = origin.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
-  const resolverExpr = new RegExp(`["'\`]${escapedOrigin}["'\`][\\s\\S]{0,300}?\\$\\{\\w+\\}${ASSISTANT_PATH.replace(/\//g, "\\/")}`);
+  const originIntoTrim = new RegExp(`["'\`]${escapedOrigin}["'\`]\\s*(?:\\?\\?\\s*(?:""|''|\`\`)\\s*\\))?\\s*\\.trim\\(\\)`);
+  const templateRe = /\$\{[\w$]+\}\/api\/nutrition\/assistant/g;
+  const urlLiteralRe = /["'`](https?:\/\/[^"'`\s]+?)\/*["'`]/g;
+  const resolverFiles = [];
+  const resolverOrigins = new Set();
+  const runtimeLookupFiles = [];
+  let windows = 0;
+  let windowsWithOriginIntoTrim = 0;
+  let windowsWithRuntimeLookup = 0;
   for (const { name, text } of files) {
     const source = String(text ?? "");
     if (source.includes(RUNTIME_BACKEND_LOOKUP)) runtimeLookupFiles.push(name);
-    if (source.includes(ASSISTANT_PATH)) {
-      resolverFiles.push(name);
-      if (resolverExpr.test(source)) resolverWithOrigin.push(name);
+    let found = false;
+    for (const m of source.matchAll(templateRe)) {
+      found = true;
+      windows += 1;
+      const window = source.slice(Math.max(0, m.index - RESOLVER_WINDOW), m.index);
+      for (const u of window.matchAll(urlLiteralRe)) resolverOrigins.add(u[1]);
+      if (originIntoTrim.test(window)) windowsWithOriginIntoTrim += 1;
+      if (window.includes(RUNTIME_BACKEND_LOOKUP)) windowsWithRuntimeLookup += 1;
     }
+    if (found) resolverFiles.push(name);
   }
+  const origins = [...resolverOrigins].sort();
+  const foreignOrigins = origins.filter((o) => o !== origin);
   return {
-    embedded: runtimeLookupFiles.length === 0 && resolverWithOrigin.length > 0,
     resolverFiles,
-    resolverWithOrigin,
+    resolverOrigins: origins,
+    foreignOrigins,
     runtimeLookupFiles,
+    embedded:
+      windows > 0 &&
+      foreignOrigins.length === 0 &&
+      windowsWithOriginIntoTrim === windows &&
+      runtimeLookupFiles.length === 0,
+    unavailableProven: windows > 0 && origins.length === 0 && windowsWithRuntimeLookup === windows,
   };
 }
 
