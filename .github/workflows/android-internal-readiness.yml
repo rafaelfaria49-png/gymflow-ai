@@ -79,6 +79,10 @@ jobs:
         run: |
           npx vitest run src/lib/nutrition/nut008-secrets.test.ts --testTimeout 15000
 
+      - name: 4b. Play Release Tooling Unit Tests (GOAL-117)
+        run: |
+          npx vitest run scripts/android/ --testTimeout 15000
+
       - name: 5. Build Mobile Frontend & Capacitor Sync
         run: |
           npm run build:mobile

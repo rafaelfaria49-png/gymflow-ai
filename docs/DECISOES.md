@@ -2153,3 +2153,12 @@ diretamente ligadas a ele. **O C2 não foi iniciado.**
 ## GOAL-116 - GYMFLOW-ANDROID-REAL-DEVICE-RELEASE-QA-116
 
 - D116-001: smoke de release executado diretamente no hardware real Samsung Galaxy S22 SM-S901E (Android 16, API 36); confirmada ausencia total de ANRs e crashes (0 crash, 0 ANR); ANR de FocusEvent do GOAL-115 classificado como puramente ambiental (exaustao de RAM no host virtualizado) e fechado em definitivo (P2_ANR_GOAL115 = CLOSED); chamada ao backend de producao e resiliencia offline/online validadas com sucesso; fechamento docs-only sobre master conforme governanca (sem alteracao artificial de codigo).
+
+## GOAL-117 - GYMFLOW-ANDROID-PLAY-INTERNAL-ONBOARDING-ENDTOEND-117
+
+- D117-001: upload key definitiva tem script proprio (android-generate-upload-key.mjs): PKCS12, RSA 4096, SHA256withRSA, 10000 dias, alias gymflow-upload, --out-dir obrigatorio fora de qualquer repo git, sem sobrescrita; senha so por prompt sem eco -> env do filho (-storepass:env); no repo so o registro publico android/play-upload-certificate.json (contrato de assinatura). Chave interna gymflow-internal segue so para sideload.
+- D117-002: android/app/build.gradle com origem de credenciais atomica (4 GYMFLOW_RELEASE_* do ambiente OU o properties local; env parcial falha o build) para impedir mistura da chave interna com a upload key.
+- D117-003: build Play via android-play-release.mjs: confere fingerprint antes de compilar, exige --expect-version-code e arvore limpa, gradle --no-daemon (daemon nao retem senha); auditoria sem senha (android-release-audit.mjs) grava play-release-manifest.json com hashes e gates.
+- D117-004: versionCode 1 / versionName 1.0 mantidos ate o humano confirmar o estado real do Play Console (sem incremento cego).
+- D117-005: origem do backend NAO embutida no release: gateway Production nao envia CORS para https://localhost, entao embutir so trocaria "nao configurado" por falha de rede enganosa; build:mobile passa a aceitar somente a origem Production (ou nenhuma). Correcao real (CORS + deploy) fica para GOAL de backend autorizado.
+- D117-006: revisao independente via Codex CLI (familia OpenAI/GPT) em sandbox read-only; revisao do AAB final/cert real repetida apos a upload key existir.
