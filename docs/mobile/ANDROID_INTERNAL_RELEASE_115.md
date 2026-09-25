@@ -94,7 +94,10 @@ Release mobile utiliza **somente**:
 
 - `NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL` → origem pública do backend GymFlow
   (Production atual: `https://gymflow-beige-gamma.vercel.app`), com o client
-  chamando `{origem}/api/nutrition/assistant`.
+  chamando `{origem}/api/nutrition/assistant`. Desde o GOAL-118 o
+  `build:mobile` embute essa origem por padrão (`--ai-backend production`,
+  constante versionada) e o gateway libera CORS só para `https://localhost` /
+  `capacitor://localhost` (ver `ANDROID_AI_BACKEND_BRIDGE_118.md`).
 
 Nunca: OpenRouter direto no client, API key de provedor no bundle,
 `localhost` ou URL de dev. A chave do provedor (`GYMFLOW_AI_API_KEY`) vive

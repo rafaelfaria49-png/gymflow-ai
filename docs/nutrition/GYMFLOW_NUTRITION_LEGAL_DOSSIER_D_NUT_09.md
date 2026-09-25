@@ -80,9 +80,12 @@ Enviado ao modelo (quando targets AUTOMATED e provedor configurado):
 - `dietaryPattern` e `goal` como rótulos opcionais;
 - no substituto: `foodReferenceId` + gramas;
 - ingredientes em texto livre (tratados como dados);
-- `userText` opcional ≤ 500 caracteres, isolado como DADOS, nunca como instrução de sistema.
+- na explicação de metas (`explain_target_change`): fatos do motor — metas kcal/P/C/G, BMR, TDEE, balanço energético e objetivo (valores **derivados** de peso/altura/idade/sexo; os brutos não vão);
+- `userText` opcional ≤ 500 caracteres, isolado como DADOS, nunca como instrução de sistema (o modal atual não expõe esse campo).
 
-**Não enviado:** nome, e-mail, identidade, histórico completo do ledger, hidratação, flags de saúde, biometria (peso/altura/idade), timestamps de refeição, IDs de dia.
+**Não enviado:** nome, e-mail, identidade, histórico completo do ledger, hidratação, flags de saúde, biometria bruta (peso/altura/idade/sexo), timestamps de refeição, IDs de dia.
+
+Origem das chamadas: web (same-origin) e, desde o GOAL-118, também o app nativo Android/iOS (§5).
 
 Negativos (MANUAL_ONLY, gate clínico, payload inválido, teto de bytes) **não chamam o provedor**.
 
@@ -95,6 +98,7 @@ Negativos (MANUAL_ONLY, gate clínico, payload inválido, teto de bytes) **não 
 - O client **não** chama `openrouter.ai` nem `chat/completions`.
 - Mobile Capacitor usa origem pública `NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL` (URL, não segredo) concatenada a `/api/nutrition/assistant`.
 - Sem provedor: 503 `PROVIDER_UNAVAILABLE` honesto; sugestões determinísticas offline permanecem.
+- **GOAL-118 (2026-09-25) — app nativo ligado ao gateway.** Até o GOAL-117 o app nativo não tinha backend (IA "indisponível"). Agora o bundle Android/iOS embute a origem Production e o gateway aceita, via CORS com allowlist exata, somente os WebViews nativos (`https://localhost`, `capacitor://localhost`) além da web same-origin; qualquer outra origem recebe 403 antes de o provedor ser chamado. Consequência factual: **o contexto do §4 passa a sair também do aparelho do usuário nativo** (app → gateway GymFlow na Vercel — edge São Paulo, função nos EUA → OpenRouter → modelo), só quando ele pede uma proposta. O IP da conexão chega à hospedagem do gateway; o OpenRouter recebe a chamada do servidor. Inventário de Data Safety (Android) e App Privacy (iOS) atualizado como proposta factual em `docs/mobile/MOBILE_CROSS_PLATFORM_005.md` §9 e `MOBILE_CROSS_PLATFORM_006.md` §3.3 — pendente de decisão jurídica.
 
 NUT-008 reexecuta smoke controlado dos 5 casos **somente** via gateway, sem carga no provedor pago.
 
@@ -117,7 +121,7 @@ Não há write automático, não há opt-in implícito por abrir o modal, não h
 | Camada | O que fica | Onde |
 | :--- | :--- | :--- |
 | Perfil nutricional / ledger / favoritos | dados do usuário | dispositivo (IndexedDB + fallback); backup schema 2 exportado pelo usuário |
-| Gateway GymFlow | request/response transitórios do assistente | servidor da rota; sem banco de nutrição neste GOAL |
+| Gateway GymFlow | request/response transitórios do assistente (web e, desde o GOAL-118, app nativo) | função Vercel (região iad1, EUA; edge São Paulo); sem banco de nutrição; logs da plataforma com metadados de requisição (IP, caminho, status) não auditados |
 | Provedor (OpenRouter / modelo) | prompt mínimo acima | retenção do provedor **não auditada neste GOAL** — ponto para o jurídico/DPA |
 | Segredos | `GYMFLOW_AI_API_KEY` | ambiente server-only; `API_KEY_EXPOSURE = NO` |
 

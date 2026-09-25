@@ -105,9 +105,11 @@ Notas: _ _
 
 Dossiê §4. Browser chama só o gateway GymFlow `POST /api/nutrition/assistant`. O client **nunca** envia a chave.
 
-Enviado (quando targets AUTOMATED e provedor configurado): caso de uso; allowlist de até 40 itens do catálogo; orçamento `remaining` e `targets` (números já do motor); rótulos `dietaryPattern` / `goal`; no substituto, `foodReferenceId` + gramas; ingredientes como dados; `userText` ≤ 500 caracteres isolado como DADOS.
+Enviado (quando targets AUTOMATED e provedor configurado): caso de uso; allowlist de até 40 itens do catálogo; orçamento `remaining` e `targets` (números já do motor); rótulos `dietaryPattern` / `goal`; no substituto, `foodReferenceId` + gramas; ingredientes como dados; na explicação de metas, fatos do motor (metas, BMR, TDEE, balanço energético — derivados de biometria); `userText` ≤ 500 caracteres isolado como DADOS.
 
-**Não enviado:** nome, e-mail, identidade, histórico completo do ledger, hidratação, flags de saúde, biometria, timestamps de refeição, IDs de dia.
+**Não enviado:** nome, e-mail, identidade, histórico completo do ledger, hidratação, flags de saúde, biometria bruta, timestamps de refeição, IDs de dia.
+
+**GOAL-118:** além da web, o **app nativo** Android/iOS passa a enviar esse contexto ao gateway GymFlow (somente quando o usuário pede uma proposta).
 
 Negativos (MANUAL_ONLY, gate clínico, payload inválido, teto de bytes) **não** chamam o provedor.
 
@@ -124,10 +126,11 @@ Dossiê §5. QA NUT-008: `SECRET_EXPOSURE = NO`, `DIRECT_OPENROUTER_CLIENT_CALL 
 - Produção homologada: `https://gymflow-beige-gamma.vercel.app/api/nutrition/assistant`.
 - Adapter OpenAI-compatible **server-only** (`GYMFLOW_AI_BASE_URL` + `GYMFLOW_AI_API_KEY` + `GYMFLOW_AI_MODEL`).
 - Client **não** chama `openrouter.ai` nem `chat/completions`.
-- Mobile Capacitor: origem pública `NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL` (URL, não segredo) + `/api/nutrition/assistant`.
+- Mobile Capacitor: origem pública `NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL` (URL, não segredo) + `/api/nutrition/assistant`. Desde o GOAL-118 a origem Production vem embutida no bundle nativo e o gateway aceita, por CORS com allowlist exata, só `https://localhost` (Android) e `capacitor://localhost` (iOS) além da web same-origin; qualquer outra origem → 403 antes de chamar o provedor.
 - Sem provedor: 503 `PROVIDER_UNAVAILABLE` honesto; sugestões determinísticas offline permanecem.
+- Hospedagem do gateway: Vercel, função na região iad1 (EUA), edge em São Paulo.
 
-Ponto para DPA / transferência internacional: retenção do provedor **não auditada** neste GOAL.
+Ponto para DPA / transferência internacional: retenção do provedor **não auditada**; com o GOAL-118 o fluxo aparelho → EUA passa a existir também no app nativo. Data Safety (Play) e App Privacy (Apple) têm proposta factual pendente de decisão em `docs/mobile/MOBILE_CROSS_PLATFORM_005.md` §9 / `MOBILE_CROSS_PLATFORM_006.md` §3.3.
 
 [ ] Adequado  [ ] Com ressalva  [ ] Inadequado  [ ] Não avaliado
 
@@ -142,7 +145,7 @@ Dossiê §7.
 | Camada | O que fica | Onde |
 | :--- | :--- | :--- |
 | Perfil / ledger / favoritos | dados do usuário | dispositivo (IndexedDB + fallback); backup schema 2 exportado pelo usuário |
-| Gateway GymFlow | request/response transitórios | rota de servidor; sem banco de nutrição neste GOAL |
+| Gateway GymFlow | request/response transitórios (web e app nativo) | função Vercel iad1 (EUA); sem banco de nutrição; metadados de requisição da plataforma não auditados |
 | Provedor | prompt mínimo | retenção **não auditada** |
 | Segredos | `GYMFLOW_AI_API_KEY` | server-only |
 

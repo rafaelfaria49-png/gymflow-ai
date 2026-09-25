@@ -92,12 +92,14 @@ Status: `UPLOAD_KEY_BACKUP = HUMAN_KEY_BACKUP_DECISION_REQUIRED`.
 ## 6. Build final (executado pelo humano, pede a senha sem eco)
 
 ```bash
-npm run android:play:release -- --keystore "<dir seguro>\gymflow-upload-key.jks" --expect-version-code 1 --accept-backend-unavailable
+npm run android:play:release -- --keystore "<dir seguro>\gymflow-upload-key.jks" --expect-version-code 1 --expect-backend-production
 ```
 
 Modo de backend obrigatório e exclusivo, igual ao aprovado no gate (§12):
-`--accept-backend-unavailable` (IA nativa indisponível, §9) ou
-`--expect-backend-production` (só depois do GOAL de backend). O script
+`--expect-backend-production` (padrão desde o GOAL-118: CORS nativo em
+Production + origem embutida, §9) ou `--accept-backend-unavailable` (IA
+nativa indisponível, só com aceite humano explícito). O modo vira o
+`--ai-backend production|none` do `build:mobile`. O script
 calcula a origem **efetiva** (ambiente + `.env*`, com o carregador do Next)
 antes de compilar e recusa se ela não bater com o modo; a auditoria confere
 de novo no bundle (`BACKEND_MODE_MATCHES_APPROVAL`).
@@ -129,7 +131,7 @@ falha o build (impede misturar keystore de uma chave com alias/senha de outra).
 ## 7. Assinatura e auditoria (sem senha)
 
 ```bash
-npm run android:release:audit -- --accept-backend-unavailable
+npm run android:release:audit -- --expect-backend-production
 ```
 
 `scripts/android-release-audit.mjs` verifica e registra:
@@ -226,7 +228,15 @@ assistente → deploy Production → build com
 → novo versionCode → smoke da IA no aparelho → atualizar Data Safety (dados
 de nutrição passam a sair do aparelho).
 
-`BACKEND_PRODUCTION = FAIL (NOT_CONFIGURED)` · sem localhost, dev, OpenRouter
+> **Resolvido no GOAL-118** (`docs/mobile/ANDROID_AI_BACKEND_BRIDGE_118.md`):
+> CORS com allowlist exata (`https://localhost`, `capacitor://localhost`) no
+> gateway, deploy Production `dpl_9b1V1yrYdvSEUYAn5xoPXjReq2rb`, `build:mobile`
+> embute a Production por padrão (constante versionada), auditoria
+> `--expect-backend-production` 36/36 PASS e smoke da IA pelo app nativo
+> (emulador; S22 indisponível na execução). O texto acima é o registro
+> histórico do GOAL-117.
+
+`BACKEND_PRODUCTION = FAIL (NOT_CONFIGURED)` (histórico GOAL-117) · sem localhost, dev, OpenRouter
 direto ou segredo no cliente.
 
 ## 10. Revisão independente
@@ -321,8 +331,8 @@ Para continuar, o humano informa (sem enviar senha a ninguém):
 2. o **diretório seguro** da upload key (fora de qualquer repo git);
 3. a estratégia de backup (§4): onde fica o backup offline e em qual cofre a
    senha ficará — só a descrição, nunca a senha;
-4. decisão sobre o achado P1 de backend (§9): seguir para Internal Testing
-   com a IA nativa indisponível (limitação conhecida) ou corrigir antes.
+4. ~~decisão sobre o achado P1 de backend (§9)~~ — resolvido no GOAL-118
+   (build com `--expect-backend-production`).
 
 Depois, num terminal interativo:
 
@@ -334,7 +344,7 @@ Depois o registro público (`android/play-upload-certificate.json`) entra no
 git via PR (o build exige árvore limpa), e então:
 
 ```bash
-npm run android:play:release -- --keystore "<diretório seguro>\gymflow-upload-key.jks" --expect-version-code <N> --accept-backend-unavailable
+npm run android:play:release -- --keystore "<diretório seguro>\gymflow-upload-key.jks" --expect-version-code <N> --expect-backend-production
 ```
 
 e avisa para a auditoria, a revisão independente final e o gate do §12.
@@ -402,7 +412,8 @@ Play. Nenhum item autoriza outro por inferência.
    Anotar o SHA-256 do "Certificado da chave de assinatura do app" (Google)
    para verificar a instalação.
 6. Notas mínimas da versão (pt-BR), por exemplo: "Build interno 1.0 (1) —
-   validação técnica. Assistente de IA nativo indisponível nesta versão."
+   validação técnica." (desde o GOAL-118 o Assistente IA nativo usa o backend
+   Production; não declarar "IA indisponível").
 7. **Revisar e iniciar lançamento no Teste interno** — somente com
    `INTERNAL_RELEASE_LAUNCH_AUTHORIZED = YES` (upload autorizado não implica
    lançamento). Se o Console exigir ação não coberta pelas autorizações,
@@ -425,7 +436,8 @@ Play. Nenhum item autoriza outro por inferência.
   → `com.android.vending`; e o signer do `base.apk` instalado ==
   certificado da chave de assinatura do app (Console), não o upload cert.
 - Smoke mínimo: cold boot · Home · Treinos · persistência (kill/reopen) ·
-  Nutrição · backend (esperado hoje: IA nativa indisponível, §9) ·
+  Nutrição · Assistente IA pelo app (GOAL-118: proposta real via Production;
+  repetir a 1ª chamada após troca de rede no Wi-Fi real, ver GOAL-118 §8) ·
   offline/online · 0 crash / 0 ANR (logcat + `dumpsys activity anrs`).
 
 ## 15. Status do GOAL-117 neste checkpoint
@@ -438,7 +450,7 @@ Play. Nenhum item autoriza outro por inferência.
 | UPLOAD_CERT | PENDING (não existe ainda) |
 | AAB_RELEASE / AAB_SIGNING | PENDING (depende da upload key) |
 | SECRET_EXPOSURE | NO (baseline) |
-| BACKEND_PRODUCTION | FAIL — NOT_CONFIGURED + CORS ausente (P1, §9) |
+| BACKEND_PRODUCTION | PASS desde o GOAL-118 (era FAIL — NOT_CONFIGURED + CORS ausente, §9) |
 | PLAY_APP_SIGNING | BLOCKED_HUMAN_GATE |
 | INTERNAL_TESTING_UPLOAD | BLOCKED_HUMAN_GATE |
 | PLAY_INTERNAL_INSTALL_QA | NOT_YET_AVAILABLE |
