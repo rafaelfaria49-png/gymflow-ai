@@ -549,6 +549,12 @@ describe('GOAL-118 play-release-lib: backend explícito do build:mobile', () => 
     expect(planMobileBackend({ mode: 'none', effectiveOrigin: 'https://qa.example.com' }).error).toBeTruthy();
   });
 
+  it('none recusa variável declarada mesmo vazia; production a ignora (fixa a constante)', () => {
+    expect(planMobileBackend({ mode: 'none', effectiveOrigin: '', declared: true }).error).toMatch(/declarada/);
+    expect(planMobileBackend({ mode: 'none', effectiveOrigin: '', declared: false })).toMatchObject({ origin: '' });
+    expect(planMobileBackend({ mode: 'production', effectiveOrigin: '', declared: true }).origin).toBe(PRODUCTION_BACKEND_ORIGIN);
+  });
+
   it('modo desconhecido é recusado', () => {
     expect(planMobileBackend({ mode: 'staging' }).error).toMatch(/desconhecido/);
     expect(planMobileBackend({ mode: '' }).error).toMatch(/desconhecido/);
@@ -654,5 +660,13 @@ describe('GOAL-118 resolveMobileBuild: integração real com @next/env (processo
 
   it('ambiente com origem estrangeira → recusado', () => {
     expect(resolveIn({}, 'https://evil.example.com', 'production').error).toMatch(/não é a Production/);
+  });
+
+  it('.env com atribuição vazia: none recusa antes do build (M1); production fixa a Production', () => {
+    const emptyDecl = { '.env.local': 'NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL=\n' };
+    const none = resolveIn(emptyDecl, undefined, 'none');
+    expect(none.error).toMatch(/declarada \(vazia\)/);
+    expect(none.hasVar).toBeNull();
+    expect(resolveIn(emptyDecl, undefined, 'production')).toMatchObject({ origin: PRODUCTION_BACKEND_ORIGIN, value: PRODUCTION_BACKEND_ORIGIN });
   });
 });

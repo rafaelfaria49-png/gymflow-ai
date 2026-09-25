@@ -69,6 +69,9 @@ Web continua same-origin (`/api/nutrition/assistant`), sem CORS.
   da 1ª leitura do `@next/env`: avaliação e `next build` veem o mesmo
   ambiente (revisão, F3; teste de integração com processo filho e
   `.env.production.local` temporário).
+- No modo `none`, a variável declarada vazia num `.env*` (`NOME=`) também é
+  recusada antes do build — senão o Next embutiria `""` no lugar da leitura
+  em runtime que prova a indisponibilidade (revisão, M1).
 - `android:play:release` passa o modo aprovado ao `build:mobile`
   (`--accept-backend-unavailable` → `none`; `--expect-backend-production` →
   `production`) e confere antes com a mesma regra (`resolveMobileBuild`).
@@ -292,4 +295,4 @@ envio.
 |---|---|---|---|
 | 1 | `b3ea656` | P0=1 · P1=2 · P2=4 · P3=1 | F2–F8 corrigidos em `8484d96`; F1 (gateway público) disputado com fatos |
 | 2 | `8484d96` | **P0=0 · P1=0** · P2=3 · P3=1 | F1 DISPUTED-ACCEPTED (pré-existente); F2–F8 FIXED; N1–N3 corrigidos em `b8cfc81`; N4 (docs) nesta atualização |
-| 3 | ver GOALS_LOG | confirmação de N1–N4 | — |
+| 3 | `6baca02` | **P0=0 · P1=0** · P2=1 · P3=0 | N1–N4 FIXED; F2–F8 seguem FIXED; M1 (`.env` com atribuição vazia no modo `none`) corrigido no commit seguinte, com teste de integração que falha sem a correção |

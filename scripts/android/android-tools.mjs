@@ -93,7 +93,9 @@ export function run(command, args, { cwd = REPO_ROOT, extraEnv = {}, input } = {
  * processo + `.env*` (ignorados pelo git), calculada com o carregador do
  * próprio Next (`@next/env`, mesmos arquivos e ordem do modo production).
  * O ambiente deste processo é restaurado ao final (nada de `.env` vaza para
- * filhos por aqui). Retorna só a origem pública e nomes de arquivo.
+ * filhos por aqui). Retorna só a origem pública, se a variável está DECLARADA
+ * (mesmo vazia — um `.env` com `NOME=` faria o `next build` embutir `""`) e
+ * nomes de arquivo.
  */
 export function effectiveBackendOrigin(cwd = REPO_ROOT) {
   const snapshot = { ...process.env };
@@ -102,6 +104,7 @@ export function effectiveBackendOrigin(cwd = REPO_ROOT) {
     const fromProcess = (snapshot.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL ?? "").trim() !== "";
     return {
       origin: (combinedEnv.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL ?? "").trim().replace(/\/+$/, ""),
+      declared: Object.prototype.hasOwnProperty.call(combinedEnv, "NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL"),
       source: fromProcess ? "ambiente" : `arquivos .env (${loadedEnvFiles.map((f) => f.path).join(", ") || "nenhum"})`,
     };
   } finally {
@@ -121,7 +124,7 @@ export function resolveMobileBuild(argv, cwd = REPO_ROOT) {
   normalizeBackendEnv(process.env);
   const mode = parseMobileAiBackendMode(argv);
   const effective = effectiveBackendOrigin(cwd);
-  const plan = planMobileBackend({ mode, effectiveOrigin: effective.origin });
+  const plan = planMobileBackend({ mode, effectiveOrigin: effective.origin, declared: effective.declared });
   return { mode, effective, plan, buildEnv: plan.error ? null : mobileBuildEnv(process.env, plan) };
 }
 

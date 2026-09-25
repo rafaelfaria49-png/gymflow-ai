@@ -386,16 +386,22 @@ export function parseMobileAiBackendMode(argv) {
  *   efetiva só é aceita se for idêntica; qualquer outra é recusada (sem
  *   exceção de QA desde o GOAL-118);
  * - "none": nada embutido (IA nativa "unavailable" honesta); recusa se
- *   qualquer origem efetiva existir (ela vazaria para o bundle).
+ *   qualquer origem efetiva existir (ela vazaria para o bundle) ou se a
+ *   variável estiver DECLARADA, mesmo vazia (`declared`): um `.env` com
+ *   `NOME=` faria o `next build` embutir `""` em vez da leitura em runtime
+ *   que prova a indisponibilidade na auditoria.
  * Retorna `{ origin, source }` ou `{ error }`.
  */
-export function planMobileBackend({ mode = DEFAULT_MOBILE_AI_BACKEND_MODE, effectiveOrigin = "" } = {}) {
+export function planMobileBackend({ mode = DEFAULT_MOBILE_AI_BACKEND_MODE, effectiveOrigin = "", declared = false } = {}) {
   if (!MOBILE_AI_BACKEND_MODES.includes(mode)) {
     return { error: `modo de backend desconhecido: "${mode}" (use ${MOBILE_AI_BACKEND_MODES.join(" | ")})` };
   }
   const effective = String(effectiveOrigin ?? "").trim().replace(/\/+$/, "");
   if (mode === "none") {
     if (effective) return { error: `modo "none", mas NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL efetiva = ${effective}` };
+    if (declared) {
+      return { error: 'modo "none", mas NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL está declarada (vazia) em .env*; remova a atribuição' };
+    }
     return { origin: "", source: "modo none (IA nativa indisponível)" };
   }
   if (!effective) return { origin: PRODUCTION_BACKEND_ORIGIN, source: "constante versionada PRODUCTION_BACKEND_ORIGIN" };
