@@ -196,7 +196,8 @@ export function committedSecretAssignments(filePath, text) {
   // Markdown: blocos de código cercados (``` / ~~~) são lidos como script;
   // a prosa fora deles só conta literal entre aspas.
   if (/\.mdx?$/i.test(normalized)) {
-    const fenceRe = /^(```|~~~)[^\n]*\n([\s\S]*?)^\1/gm;
+    // CommonMark: cerca com até 3 espaços de recuo; fecha com a mesma sequência.
+    const fenceRe = /^ {0,3}(`{3,}|~{3,})[^\n]*\n([\s\S]*?)^ {0,3}\1/gm;
     let fenced = 0;
     for (const m of source.matchAll(fenceRe)) fenced += configSecretAssignments(m[2], false);
     return fenced + quotedSecretAssignments(source.replace(fenceRe, ""));

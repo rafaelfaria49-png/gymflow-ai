@@ -294,7 +294,13 @@ upload certificate, segredos, AAB, backend, debug e esta documentação.
   `android/`). Ambos corrigidos (blocos cercados e arquivos sem extensão
   lidos como script; template marcado "somente chave interna"; guia antigo
   do MOBILE-005 aponta para este runbook).
-- Rodada 7 (confirmação): ver GOALS_LOG do GOAL-117.
+- Rodada 7 (commit `08cbf90`): **P0=0 · P1=2 · P2=1** — N11 confirmado;
+  N1 segue aberto por desenho; **N12 (P1)**: o gate não tinha autorização
+  explícita para **lançar** a versão no Teste interno (passo 13.7); N10
+  parcial (cerca Markdown recuada 1–3 espaços). Corrigidos:
+  `INTERNAL_RELEASE_LAUNCH_AUTHORIZED` separado do upload, cada passo do
+  Console amarrado à sua autorização; cercas recuadas lidas como script.
+- Rodada 8 (confirmação): ver GOALS_LOG do GOAL-117.
 
 A revisão do **AAB final** e do certificado real só é possível após a upload
 key existir: repetir antes do gate do §12.
@@ -353,8 +359,14 @@ PLAY_APP_CREATION_AUTHORIZED = YES/NO   (só se o app ainda não existe — P2)
   PLAY_DEVELOPER_ACCOUNT = <conta/e-mail do Console que ficará dona do package>
   PACKAGE_ID = com.gymflowai.app        (preso para sempre a essa conta)
   PRICING = FREE | PAID                 (FREE não pode virar PAID depois)
-PLAY_APP_SIGNING_AUTHORIZED = YES/NO    (chave do app gerada pelo Google)
-INTERNAL_AAB_UPLOAD_AUTHORIZED = YES/NO (somente trilha Teste interno)
+PLAY_APP_SIGNING_AUTHORIZED = YES/NO    (chave do app gerada pelo Google; o
+                                         1º AAB enviado registra o upload
+                                         certificate = UPLOAD_CERT_SHA256)
+INTERNAL_AAB_UPLOAD_AUTHORIZED = YES/NO (enviar o AAB aprovado à trilha
+                                         Teste interno, sem lançar)
+INTERNAL_RELEASE_LAUNCH_AUTHORIZED = YES/NO (iniciar o lançamento da versão
+                                         no Teste interno para os testers
+                                         listados — ação visível aos testers)
 ```
 
 Sem `YES` explícito em cada item, a ação correspondente não acontece no
@@ -368,19 +380,25 @@ Play. Nenhum item autoriza outro por inferência.
    gratuito não vira pago; o package fica preso à conta no 1º upload.
 2. **Testes → Teste interno → Testadores:** lista de e-mails autorizados
    (Google Groups ou lista); copiar o link de participação (opt-in).
-3. **Teste interno → Criar versão:** na primeira versão o Console pede a
+3. **Teste interno → Criar versão** (somente com
+   `PLAY_APP_SIGNING_AUTHORIZED = YES`): na primeira versão o Console pede a
    chave de assinatura do app → **"Usar chave gerada pelo Google"**
    (recomendado; irreversível na prática).
-4. **Enviar `app-release.aab`** — o mesmo arquivo cujo `AAB_SHA256` foi
-   aprovado no gate. Recalcular o hash imediatamente antes do upload; se o
-   arquivo mudou, repetir auditoria + gate.
+4. **Enviar `app-release.aab`** (somente com
+   `INTERNAL_AAB_UPLOAD_AUTHORIZED = YES`) — o mesmo arquivo cujo
+   `AAB_SHA256` foi aprovado no gate. Recalcular o hash imediatamente antes
+   do upload; se o arquivo mudou, repetir auditoria + gate. O 1º AAB registra
+   o upload certificate.
 5. Conferir em **Integridade do app → Assinatura do app** que o
    "Certificado da chave de upload" tem o `UPLOAD_CERT_SHA256` aprovado.
    Anotar o SHA-256 do "Certificado da chave de assinatura do app" (Google)
    para verificar a instalação.
 6. Notas mínimas da versão (pt-BR), por exemplo: "Build interno 1.0 (1) —
    validação técnica. Assistente de IA nativo indisponível nesta versão."
-7. **Revisar e iniciar lançamento no Teste interno.** Nunca promover para
+7. **Revisar e iniciar lançamento no Teste interno** — somente com
+   `INTERNAL_RELEASE_LAUNCH_AUTHORIZED = YES` (upload autorizado não implica
+   lançamento). Se o Console exigir ação não coberta pelas autorizações,
+   parar e perguntar. Nunca promover para
    Fechado/Aberto/Produção. O Console pode pedir tarefas do Painel
    (política de privacidade, acesso ao app, anúncios, classificação, público
    alvo, Segurança dos dados): preencher só o que ele exigir, com os fatos de

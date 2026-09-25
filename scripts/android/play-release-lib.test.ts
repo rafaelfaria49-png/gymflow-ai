@@ -474,3 +474,13 @@ describe('GOAL-117 play-release-lib: rodada 6 da revisão independente', () => {
     expect(committedSecretAssignments('android/gradlew', `echo "${'$'}JAVA_HOME"`)).toBe(0);
   });
 });
+
+describe('GOAL-117 play-release-lib: rodada 7 da revisão independente', () => {
+  const RELEASE_PW = 'GYMFLOW_RELEASE_STORE_' + 'PASSWORD';
+  it.each(['   ```bash', '  ~~~', ' ````sh'])('bloco cercado recuado (%s) também é lido como script', (open) => {
+    const fence = open.replace(/[a-z]+$/, '').trim();
+    const indent = open.match(/^ */)?.[0] ?? '';
+    const md = `Texto\n\n${open}\n${indent}export ${RELEASE_PW}=Actual-Secret-Value-3\n${indent}${fence}\n`;
+    expect(committedSecretAssignments('docs/x.md', md)).toBe(1);
+  });
+});
