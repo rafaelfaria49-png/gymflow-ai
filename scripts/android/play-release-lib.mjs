@@ -200,7 +200,13 @@ export function committedSecretAssignments(filePath, text) {
     const fenceRe = /^ {0,3}(`{3,}|~{3,})[^\n]*\n([\s\S]*?)^ {0,3}\1/gm;
     let fenced = 0;
     for (const m of source.matchAll(fenceRe)) fenced += configSecretAssignments(m[2], false);
-    return fenced + quotedSecretAssignments(source.replace(fenceRe, ""));
+    const prose = source.replace(fenceRe, "");
+    // Bloco de código indentado (4 espaços ou tab) também é lido como script.
+    const indented = prose
+      .split(/\r?\n/)
+      .filter((l) => /^(?: {4}|\t)/.test(l))
+      .join("\n");
+    return fenced + configSecretAssignments(indented, false) + quotedSecretAssignments(prose);
   }
   return quotedSecretAssignments(source);
 }

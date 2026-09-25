@@ -484,3 +484,10 @@ describe('GOAL-117 play-release-lib: rodada 7 da revisão independente', () => {
     expect(committedSecretAssignments('docs/x.md', md)).toBe(1);
   });
 });
+
+describe('GOAL-117 play-release-lib: rodada 8 da revisão independente', () => {
+  const RELEASE_PW = 'GYMFLOW_RELEASE_STORE_' + 'PASSWORD';
+  it.each(['    ', '\t'])('bloco de código indentado (%j) é lido como script', (indent) => {
+    expect(committedSecretAssignments('docs/x.md', `Texto\n\n${indent}${RELEASE_PW}=Actual-Secret-Value-4\n`)).toBe(1);
+  });
+});

@@ -300,7 +300,15 @@ upload certificate, segredos, AAB, backend, debug e esta documentação.
   parcial (cerca Markdown recuada 1–3 espaços). Corrigidos:
   `INTERNAL_RELEASE_LAUNCH_AUTHORIZED` separado do upload, cada passo do
   Console amarrado à sua autorização; cercas recuadas lidas como script.
-- Rodada 8 (confirmação): ver GOALS_LOG do GOAL-117.
+- Rodada 8 (commit `2757b34`): **P0=0 · P1=1 · P2=1** — N12 e N10
+  confirmados corrigidos; único P1 = N1 (backend, aberto por desenho; waiver
+  "amarrado ao modo efetivo, ao resolvedor compilado, ao AAB auditado e ao
+  gate humano"); N13 (P2, borda de parser: bloco Markdown indentado com 4
+  espaços/tab) corrigido depois, validado por testes unitários, sem nova
+  rodada.
+
+**Resultado da revisão do ferramental: P0=0 · P1=1 (N1, decisão humana) ·
+P2=0 abertos.**
 
 A revisão do **AAB final** e do certificado real só é possível após a upload
 key existir: repetir antes do gate do §12.
