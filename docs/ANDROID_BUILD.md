@@ -92,6 +92,10 @@ git-ignorado ou env `GYMFLOW_RELEASE_*`) gera release assinado. Guia completo:
 validar release. `webContentsDebuggingEnabled` é `false` por padrão desde o
 GOAL-115 (ligar temporariamente só para depurar debug).
 
+Upload para o Google Play (GOAL-117): upload key definitiva fora do repo,
+build assinado com conferência de fingerprint e auditoria —
+`docs/mobile/ANDROID_PLAY_INTERNAL_ONBOARDING_117.md`.
+
 ## 8. Limitações conhecidas (debug)
 
 - **APK de debug**, não assinado para produção. Não serve para publicar; serve

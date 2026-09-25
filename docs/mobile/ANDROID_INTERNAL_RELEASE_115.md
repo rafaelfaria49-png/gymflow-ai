@@ -81,6 +81,13 @@ armazenamento (cofre de senhas + backup offline), senhas fortes e registro do
 certificado no Play Console (Play App Signing). Não promover a chave interna a
 upload key sem essa decisão. Status atual: `REAL_UPLOAD_KEY = PENDING_HUMAN`.
 
+**GOAL-117:** a upload key definitiva tem ferramenta própria
+(`npm run android:upload-key:generate`, `npm run android:play:release`,
+`npm run android:release:audit`) — ver
+`docs/mobile/ANDROID_PLAY_INTERNAL_ONBOARDING_117.md`. O Gradle passou a
+tratar a origem das credenciais de forma atômica (4 variáveis de ambiente
+ou o properties local; env parcial falha o build).
+
 ## 5. Secrets e backend mobile
 
 Release mobile utiliza **somente**:

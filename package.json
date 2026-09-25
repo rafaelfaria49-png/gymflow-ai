@@ -21,6 +21,9 @@
     "android:apk:release": "node scripts/android-apk-release.mjs",
     "android:bundle:release": "node scripts/android-bundle-release.mjs",
     "android:generate-release-key": "node scripts/android-generate-release-key.mjs",
+    "android:upload-key:generate": "node scripts/android-generate-upload-key.mjs",
+    "android:play:release": "node scripts/android-play-release.mjs",
+    "android:release:audit": "node scripts/android-release-audit.mjs",
     "ios:sync": "node scripts/build-mobile.mjs && cap sync ios",
     "ios:open": "cap open ios",
     "ios:validate": "vitest run scripts/ios/ios-readiness.test.ts"
@@ -48,6 +51,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.7",
+    "@next/env": "16.2.6",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

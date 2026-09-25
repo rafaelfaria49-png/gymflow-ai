@@ -9,10 +9,22 @@ if (releaseSigningConfigFile.exists()) {
     releaseProperties.load(new FileInputStream(releaseSigningConfigFile))
 }
 
-def storeFilePath = System.getenv('GYMFLOW_RELEASE_STORE_FILE') ?: releaseProperties.getProperty('storeFile')
-def storePasswordValue = System.getenv('GYMFLOW_RELEASE_STORE_PASSWORD') ?: releaseProperties.getProperty('storePassword')
-def keyAliasValue = System.getenv('GYMFLOW_RELEASE_KEY_ALIAS') ?: releaseProperties.getProperty('keyAlias')
-def keyPasswordValue = System.getenv('GYMFLOW_RELEASE_KEY_PASSWORD') ?: releaseProperties.getProperty('keyPassword')
+// GOAL-117: origem das credenciais é ATÔMICA. Se qualquer GYMFLOW_RELEASE_*
+// estiver no ambiente, as 4 vêm do ambiente (o properties local da chave
+// interna é ignorado); env parcial falha o build em vez de misturar keystore
+// de uma chave com alias/senha de outra.
+def signingEnvNames = ['GYMFLOW_RELEASE_STORE_FILE', 'GYMFLOW_RELEASE_STORE_PASSWORD',
+                       'GYMFLOW_RELEASE_KEY_ALIAS', 'GYMFLOW_RELEASE_KEY_PASSWORD']
+def presentSigningEnv = signingEnvNames.findAll { System.getenv(it) }
+if (!presentSigningEnv.isEmpty() && presentSigningEnv.size() != signingEnvNames.size()) {
+    throw new GradleException("Assinatura release: defina as 4 variaveis ${signingEnvNames} ou nenhuma (presentes: ${presentSigningEnv}).")
+}
+def useSigningEnv = presentSigningEnv.size() == signingEnvNames.size()
+
+def storeFilePath = useSigningEnv ? System.getenv('GYMFLOW_RELEASE_STORE_FILE') : releaseProperties.getProperty('storeFile')
+def storePasswordValue = useSigningEnv ? System.getenv('GYMFLOW_RELEASE_STORE_PASSWORD') : releaseProperties.getProperty('storePassword')
+def keyAliasValue = useSigningEnv ? System.getenv('GYMFLOW_RELEASE_KEY_ALIAS') : releaseProperties.getProperty('keyAlias')
+def keyPasswordValue = useSigningEnv ? System.getenv('GYMFLOW_RELEASE_KEY_PASSWORD') : releaseProperties.getProperty('keyPassword')
 
 def hasReleaseCredentials = storeFilePath && storePasswordValue && keyAliasValue && keyPasswordValue
 

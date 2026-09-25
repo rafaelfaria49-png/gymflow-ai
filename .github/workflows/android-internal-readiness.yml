@@ -79,6 +79,10 @@ jobs:
         run: |
           npx vitest run src/lib/nutrition/nut008-secrets.test.ts --testTimeout 15000
 
+      - name: 4b. Play Release Tooling Unit Tests (GOAL-117)
+        run: |
+          npx vitest run scripts/android/ --testTimeout 15000
+
       - name: 5. Build Mobile Frontend & Capacitor Sync
         run: |
           npm run build:mobile
@@ -137,8 +141,9 @@ jobs:
           - **Runner:** ubuntu-latest (JDK 17 + Android SDK)
           - **Package:** com.gymflowai.app
           - **Artifacts:** `android/app/build/outputs/apk/release/app-release.apk`, `android/app/build/outputs/bundle/release/app-release.aab`
-          - **Signing (CI):** UNSIGNED resilient (no secrets in CI by design)
-          - **Internal distribution:** requires a locally-generated release key (`npm run android:generate-release-key`) — see `docs/mobile/ANDROID_INTERNAL_RELEASE_115.md`
+          - **Signing (CI):** UNSIGNED resilient (no secrets in CI by design) — these artifacts are NOT uploadable to Google Play
+          - **Local sideload/QA only:** internal key (`npm run android:generate-release-key`, GOAL-115) — never used for Google Play
+          - **Google Play Internal Testing:** only the definitive upload key via `npm run android:upload-key:generate` + `npm run android:play:release` + `npm run android:release:audit`, with the human gate — see `docs/mobile/ANDROID_PLAY_INTERNAL_ONBOARDING_117.md`
           - **Unsigned release:** PASS
           - **Secret scan (web bundle):** PASS (no key, no provider URL)
           EOF

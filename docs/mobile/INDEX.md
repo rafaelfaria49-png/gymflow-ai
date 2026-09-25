@@ -28,4 +28,7 @@ O GymFlow AI adota uma arquitetura híbrida de alto desempenho utilizando **Capa
 
 ## 3. Guias Operacionais de Publicação
 
+- [ANDROID_INTERNAL_RELEASE_115.md](ANDROID_INTERNAL_RELEASE_115.md) — Release Android interno (GOAL-115): build release, chave interna, secrets, versionamento, smoke.
+- [ANDROID_REAL_DEVICE_RELEASE_QA_116.md](ANDROID_REAL_DEVICE_RELEASE_QA_116.md) — QA do release no Galaxy S22 físico (GOAL-116).
+- [ANDROID_PLAY_INTERNAL_ONBOARDING_117.md](ANDROID_PLAY_INTERNAL_ONBOARDING_117.md) — Onboarding Google Play Internal Testing (GOAL-117): upload key definitiva, build/auditoria de assinatura, gate humano e passos do Play Console.
 - [IOS_MAC_HANDOFF.md](file:///c:/Projetos/gymflow-ai/docs/mobile/IOS_MAC_HANDOFF.md) — Guia de execução no Mac, abertura de workspace, configuração de assinatura, build em simulador/device, roteiro de smoke test de 19 itens e submissão App Store Connect.
