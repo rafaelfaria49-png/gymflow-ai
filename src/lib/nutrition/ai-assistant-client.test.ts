@@ -52,6 +52,39 @@ describe('NUT-007 client: roteamento web/mobile sem segredo', () => {
     // A URL resolvida nunca carrega segredo.
     expect(JSON.stringify(endpoint)).not.toMatch(/key|token|secret|bearer/i);
   });
+
+  it('GOAL-118: mobile nativo com a origem Production embutida chama o gateway GymFlow (nunca o provedor)', async () => {
+    (globalThis as Record<string, unknown>)['Capacitor'] = { isNativePlatform: () => true };
+    vi.stubEnv('NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL', 'https://gymflow-beige-gamma.vercel.app');
+    expect(resolveAssistantEndpoint()).toEqual({
+      kind: 'remote',
+      url: 'https://gymflow-beige-gamma.vercel.app/api/nutrition/assistant',
+    });
+    const proposal = { useCase: 'complete_protein', items: [], totals: { calories: 0, protein: 0, carbs: 0, fat: 0 } };
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { status: 'ok', proposal }));
+    await requestAssistantProposal({ ...REQUEST }, {}, fetchImpl as unknown as typeof fetch);
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://gymflow-beige-gamma.vercel.app/api/nutrition/assistant');
+    expect(url).not.toMatch(/openrouter|chat\/completions/i);
+    // Só Content-Type: o preflight do WebView pede exatamente o que o CORS libera.
+    expect(Object.keys(init.headers as Record<string, string>)).toEqual(['content-type']);
+    expect(init.credentials).toBeUndefined();
+    expect(JSON.stringify(init)).not.toMatch(/authorization|bearer/i);
+  });
+
+  it('GOAL-118: barra final na origem pública é normalizada', () => {
+    (globalThis as Record<string, unknown>)['Capacitor'] = { isNativePlatform: () => true };
+    vi.stubEnv('NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL', 'https://gymflow-beige-gamma.vercel.app/');
+    expect(resolveAssistantEndpoint()).toEqual({
+      kind: 'remote',
+      url: 'https://gymflow-beige-gamma.vercel.app/api/nutrition/assistant',
+    });
+  });
+
+  it('GOAL-118: web ignora a origem pública (continua same-origin)', () => {
+    vi.stubEnv('NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL', 'https://gymflow-beige-gamma.vercel.app');
+    expect(resolveAssistantEndpoint()).toEqual({ kind: 'same-origin', url: '/api/nutrition/assistant' });
+  });
 });
 
 describe('NUT-007 client: transporte honesto', () => {

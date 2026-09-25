@@ -361,6 +361,84 @@ export function backendOriginProblems(value) {
   return problems;
 }
 
+// GOAL-118: modos EXPLÍCITOS do backend de IA no build:mobile
+// (`--ai-backend <modo>`). O padrão é embutir a Production GymFlow a partir
+// desta constante versionada — nenhum `.env` ignorado decide o valor.
+export const MOBILE_AI_BACKEND_MODES = ["production", "none"];
+export const DEFAULT_MOBILE_AI_BACKEND_MODE = "production";
+
+/** Lê `--ai-backend <modo>` ou `--ai-backend=<modo>` (padrão: production). */
+export function parseMobileAiBackendMode(argv) {
+  const args = [...(argv ?? [])];
+  let mode = null;
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = String(args[i]);
+    if (arg === "--ai-backend") mode = String(args[i + 1] ?? "");
+    else if (arg.startsWith("--ai-backend=")) mode = arg.slice("--ai-backend=".length);
+  }
+  return mode ?? DEFAULT_MOBILE_AI_BACKEND_MODE;
+}
+
+/**
+ * Decide a origem que o build:mobile embute a partir do modo declarado e da
+ * origem EFETIVA (ambiente + `.env*`, via `effectiveBackendOrigin()`):
+ * - "production": embute exatamente PRODUCTION_BACKEND_ORIGIN. Uma origem
+ *   efetiva só é aceita se for idêntica; qualquer outra é recusada (sem
+ *   exceção de QA desde o GOAL-118);
+ * - "none": nada embutido (IA nativa "unavailable" honesta); recusa se
+ *   qualquer origem efetiva existir (ela vazaria para o bundle) ou se a
+ *   variável estiver DECLARADA, mesmo vazia (`declared`): um `.env` com
+ *   `NOME=` faria o `next build` embutir `""` em vez da leitura em runtime
+ *   que prova a indisponibilidade na auditoria.
+ * Retorna `{ origin, source }` ou `{ error }`.
+ */
+export function planMobileBackend({ mode = DEFAULT_MOBILE_AI_BACKEND_MODE, effectiveOrigin = "", declared = false } = {}) {
+  if (!MOBILE_AI_BACKEND_MODES.includes(mode)) {
+    return { error: `modo de backend desconhecido: "${mode}" (use ${MOBILE_AI_BACKEND_MODES.join(" | ")})` };
+  }
+  const effective = String(effectiveOrigin ?? "").trim().replace(/\/+$/, "");
+  if (mode === "none") {
+    if (effective) return { error: `modo "none", mas NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL efetiva = ${effective}` };
+    if (declared) {
+      return { error: 'modo "none", mas NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL está declarada (vazia) em .env*; remova a atribuição' };
+    }
+    return { origin: "", source: "modo none (IA nativa indisponível)" };
+  }
+  if (!effective) return { origin: PRODUCTION_BACKEND_ORIGIN, source: "constante versionada PRODUCTION_BACKEND_ORIGIN" };
+  if (effective === PRODUCTION_BACKEND_ORIGIN) return { origin: effective, source: "constante versionada (confirmada pelo ambiente)" };
+  const problems = backendOriginProblems(effective);
+  const detail = problems.length > 0 ? `: ${problems.join("; ")}` : "";
+  return { error: `origem efetiva ${effective} não é a Production GymFlow (${PRODUCTION_BACKEND_ORIGIN})${detail}` };
+}
+
+export const BACKEND_ENV_NAME = "NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL";
+
+/**
+ * Variável vazia ou só com espaços no ambiente conta como AUSENTE: o
+ * carregador do Next a trataria como definida (um `.env*` não a sobrescreve),
+ * mas o `next build` do modo "none" a recebe removida — avaliação e build
+ * precisam ver o MESMO ambiente. Muta e devolve `env`.
+ */
+export function normalizeBackendEnv(env) {
+  if (Object.prototype.hasOwnProperty.call(env, BACKEND_ENV_NAME) && String(env[BACKEND_ENV_NAME] ?? "").trim() === "") {
+    delete env[BACKEND_ENV_NAME];
+  }
+  return env;
+}
+
+/**
+ * Ambiente do `next build` mobile: cópia de `baseEnv` com BUILD_TARGET=mobile
+ * e a origem do plano fixada (nenhum `.env` a troca). Sem origem (modo
+ * "none"), a variável sai do ambiente — nem vazia — e o bundle mantém a
+ * leitura em runtime que a auditoria reconhece.
+ */
+export function mobileBuildEnv(baseEnv, plan) {
+  const env = { ...baseEnv, BUILD_TARGET: "mobile" };
+  delete env[BACKEND_ENV_NAME];
+  if (plan?.origin) env[BACKEND_ENV_NAME] = plan.origin;
+  return env;
+}
+
 // Marcadores de segredo/provedor. Só ids e contagens são reportados — nunca o
 // trecho encontrado.
 export const SECRET_MARKERS = [

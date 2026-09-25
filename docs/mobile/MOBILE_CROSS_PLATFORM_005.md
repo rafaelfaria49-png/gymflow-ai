@@ -203,12 +203,38 @@ Com base no comportamento REAL do código do GymFlow AI:
 | **Dados Financeiros / Pagamentos** | Não | Nenhum | Não aplicável | Nenhum |
 | **Localização Física** | Não | Nenhum | Não aplicável | Nenhum |
 | **Telemetria, Analytics e Rastreamento** | Não | Nenhum SDK de analytics instalado (sem Firebase, sem Sentry, sem Mixpanel) | Não aplicável | Nenhum |
+| **Contexto nutricional do Assistente IA** (GOAL-118) | **Sim, transmitido** — só quando o usuário pede uma proposta ao Assistente IA | Não armazenado pelo gateway GymFlow (sem banco; request/response transitórios). Retenção no OpenRouter/provedor do modelo **não auditada** | Gerar a proposta pedida pelo usuário | Transferido ao OpenRouter e ao provedor do modelo (processamento da proposta) |
+
+> **Atualização GOAL-118 (2026-09-25).** O inventário original acima assumia
+> app 100% offline. A partir do GOAL-118 o app **nativo** (Android e iOS, mesmo
+> bundle) chama o gateway GymFlow Production
+> (`https://gymflow-beige-gamma.vercel.app/api/nutrition/assistant`; Vercel,
+> edge São Paulo, função nos EUA), que chama o OpenRouter. Isso só acontece
+> quando o usuário abre Nutrição → Assistente IA e toca "Perguntar à IA" com
+> metas automáticas ativas. Enviado conforme o caso: saldo restante e metas
+> (kcal/P/C/G), rótulos `goal`/`dietaryPattern`, `foodReferenceId` + gramas
+> (substituição), ingredientes em texto livre (montar refeição), fatos do
+> motor (metas, BMR, TDEE, balanço energético — derivados de peso/altura/
+> idade/sexo, não os valores brutos) na explicação de metas. **Não** enviados:
+> nome, e-mail, identificadores, histórico do ledger, hidratação, flags de
+> saúde, peso/altura/idade brutos. O gateway recebe o IP da conexão (metadado
+> de rede da hospedagem); o OpenRouter recebe a chamada do servidor, não do
+> aparelho. Detalhe por caso: `docs/nutrition/GYMFLOW_NUTRITION_LEGAL_DOSSIER_D_NUT_09.md` §4–§5.
 
 ### 9.2. Checklist para Preenchimento do Data Safety no Play Console
-- [x] **O aplicativo coleta ou compartilha dados de usuários?** Responder: **Não** (os dados nunca saem do dispositivo para servidores do desenvolvedor).
-- [x] **Todos os dados coletados são tratados como transferidos para servidores?** Responder: **Não**, todos os dados permanecem confinados ao armazenamento local privado do aplicativo.
-- [x] **Os usuários podem solicitar exclusão dos dados?** Responder: **Sim**, o aplicativo disponibiliza a opção "Resetar Dados" nas configurações administrativas, que apaga imediatamente o banco local e caches.
-- [x] **O aplicativo possui criptografia em trânsito?** Responder: **Sim**, qualquer requisição de mídia CDN utiliza HTTPS estrito.
+
+**Proposta factual para decisão humana/jurídica (D-NUT-09 `PENDING`; não é
+aprovação jurídica).** As respostas marcadas "originais" valiam para o app
+100% offline e **deixaram de valer** com o GOAL-118.
+
+- [ ] **O aplicativo coleta ou compartilha dados de usuários?** Original: "Não". **Fato atual:** dados nutricionais saem do aparelho (app → gateway GymFlow → OpenRouter) quando o Assistente IA é usado → na definição do Play ("transmitir dados para fora do aparelho") isso é **coleta**. Resposta proposta: **Sim**.
+- [ ] **Tipos de dados candidatos:** "Saúde e fitness" (metas/saldo calórico e de macros, BMR/TDEE, objetivo — a categoria exata, informações de saúde vs. de condicionamento físico, é decisão humana) e "Atividade no app → outro conteúdo gerado pelo usuário" (ingredientes em texto livre). Nenhum identificador pessoal, localização, contato, financeiro ou ID de dispositivo é enviado pelo app.
+- [ ] **Coleta obrigatória ou opcional?** Proposta: **opcional** — só com ação explícita do usuário no Assistente IA; o restante do app funciona sem ela.
+- [ ] **Finalidade:** funcionalidade do app (gerar a proposta pedida). Sem publicidade, analytics, personalização de anúncios ou venda.
+- [ ] **Compartilhamento:** o OpenRouter e o provedor do modelo processam a requisição. Se isso conta como "compartilhamento" ou como "prestador de serviço" (exceção do Play) depende de contrato/DPA — **decisão jurídica** (D-NUT-09 §10.2/§10.4).
+- [ ] **Processamento efêmero?** No gateway GymFlow sim (nada persistido pelo código). Na cadeia OpenRouter/modelo a retenção **não foi auditada** → não declarar efêmero de ponta a ponta sem essa verificação.
+- [x] **Criptografia em trânsito?** **Sim** — app → gateway em HTTPS (o build só embute a origem Production HTTPS) e gateway → OpenRouter em HTTPS (o gateway só considera o provedor configurado com base URL HTTPS).
+- [x] **Os usuários podem solicitar exclusão dos dados?** Local: **Sim** ("Resetar Dados"). Remoto: o gateway não armazena; exclusão na cadeia do provedor depende da retenção não auditada (acima).
 
 ---
 
