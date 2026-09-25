@@ -83,6 +83,16 @@ function post(origin: string | null, body: string, extra: Record<string, string>
   return new Request(ENDPOINT, { method: 'POST', headers, body });
 }
 
+function streamingPost(origin: string, body: ReadableStream<Uint8Array>): Request {
+  const init = {
+    method: 'POST',
+    headers: serverHeaders({ origin, 'content-type': 'application/json' }),
+    body,
+    duplex: 'half',
+  };
+  return new Request(ENDPOINT, init as RequestInit);
+}
+
 const completeProtein = (state: Record<string, unknown> = { state: 'AUTOMATED' }) =>
   JSON.stringify({ useCase: 'complete_protein', context: validContext(), availability: state });
 
@@ -285,8 +295,14 @@ describe('GOAL-118 CORS: POST do app nativo (sucesso e erros com CORS)', () => {
   });
 
   it('corpo ilegível → 400 com CORS', async () => {
-    const request = post(ANDROID, completeProtein());
-    vi.spyOn(request, 'text').mockRejectedValue(new Error('stream quebrado'));
+    const request = streamingPost(
+      ANDROID,
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.error(new Error('stream quebrado'));
+        },
+      }),
+    );
     const response = await handleAssistantPost(request, { env: CONFIGURED_ENV });
     expect(response.status).toBe(400);
     expect(response.headers.get('access-control-allow-origin')).toBe(ANDROID);
@@ -297,13 +313,12 @@ describe('GOAL-118 CORS: origem não autorizada fail-closed', () => {
   it.each(UNAUTHORIZED_ORIGINS)('POST de %s → 403, sem CORS, sem ler corpo, sem provedor', async (origin) => {
     const fetchImpl = frangoProvider();
     const request = post(origin, completeProtein());
-    const readBody = vi.spyOn(request, 'text');
     const response = await handleAssistantPost(request, { env: CONFIGURED_ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
     expect(response.status).toBe(403);
     expectNoCors(response);
     expect(response.headers.get('vary')).toBe('Origin');
     expect(await response.json()).toMatchObject({ status: 'failure', code: 'INVALID_REQUEST' });
-    expect(readBody).not.toHaveBeenCalled();
+    expect(request.bodyUsed).toBe(false);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
@@ -316,24 +331,63 @@ describe('GOAL-118: POST simples, teto em bytes e Content-Length', () => {
       headers: serverHeaders({ origin: 'https://evil.example.com', 'content-type': 'text/plain;charset=UTF-8' }),
       body: completeProtein(),
     });
-    const readBody = vi.spyOn(request, 'text');
     const response = await handleAssistantPost(request, { env: CONFIGURED_ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
     expect(response.status).toBe(403);
     expectNoCors(response);
-    expect(readBody).not.toHaveBeenCalled();
+    expect(request.bodyUsed).toBe(false);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('Content-Length acima do teto → 413 com CORS nativo, sem ler o corpo nem chamar o provedor', async () => {
     const fetchImpl = frangoProvider();
     const request = post(ANDROID, completeProtein(), { 'content-length': String(16 * 1024 + 1) });
-    const readBody = vi.spyOn(request, 'text');
     const response = await handleAssistantPost(request, { env: CONFIGURED_ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
     expect(response.status).toBe(413);
     expect(response.headers.get('access-control-allow-origin')).toBe(ANDROID);
     expect(await response.json()).toMatchObject({ status: 'failure', code: 'REQUEST_TOO_LARGE' });
-    expect(readBody).not.toHaveBeenCalled();
+    expect(request.bodyUsed).toBe(false);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('sem Content-Length, corpo acima do teto → 413 com CORS e leitura interrompida no teto (N1)', async () => {
+    const fetchImpl = frangoProvider();
+    const chunk = new Uint8Array(1024).fill(0x78);
+    let pulled = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        if (pulled > 256) controller.close();
+        else controller.enqueue(chunk);
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const request = streamingPost(ANDROID, body);
+    expect(request.headers.get('content-length')).toBeNull();
+    const response = await handleAssistantPost(request, { env: CONFIGURED_ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(response.status).toBe(413);
+    expect(response.headers.get('access-control-allow-origin')).toBe(ANDROID);
+    expect(await response.json()).toMatchObject({ code: 'REQUEST_TOO_LARGE' });
+    expect(cancelled).toBe(true);
+    expect(pulled).toBeLessThan(40);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('corpo em stream dentro do teto segue o contrato normal (200 grounded)', async () => {
+    const fetchImpl = frangoProvider();
+    const bytes = new TextEncoder().encode(completeProtein());
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes.slice(0, 20));
+        controller.enqueue(bytes.slice(20));
+        controller.close();
+      },
+    });
+    const response = await handleAssistantPost(streamingPost(IOS, body), { env: CONFIGURED_ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('access-control-allow-origin')).toBe(IOS);
   });
 
   it('origem estrangeira é recusada antes do Content-Length (403, não 413)', async () => {

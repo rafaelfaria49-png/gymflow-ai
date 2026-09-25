@@ -21,6 +21,7 @@
  */
 
 import { AI_ASSISTANT_LIMITS, AiAssistantError } from './ai-assistant-types';
+import { readTextWithinLimit } from './bounded-text';
 
 export interface AiProviderConfig {
   enabled: boolean;
@@ -163,6 +164,9 @@ export async function callProviderChatCompletion(
         response_format: { type: 'json_object' },
       }),
       signal: controller.signal,
+      // GOAL-118: nunca seguir redirecionamento (um 307/308 para http:// ou
+      // outro host reenviaria prompt e chave fora do destino validado).
+      redirect: 'error',
     });
     if (!response.ok) {
       throw new AiAssistantError(
@@ -170,14 +174,15 @@ export async function callProviderChatCompletion(
         `Provedor de IA respondeu HTTP ${response.status}. Nenhuma sugestão fake foi gerada.`,
       );
     }
-    const text = await response.text();
-    if (text.length > AI_ASSISTANT_LIMITS.MAX_PROVIDER_RESPONSE_BYTES) {
+    // Teto em bytes UTF-8, lendo o stream só até o limite.
+    const read = await readTextWithinLimit(response, AI_ASSISTANT_LIMITS.MAX_PROVIDER_RESPONSE_BYTES);
+    if (read.kind === 'too-large') {
       throw new AiAssistantError(
         'INVALID_MODEL_RESPONSE',
         'Resposta do provedor excede o teto de bytes do contrato.',
       );
     }
-    return text;
+    return read.text;
   } catch (error) {
     if (error instanceof AiAssistantError) throw error;
     if (error instanceof Error && error.name === 'AbortError') {

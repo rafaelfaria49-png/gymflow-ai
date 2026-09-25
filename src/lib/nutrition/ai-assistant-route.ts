@@ -20,11 +20,13 @@
  *
  * Preflight (`OPTIONS`) só é aceito para origem nativa pedindo `POST` com, no
  * máximo, o header `Content-Type`. `Vary` sempre presente: a resposta depende
- * da origem. `Content-Length` declarado acima do teto → 413 sem ler o corpo.
+ * da origem. `Content-Length` declarado acima do teto → 413 sem ler o corpo;
+ * sem ele, a leitura para ao passar do teto (stream cancelado) → 413.
  */
 
 import { handleAssistantGatewayRequest, type AiGatewayDeps } from './ai-assistant-gateway';
 import { AI_ASSISTANT_LIMITS, type AiAssistantResult } from './ai-assistant-types';
+import { readTextWithinLimit } from './bounded-text';
 
 /** Origens dos WebViews nativos (Capacitor 7). Comparação exata. */
 export const NATIVE_APP_ORIGINS: readonly string[] = ['https://localhost', 'capacitor://localhost'];
@@ -116,8 +118,8 @@ export async function handleAssistantPost(request: Request, deps: AiGatewayDeps 
     );
   }
   const headers = responseHeaders(origin);
-  if (declaresOversizedBody(request.headers)) {
-    return failureJson(
+  const tooLarge = () =>
+    failureJson(
       413,
       {
         status: 'failure',
@@ -126,11 +128,14 @@ export async function handleAssistantPost(request: Request, deps: AiGatewayDeps 
       },
       headers,
     );
-  }
+  if (declaresOversizedBody(request.headers)) return tooLarge();
 
+  // Sem Content-Length confiável, a leitura para no teto (stream cancelado).
   let bodyText = '';
   try {
-    bodyText = await request.text();
+    const read = await readTextWithinLimit(request, AI_ASSISTANT_LIMITS.MAX_REQUEST_BYTES);
+    if (read.kind === 'too-large') return tooLarge();
+    bodyText = read.text;
   } catch {
     return failureJson(400, { status: 'failure', code: 'INVALID_REQUEST', message: 'Corpo da requisição ilegível.' }, headers);
   }
