@@ -148,6 +148,12 @@ A assinatura de release é configurada em `android/app/build.gradle` com suporte
 
 Para o operador humano no momento da publicação:
 
+> **Substituído pelo GOAL-117:** a upload key definitiva é gerada com
+> `npm run android:upload-key:generate` (fora de qualquer repositório, senha
+> sem eco) e usada só via `npm run android:play:release` — ver
+> `docs/mobile/ANDROID_PLAY_INTERNAL_ONBOARDING_117.md`. O comando abaixo é
+> histórico; não gerar a chave dentro do repositório.
+
 1. **Gerar a Upload Key definitiva:**
    ```bash
    keytool -genkeypair -v -keystore gymflow-upload-key.jks -alias gymflow-upload -keyalg RSA -keysize 4096 -validity 10000

@@ -1,26 +1,33 @@
 ## ==============================================================================
-## GymFlow AI — Release Signing Configuration Template (GOAL-MOBILE-005)
+## GymFlow AI — Release Signing Template (GOAL-MOBILE-005 / GOAL-115)
+## SOMENTE CHAVE INTERNA (sideload/QA local). NUNCA a upload key do Google Play.
 ## ==============================================================================
-## INSTRUÇÕES DE USO:
-## 1. Copie este arquivo para "android/release-signing.properties" (já ignorado pelo git).
-## 2. Preencha os campos abaixo com os dados da sua Upload Key do Google Play.
-## 3. NUNCA comite o arquivo "release-signing.properties" ou sua chave ".jks / .keystore".
+## INSTRUÇÕES DE USO (chave interna "gymflow-internal", GOAL-115):
+## 1. Prefira `npm run android:generate-release-key`, que cria a chave interna e
+##    este arquivo local. Manualmente: copie para "android/release-signing.properties"
+##    (já ignorado pelo git) e preencha com os dados da CHAVE INTERNA.
+## 2. NUNCA comite o arquivo "release-signing.properties" ou chave ".jks / .keystore".
 ##
-## ALTERNATIVA VIA VARIÁVEIS DE AMBIENTE (recomendado para CI/CD):
-##   GYMFLOW_RELEASE_STORE_FILE=/caminho/para/gymflow-upload-key.jks
+## GOOGLE PLAY (upload key definitiva, GOAL-117): NÃO use este arquivo. A upload
+## key fica FORA de qualquer repositório e só é usada via
+##   npm run android:play:release -- --keystore "<caminho absoluto externo>" ...
+## (senha pedida sem eco). Guia: docs/mobile/ANDROID_PLAY_INTERNAL_ONBOARDING_117.md
+##
+## ALTERNATIVA VIA VARIÁVEIS DE AMBIENTE (as 4 juntas ou nenhuma):
+##   GYMFLOW_RELEASE_STORE_FILE=<caminho-da-chave-interna.jks>
 ##   GYMFLOW_RELEASE_STORE_PASSWORD=<senha-do-keystore>
-##   GYMFLOW_RELEASE_KEY_ALIAS=gymflow-upload
+##   GYMFLOW_RELEASE_KEY_ALIAS=gymflow-internal
 ##   GYMFLOW_RELEASE_KEY_PASSWORD=<senha-da-chave>
 ## ==============================================================================
 
-# Caminho relativo à pasta "android/" ou absoluto para o arquivo de keystore
-storeFile=gymflow-upload-key.jks
+# Caminho relativo à pasta "android/" ou absoluto para o keystore INTERNO
+storeFile=gymflow-internal-key.jks
 
 # Senha de proteção do arquivo de keystore
 storePassword=SUA_SENHA_DO_KEYSTORE_AQUI
 
-# Nome/Alias da chave de upload dentro do keystore
-keyAlias=gymflow-upload
+# Alias da chave interna dentro do keystore
+keyAlias=gymflow-internal
 
-# Senha específica da chave (muitas vezes idêntica à storePassword em PKCS12)
+# Senha específica da chave (em PKCS12 é idêntica à storePassword)
 keyPassword=SUA_SENHA_DA_CHAVE_AQUI

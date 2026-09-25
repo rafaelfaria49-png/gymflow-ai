@@ -453,3 +453,24 @@ describe('GOAL-117 play-release-lib: rodada 5 da revisão independente', () => {
     expect(committedSecretAssignments('x.json', `{ "${name}": "<senha>" }`)).toBe(0);
   });
 });
+
+describe('GOAL-117 play-release-lib: rodada 6 da revisão independente', () => {
+  const RELEASE_PW = 'GYMFLOW_RELEASE_STORE_' + 'PASSWORD';
+
+  it('bloco de código em Markdown é lido como script', () => {
+    const fence = '```bash\nset ' + RELEASE_PW + '=Actual-Secret-Value-1\n```\n';
+    expect(committedSecretAssignments('docs/guia.md', `# Guia\n\n${fence}`)).toBe(1);
+    const placeholder = '```bash\nset ' + RELEASE_PW + '=***\n```\n';
+    expect(committedSecretAssignments('docs/guia.md', placeholder)).toBe(0);
+  });
+
+  it('prosa Markdown fora de bloco continua sem falso positivo', () => {
+    const name = 'store' + 'Password';
+    expect(committedSecretAssignments('docs/x.md', `- \`${name}=\`, URLs de dev (\`http://localhost\`)`)).toBe(0);
+  });
+
+  it('arquivo sem extensão é tratado como config', () => {
+    expect(committedSecretAssignments('tools/deploy', `export ${RELEASE_PW}=Actual-Secret-Value-2`)).toBe(1);
+    expect(committedSecretAssignments('android/gradlew', `echo "${'$'}JAVA_HOME"`)).toBe(0);
+  });
+});

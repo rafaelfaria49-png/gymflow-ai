@@ -286,7 +286,15 @@ upload certificate, segredos, AAB, backend, debug e esta documentação.
   build e contra o bundle depois; evidência com vínculo por identificador
   (validada nos dois modos reais); leitura de config por formato; resumo da
   CI separando CI sem assinatura / sideload / Play.
-- Rodada 6 (após correções): ver GOALS_LOG do GOAL-117.
+- Rodada 6 (commit `473b440`): **P0=0 · P1=1 · P2=2** — N8, N2, N7, N9
+  confirmados corrigidos; único P1 = N1 (backend, aberto por desenho, "waiver
+  explícito e corretamente amarrado ao artefato"); P2: N10 (atribuição sem
+  aspas em bloco de código Markdown / arquivo sem extensão) e N11 (template
+  `release-signing.properties.example` sugeria upload key dentro de
+  `android/`). Ambos corrigidos (blocos cercados e arquivos sem extensão
+  lidos como script; template marcado "somente chave interna"; guia antigo
+  do MOBILE-005 aponta para este runbook).
+- Rodada 7 (confirmação): ver GOALS_LOG do GOAL-117.
 
 A revisão do **AAB final** e do certificado real só é possível após a upload
 key existir: repetir antes do gate do §12.
@@ -398,6 +406,7 @@ Play. Nenhum item autoriza outro por inferência.
 
 | Critério | Status |
 |---|---|
+| TOOLING (key/build/audit) | READY — 5 E2E completos com chave descartável (apagada), testes de adulteração e negativos |
 | UPLOAD_KEY | PENDING_HUMAN (ferramenta pronta e testada com chave descartável) |
 | UPLOAD_KEY_BACKUP | HUMAN_KEY_BACKUP_DECISION_REQUIRED |
 | UPLOAD_CERT | PENDING (não existe ainda) |

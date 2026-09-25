@@ -179,35 +179,57 @@ function isConfigLike(filePath) {
  *   (`#`/`;` no meio fazem parte do valor); nos demais, remove `,`/`;` final
  *   e comentário ` #...` fora de aspas. Aspas pareadas são retiradas; aspa
  *   sem par fica no valor.
- * - Código/docs: só literais entre aspas contam (`NOME: variavel` é
+ * - Arquivo sem extensão (gradlew, Dockerfile...) é tratado como config;
+ *   em Markdown, blocos de código cercados também (comandos `X=valor`).
+ * - Código/prosa: só literais entre aspas contam (`NOME: variavel` é
  *   referência, não segredo). Crases exigem valor sem espaço (prosa de .md).
  * Chave entre aspas (JSON: `"storePassword": ...`) também é reconhecida.
  */
 export function committedSecretAssignments(filePath, text) {
   const source = String(text ?? "");
-  const assign = `\\b(?:${SIGNING_SECRET_NAMES.join("|")})\\b["']?\\s*[=:]\\s*`;
-  let count = 0;
-  if (isConfigLike(filePath)) {
-    const isProperties = /\.properties$/i.test(withoutTemplateSuffix(filePath));
-    for (const m of source.matchAll(new RegExp(`${assign}(.*)$`, "gm"))) {
-      let value = m[1].replace(/\r$/, "").trim();
-      const q = value[0];
-      const close = q === '"' || q === "'" || q === "`" ? value.indexOf(q, 1) : -1;
-      if (close > 0) {
-        // Literal entre aspas pareadas: o valor é o conteúdo (resto da linha,
-        // ex. `, "outra": 1 }` do JSON, não faz parte).
-        value = value.slice(1, close);
-      } else if (!isProperties) {
-        value = value.replace(/\s+#.*$/, "").replace(/[,;]$/, "").trim();
-      }
-      if (value.length >= 4 && !PLACEHOLDER_VALUE.test(value)) count += 1;
-    }
-    return count;
+  const normalized = withoutTemplateSuffix(filePath);
+  const baseName = normalized.split("/").pop() ?? "";
+  // Arquivo sem extensão (script/config: gradlew, Dockerfile...) = config.
+  if (isConfigLike(filePath) || !baseName.includes(".")) {
+    return configSecretAssignments(source, /\.properties$/i.test(normalized));
   }
-  const quoted = new RegExp(`${assign}(?:"([^"\\r\\n]{4,})"|'([^'\\r\\n]{4,})'|\`([^\`\\s]{4,})\`)`, "g");
+  // Markdown: blocos de código cercados (``` / ~~~) são lidos como script;
+  // a prosa fora deles só conta literal entre aspas.
+  if (/\.mdx?$/i.test(normalized)) {
+    const fenceRe = /^(```|~~~)[^\n]*\n([\s\S]*?)^\1/gm;
+    let fenced = 0;
+    for (const m of source.matchAll(fenceRe)) fenced += configSecretAssignments(m[2], false);
+    return fenced + quotedSecretAssignments(source.replace(fenceRe, ""));
+  }
+  return quotedSecretAssignments(source);
+}
+
+const SECRET_ASSIGN = `\\b(?:${SIGNING_SECRET_NAMES.join("|")})\\b["']?\\s*[=:]\\s*`;
+
+function quotedSecretAssignments(source) {
+  let count = 0;
+  const quoted = new RegExp(`${SECRET_ASSIGN}(?:"([^"\\r\\n]{4,})"|'([^'\\r\\n]{4,})'|\`([^\`\\s]{4,})\`)`, "g");
   for (const m of source.matchAll(quoted)) {
     const value = m[1] ?? m[2] ?? m[3] ?? "";
     if (!PLACEHOLDER_VALUE.test(value)) count += 1;
+  }
+  return count;
+}
+
+function configSecretAssignments(source, isProperties) {
+  let count = 0;
+  for (const m of source.matchAll(new RegExp(`${SECRET_ASSIGN}(.*)$`, "gm"))) {
+    let value = m[1].replace(/\r$/, "").trim();
+    const q = value[0];
+    const close = q === '"' || q === "'" || q === "`" ? value.indexOf(q, 1) : -1;
+    if (close > 0) {
+      // Literal entre aspas pareadas: o valor é o conteúdo (resto da linha,
+      // ex. `, "outra": 1 }` do JSON, não faz parte).
+      value = value.slice(1, close);
+    } else if (!isProperties) {
+      value = value.replace(/\s+#.*$/, "").replace(/[,;]$/, "").trim();
+    }
+    if (value.length >= 4 && !PLACEHOLDER_VALUE.test(value)) count += 1;
   }
   return count;
 }
