@@ -47,6 +47,7 @@ import {
   isThrowawayRecord,
   parseGradleVersion,
   parseKeytoolCertificate,
+  planMobileBackend,
 } from "./android/play-release-lib.mjs";
 import { promptSecret } from "./android/prompt-secret.mjs";
 import { runAudit } from "./android-release-audit.mjs";
@@ -103,24 +104,24 @@ if (gradle.versionCode !== expectedCode) {
 }
 
 // 4. Backend: modo declarado pelo operador (o mesmo aprovado no gate humano)
-// precisa bater com a origem EFETIVA que o build:mobile vai embutir
-// (ambiente + .env*, calculada com o carregador do Next). Modos exclusivos.
-const { origin: effectiveOrigin, source: originSource } = effectiveBackendOrigin();
+// vira o modo EXPLÍCITO do build:mobile (`--ai-backend none|production`,
+// GOAL-118) e é conferido antes contra a origem EFETIVA (ambiente + .env*,
+// calculada com o carregador do Next) pela MESMA regra do build:mobile, sem a
+// exceção de QA. Modos exclusivos.
 if (acceptBackendUnavailable === expectBackendProduction) {
   fail(
     "Declare exatamente um modo de backend: --accept-backend-unavailable (IA nativa indisponível, " +
       "aceita no gate) ou --expect-backend-production (origem Production embutida)."
   );
 }
-if (acceptBackendUnavailable && effectiveOrigin) {
-  fail(`--accept-backend-unavailable, mas a origem efetiva é ${effectiveOrigin} (via ${originSource}). Nada foi compilado.`);
-}
-if (expectBackendProduction && effectiveOrigin !== PRODUCTION_BACKEND_ORIGIN) {
-  fail(
-    `--expect-backend-production, mas a origem efetiva é ${effectiveOrigin || "(nenhuma)"} (via ${originSource}). Nada foi compilado.`
-  );
-}
 const backendMode = acceptBackendUnavailable ? "unavailable" : "production";
+const buildBackendMode = acceptBackendUnavailable ? "none" : "production";
+const { origin: effectiveOrigin, source: originSource } = effectiveBackendOrigin();
+const backendPlan = planMobileBackend({ mode: buildBackendMode, effectiveOrigin, allowNonProduction: false });
+if (backendPlan.error) fail(`Backend recusado (origem efetiva via ${originSource}): ${backendPlan.error}. Nada foi compilado.`);
+if (backendPlan.origin !== (expectBackendProduction ? PRODUCTION_BACKEND_ORIGIN : "")) {
+  fail(`Backend planejado (${backendPlan.origin || "nenhum"}) não bate com o modo declarado. Nada foi compilado.`);
+}
 
 // 5. Árvore limpa: o AAB precisa corresponder a um commit identificável
 function assertCleanTree(moment) {
@@ -178,7 +179,7 @@ function step(label, command, commandArgs, { cwd = REPO_ROOT, extraEnv = {} } = 
   if (result.status !== 0) fail(`${label} falhou (exit ${result.status}).`);
 }
 
-step("1/3 npm run build:mobile", "npm", ["run", "build:mobile"]);
+step(`1/3 npm run build:mobile -- --ai-backend ${buildBackendMode}`, "npm", ["run", "build:mobile", "--", "--ai-backend", buildBackendMode]);
 step("2/3 npx cap sync android", "npx", ["cap", "sync", "android"]);
 assertCleanTree("depois do cap sync");
 

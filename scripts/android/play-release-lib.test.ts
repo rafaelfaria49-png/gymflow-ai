@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
 import path from 'node:path';
 import {
   DEV_BACKEND_MARKERS,
@@ -20,6 +21,8 @@ import {
   parseApksignerOutput,
   parseGradleVersion,
   parseKeytoolCertificate,
+  parseMobileAiBackendMode,
+  planMobileBackend,
   uploadPasswordProblems,
   vercelAppHosts,
 } from './play-release-lib.mjs';
@@ -489,5 +492,61 @@ describe('GOAL-117 play-release-lib: rodada 8 da revisão independente', () => {
   const RELEASE_PW = 'GYMFLOW_RELEASE_STORE_' + 'PASSWORD';
   it.each(['    ', '\t'])('bloco de código indentado (%j) é lido como script', (indent) => {
     expect(committedSecretAssignments('docs/x.md', `Texto\n\n${indent}${RELEASE_PW}=Actual-Secret-Value-4\n`)).toBe(1);
+  });
+});
+
+describe('GOAL-118 play-release-lib: backend explícito do build:mobile', () => {
+  it('modo padrão é production; aceita --ai-backend X e --ai-backend=X', () => {
+    expect(parseMobileAiBackendMode([])).toBe('production');
+    expect(parseMobileAiBackendMode(['--ai-backend', 'none'])).toBe('none');
+    expect(parseMobileAiBackendMode(['--ai-backend=production'])).toBe('production');
+    expect(parseMobileAiBackendMode(['--ai-backend'])).toBe('');
+  });
+
+  it('production sem nenhuma origem efetiva embute a constante versionada (sem depender de .env)', () => {
+    expect(planMobileBackend({ mode: 'production', effectiveOrigin: '' })).toEqual({
+      origin: PRODUCTION_BACKEND_ORIGIN,
+      source: expect.stringContaining('constante versionada'),
+    });
+    expect(planMobileBackend().origin).toBe('https://gymflow-beige-gamma.vercel.app');
+  });
+
+  it('production aceita .env/ambiente só quando repete exatamente a Production', () => {
+    expect(planMobileBackend({ mode: 'production', effectiveOrigin: `${PRODUCTION_BACKEND_ORIGIN}/` }).origin).toBe(PRODUCTION_BACKEND_ORIGIN);
+    expect(planMobileBackend({ mode: 'production', effectiveOrigin: 'https://gymflow-git-x.vercel.app' }).error).toMatch(/não é a Production/);
+  });
+
+  it.each(['http://gymflow-beige-gamma.vercel.app', 'https://192.168.0.6', 'https://abc.ngrok-free.app', 'https://openrouter.ai'])(
+    'origem proibida %s é recusada mesmo com a exceção de QA',
+    (origin) => {
+      expect(planMobileBackend({ mode: 'production', effectiveOrigin: origin, allowNonProduction: true }).error).toBeTruthy();
+    },
+  );
+
+  it('exceção de QA só libera HTTPS pública não-Production explicitamente', () => {
+    expect(planMobileBackend({ mode: 'production', effectiveOrigin: 'https://qa.example.com', allowNonProduction: true }).origin).toBe(
+      'https://qa.example.com',
+    );
+  });
+
+  it('none: nada embutido; recusa se QUALQUER origem efetiva existir (inclusive Production)', () => {
+    expect(planMobileBackend({ mode: 'none', effectiveOrigin: '' })).toMatchObject({ origin: '' });
+    expect(planMobileBackend({ mode: 'none', effectiveOrigin: PRODUCTION_BACKEND_ORIGIN }).error).toBeTruthy();
+    expect(planMobileBackend({ mode: 'none', effectiveOrigin: 'https://qa.example.com', allowNonProduction: true }).error).toBeTruthy();
+  });
+
+  it('modo desconhecido é recusado', () => {
+    expect(planMobileBackend({ mode: 'staging' }).error).toMatch(/desconhecido/);
+    expect(planMobileBackend({ mode: '' }).error).toMatch(/desconhecido/);
+  });
+
+  it('build:mobile e android:play:release usam a mesma regra (planMobileBackend)', () => {
+    const root = path.resolve(__dirname, '..', '..');
+    const buildMobile = fs.readFileSync(path.join(root, 'scripts', 'build-mobile.mjs'), 'utf8');
+    const playRelease = fs.readFileSync(path.join(root, 'scripts', 'android-play-release.mjs'), 'utf8');
+    expect(buildMobile).toMatch(/planMobileBackend\(/);
+    expect(buildMobile).toMatch(/parseMobileAiBackendMode\(process\.argv/);
+    expect(playRelease).toMatch(/planMobileBackend\(\{ mode: buildBackendMode, effectiveOrigin, allowNonProduction: false \}\)/);
+    expect(playRelease).toMatch(/"build:mobile", "--", "--ai-backend", buildBackendMode/);
   });
 });

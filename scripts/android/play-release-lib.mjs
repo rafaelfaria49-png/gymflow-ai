@@ -361,6 +361,51 @@ export function backendOriginProblems(value) {
   return problems;
 }
 
+// GOAL-118: modos EXPLÍCITOS do backend de IA no build:mobile
+// (`--ai-backend <modo>`). O padrão é embutir a Production GymFlow a partir
+// desta constante versionada — nenhum `.env` ignorado decide o valor.
+export const MOBILE_AI_BACKEND_MODES = ["production", "none"];
+export const DEFAULT_MOBILE_AI_BACKEND_MODE = "production";
+
+/** Lê `--ai-backend <modo>` ou `--ai-backend=<modo>` (padrão: production). */
+export function parseMobileAiBackendMode(argv) {
+  const args = [...(argv ?? [])];
+  let mode = null;
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = String(args[i]);
+    if (arg === "--ai-backend") mode = String(args[i + 1] ?? "");
+    else if (arg.startsWith("--ai-backend=")) mode = arg.slice("--ai-backend=".length);
+  }
+  return mode ?? DEFAULT_MOBILE_AI_BACKEND_MODE;
+}
+
+/**
+ * Decide a origem que o build:mobile embute a partir do modo declarado e da
+ * origem EFETIVA (ambiente + `.env*`, via `effectiveBackendOrigin()`):
+ * - "production": embute PRODUCTION_BACKEND_ORIGIN. Uma origem efetiva só é
+ *   aceita se for idêntica; outra HTTPS pública só com a exceção de QA
+ *   (`allowNonProduction`, nunca release — a auditoria a reprova);
+ * - "none": nada embutido (IA nativa "unavailable" honesta); recusa se
+ *   qualquer origem efetiva existir (ela vazaria para o bundle).
+ * Retorna `{ origin, source }` ou `{ error }`.
+ */
+export function planMobileBackend({ mode = DEFAULT_MOBILE_AI_BACKEND_MODE, effectiveOrigin = "", allowNonProduction = false } = {}) {
+  if (!MOBILE_AI_BACKEND_MODES.includes(mode)) {
+    return { error: `modo de backend desconhecido: "${mode}" (use ${MOBILE_AI_BACKEND_MODES.join(" | ")})` };
+  }
+  const effective = String(effectiveOrigin ?? "").trim().replace(/\/+$/, "");
+  if (mode === "none") {
+    if (effective) return { error: `modo "none", mas NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL efetiva = ${effective}` };
+    return { origin: "", source: "modo none (IA nativa indisponível)" };
+  }
+  if (!effective) return { origin: PRODUCTION_BACKEND_ORIGIN, source: "constante versionada PRODUCTION_BACKEND_ORIGIN" };
+  const problems = backendOriginProblems(effective);
+  if (problems.length > 0) return { error: `origem efetiva ${effective} recusada: ${problems.join("; ")}` };
+  if (effective === PRODUCTION_BACKEND_ORIGIN) return { origin: effective, source: "constante versionada (confirmada pelo ambiente)" };
+  if (allowNonProduction) return { origin: effective, source: "exceção de QA GYMFLOW_ALLOW_NON_PRODUCTION_BACKEND=1 (nunca release)" };
+  return { error: `origem efetiva ${effective} não é a Production GymFlow (${PRODUCTION_BACKEND_ORIGIN})` };
+}
+
 // Marcadores de segredo/provedor. Só ids e contagens são reportados — nunca o
 // trecho encontrado.
 export const SECRET_MARKERS = [
