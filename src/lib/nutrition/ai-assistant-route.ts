@@ -20,11 +20,11 @@
  *
  * Preflight (`OPTIONS`) só é aceito para origem nativa pedindo `POST` com, no
  * máximo, o header `Content-Type`. `Vary` sempre presente: a resposta depende
- * da origem.
+ * da origem. `Content-Length` declarado acima do teto → 413 sem ler o corpo.
  */
 
 import { handleAssistantGatewayRequest, type AiGatewayDeps } from './ai-assistant-gateway';
-import type { AiAssistantResult } from './ai-assistant-types';
+import { AI_ASSISTANT_LIMITS, type AiAssistantResult } from './ai-assistant-types';
 
 /** Origens dos WebViews nativos (Capacitor 7). Comparação exata. */
 export const NATIVE_APP_ORIGINS: readonly string[] = ['https://localhost', 'capacitor://localhost'];
@@ -43,11 +43,25 @@ export type RequestOrigin =
   | { kind: 'forbidden' };
 
 /**
- * Same-origin = a página que chamou está no MESMO host que recebeu a
- * requisição. `Host` não é forjável por página; `x-forwarded-proto` (quando
- * presente, ex.: Vercel/Next) também precisa bater o esquema.
+ * Esquema externo da requisição: `x-forwarded-proto` (Vercel/Next atrás de
+ * proxy) ou, na falta dele, o protocolo da própria URL da requisição.
  */
-function isSameOrigin(origin: string, headers: Headers): boolean {
+function requestScheme(headers: Headers, requestUrl: string): string | null {
+  const forwardedProto = (headers.get('x-forwarded-proto') ?? '').split(',')[0].trim().toLowerCase();
+  if (forwardedProto.length > 0) return `${forwardedProto}:`;
+  try {
+    return new URL(requestUrl).protocol;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Same-origin = a página que chamou está no MESMO host e esquema que
+ * receberam a requisição. `Host` não é forjável por página; o host da URL da
+ * requisição não é usado (no `next start`/dev ele pode não refletir o Host).
+ */
+function isSameOrigin(origin: string, headers: Headers, requestUrl: string): boolean {
   let url: URL;
   try {
     url = new URL(origin);
@@ -58,16 +72,22 @@ function isSameOrigin(origin: string, headers: Headers): boolean {
   if (url.origin !== origin) return false; // Origin serializado nunca tem path/credenciais
   const host = (headers.get('host') ?? '').trim().toLowerCase();
   if (host.length === 0 || url.host !== host) return false;
-  const forwardedProto = (headers.get('x-forwarded-proto') ?? '').split(',')[0].trim().toLowerCase();
-  return forwardedProto.length === 0 || url.protocol === `${forwardedProto}:`;
+  return url.protocol === requestScheme(headers, requestUrl);
 }
 
-export function classifyRequestOrigin(headers: Headers): RequestOrigin {
+export function classifyRequestOrigin(headers: Headers, requestUrl: string): RequestOrigin {
   const origin = headers.get('origin');
   if (origin === null) return { kind: 'absent' };
   if (NATIVE_APP_ORIGINS.includes(origin)) return { kind: 'native-app', origin };
-  if (isSameOrigin(origin, headers)) return { kind: 'same-origin' };
+  if (isSameOrigin(origin, headers, requestUrl)) return { kind: 'same-origin' };
   return { kind: 'forbidden' };
+}
+
+/** `Content-Length` declarado acima do teto do contrato (sem ler o corpo). */
+function declaresOversizedBody(headers: Headers): boolean {
+  const raw = headers.get('content-length');
+  if (raw === null || !/^\d+$/.test(raw.trim())) return false;
+  return Number(raw.trim()) > AI_ASSISTANT_LIMITS.MAX_REQUEST_BYTES;
 }
 
 function responseHeaders(origin: RequestOrigin): Record<string, string> {
@@ -87,7 +107,7 @@ function failureJson(
 
 /** POST /api/nutrition/assistant — gateway com CORS nativo e fail-closed. */
 export async function handleAssistantPost(request: Request, deps: AiGatewayDeps = {}): Promise<Response> {
-  const origin = classifyRequestOrigin(request.headers);
+  const origin = classifyRequestOrigin(request.headers, request.url);
   if (origin.kind === 'forbidden') {
     return failureJson(
       403,
@@ -96,6 +116,17 @@ export async function handleAssistantPost(request: Request, deps: AiGatewayDeps 
     );
   }
   const headers = responseHeaders(origin);
+  if (declaresOversizedBody(request.headers)) {
+    return failureJson(
+      413,
+      {
+        status: 'failure',
+        code: 'REQUEST_TOO_LARGE',
+        message: `Corpo excede o teto de ${AI_ASSISTANT_LIMITS.MAX_REQUEST_BYTES} bytes do contrato.`,
+      },
+      headers,
+    );
+  }
 
   let bodyText = '';
   try {
@@ -131,7 +162,7 @@ function isAllowedPreflight(headers: Headers): boolean {
 
 /** OPTIONS /api/nutrition/assistant — preflight somente para o app nativo. */
 export function handleAssistantOptions(request: Request): Response {
-  const origin = classifyRequestOrigin(request.headers);
+  const origin = classifyRequestOrigin(request.headers, request.url);
   if (origin.kind === 'absent' || origin.kind === 'same-origin') {
     return new Response(null, { status: 204, headers: { Allow: ALLOW_HEADER, Vary: VARY_PREFLIGHT } });
   }

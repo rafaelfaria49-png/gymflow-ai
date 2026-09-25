@@ -382,14 +382,14 @@ export function parseMobileAiBackendMode(argv) {
 /**
  * Decide a origem que o build:mobile embute a partir do modo declarado e da
  * origem EFETIVA (ambiente + `.env*`, via `effectiveBackendOrigin()`):
- * - "production": embute PRODUCTION_BACKEND_ORIGIN. Uma origem efetiva só é
- *   aceita se for idêntica; outra HTTPS pública só com a exceção de QA
- *   (`allowNonProduction`, nunca release — a auditoria a reprova);
+ * - "production": embute exatamente PRODUCTION_BACKEND_ORIGIN. Uma origem
+ *   efetiva só é aceita se for idêntica; qualquer outra é recusada (sem
+ *   exceção de QA desde o GOAL-118);
  * - "none": nada embutido (IA nativa "unavailable" honesta); recusa se
  *   qualquer origem efetiva existir (ela vazaria para o bundle).
  * Retorna `{ origin, source }` ou `{ error }`.
  */
-export function planMobileBackend({ mode = DEFAULT_MOBILE_AI_BACKEND_MODE, effectiveOrigin = "", allowNonProduction = false } = {}) {
+export function planMobileBackend({ mode = DEFAULT_MOBILE_AI_BACKEND_MODE, effectiveOrigin = "" } = {}) {
   if (!MOBILE_AI_BACKEND_MODES.includes(mode)) {
     return { error: `modo de backend desconhecido: "${mode}" (use ${MOBILE_AI_BACKEND_MODES.join(" | ")})` };
   }
@@ -399,11 +399,38 @@ export function planMobileBackend({ mode = DEFAULT_MOBILE_AI_BACKEND_MODE, effec
     return { origin: "", source: "modo none (IA nativa indisponível)" };
   }
   if (!effective) return { origin: PRODUCTION_BACKEND_ORIGIN, source: "constante versionada PRODUCTION_BACKEND_ORIGIN" };
-  const problems = backendOriginProblems(effective);
-  if (problems.length > 0) return { error: `origem efetiva ${effective} recusada: ${problems.join("; ")}` };
   if (effective === PRODUCTION_BACKEND_ORIGIN) return { origin: effective, source: "constante versionada (confirmada pelo ambiente)" };
-  if (allowNonProduction) return { origin: effective, source: "exceção de QA GYMFLOW_ALLOW_NON_PRODUCTION_BACKEND=1 (nunca release)" };
-  return { error: `origem efetiva ${effective} não é a Production GymFlow (${PRODUCTION_BACKEND_ORIGIN})` };
+  const problems = backendOriginProblems(effective);
+  const detail = problems.length > 0 ? `: ${problems.join("; ")}` : "";
+  return { error: `origem efetiva ${effective} não é a Production GymFlow (${PRODUCTION_BACKEND_ORIGIN})${detail}` };
+}
+
+export const BACKEND_ENV_NAME = "NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL";
+
+/**
+ * Variável vazia ou só com espaços no ambiente conta como AUSENTE: o
+ * carregador do Next a trataria como definida (um `.env*` não a sobrescreve),
+ * mas o `next build` do modo "none" a recebe removida — avaliação e build
+ * precisam ver o MESMO ambiente. Muta e devolve `env`.
+ */
+export function normalizeBackendEnv(env) {
+  if (Object.prototype.hasOwnProperty.call(env, BACKEND_ENV_NAME) && String(env[BACKEND_ENV_NAME] ?? "").trim() === "") {
+    delete env[BACKEND_ENV_NAME];
+  }
+  return env;
+}
+
+/**
+ * Ambiente do `next build` mobile: cópia de `baseEnv` com BUILD_TARGET=mobile
+ * e a origem do plano fixada (nenhum `.env` a troca). Sem origem (modo
+ * "none"), a variável sai do ambiente — nem vazia — e o bundle mantém a
+ * leitura em runtime que a auditoria reconhece.
+ */
+export function mobileBuildEnv(baseEnv, plan) {
+  const env = { ...baseEnv, BUILD_TARGET: "mobile" };
+  delete env[BACKEND_ENV_NAME];
+  if (plan?.origin) env[BACKEND_ENV_NAME] = plan.origin;
+  return env;
 }
 
 // Marcadores de segredo/provedor. Só ids e contagens são reportados — nunca o

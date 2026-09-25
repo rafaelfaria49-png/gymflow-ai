@@ -233,7 +233,7 @@ aprovação jurídica).** As respostas marcadas "originais" valiam para o app
 - [ ] **Finalidade:** funcionalidade do app (gerar a proposta pedida). Sem publicidade, analytics, personalização de anúncios ou venda.
 - [ ] **Compartilhamento:** o OpenRouter e o provedor do modelo processam a requisição. Se isso conta como "compartilhamento" ou como "prestador de serviço" (exceção do Play) depende de contrato/DPA — **decisão jurídica** (D-NUT-09 §10.2/§10.4).
 - [ ] **Processamento efêmero?** No gateway GymFlow sim (nada persistido pelo código). Na cadeia OpenRouter/modelo a retenção **não foi auditada** → não declarar efêmero de ponta a ponta sem essa verificação.
-- [x] **Criptografia em trânsito?** **Sim** — app → gateway e gateway → OpenRouter em HTTPS (o build recusa origem não-HTTPS).
+- [x] **Criptografia em trânsito?** **Sim** — app → gateway em HTTPS (o build só embute a origem Production HTTPS) e gateway → OpenRouter em HTTPS (o gateway só considera o provedor configurado com base URL HTTPS).
 - [x] **Os usuários podem solicitar exclusão dos dados?** Local: **Sim** ("Resetar Dados"). Remoto: o gateway não armazena; exclusão na cadeia do provedor depende da retenção não auditada (acima).
 
 ---

@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import nextEnv from "@next/env";
+import { mobileBuildEnv, normalizeBackendEnv, parseMobileAiBackendMode, planMobileBackend } from "./play-release-lib.mjs";
 
 const isWin = process.platform === "win32";
 export const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..");
@@ -107,6 +108,21 @@ export function effectiveBackendOrigin(cwd = REPO_ROOT) {
     for (const key of Object.keys(process.env)) if (!(key in snapshot)) delete process.env[key];
     Object.assign(process.env, snapshot);
   }
+}
+
+/**
+ * GOAL-118: plano completo do `build:mobile`. Normaliza a variável do backend
+ * NO PRÓPRIO ambiente do processo (vazia/espaços = ausente) ANTES da primeira
+ * leitura do `@next/env` — que fixa o ambiente inicial —, avalia a origem
+ * efetiva e monta o ambiente do `next build` a partir desse MESMO ambiente.
+ * Retorna `{ mode, effective, plan, buildEnv }` (`plan.error` quando recusado).
+ */
+export function resolveMobileBuild(argv, cwd = REPO_ROOT) {
+  normalizeBackendEnv(process.env);
+  const mode = parseMobileAiBackendMode(argv);
+  const effective = effectiveBackendOrigin(cwd);
+  const plan = planMobileBackend({ mode, effectiveOrigin: effective.origin });
+  return { mode, effective, plan, buildEnv: plan.error ? null : mobileBuildEnv(process.env, plan) };
 }
 
 // Toda variável que pode carregar senha de assinatura/upload key.

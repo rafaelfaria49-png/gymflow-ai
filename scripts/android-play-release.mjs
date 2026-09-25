@@ -33,9 +33,9 @@ import {
   JAVA_EN_LOCALE,
   REPO_ROOT,
   canonicalPath,
-  effectiveBackendOrigin,
   enclosingGitRoot,
   jdkTool,
+  resolveMobileBuild,
   run,
   takeSecretEnv,
 } from "./android/android-tools.mjs";
@@ -47,7 +47,6 @@ import {
   isThrowawayRecord,
   parseGradleVersion,
   parseKeytoolCertificate,
-  planMobileBackend,
 } from "./android/play-release-lib.mjs";
 import { promptSecret } from "./android/prompt-secret.mjs";
 import { runAudit } from "./android-release-audit.mjs";
@@ -69,9 +68,6 @@ function fail(message) {
 let password = takeSecretEnv("GYMFLOW_RELEASE_STORE_PASSWORD");
 const SIGNING_ENV_NAMES = ["GYMFLOW_RELEASE_STORE_FILE", "GYMFLOW_RELEASE_KEY_ALIAS"];
 for (const name of SIGNING_ENV_NAMES) delete process.env[name];
-// O release só embute backend Production ou nada (ver build-mobile.mjs).
-delete process.env.GYMFLOW_ALLOW_NON_PRODUCTION_BACKEND;
-
 const allowDirty = args.includes("--allow-dirty");
 const acceptBackendUnavailable = args.includes("--accept-backend-unavailable");
 const expectBackendProduction = args.includes("--expect-backend-production");
@@ -106,8 +102,8 @@ if (gradle.versionCode !== expectedCode) {
 // 4. Backend: modo declarado pelo operador (o mesmo aprovado no gate humano)
 // vira o modo EXPLÍCITO do build:mobile (`--ai-backend none|production`,
 // GOAL-118) e é conferido antes contra a origem EFETIVA (ambiente + .env*,
-// calculada com o carregador do Next) pela MESMA regra do build:mobile, sem a
-// exceção de QA. Modos exclusivos.
+// calculada com o carregador do Next) pela MESMA regra do build:mobile
+// (`resolveMobileBuild`, mesmo ambiente normalizado). Modos exclusivos.
 if (acceptBackendUnavailable === expectBackendProduction) {
   fail(
     "Declare exatamente um modo de backend: --accept-backend-unavailable (IA nativa indisponível, " +
@@ -116,9 +112,8 @@ if (acceptBackendUnavailable === expectBackendProduction) {
 }
 const backendMode = acceptBackendUnavailable ? "unavailable" : "production";
 const buildBackendMode = acceptBackendUnavailable ? "none" : "production";
-const { origin: effectiveOrigin, source: originSource } = effectiveBackendOrigin();
-const backendPlan = planMobileBackend({ mode: buildBackendMode, effectiveOrigin, allowNonProduction: false });
-if (backendPlan.error) fail(`Backend recusado (origem efetiva via ${originSource}): ${backendPlan.error}. Nada foi compilado.`);
+const { effective, plan: backendPlan } = resolveMobileBuild(["--ai-backend", buildBackendMode]);
+if (backendPlan.error) fail(`Backend recusado (origem efetiva via ${effective.source}): ${backendPlan.error}. Nada foi compilado.`);
 if (backendPlan.origin !== (expectBackendProduction ? PRODUCTION_BACKEND_ORIGIN : "")) {
   fail(`Backend planejado (${backendPlan.origin || "nenhum"}) não bate com o modo declarado. Nada foi compilado.`);
 }

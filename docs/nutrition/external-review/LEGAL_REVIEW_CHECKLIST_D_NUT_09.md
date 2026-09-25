@@ -111,7 +111,7 @@ Enviado (quando targets AUTOMATED e provedor configurado): caso de uso; allowlis
 
 **GOAL-118:** além da web, o **app nativo** Android/iOS passa a enviar esse contexto ao gateway GymFlow (somente quando o usuário pede uma proposta).
 
-Negativos (MANUAL_ONLY, gate clínico, payload inválido, teto de bytes) **não** chamam o provedor.
+Negativos (MANUAL_ONLY, gate clínico, payload inválido, teto de bytes, origem não autorizada) **não** chamam o provedor. Exceção: `explain_target_change` não carrega `availability`; o bloqueio nesses estados é feito pelo app, não re-verificado pelo gateway.
 
 [ ] Adequado  [ ] Com ressalva  [ ] Inadequado  [ ] Não avaliado
 

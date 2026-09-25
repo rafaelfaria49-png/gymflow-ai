@@ -242,3 +242,33 @@ describe('NUT-007 gateway: falhas de transporte do provedor', () => {
     expect(result.body.code).toBe('EMPTY_PROPOSAL');
   });
 });
+
+describe('GOAL-118 gateway: teto em bytes UTF-8 e provedor só HTTPS', () => {
+  const request = (extra: Record<string, unknown> = {}) =>
+    JSON.stringify({ useCase: 'complete_protein', context: validContext(), availability: { state: 'AUTOMATED' }, ...extra });
+
+  it('corpo abaixo do teto em caracteres mas acima em bytes UTF-8 → 413 sem chamar o provedor', async () => {
+    const fetchImpl = vi.fn();
+    const body = request({ userText: 'ç'.repeat(9000) });
+    expect(body.length).toBeLessThan(16 * 1024);
+    expect(new TextEncoder().encode(body).byteLength).toBeGreaterThan(16 * 1024);
+    const result = await handleAssistantGatewayRequest(body, { env: CONFIGURED_ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(result.httpStatus).toBe(413);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it.each(['http://ai.example.com/v1', 'ai.example.com/v1', 'ftp://ai.example.com/v1'])(
+    'GYMFLOW_AI_BASE_URL não-HTTPS (%s) → 503 honesto, chave e prompt nunca enviados',
+    async (baseUrl) => {
+      const fetchImpl = vi.fn();
+      const result = await handleAssistantGatewayRequest(request(), {
+        env: { ...CONFIGURED_ENV, GYMFLOW_AI_BASE_URL: baseUrl },
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      });
+      expect(result.httpStatus).toBe(503);
+      if (result.body.status !== 'failure') throw new Error('unreachable');
+      expect(result.body.code).toBe('PROVIDER_UNAVAILABLE');
+      expect(fetchImpl).not.toHaveBeenCalled();
+    },
+  );
+});

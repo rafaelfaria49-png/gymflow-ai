@@ -97,6 +97,8 @@ function expectNoCors(response: Response): void {
   expect(response.headers.get('access-control-allow-methods')).toBeNull();
   expect(response.headers.get('access-control-allow-headers')).toBeNull();
   expect(response.headers.get('access-control-allow-credentials')).toBeNull();
+  expect(response.headers.get('access-control-max-age')).toBeNull();
+  expect(response.headers.get('access-control-expose-headers')).toBeNull();
 }
 
 describe('GOAL-118 CORS: allowlist exata', () => {
@@ -106,24 +108,44 @@ describe('GOAL-118 CORS: allowlist exata', () => {
   });
 
   it('classifica ausente / nativo / same-origin / proibido', () => {
-    expect(classifyRequestOrigin(new Headers(serverHeaders())).kind).toBe('absent');
-    expect(classifyRequestOrigin(new Headers(serverHeaders({ origin: ANDROID })))).toEqual({ kind: 'native-app', origin: ANDROID });
-    expect(classifyRequestOrigin(new Headers(serverHeaders({ origin: IOS })))).toEqual({ kind: 'native-app', origin: IOS });
-    expect(classifyRequestOrigin(new Headers(serverHeaders({ origin: `https://${PRODUCTION_HOST}` }))).kind).toBe('same-origin');
+    expect(classifyRequestOrigin(new Headers(serverHeaders()), ENDPOINT).kind).toBe('absent');
+    expect(classifyRequestOrigin(new Headers(serverHeaders({ origin: ANDROID })), ENDPOINT)).toEqual({ kind: 'native-app', origin: ANDROID });
+    expect(classifyRequestOrigin(new Headers(serverHeaders({ origin: IOS })), ENDPOINT)).toEqual({ kind: 'native-app', origin: IOS });
+    expect(classifyRequestOrigin(new Headers(serverHeaders({ origin: `https://${PRODUCTION_HOST}` })), ENDPOINT).kind).toBe('same-origin');
     for (const origin of UNAUTHORIZED_ORIGINS) {
-      expect(classifyRequestOrigin(new Headers(serverHeaders({ origin }))).kind, origin).toBe('forbidden');
+      expect(classifyRequestOrigin(new Headers(serverHeaders({ origin })), ENDPOINT).kind, origin).toBe('forbidden');
     }
   });
 
   it('same-origin exige host E esquema iguais aos da requisição', () => {
     // Página http no mesmo host, atrás de proxy https → não é same-origin.
-    expect(classifyRequestOrigin(new Headers(serverHeaders({ origin: `http://${PRODUCTION_HOST}` }))).kind).toBe('forbidden');
+    expect(classifyRequestOrigin(new Headers(serverHeaders({ origin: `http://${PRODUCTION_HOST}` })), ENDPOINT).kind).toBe('forbidden');
     // Sem Host não há como provar same-origin.
-    expect(classifyRequestOrigin(new Headers({ origin: `https://${PRODUCTION_HOST}` })).kind).toBe('forbidden');
+    expect(classifyRequestOrigin(new Headers({ origin: `https://${PRODUCTION_HOST}` }), ENDPOINT).kind).toBe('forbidden');
     // Origin com path não é um Origin serializado válido.
-    expect(classifyRequestOrigin(new Headers(serverHeaders({ origin: `https://${PRODUCTION_HOST}/x` }))).kind).toBe('forbidden');
+    expect(classifyRequestOrigin(new Headers(serverHeaders({ origin: `https://${PRODUCTION_HOST}/x` })), ENDPOINT).kind).toBe('forbidden');
     // Dev local (sem proxy): http://localhost:3000 chamando o próprio servidor.
-    expect(classifyRequestOrigin(new Headers({ host: 'localhost:3000', origin: 'http://localhost:3000' })).kind).toBe('same-origin');
+    expect(classifyRequestOrigin(new Headers({ host: 'localhost:3000', origin: 'http://localhost:3000' }), 'http://localhost:3000/api/nutrition/assistant').kind).toBe('same-origin');
+  });
+
+  it('sem x-forwarded-proto o esquema vem da URL da requisição (F4 da revisão)', () => {
+    const noProxy = (origin: string) => new Headers({ host: PRODUCTION_HOST, origin });
+    expect(classifyRequestOrigin(noProxy(`https://${PRODUCTION_HOST}`), ENDPOINT).kind).toBe('same-origin');
+    // Página http no mesmo host chamando o endpoint https → não é same-origin.
+    expect(classifyRequestOrigin(noProxy(`http://${PRODUCTION_HOST}`), ENDPOINT).kind).toBe('forbidden');
+    // Dev http: página https no mesmo host não vira same-origin.
+    expect(
+      classifyRequestOrigin(new Headers({ host: 'localhost:3000', origin: 'https://localhost:3000' }), 'http://localhost:3000/api/nutrition/assistant').kind,
+    ).toBe('forbidden');
+  });
+
+  it.each([
+    `${ANDROID}, https://evil.example.com`,
+    `https://evil.example.com, ${ANDROID}`,
+    `${ANDROID} ${IOS}`,
+    `${ANDROID}/`,
+  ])('Origin com múltiplos valores / barra (%j) → proibido', (origin) => {
+    expect(classifyRequestOrigin(new Headers(serverHeaders({ origin })), ENDPOINT).kind).toBe('forbidden');
   });
 });
 
@@ -138,7 +160,9 @@ describe('GOAL-118 CORS: preflight OPTIONS', () => {
     expect(response.headers.get('access-control-allow-methods')).toBe('POST, OPTIONS');
     expect(response.headers.get('access-control-allow-headers')).toBe('Content-Type');
     expect(response.headers.get('access-control-allow-credentials')).toBeNull();
-    expect(response.headers.get('vary')).toMatch(/\bOrigin\b/);
+    expect(response.headers.get('access-control-max-age')).toBe('600');
+    expect(response.headers.get('allow')).toBe('OPTIONS, POST');
+    expect(response.headers.get('vary')).toBe('Origin, Access-Control-Request-Method, Access-Control-Request-Headers');
   });
 
   it('preflight sem Access-Control-Request-Headers (só método) também passa', () => {
@@ -280,6 +304,54 @@ describe('GOAL-118 CORS: origem não autorizada fail-closed', () => {
     expect(response.headers.get('vary')).toBe('Origin');
     expect(await response.json()).toMatchObject({ status: 'failure', code: 'INVALID_REQUEST' });
     expect(readBody).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('GOAL-118: POST simples, teto em bytes e Content-Length', () => {
+  it('POST simples text/plain de página estrangeira → 403 sem ler corpo nem chamar o provedor', async () => {
+    const fetchImpl = frangoProvider();
+    const request = new Request(ENDPOINT, {
+      method: 'POST',
+      headers: serverHeaders({ origin: 'https://evil.example.com', 'content-type': 'text/plain;charset=UTF-8' }),
+      body: completeProtein(),
+    });
+    const readBody = vi.spyOn(request, 'text');
+    const response = await handleAssistantPost(request, { env: CONFIGURED_ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(response.status).toBe(403);
+    expectNoCors(response);
+    expect(readBody).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('Content-Length acima do teto → 413 com CORS nativo, sem ler o corpo nem chamar o provedor', async () => {
+    const fetchImpl = frangoProvider();
+    const request = post(ANDROID, completeProtein(), { 'content-length': String(16 * 1024 + 1) });
+    const readBody = vi.spyOn(request, 'text');
+    const response = await handleAssistantPost(request, { env: CONFIGURED_ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(response.status).toBe(413);
+    expect(response.headers.get('access-control-allow-origin')).toBe(ANDROID);
+    expect(await response.json()).toMatchObject({ status: 'failure', code: 'REQUEST_TOO_LARGE' });
+    expect(readBody).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('origem estrangeira é recusada antes do Content-Length (403, não 413)', async () => {
+    const response = await handleAssistantPost(
+      post('https://evil.example.com', completeProtein(), { 'content-length': String(64 * 1024) }),
+      { env: CONFIGURED_ENV },
+    );
+    expect(response.status).toBe(403);
+    expectNoCors(response);
+  });
+
+  it('teto é em bytes UTF-8: 9000 caracteres de 2 bytes (18000 B) → 413 sem chamar o provedor (F6)', async () => {
+    const fetchImpl = frangoProvider();
+    const body = JSON.stringify({ useCase: 'complete_protein', context: validContext(), availability: { state: 'AUTOMATED' }, userText: 'ç'.repeat(9000) });
+    expect(body.length).toBeLessThan(16 * 1024);
+    const response = await handleAssistantPost(post(IOS, body), { env: CONFIGURED_ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(response.status).toBe(413);
+    expect(response.headers.get('access-control-allow-origin')).toBe(IOS);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

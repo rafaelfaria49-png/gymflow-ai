@@ -87,7 +87,7 @@ Enviado ao modelo (quando targets AUTOMATED e provedor configurado):
 
 Origem das chamadas: web (same-origin) e, desde o GOAL-118, também o app nativo Android/iOS (§5).
 
-Negativos (MANUAL_ONLY, gate clínico, payload inválido, teto de bytes) **não chamam o provedor**.
+Negativos (MANUAL_ONLY, gate clínico, payload inválido, teto de bytes, origem não autorizada) **não chamam o provedor**. Exceção de contrato: `explain_target_change` não carrega `availability` e o gateway não o re-gateia (os fatos vêm do client); quem o bloqueia em MANUAL_ONLY/gate clínico é o app — o modal só o envia com metas AUTOMATED e gate liberado.
 
 ---
 
@@ -133,7 +133,7 @@ Backup schema 2 inclui `payload` (espelhos + `nutritionProfile`) e `nutritionLed
 
 ## 8. Gates clínicos e risco de população vulnerável
 
-Menores, gestantes, lactantes e DRC: bloqueio de metas automáticas. Transtorno alimentar, diabetes descompensado, condição CV grave: encaminhamento. Tracking manual de alimentos continua disponível (o usuário ainda pode registrar o que comeu). A IA **não** é chamada nesses estados.
+Menores, gestantes, lactantes e DRC: bloqueio de metas automáticas. Transtorno alimentar, diabetes descompensado, condição CV grave: encaminhamento. Tracking manual de alimentos continua disponível (o usuário ainda pode registrar o que comeu). O app **não** chama a IA nesses estados (gate local no modal; nos casos com saldo o gateway também recusa — ver exceção do `explain_target_change` no §4).
 
 Isso mitiga, mas **não elimina**, risco de o diário ser usado por população não suportada. O jurídico deve avaliar avisos, idade mínima da loja e copy de bloqueio.
 

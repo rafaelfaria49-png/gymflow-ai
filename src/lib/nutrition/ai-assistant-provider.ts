@@ -60,11 +60,24 @@ export function readProviderConfig(env: Record<string, string | undefined> = pro
   };
 }
 
-/** Provedor utilizável somente com as 4 peças presentes (flag + url + key + model). */
+/** Base URL do provedor precisa ser HTTPS válida: a chave vai no header. */
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Provedor utilizável somente com as 4 peças presentes (flag + url + key +
+ * model) e base URL HTTPS (GOAL-118: nunca enviar chave/prompt em claro).
+ */
 export function isProviderConfigured(config: AiProviderConfig): boolean {
   return (
     config.enabled === true
     && config.baseUrl !== null
+    && isHttpsUrl(config.baseUrl)
     && config.apiKey !== null
     && config.model !== null
   );

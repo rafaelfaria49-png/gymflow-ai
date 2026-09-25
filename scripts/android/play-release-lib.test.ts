@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   DEV_BACKEND_MARKERS,
   PRODUCTION_BACKEND_ORIGIN,
@@ -16,6 +19,8 @@ import {
   fingerprintsEqual,
   formatFingerprint,
   isPathInside,
+  mobileBuildEnv,
+  normalizeBackendEnv,
   normalizeFingerprint,
   parseAapt2Badging,
   parseApksignerOutput,
@@ -516,23 +521,32 @@ describe('GOAL-118 play-release-lib: backend explícito do build:mobile', () => 
     expect(planMobileBackend({ mode: 'production', effectiveOrigin: 'https://gymflow-git-x.vercel.app' }).error).toMatch(/não é a Production/);
   });
 
-  it.each(['http://gymflow-beige-gamma.vercel.app', 'https://192.168.0.6', 'https://abc.ngrok-free.app', 'https://openrouter.ai'])(
-    'origem proibida %s é recusada mesmo com a exceção de QA',
-    (origin) => {
-      expect(planMobileBackend({ mode: 'production', effectiveOrigin: origin, allowNonProduction: true }).error).toBeTruthy();
-    },
-  );
+  it.each([
+    'https://qa.example.com',
+    'https://evil.example.com',
+    'https://gymflow.vercel.app',
+    'http://gymflow-beige-gamma.vercel.app',
+    'https://192.168.0.6',
+    'https://abc.ngrok-free.app',
+    'https://openrouter.ai',
+    'HTTPS://GYMFLOW-BEIGE-GAMMA.VERCEL.APP',
+  ])('production recusa qualquer outra origem efetiva (%s) — sem exceção de QA', (origin) => {
+    const plan = planMobileBackend({ mode: 'production', effectiveOrigin: origin });
+    expect(plan.error).toMatch(/não é a Production/);
+    expect(plan.origin).toBeUndefined();
+  });
 
-  it('exceção de QA só libera HTTPS pública não-Production explicitamente', () => {
-    expect(planMobileBackend({ mode: 'production', effectiveOrigin: 'https://qa.example.com', allowNonProduction: true }).origin).toBe(
-      'https://qa.example.com',
-    );
+  it('exceção de QA não existe mais: parâmetro/variável extra não libera origem estrangeira', () => {
+    const legacy = { mode: 'production', effectiveOrigin: 'https://qa.example.com', allowNonProduction: true } as Parameters<
+      typeof planMobileBackend
+    >[0];
+    expect(planMobileBackend(legacy).error).toBeTruthy();
   });
 
   it('none: nada embutido; recusa se QUALQUER origem efetiva existir (inclusive Production)', () => {
     expect(planMobileBackend({ mode: 'none', effectiveOrigin: '' })).toMatchObject({ origin: '' });
     expect(planMobileBackend({ mode: 'none', effectiveOrigin: PRODUCTION_BACKEND_ORIGIN }).error).toBeTruthy();
-    expect(planMobileBackend({ mode: 'none', effectiveOrigin: 'https://qa.example.com', allowNonProduction: true }).error).toBeTruthy();
+    expect(planMobileBackend({ mode: 'none', effectiveOrigin: 'https://qa.example.com' }).error).toBeTruthy();
   });
 
   it('modo desconhecido é recusado', () => {
@@ -540,13 +554,105 @@ describe('GOAL-118 play-release-lib: backend explícito do build:mobile', () => 
     expect(planMobileBackend({ mode: '' }).error).toMatch(/desconhecido/);
   });
 
-  it('build:mobile e android:play:release usam a mesma regra (planMobileBackend)', () => {
+  it('variável vazia ou só com espaços conta como ausente (não pode mascarar .env*)', () => {
+    for (const blank of ['', ' ', '\t  ']) {
+      const env: Record<string, string | undefined> = { NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL: blank, OTHER: 'x' };
+      normalizeBackendEnv(env);
+      expect('NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL' in env).toBe(false);
+      expect(env.OTHER).toBe('x');
+    }
+    const kept: Record<string, string | undefined> = { NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL: PRODUCTION_BACKEND_ORIGIN };
+    expect(normalizeBackendEnv(kept).NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL).toBe(PRODUCTION_BACKEND_ORIGIN);
+  });
+
+  it('ambiente do next build: origem do plano fixada; modo none remove a variável (nem vazia)', () => {
+    const base = { PATH: 'p', NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL: 'https://evil.example.com' };
+    const prod = mobileBuildEnv(base, { origin: PRODUCTION_BACKEND_ORIGIN });
+    expect(prod).toMatchObject({ PATH: 'p', BUILD_TARGET: 'mobile', NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL: PRODUCTION_BACKEND_ORIGIN });
+    const none = mobileBuildEnv(base, { origin: '' });
+    expect('NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL' in none).toBe(false);
+    expect(none.BUILD_TARGET).toBe('mobile');
+    expect(base.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL).toBe('https://evil.example.com');
+  });
+
+  it('build:mobile e android:play:release usam a mesma regra (resolveMobileBuild)', () => {
     const root = path.resolve(__dirname, '..', '..');
     const buildMobile = fs.readFileSync(path.join(root, 'scripts', 'build-mobile.mjs'), 'utf8');
     const playRelease = fs.readFileSync(path.join(root, 'scripts', 'android-play-release.mjs'), 'utf8');
-    expect(buildMobile).toMatch(/planMobileBackend\(/);
-    expect(buildMobile).toMatch(/parseMobileAiBackendMode\(process\.argv/);
-    expect(playRelease).toMatch(/planMobileBackend\(\{ mode: buildBackendMode, effectiveOrigin, allowNonProduction: false \}\)/);
+    expect(buildMobile).toMatch(/resolveMobileBuild\(process\.argv\.slice\(2\)\)/);
+    expect(buildMobile).toMatch(/env: buildEnv/);
+    expect(buildMobile).not.toMatch(/GYMFLOW_ALLOW_NON_PRODUCTION_BACKEND/);
+    expect(playRelease).toMatch(/resolveMobileBuild\(\["--ai-backend", buildBackendMode\]\)/);
     expect(playRelease).toMatch(/"build:mobile", "--", "--ai-backend", buildBackendMode/);
+  });
+});
+
+describe('GOAL-118 resolveMobileBuild: integração real com @next/env (processo filho, .env* temporário)', () => {
+  const toolsUrl = pathToFileURL(path.resolve(__dirname, 'android-tools.mjs')).href;
+  const tempDirs: string[] = [];
+  afterAll(() => {
+    for (const dir of tempDirs) fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  function resolveIn(files: Record<string, string>, envValue: string | undefined, mode: string) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gymflow-env-'));
+    tempDirs.push(dir);
+    for (const [name, content] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), content);
+    const env: Record<string, string> = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value !== undefined && key !== 'NODE_ENV' && key !== 'NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL') env[key] = value;
+    }
+    if (envValue !== undefined) env.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL = envValue;
+    const script =
+      `const { resolveMobileBuild } = await import(${JSON.stringify(toolsUrl)});` +
+      `const r = resolveMobileBuild(["--ai-backend", ${JSON.stringify(mode)}], ${JSON.stringify(dir)});` +
+      `const b = r.buildEnv;` +
+      `console.log(JSON.stringify({ origin: r.plan.origin ?? null, error: r.plan.error ?? null,` +
+      ` hasVar: b ? Object.prototype.hasOwnProperty.call(b, "NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL") : null,` +
+      ` value: b ? b.NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL ?? null : null }));`;
+    const out = execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+      env: env as unknown as NodeJS.ProcessEnv, // sem NODE_ENV de propósito (como o CLI real)
+      encoding: 'utf8',
+    });
+    return JSON.parse(out.trim().split(/\r?\n/).pop() as string) as {
+      origin: string | null;
+      error: string | null;
+      hasVar: boolean | null;
+      value: string | null;
+    };
+  }
+
+  const evilEnvFile = { '.env.production.local': 'NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL=https://evil.example.com\n' };
+
+  it.each([' ', '', '\t'])('variável %j não mascara .env estrangeiro no modo none (F3 da revisão)', (blank) => {
+    const r = resolveIn(evilEnvFile, blank, 'none');
+    expect(r.error).toMatch(/modo "none"/);
+    expect(r.hasVar).toBeNull();
+  });
+
+  it('variável em branco + .env estrangeiro no modo production → recusado', () => {
+    expect(resolveIn(evilEnvFile, ' ', 'production').error).toMatch(/não é a Production/);
+  });
+
+  it('sem variável e sem .env: production fixa a constante; none remove a variável do build', () => {
+    expect(resolveIn({}, undefined, 'production')).toMatchObject({ origin: PRODUCTION_BACKEND_ORIGIN, hasVar: true, value: PRODUCTION_BACKEND_ORIGIN });
+    expect(resolveIn({}, undefined, 'none')).toMatchObject({ origin: '', hasVar: false, value: null });
+  });
+
+  it('.env com a própria Production: aceito em production, recusado em none', () => {
+    const prodFile = { '.env.local': `NEXT_PUBLIC_GYMFLOW_AI_BACKEND_URL=${PRODUCTION_BACKEND_ORIGIN}\n` };
+    expect(resolveIn(prodFile, undefined, 'production')).toMatchObject({ origin: PRODUCTION_BACKEND_ORIGIN, value: PRODUCTION_BACKEND_ORIGIN });
+    expect(resolveIn(prodFile, undefined, 'none').error).toMatch(/modo "none"/);
+  });
+
+  it('ambiente com a Production vence .env estrangeiro e o valor fixado é a Production', () => {
+    expect(resolveIn(evilEnvFile, PRODUCTION_BACKEND_ORIGIN, 'production')).toMatchObject({
+      origin: PRODUCTION_BACKEND_ORIGIN,
+      value: PRODUCTION_BACKEND_ORIGIN,
+    });
+  });
+
+  it('ambiente com origem estrangeira → recusado', () => {
+    expect(resolveIn({}, 'https://evil.example.com', 'production').error).toMatch(/não é a Production/);
   });
 });

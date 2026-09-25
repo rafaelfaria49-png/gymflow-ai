@@ -38,6 +38,10 @@ Web continua same-origin (`/api/nutrition/assistant`), sem CORS.
 | `https://localhost` / `capacitor://localhost` (comparação exata) | contrato de sempre + `Access-Control-Allow-Origin: <origem>` em **toda** resposta (200/400/403/409/413/502/503/504) | 204 só se `Access-Control-Request-Method: POST` e headers ⊆ {`Content-Type`}; senão 403 sem CORS |
 | qualquer outra (LAN, túnel, outros hosts Vercel, `null`, `http://localhost`, maiúsculas…) | **403** antes de ler o corpo; provedor nunca chamado; sem CORS | 403 sem CORS |
 
+- `Content-Length` declarado acima de 16 KiB → 413 (com CORS se nativa) sem
+  ler o corpo; o gateway mede o teto em bytes UTF-8.
+- Same-origin: host do `Origin` == header `Host` **e** esquema ==
+  `x-forwarded-proto` (ou, na falta dele, o protocolo da URL da requisição).
 - Nunca `*`; nunca `Access-Control-Allow-Credentials`.
 - Preflight liberado: `Access-Control-Allow-Methods: POST, OPTIONS`,
   `Access-Control-Allow-Headers: Content-Type`, `Access-Control-Max-Age: 600`.
@@ -56,9 +60,12 @@ Web continua same-origin (`/api/nutrition/assistant`), sem CORS.
   do ambiente do `next build`.
 - A origem **efetiva** (ambiente + `.env*`, via `@next/env`) só pode repetir
   a Production (modo `production`) ou estar vazia (modo `none`); qualquer
-  outra é recusada antes do build (exceção de QA
-  `GYMFLOW_ALLOW_NON_PRODUCTION_BACKEND=1` só para HTTPS pública, nunca
-  release — a auditoria a reprova como origem estrangeira).
+  outra é recusada antes do build. A exceção de QA do GOAL-117
+  (`GYMFLOW_ALLOW_NON_PRODUCTION_BACKEND`) foi **removida** (revisão, F2).
+- Variável vazia/espaços no ambiente conta como ausente e é removida antes
+  da 1ª leitura do `@next/env`: avaliação e `next build` veem o mesmo
+  ambiente (revisão, F3; teste de integração com processo filho e
+  `.env.production.local` temporário).
 - `android:play:release` passa o modo aprovado ao `build:mobile`
   (`--accept-backend-unavailable` → `none`; `--expect-backend-production` →
   `production`) e confere antes com a mesma regra (`planMobileBackend`).
@@ -71,7 +78,7 @@ Provas de build (2026-09-25): padrão → `out/` com `embedded=true`,
 `unavailableProven=true`; `.env.production.local` com
 `https://evil.example.com` → recusado (modos `production` e `none`); `.env`
 com Production + modo `none` → recusado; `--ai-backend staging` → recusado;
-`http://192.168.0.6:3000` com exceção de QA → recusado.
+`http://192.168.0.6:3000` → recusado.
 
 ## 4. Deploy Production
 
@@ -187,7 +194,9 @@ do provedor).
 | APK (808 entradas) / AAB | 0 | 0 | 0 | 0 | 0 (gates da auditoria) |
 | chunks JS servidos pela Production | 0 | 0 | 0 | 0 | só Production |
 
-`DIRECT_OPENROUTER_CLIENT_CALL = NO` · `SECRET_EXPOSURE = NO`.
+`DIRECT_OPENROUTER_CLIENT_CALL = NO` · `SECRET_EXPOSURE = NO`. O gateway só
+considera o provedor configurado com `GYMFLOW_AI_BASE_URL` HTTPS (revisão, F5):
+chave e prompt nunca saem em claro.
 
 ## 10. Privacidade (fatos; sem aprovação jurídica)
 
@@ -218,3 +227,30 @@ checklist de Data Safety atualizados em
 | D_NUT_08 / D_NUT_09 EXTERNAL_APPROVAL | PENDING / PENDING |
 
 Para retomar o GOAL-117, o build Play usa `--expect-backend-production`.
+
+## 12. Risco pré-existente registrado: gateway público sem autenticação
+
+A revisão independente (F1) apontou que o gateway aceita chamadas sem
+`Origin` (curl/bots) e que `https://localhost` identifica qualquer WebView
+Capacitor, não o GymFlow — sem autenticação, atestação ou quota, um
+terceiro pode gerar chamadas pagas ao provedor. Fatos:
+
+- **Pré-existente:** o gateway Production é público desde o GOAL-110; CORS
+  nunca foi (nem é) controle de acesso — apps nativos e bots não se
+  submetem a CORS.
+- **O GOAL-118 não amplia a superfície; reduz:** antes, qualquer página
+  web podia fazer o navegador da vítima disparar POST simples
+  (`text/plain`) que chegava ao provedor; agora origem estrangeira → 403
+  antes de ler o corpo.
+- **Uso limitado:** só os 5 casos tipados, prompt montado no servidor,
+  corpo ≤ 16 KiB, `max_tokens` 1200, saída filtrada pelo catálogo (notas
+  ≤ 280 e explicação ≤ 1200 caracteres) — não é um proxy LLM genérico.
+- **Correção real exige backend** (autenticação de usuário ou Play
+  Integrity/App Attest + quota com estado), fora deste GOAL e das regras
+  permanentes ("Não implementar backend"). Um segredo estático no app não
+  resolve (seria extraível).
+
+Mitigações recomendadas (ação humana, fora do repositório): limite de
+crédito na chave do OpenRouter usada por `GYMFLOW_AI_API_KEY` e regra de
+rate limit do Vercel Firewall em `/api/nutrition/assistant`. Registrado em
+`docs/PENDENCIAS.md` (GOAL-118).
