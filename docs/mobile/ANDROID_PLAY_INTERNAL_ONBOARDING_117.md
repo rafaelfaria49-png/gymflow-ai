@@ -230,7 +230,7 @@ de nutrição passam a sair do aparelho).
 
 > **Resolvido no GOAL-118** (`docs/mobile/ANDROID_AI_BACKEND_BRIDGE_118.md`):
 > CORS com allowlist exata (`https://localhost`, `capacitor://localhost`) no
-> gateway, deploy Production `dpl_9b1V1yrYdvSEUYAn5xoPXjReq2rb`, `build:mobile`
+> gateway, deploy Production atual `dpl_FmmXkoZuu75tgBA3oGatsvtkeJ2b` (commit `b8cfc81`), `build:mobile`
 > embute a Production por padrão (constante versionada; a exceção de QA
 > `GYMFLOW_ALLOW_NON_PRODUCTION_BACKEND` foi removida), auditoria
 > `--expect-backend-production` 36/36 PASS e smoke da IA pelo app nativo
