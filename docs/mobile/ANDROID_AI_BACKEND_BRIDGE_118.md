@@ -300,3 +300,41 @@ envio.
 
 **Resultado final: P0=0 · P1=0** atribuíveis ao GOAL-118. Risco pré-existente
 registrado (F1, §12) segue como P1 de backlog em `docs/PENDENCIAS.md`.
+
+## 14. Fechamento (2026-09-26)
+
+- PR [#54](https://github.com/rafaelfaria49-png/gymflow-ai/pull/54) mergeado com merge commit
+  `4637ee7cf6e81e807bae71ae9528f9ccb92b3208` (pais `0679e20` + `96b1f75`; árvore
+  idêntica à de `96b1f75`). CI no HEAD `96b1f75`: 3/3 SUCCESS.
+
+| Evidência | SHA de origem | Observação |
+|---|---|---|
+| Deploy Production `dpl_FmmXkoZuu75tgBA3oGatsvtkeJ2b` (atende o domínio canônico, READY) | `b8cfc81` | Upload feito de worktree limpo nesse commit. A Vercel não grava SHA em upload via CLI (`meta` vazio). Ordem no host: commit `b8cfc81` → deploy → commit `6baca02` |
+| APK `a387363d108170dc3d9b63bae479710ad4354e63deb1b796136917bd18476a24` / AAB `1b58cc14…` | `b8cfc81` | Manifesto da auditoria com `git = b8cfc81`, 36/36 PASS |
+| Revisão independente (R4 zerada) | `2b1e4ef` | Último commit funcional revisado |
+| HEAD final do PR | `96b1f75` | Só documentação |
+
+Equivalência: `b8cfc81..96b1f75` altera apenas `docs/` e `scripts/android/`.
+As árvores `src`, `public`, `next.config.ts`, `package.json`, `package-lock.json`,
+`tsconfig.json`, `capacitor.config.ts`, `android` e `ios` são idênticas entre
+`b8cfc81`, `96b1f75` e o merge. A mudança de `scripts/` (M1) só atua no modo
+`none`; o modo `production` do `build:mobile` e o `mobileBuildEnv` estão
+inalterados. Por isso deploy e APK de `b8cfc81` foram reutilizados, sem novo
+deploy nem rebuild.
+
+Estados honestos:
+
+- `NATIVE_EMULATOR_QA = PASS` — app nativo no emulador `Pixel_6_API_35` →
+  Production → OpenRouter.
+- `S22_QA = NOT_RUN` — o aparelho não estava no ADB. A instabilidade da 1ª
+  chamada após troca de rede (§8) segue pendente de verificação nele.
+- `IOS_WKWEBVIEW_QA = NOT_RUN` — CORS de `capacitor://localhost` validado em
+  Production. Não houve smoke em WKWebView/iPhone real.
+- O perfil adulto usado nos casos permitidos é **fixture de QA**, importada
+  por restore de backup. Não representa o cadastro normal do usuário: o app
+  não tem UI de perfil nutricional (pendência).
+- P1 pré-existente do gateway sem autenticação/quota (§12) preservado. Nenhuma
+  proteção contra abuso foi configurada; limite de crédito e rate limit seguem
+  como ação humana.
+- D-NUT-08 e D-NUT-09 `PENDING`; versionCode `1` / versionName `1.0`; nenhuma
+  ação no Google Play.
