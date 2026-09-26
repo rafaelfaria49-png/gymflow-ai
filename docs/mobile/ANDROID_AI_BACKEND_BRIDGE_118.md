@@ -295,4 +295,8 @@ envio.
 |---|---|---|---|
 | 1 | `b3ea656` | P0=1 · P1=2 · P2=4 · P3=1 | F2–F8 corrigidos em `8484d96`; F1 (gateway público) disputado com fatos |
 | 2 | `8484d96` | **P0=0 · P1=0** · P2=3 · P3=1 | F1 DISPUTED-ACCEPTED (pré-existente); F2–F8 FIXED; N1–N3 corrigidos em `b8cfc81`; N4 (docs) nesta atualização |
-| 3 | `6baca02` | **P0=0 · P1=0** · P2=1 · P3=0 | N1–N4 FIXED; F2–F8 seguem FIXED; M1 (`.env` com atribuição vazia no modo `none`) corrigido no commit seguinte, com teste de integração que falha sem a correção |
+| 3 | `6baca02` | **P0=0 · P1=0** · P2=1 · P3=0 | N1–N4 FIXED; F2–F8 seguem FIXED; M1 (`.env` com atribuição vazia no modo `none`) corrigido em `2b1e4ef`, com teste de integração que falha sem a correção |
+| 4 | `2b1e4ef` | **P0=0 · P1=0 · P2=0 · P3=0** | M1 FIXED; modo `production` sem regressão; nenhum achado novo |
+
+**Resultado final: P0=0 · P1=0** atribuíveis ao GOAL-118. Risco pré-existente
+registrado (F1, §12) segue como P1 de backlog em `docs/PENDENCIAS.md`.
