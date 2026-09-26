@@ -242,3 +242,67 @@ describe('NUT-007 gateway: falhas de transporte do provedor', () => {
     expect(result.body.code).toBe('EMPTY_PROPOSAL');
   });
 });
+
+describe('GOAL-118 gateway: teto em bytes UTF-8 e provedor só HTTPS', () => {
+  const request = (extra: Record<string, unknown> = {}) =>
+    JSON.stringify({ useCase: 'complete_protein', context: validContext(), availability: { state: 'AUTOMATED' }, ...extra });
+
+  it('corpo abaixo do teto em caracteres mas acima em bytes UTF-8 → 413 sem chamar o provedor', async () => {
+    const fetchImpl = vi.fn();
+    const body = request({ userText: 'ç'.repeat(9000) });
+    expect(body.length).toBeLessThan(16 * 1024);
+    expect(new TextEncoder().encode(body).byteLength).toBeGreaterThan(16 * 1024);
+    const result = await handleAssistantGatewayRequest(body, { env: CONFIGURED_ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(result.httpStatus).toBe(413);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it.each(['http://ai.example.com/v1', 'ai.example.com/v1', 'ftp://ai.example.com/v1'])(
+    'GYMFLOW_AI_BASE_URL não-HTTPS (%s) → 503 honesto, chave e prompt nunca enviados',
+    async (baseUrl) => {
+      const fetchImpl = vi.fn();
+      const result = await handleAssistantGatewayRequest(request(), {
+        env: { ...CONFIGURED_ENV, GYMFLOW_AI_BASE_URL: baseUrl },
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      });
+      expect(result.httpStatus).toBe(503);
+      if (result.body.status !== 'failure') throw new Error('unreachable');
+      expect(result.body.code).toBe('PROVIDER_UNAVAILABLE');
+      expect(fetchImpl).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('GOAL-118 provedor: resposta com teto em bytes e sem redirecionamento', () => {
+  const request = () => JSON.stringify({ useCase: 'complete_protein', context: validContext(), availability: { state: 'AUTOMATED' } });
+
+  it('resposta abaixo do teto em caracteres mas acima em bytes UTF-8 → INVALID_RESPONSE (502)', async () => {
+    // Resposta VÁLIDA (seria 200) + enchimento multibyte no envelope: 9000 caracteres a mais, 18000 bytes.
+    const content = modelItemsJson([{ foodReferenceId: 'br-peito-frango-grelhado', grams: 100 }]);
+    const envelope = JSON.stringify({ choices: [{ message: { content } }], padding: 'é'.repeat(9000) });
+    expect(envelope.length).toBeLessThan(16 * 1024);
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(envelope));
+    const result = await handleAssistantGatewayRequest(request(), { env: CONFIGURED_ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(result.httpStatus).toBe(502);
+    if (result.body.status !== 'failure') throw new Error('unreachable');
+    expect(result.body.code).toBe('INVALID_RESPONSE');
+  });
+
+  it('chamada ao provedor usa redirect "error" (nunca segue 307/308 para outro destino)', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      openAiEnvelope(modelItemsJson([{ foodReferenceId: 'br-peito-frango-grelhado', grams: 100 }])),
+    );
+    await handleAssistantGatewayRequest(request(), { env: CONFIGURED_ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://ai.example.com/v1/chat/completions');
+    expect(init.redirect).toBe('error');
+  });
+
+  it('redirecionamento recusado pelo fetch vira falha honesta (502), sem sugestão', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new TypeError('fetch failed: unexpected redirect'));
+    const result = await handleAssistantGatewayRequest(request(), { env: CONFIGURED_ENV, fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(result.httpStatus).toBe(502);
+    if (result.body.status !== 'failure') throw new Error('unreachable');
+    expect(result.body.code).toBe('PROVIDER_HTTP_ERROR');
+  });
+});

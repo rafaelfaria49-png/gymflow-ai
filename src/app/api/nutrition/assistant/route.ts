@@ -1,5 +1,5 @@
 /**
- * GymFlow AI — Gateway same-origin do Assistente Nutricional (NUT-007 / web)
+ * GymFlow AI — Gateway do Assistente Nutricional (NUT-007 / web + app nativo)
  *
  * Rota server-side estrita: entrada e saída tipadas, teto de payload,
  * timeout e cancelamento controlados. A chave do provedor (`GYMFLOW_AI_API_KEY`)
@@ -11,43 +11,24 @@
  * - 200 { status: 'failure', code: 'EMPTY_PROPOSAL' } — honesto, sem números;
  * - 400/403/409/413/502/503/504 { status: 'failure', code, message }.
  *
- * Mobile Capacitor (bundle estático, sem servidor Next): esta rota NÃO existe
- * no export `out/` — o client adapter (`ai-assistant-client.ts`) usa então
- * somente um backend HTTPS GymFlow configurável por origem pública.
+ * Web: same-origin, sem CORS. App nativo (GOAL-118): o bundle estático
+ * `out/` não tem esta rota; o client adapter (`ai-assistant-client.ts`) chama
+ * a Production GymFlow e o CORS cirúrgico (somente `https://localhost` e
+ * `capacitor://localhost`) vive em `ai-assistant-route.ts`. Origem não
+ * autorizada → 403 fail-closed, sem chamar o provedor.
  */
 
-import { NextResponse } from 'next/server';
-import { handleAssistantGatewayRequest } from '@/lib/nutrition/ai-assistant-gateway';
+import { handleAssistantOptions, handleAssistantPost } from '@/lib/nutrition/ai-assistant-route';
 
-// NUT-007 / mobile (Capacitor, `output: export`): esta rota POST-only NÃO é
-// incluída no bundle estático `out/` — o export contempla apenas GET
-// estáticos. O client adapter detecta o runtime nativo e usa exclusivamente
-// um backend HTTPS GymFlow configurável (origem pública, sem segredo).
-// Nenhum `export const dynamic` aqui: `force-dynamic` quebra o export
-// estático e a rota já é dinâmica por usar `request` (POST com corpo).
+// NUT-007 / mobile (Capacitor, `output: export`): esta rota POST/OPTIONS NÃO
+// é incluída no bundle estático `out/` — o export contempla apenas GET
+// estáticos. Nenhum `export const dynamic` aqui: `force-dynamic` quebra o
+// export estático e a rota já é dinâmica por usar `request`.
 
-export async function POST(request: Request): Promise<NextResponse> {
-  let bodyText = '';
-  try {
-    bodyText = await request.text();
-  } catch {
-    return NextResponse.json(
-      { status: 'failure', code: 'INVALID_REQUEST', message: 'Corpo da requisição ilegível.' },
-      { status: 400 },
-    );
-  }
+export async function POST(request: Request): Promise<Response> {
+  return handleAssistantPost(request);
+}
 
-  try {
-    const result = await handleAssistantGatewayRequest(bodyText, {}, request.signal);
-    return NextResponse.json(result.body, { status: result.httpStatus });
-  } catch {
-    return NextResponse.json(
-      {
-        status: 'failure',
-        code: 'PROVIDER_HTTP_ERROR',
-        message: 'Falha interna do gateway do assistente. Nenhuma sugestão fake foi gerada.',
-      },
-      { status: 502 },
-    );
-  }
+export function OPTIONS(request: Request): Response {
+  return handleAssistantOptions(request);
 }

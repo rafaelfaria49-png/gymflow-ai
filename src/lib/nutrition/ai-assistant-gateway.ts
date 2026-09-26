@@ -105,7 +105,13 @@ export async function handleAssistantGatewayRequest(
   deps: AiGatewayDeps = {},
   externalSignal?: AbortSignal,
 ): Promise<AiGatewayResponse> {
-  if (typeof bodyText !== 'string' || bodyText.length > AI_ASSISTANT_LIMITS.MAX_REQUEST_BYTES) {
+  // Teto em bytes UTF-8 (não em unidades UTF-16): `length` > teto já basta
+  // para recusar sem codificar; senão mede os bytes de verdade.
+  if (
+    typeof bodyText !== 'string'
+    || bodyText.length > AI_ASSISTANT_LIMITS.MAX_REQUEST_BYTES
+    || new TextEncoder().encode(bodyText).byteLength > AI_ASSISTANT_LIMITS.MAX_REQUEST_BYTES
+  ) {
     return failure(413, {
       status: 'failure',
       code: 'REQUEST_TOO_LARGE',
