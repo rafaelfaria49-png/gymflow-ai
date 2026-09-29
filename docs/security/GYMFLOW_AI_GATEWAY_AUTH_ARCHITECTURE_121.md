@@ -1,11 +1,12 @@
 # Arquitetura de autenticação e quota do gateway do Assistente IA (GOAL-121)
 
 **GOAL:** `GYMFLOW-AI-AUTH-QUOTA-ARCHITECTURE-AUDIT-121`
-**Data:** 2026-09-28 · **revisado após as revisões independentes R1/R2 em:** 2026-09-29
+**Data:** 2026-09-28 · **fechamento após a revisão independente R3 em:** 2026-09-29
 **Base:** `origin/master` `ebcc7867c60012aee58e9ec7de9beabaec747f4c`
-**Estado:** desenho **pós-R2** — `INDEPENDENT_REVIEW_RESULT = R2_CHANGES_APPLIED_PENDING_R3`,
-`READY_FOR_AUTH_IMPLEMENTATION_GOAL = PENDING_INDEPENDENT_REREVIEW`. **Não aprovado; nenhuma
-implementação autorizada** (Seção 15).
+**Estado:** revisão arquitetural **aprovada na R3** — `INDEPENDENT_REVIEW_RESULT = PASS_R3`,
+`ARCHITECTURE_REVIEW_STATUS = APPROVED`, `READY_FOR_AUTH_IMPLEMENTATION_GOAL = YES`.
+`AUTH_IMPLEMENTATION_AUTHORIZED = NO`: a aprovação do desenho não inicia o rollout nem aprova
+os gates humanos e de governança (Seção 15).
 **Natureza:** auditoria + desenho (**docs-only**). Nenhum código produtivo, dependência,
 credencial, serviço externo ou configuração (Vercel, OpenRouter, Google, Apple) foi alterado
 ou provisionado. **Nenhum gasto é autorizado por este documento.**
@@ -50,8 +51,8 @@ Atenção ao nome: **R1/R2/R3 da revisão independente** (Seção 16, Apêndice 
 13. Custos e gates humanos
 14. Decisões
 15. Estado de aceite
-16. Revisão independente (R2 concluída; correções aplicadas, R3 pendente)
-- Apêndices: A fontes · B contrato de API · C modelo de dados · D emenda proposta ao CLAUDE.md · E itens não verificados · F receita da revisão independente (histórico R2 e foco R3)
+16. Revisão independente (R3 PASS; oito achados FIXED)
+- Apêndices: A fontes · B contrato de API · C modelo de dados · D emenda proposta ao CLAUDE.md · E itens não verificados · F receita histórica da revisão independente
 
 ---
 
@@ -117,11 +118,11 @@ bloquear ninguém) → R2 enforcement de atestação (shadow → enforce, com pi
 builds antigos) → R3 quota `SOFT` com anti-enrollment mínimo → R4 endurecimento (quota `STRONG`, iOS,
 tiers, conta, Key Attestation opcional).
 
-**Revisão independente:** a R1 (GPT-5.6 Sol / OpenAI, PR #55) devolveu P0=0/P1=4/P2=4/P3=0.
-A R2 do mesmo revisor devolveu `CHANGES_REQUIRED` (P0=0/P1=0/P2=2/P3=0): IR-121-01..04 e 07..08
-`FIXED`, IR-121-05/06 `PARTIAL`. As correções dos dois P2 estão aplicadas nas seções canônicas e
-aguardam R3 focada. `INDEPENDENT_REVIEW_RESULT = R2_CHANGES_APPLIED_PENDING_R3` e
-`READY_FOR_AUTH_IMPLEMENTATION_GOAL = PENDING_INDEPENDENT_REREVIEW` (Seção 15).
+**Revisão independente:** R1 e R2 (GPT-5.6 Sol / OpenAI, PR #55) devolveram `CHANGES_REQUIRED`
+(0/4/4/0 e 0/0/2/0). A R3 do mesmo revisor, sobre `52950579a53e35063d59a5d0ad40e750474691e7`,
+devolveu `PASS` (P0/P1/P2/P3 = 0/0/0/0) e confirmou IR-121-01..08 `FIXED`.
+`READY_FOR_AUTH_IMPLEMENTATION_GOAL = YES` significa apenas desenho aprovado; o início do rollout
+depende de decisões humanas, governança e autorizações separadas (Seções 13–15).
 
 **Este GOAL não faz:** backend, Supabase/DB/KV, Play Integrity, App Attest, credenciais, mudança
 em Vercel/OpenRouter, GOAL-119, Google Play.
@@ -1404,7 +1405,7 @@ independente (Seção 16); onde a decisão nasceu de um achado, o `IR-121-nn` es
 | D121-016 | Identidade/sessão **nunca** em WebView/JS, `PersistedState` ou backup; armazenamento nativo fora de backup; testes de contrato, incluindo o **gate estático "nenhum JS monta `Authorization` nem contém `gfat1_`"** |
 | D121-017 | A emenda do `CLAUDE.md` é **proposta**, não aplicada (Apêndice D) |
 | D121-018 | `installation_id` e chave pública/`key_id` são **identificadores persistentes** (potencial dado pessoal até parecer jurídico; sem conclusão LGPD aqui): Data Safety, App Privacy e D-NUT-09 atualizados **antes** de testers externos (IR-121-08) |
-| D121-019 | **Revisão independente:** a tentativa local do executor não rodou (falha de ambiente); a R1 externa (GPT-5.6 Sol / OpenAI, PR #55) devolveu P0=0/P1=4/P2=4/P3=0. A R2 (mesmo revisor, HEAD `9aa08942`) devolveu `CHANGES_REQUIRED`, P0=0/P1=0/P2=2/P3=0: IR-121-01..04/07/08 `FIXED`, IR-121-05/06 `PARTIAL`. As correções dos dois P2 foram aplicadas só na documentação (`APPLIED_PENDING_R3`, nunca auto-`FIXED`); `INDEPENDENT_REVIEW_RESULT = R2_CHANGES_APPLIED_PENDING_R3`; `READY_FOR_AUTH_IMPLEMENTATION_GOAL = PENDING_INDEPENDENT_REREVIEW` (Seção 16, Apêndice F) |
+| D121-019 | **Revisão independente:** R1 (GPT-5.6 Sol / OpenAI, PR #55) `CHANGES_REQUIRED` 0/4/4/0; R2 (HEAD `9aa08942`) `CHANGES_REQUIRED` 0/0/2/0, IR-121-01..04/07/08 `FIXED`; R3 (HEAD `52950579`) `PASS` 0/0/0/0, IR-121-05/06 `FIXED`. Resultado cumulativo: IR-121-01..08 `FIXED`, `INDEPENDENT_REVIEW_RESULT = PASS_R3`, `ARCHITECTURE_REVIEW_STATUS = APPROVED`, `READY_FOR_AUTH_IMPLEMENTATION_GOAL = YES`. `AUTH_IMPLEMENTATION_AUTHORIZED = NO`: D-AUTH-01..10 e gates G-xx continuam independentes da revisão arquitetural (Seções 15/16) |
 
 ### 14.2 Decisões humanas pendentes
 
@@ -1430,7 +1431,7 @@ CURRENT_GATEWAY_AUTH = NO
 CURRENT_COST_CAP = ACTIVE
 CURRENT_IP_RATE_LIMIT = ACTIVE
 
-TARGET_ARCHITECTURE = B                        (mantida após a R1; C aditivo)
+TARGET_ARCHITECTURE = B                        (aprovada na revisão R3; confirmação humana D-AUTH-02 ainda pendente)
 ANDROID_ATTESTATION_PLAN = DEFINED             (Play Integrity em todo enrollment/renovação; chave sem prova de hardware no V1; Key Attestation = tier opcional)
 IOS_ATTESTATION_PLAN = DEFINED
 TOKEN_MODEL = DEFINED                          (opaco; transporte nativo — o bearer nunca entra no JS)
@@ -1452,36 +1453,39 @@ RESIDUAL_SEVERITY (Seção 3)  P0 = 0 · P1 = 0 · P2 = 10 (T01 T06 T07 T08 T14 
 P0_ARCHITECTURE_UNKNOWN = 0                    (análise do autor)
 P1_ARCHITECTURE_UNKNOWN = 0                    (análise do autor; os 4 P1 da R1 foram corrigidos no texto)
 
-INDEPENDENT_REVIEW_RESULT = R2_CHANGES_APPLIED_PENDING_R3
+INDEPENDENT_REVIEW_RESULT = PASS_R3
+ARCHITECTURE_REVIEW_STATUS = APPROVED
       R1 (GPT-5.6 Sol / OpenAI, PR #55): CHANGES_REQUIRED · P0 = 0 · P1 = 4 · P2 = 4 · P3 = 0
       R2 (GPT-5.6 Sol / OpenAI, PR #55, HEAD 9aa08942): CHANGES_REQUIRED · P0 = 0 · P1 = 0 · P2 = 2 · P3 = 0
-      IR-121-01..04 e 07..08 = FIXED; IR-121-05/06 = APPLIED_PENDING_R3 (eram PARTIAL na R2)
-READY_FOR_AUTH_IMPLEMENTATION_GOAL = PENDING_INDEPENDENT_REREVIEW
+      R3 (GPT-5.6 Sol / OpenAI, PR #55, HEAD 52950579): PASS · P0 = 0 · P1 = 0 · P2 = 0 · P3 = 0
+      IR-121-01..04 e 07..08 = FIXED pela R2; IR-121-05/06 = FIXED pela R3
+READY_FOR_AUTH_IMPLEMENTATION_GOAL = YES
+AUTH_IMPLEMENTATION_AUTHORIZED = NO
 ```
 
-**Por que não é `YES`:** a R2 devolveu `CHANGES_REQUIRED` com IR-121-05/06 `PARTIAL`. As duas
-correções deste commit foram feitas **pelo autor** e ainda exigem R3 independente; não são `FIXED`.
-**Regra:** nenhum GOAL de implementação começa antes de a **R3** confirmar `FIXED` em IR-121-05/06,
-preservar os seis achados já `FIXED` e manter P0 = P1 = 0. Depois
-disso o valor passa a `YES` (o *início* ainda depende dos gates G-01, G-02/G-04, G-06 e
-D-AUTH-01/02/04/06, todos enumerados e nenhum é pergunta de arquitetura) ou a
-`BLOCKED_HUMAN_ARCHITECTURE_DECISION` (se a R3 contestar B). **R2 do rollout (enforcement) não está
-liberada** de qualquer forma: exige R1 do rollout medida e D-AUTH-03/05/08. (Atenção ao nome:
-"R1/R2/R3" da **revisão independente** e "R1/R2" das **fases de rollout** são coisas diferentes.)
+**Significado do `YES`:** o desenho B passou pela revisão independente. **Não** autoriza iniciar a
+R1 do rollout, alterar o backend, provisionar serviços, criar credenciais ou gastar. O início de um
+GOAL de implementação exige decisões e autorizações separadas: D-AUTH-01 (emenda controlada do
+`CLAUDE.md`), D-AUTH-02 (confirmação humana de B + Upstash), D-AUTH-03 (canal web), D-AUTH-04
+(contas/provisionamento/custos), D-AUTH-05 (política sem atestação), D-AUTH-06 (retenção/exclusão),
+D-AUTH-07+ (parâmetros após telemetria), além dos gates G-xx aplicáveis da Seção 13.
+Nenhum deles foi aprovado implicitamente pela R3. **R2 do rollout (enforcement)** exige ainda R1
+do rollout medida e D-AUTH-03/05/08. R1/R2/R3 da revisão independente e R0–R4 do rollout são
+sequências diferentes.
 
-**Por que P0/P1 desconhecidos = 0 (segundo o autor):** os itens **não verificados** (Apêndice E) são
+**Itens ainda não verificados:** os itens do Apêndice E são
 todos P2/P3, cada um tem verificação prevista antes de qualquer enforcement, e nenhum muda a
 arquitetura — em todos existe mitigação independente do resultado (armazenamento nativo excluído de
 backup + Keystore, backoff local, `default` seguro, `GuardStore` substituível, verificador
 substituível por App Check, renovação Android sempre por Play Integrity novo, piso de config
-versionado, pacing + cap externos ao Redis). Isto é análise do autor, não revisão independente.
+versionado, pacing + cap externos ao Redis). A aprovação arquitetural não fecha essas verificações.
 
 ---
 
 ## 16. Revisão independente
 
-**Estado: R2 executada → `CHANGES_REQUIRED` (dois P2); correções dos dois achados aplicadas neste
-documento; R3 pendente.** `INDEPENDENT_REVIEW_RESULT = R2_CHANGES_APPLIED_PENDING_R3`.
+**Estado: R3 independente → `PASS` (P0/P1/P2/P3 = 0/0/0/0); oito achados `FIXED`.**
+`INDEPENDENT_REVIEW_RESULT = PASS_R3`. A revisão foi registrada no PR #55 sobre o HEAD `52950579`.
 
 ### 16.1 Rodadas
 
@@ -1490,7 +1494,7 @@ documento; R3 pendente.** `INDEPENDENT_REVIEW_RESULT = R2_CHANGES_APPLIED_PENDIN
 | Tentativa local do executor (Codex CLI) | — | — | 2026-09-28, 22:00–22:20Z | **não executada** — falha do ambiente local, não do desenho (16.5); sem resultado |
 | **R1** | **GPT-5.6 Sol (OpenAI)** — família de modelo diferente da do autor (Claude) | este documento em `91fcc92…` (PR #55, base `ebcc786…`) e o código citado | 2026-09-29 (registrada como *review* do PR #55, id 5347464606) | **`CHANGES_REQUIRED` — P0 = 0 · P1 = 4 · P2 = 4 · P3 = 0** |
 | **R2** | **GPT-5.6 Sol / OpenAI** | documento pós-R1 em `9aa08942cc3afa4cf3febc9d02aa5d5b56bbbeb3` (PR #55, base `ebcc7867c60012aee58e9ec7de9beabaec747f4c`) | 2026-09-29 (review do PR #55) | **`CHANGES_REQUIRED` — P0 = 0 · P1 = 0 · P2 = 2 · P3 = 0** |
-| **R3** | a definir | este documento pós-R2; foco IR-121-05/06 | pendente | pendente |
+| **R3** | **GPT-5.6 Sol / OpenAI** | documento pós-R2 em `52950579a53e35063d59a5d0ad40e750474691e7`; foco IR-121-05/06 | 2026-09-29 (review do PR #55) | **`PASS` — P0 = 0 · P1 = 0 · P2 = 0 · P3 = 0** |
 
 **O que a R1 concluiu:** a arquitetura **B continua viável**, mas **não estava pronta para virar GOAL
 de implementação**; os quatro P1 são corrigíveis no próprio desenho e não exigem nova decisão humana
@@ -1508,33 +1512,34 @@ incompatibilidade real com B; cada P1 foi corrigido *dentro* dela (D121-001).
 | IR-121-02 | **P1** | 4.2, 4.5, 6, 7 | Chave de prova de posse do Android não é provada em hardware; o `requestHash` liga o SPKI, não a origem da chave; risco de *broker* | **Premissa retirada** no V1: toda renovação exige **Play Integrity novo** + prova de posse (`ATTEST_MAX_AGE = 0`), limitada por `recentDeviceActivity` e taxa; Key Attestation vira *tier* opcional `android_hw` com challenge, cadeia/raízes, CRL, nível de segurança, vínculo de app, *fallback* `play_only` e privacidade definidos (**4.2, 4.5**, 6, 7.1, 7.3; T06, T12, T23; D121-003; D-AUTH-10) | `FIXED` (R2) |
 | IR-121-03 | **P1** | 8, 12 (R3→R4), T14/T22 | Quota por instalação resetável (novo enrollment no mesmo aparelho) antes do anti-farming, que só entrava na R4 | Anti-enrollment vira **pré-requisito da R3** (*budgets* global e por IP-hash, pool de instalações novas + quota por idade, gate `recentDeviceActivity`, limite de resets) **e** a quota da R3 é declarada **`SOFT`** (proteção financeira = pacing + cap); `STRONG` só na R4, com memória de dispositivo e o vetor reproduzido em aparelho real (**8.5**, 12.2; T08, T14, T22; D121-002/010; D-AUTH-07/09; G-12) | `FIXED` (R2) |
 | IR-121-04 | **P1** | 9, 12 | Config/store em enforcement sem semântica para ausente/ilegível; podia falhar aberto | **Piso versionado no deploy** (`AI_GUARD_MIN_*`; ausente em Production ⇒ `enforce`); `gd:cfg` só aperta; **override de emergência** assinado por HMAC (`EMERGENCY_KEY`), ≤ 4 h, nunca abaixo de `shadow`, auditado; ausente/ilegível/abaixo do piso ⇒ piso; store ou limite indisponível em enforce ⇒ *fail-closed* só do Assistente (**12.1**, 9.3, 7.4, 11; T19, T26; D121-011) | `FIXED` (R2) |
-| IR-121-05 | P2 | 7.1 × Ap. C | Ledger de challenge contraditório: `SET NX` "em verificação" no texto × só `used` após sucesso no modelo de dados | Máquina de estados `verifying`/`used`, *claim* atômico antes do decode; R2 detectou que `release` permitia mais de um decode total. Texto canônico corrigido: sem `release`, até 1 decode total por challenge; retry com challenge/token novos, máximo 3 tentativas por ação (**7.6**, Ap. B/C; T16; D121-012) | `APPLIED_PENDING_R3` (R2: `PARTIAL`) |
-| IR-121-06 | P2 | 8, 9, Ap. C | Idempotência/estorno sem *outcome* incerto: um *timeout* não prova que o provedor não cobrou | `pending/charged/refunded/unknown` + `dispatched`; R2 detectou `429` e 4xx genericamente estornados sem prova. Texto canônico corrigido: `unknown` após dispatch sem evidência, estorno só com prova por caminho; U-20 confronta *outcome* com *usage/activity* e saída parcial (**8.4**, Ap. C; T27; D121-009) | `APPLIED_PENDING_R3` (R2: `PARTIAL`) |
+| IR-121-05 | P2 | 7.1 × Ap. C | Ledger de challenge contraditório: `SET NX` "em verificação" no texto × só `used` após sucesso no modelo de dados | R3 confirmou: sem `release`; `V` persiste e o challenge não volta a ficar disponível; ≤1 decode total por challenge; retry com challenge e integrityToken novos, até 3 tentativas por ação, backoff 5/10/20 s; timeout/crash não permitem segundo decode do mesmo challenge (**7.6**, Ap. B/C; T16; D121-012) | `FIXED` (R3; era `PARTIAL` na R2) |
+| IR-121-06 | P2 | 8, 9, Ap. C | Idempotência/estorno sem *outcome* incerto: um *timeout* não prova que o provedor não cobrou | R3 confirmou: pós-dispatch sem prova = `unknown`; `429` por padrão, 4xx pós-dispatch sem prova, 5xx, timeout e rede = `unknown`; *partial output* entra em U-20; `refunded` só com evidência; `pending/charged/unknown` nunca redispatcham com a mesma chave (**8.4**, Ap. C; T27; D121-009) | `FIXED` (R3; era `PARTIAL` na R2) |
 | IR-121-07 | P2 | 9.2/9.3, U-06 | Premissas do Upstash desatualizadas: persistência sempre ligada, eviction opt-in/desligada por padrão, free sem a redundância dos planos pagos | Fatos oficiais reescritos e citados; **eviction OFF**, **auto-upgrade OFF**, *budget* se PAYG; limite/escrita rejeitada ⇒ *fail-closed* do Assistente; durabilidade **não** equiparada a HA/SLA; **análise de perda por tipo de estado**; consistência eventual ⇒ decisões de segurança em scripts do líder (**9.1–9.3**, 13/G-06, Ap. A/E; T28; D121-007; U-06, U-21) | `FIXED` (R2) |
 | IR-121-08 | P2 | 10.1 | "Chave pública/`key_id` não é PII" é categórico demais | Redação factual: sem nome, e-mail nem conteúdo de saúde, mas **identificador persistente** ⇒ dado de dispositivo/potencial dado pessoal até parecer jurídico; sem conclusão LGPD (**10.1–10.3**, 6; D121-018) | `FIXED` (R2) |
 
-`APPLIED_PENDING_R3` significa **texto corrigido pelo autor após a R2**, nada mais. Só a R3 pode
-marcar IR-121-05/06 como `FIXED`; os seis `FIXED` restantes são vereditos independentes da R2.
+Os seis `FIXED` de IR-121-01..04/07..08 são vereditos da R2; IR-121-05/06 foram confirmados
+`FIXED` na R3. O resultado cumulativo é IR-121-01..08 = `FIXED`.
 
-### 16.3 Estado depois da R2 e correções do autor
+### 16.3 Estado depois da R3
 
-- `INDEPENDENT_REVIEW_RESULT = R2_CHANGES_APPLIED_PENDING_R3`
-- R2: IR-121-01..04 e 07..08 = `FIXED`; IR-121-05/06 = `PARTIAL` → `APPLIED_PENDING_R3`
+- `INDEPENDENT_REVIEW_RESULT = PASS_R3`; `ARCHITECTURE_REVIEW_STATUS = APPROVED`
+- R2: IR-121-01..04 e 07..08 = `FIXED`; R3: IR-121-05/06 = `FIXED`
 - `TARGET_ARCHITECTURE = B` (preservada)
-- `READY_FOR_AUTH_IMPLEMENTATION_GOAL = PENDING_INDEPENDENT_REREVIEW` — **não é `YES`**
-- o PR #55 continua **rascunho**; nada foi mesclado; nada foi provisionado, configurado ou gasto.
+- `READY_FOR_AUTH_IMPLEMENTATION_GOAL = YES` — aceite **somente arquitetural**
+- `AUTH_IMPLEMENTATION_AUTHORIZED = NO`; gates humanos e de governança continuam pendentes.
+- até a conclusão deste fechamento, nada foi implementado, provisionado, configurado ou gasto.
 
-### 16.4 Foco da R3 (autoavaliação do autor)
+### 16.4 Escopo examinado na R3
 
-Por achado, onde procurar falhas na correção:
+O revisor independente conferiu os dois achados que permaneceram parciais na R2:
 
-| Achado | Onde a R3 deve procurar |
+| Achado | Evidência confirmada na R3 |
 |---|---|
 | IR-121-05 | verificar que nenhum `release` ou expiração de `V` permite segundo decode do mesmo challenge; challenge e integrityToken novos em cada tentativa, backoff e limite total de 3 por ação; crash/timeout *fail-safe* |
 | IR-121-06 | verificar que `429`, 4xx e saída parcial pós-dispatch ficam `unknown` sem prova de custo zero; U-20 confronta *outcome* com *usage/activity* antes de qualquer promoção a `refunded` |
 
-**Onde olhar primeiro:** 7.6 (challenge), 8.4 (*outcomes*), Apêndices B/C e U-20. Estas correções são
-texto novo, sem código ou medição, e ainda não receberam a R3 independente.
+O escopo incluiu 7.6 (challenge), 8.4 (*outcomes*), Apêndices B/C, D121-009/012 e U-20. Nenhum
+achado P0/P1/P2/P3 novo foi identificado nessa revisão documental.
 
 **Fora do escopo da R3:** a decisão de governança (D-AUTH-01), conclusões jurídicas e a escolha de
 números comerciais (D-AUTH-07).
@@ -1748,12 +1753,11 @@ Não altera as demais regras técnicas (design system, sem `alert()`, não tocar
 
 ---
 
-## Apêndice F — Receita reproduzível da revisão independente (R2 executada; R3 focada em IR-121-05/06)
+## Apêndice F — Receita histórica da revisão independente (R1–R3 concluídas)
 
-**R3 pendente:** usar o mesmo pacote reproduzível abaixo, substituindo a tabela da rodada anterior
-pelos vereditos da R2 e o diff desde `9aa08942`; revisar **somente** IR-121-05 e IR-121-06, incluindo
-7.6/T16/D121-012/Ap. B/C e 8.4/U-20/D121-009/rollout. Preservar os seis `FIXED` da R2 sem reabrir
-sem nova evidência. R3 decide `FIXED` ou mantém a pendência; este documento não autoavalia a correção.
+**R3 executada:** o review do PR #55 sobre `52950579a53e35063d59a5d0ad40e750474691e7` examinou
+somente IR-121-05/06 com o diff desde `9aa08942`; confirmou ambos `FIXED` e preservou os seis
+`FIXED` da R2. Ver Seção 16 para o resultado cumulativo. A receita abaixo registra o processo histórico.
 
 **Receita histórica da R2 executada:**
 
