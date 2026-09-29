@@ -1,9 +1,9 @@
 # Arquitetura de autenticação e quota do gateway do Assistente IA (GOAL-121)
 
 **GOAL:** `GYMFLOW-AI-AUTH-QUOTA-ARCHITECTURE-AUDIT-121`
-**Data:** 2026-09-28 · **revisado após a revisão independente R1 em:** 2026-09-29
+**Data:** 2026-09-28 · **revisado após as revisões independentes R1/R2 em:** 2026-09-29
 **Base:** `origin/master` `ebcc7867c60012aee58e9ec7de9beabaec747f4c`
-**Estado:** desenho **pós-R1** — `INDEPENDENT_REVIEW_RESULT = R1_CHANGES_APPLIED_PENDING_R2`,
+**Estado:** desenho **pós-R2** — `INDEPENDENT_REVIEW_RESULT = R2_CHANGES_APPLIED_PENDING_R3`,
 `READY_FOR_AUTH_IMPLEMENTATION_GOAL = PENDING_INDEPENDENT_REREVIEW`. **Não aprovado; nenhuma
 implementação autorizada** (Seção 15).
 **Natureza:** auditoria + desenho (**docs-only**). Nenhum código produtivo, dependência,
@@ -29,7 +29,7 @@ em um desenho implementável.
 Nada aqui é conformidade jurídica: os pontos de privacidade são mapeamentos factuais para
 decisão humana/jurídica (D-NUT-09 continua `PENDING`).
 
-Atenção ao nome: **R1/R2 da revisão independente** (Seção 16, Apêndice F) e **R0–R4 do rollout**
+Atenção ao nome: **R1/R2/R3 da revisão independente** (Seção 16, Apêndice F) e **R0–R4 do rollout**
 (Seção 12) são coisas diferentes.
 
 ### Índice
@@ -50,8 +50,8 @@ Atenção ao nome: **R1/R2 da revisão independente** (Seção 16, Apêndice F) 
 13. Custos e gates humanos
 14. Decisões
 15. Estado de aceite
-16. Revisão independente (R1 aplicada; R2 pendente)
-- Apêndices: A fontes · B contrato de API · C modelo de dados · D emenda proposta ao CLAUDE.md · E itens não verificados · F receita da revisão independente R2 (pendente)
+16. Revisão independente (R2 concluída; correções aplicadas, R3 pendente)
+- Apêndices: A fontes · B contrato de API · C modelo de dados · D emenda proposta ao CLAUDE.md · E itens não verificados · F receita da revisão independente (histórico R2 e foco R3)
 
 ---
 
@@ -117,10 +117,10 @@ bloquear ninguém) → R2 enforcement de atestação (shadow → enforce, com pi
 builds antigos) → R3 quota `SOFT` com anti-enrollment mínimo → R4 endurecimento (quota `STRONG`, iOS,
 tiers, conta, Key Attestation opcional).
 
-**Revisão independente:** a **R1** foi feita por revisor externo ao executor (GPT-5.6 Sol / OpenAI) e
-registrada no PR #55: `CHANGES_REQUIRED` (P0 = 0, P1 = 4, P2 = 4, P3 = 0). Esta revisão do documento
-aplica as correções IR-121-01..08 nas seções canônicas (não em errata); a **R2** é a re-revisão
-pendente. `INDEPENDENT_REVIEW_RESULT = R1_CHANGES_APPLIED_PENDING_R2` e
+**Revisão independente:** a R1 (GPT-5.6 Sol / OpenAI, PR #55) devolveu P0=0/P1=4/P2=4/P3=0.
+A R2 do mesmo revisor devolveu `CHANGES_REQUIRED` (P0=0/P1=0/P2=2/P3=0): IR-121-01..04 e 07..08
+`FIXED`, IR-121-05/06 `PARTIAL`. As correções dos dois P2 estão aplicadas nas seções canônicas e
+aguardam R3 focada. `INDEPENDENT_REVIEW_RESULT = R2_CHANGES_APPLIED_PENDING_R3` e
 `READY_FOR_AUTH_IMPLEMENTATION_GOAL = PENDING_INDEPENDENT_REREVIEW` (Seção 15).
 
 **Este GOAL não faz:** backend, Supabase/DB/KV, Play Integrity, App Attest, credenciais, mudança
@@ -408,7 +408,7 @@ US$ 5/mês está ativo** (F-121-02 mostra a fragilidade desse fato).
 | T13 | **Usuário offline** | IA já indisponível (honesto) | nunca tentar atestação offline; `BACKEND_OFFLINE` sem bloquear o app | **P3** |
 | T14 | **Reset de quota:** mesmo aparelho genuíno → nova chave → novo enrollment → novo `installation_id` → nova quota (reinstall, limpar dados, ação "apagar dados de IA", perda de chave; **não só reinstall**) | n/a | *enrollment budgets* (global e por IP-hash), **pool de instalações novas** + quota por idade da instalação, gate por `recentDeviceActivity` (Play; pré-requisito de R3), limite de resets da ação do app (o laço via `adb` não passa por ela), pacing + cap. Memória de dispositivo (deviceRecall beta / DeviceCheck + métrica App Attest) só na R4 | **P2** (quota `SOFT` na R3; `STRONG` só na R4) |
 | T15 | **Relógio do cliente adulterado** | — | janelas e expirações **só pelo relógio do servidor** (UTC); o cliente só agenda o refresh | **P3** |
-| T16 | **DoS de challenge/enrollment/renovação** (queimar 10.000 decodes/dia e comandos do Redis) | n/a | challenge stateless (HMAC, sem escrita na emissão); claim `verifying` limita a **1 decode por challenge**; prova de posse e status da instalação verificados **antes** do decode; limites por IP-hash e por instalação; **fatia da cota de decode reservada às renovações** de instalações existentes; alerta de cota | **P2** |
+| T16 | **DoS de challenge/enrollment/renovação** (queimar 10.000 decodes/dia e comandos do Redis) | n/a | challenge stateless (HMAC, sem escrita na emissão); claim `verifying` atômico e sem `release` limita a **1 decode total por challenge**; cada retry exige challenge e integrityToken novos (até 3 tentativas por ação, backoff 5/10/20 s); prova de posse e status da instalação verificados **antes** do decode; limites por IP-hash e por instalação; **fatia da cota de decode reservada às renovações** de instalações existentes; alerta de cota | **P2** |
 | T17 | **Vazamento de segredos do gateway** (token REST do Redis, credencial Google, `CHALLENGE_KEY`, `EMERGENCY_KEY`) | só `GYMFLOW_AI_API_KEY` | segredos *Sensitive*, escopo Production, federação OIDC→WIF em vez de chave JSON, rotação documentada, DB de Preview separado; **com escrita no Redis o atacante forja sessões** | **P2** |
 | T18 | **Vazamento de privacidade** (IP, installation_id, corpo em log/estado) | logs da plataforma (1 h no Hobby) | nunca logar corpo; IP só como hash rotativo; nada de saúde no store; retenção mínima (Seção 10) | **P3** |
 | T19 | **Indisponibilidade, latência ou limite do store; config ausente/ilegível** | — | em enforcement: *fail-closed* **só do Assistente**; **piso de segurança versionado no deploy** (Seção 12); `EVICTION = OFF` → no limite de armazenamento as escritas são rejeitadas e o Assistente fecha; modos `observe/shadow` falham aberto por definição | **P3** |
@@ -530,10 +530,11 @@ boot; usar o veredito como identificador de aparelho; **tratar o Keystore como p
 
 ### 4.4 Limites, cota e custo (Android)
 
-Consumo por desenho: **1 decode + 1 token por enrollment e por renovação** (não por chamada do
-Assistente). As renovações acompanham as **sessões de IA** (uma por expiração de token, lazy): com
-TTL de 60 min, ≤ ~1 decode por hora de uso ativo por instalação; a cota padrão de 10.000
-decodes/dia comporta da ordem de 10.000 renovações/dia `[INFERÊNCIA]` antes de precisar do aumento
+Consumo nominal: **1 decode + 1 token por enrollment e por renovação** (não por chamada do
+Assistente). Falha transitória pode elevar a até **3 decodes em challenges distintos por ação** (7.6).
+As renovações acompanham as **sessões de IA** (uma por expiração de token, lazy): com
+TTL de 60 min, ~1 decode por hora de uso ativo por instalação sem falhas; a cota padrão de 10.000
+decodes/dia comporta da ordem de 10.000 renovações/dia **somente sem retries** `[INFERÊNCIA]` antes de precisar do aumento
 (que exige o app publicado no Play). **Reserva de cota:** uma fatia dos decodes diários é
 reservada às **renovações** de instalações existentes, para que uma tempestade de enrollments (T16)
 não derrube quem já está usando. Warm-ups também contam na cota de tokens → lazy. Custo monetário:
@@ -872,32 +873,40 @@ model*, reavaliada na próxima revisão.
 Um challenge é um valor **stateless** (HMAC com `kid`, `iat`, `purpose`, `platform`, 16 bytes
 aleatórios, `installationId?`; TTL de emissão 5 min; **emitir não escreve no store**). O estado só
 existe quando o challenge chega a um `/enroll` ou `/token`: chave `gd:chal:{rand}` com dois valores,
-`V:{claimId}` (*verifying*) e `U` (*used*), manipulada **só por scripts atômicos** no líder do store:
+`V:{claimId}` (*verifying*) e `U` (*used*), manipulada **só por scripts atômicos** no líder do store.
+O ledger dura até a expiração do challenge mais 5 min; `V` não expira em 45 s. O decode tem timeout
+de 45 s, mas timeout/crash **não** liberam outro claim do mesmo challenge:
 
 | Operação | Pré-condição | Efeito | Retorno |
 |---|---|---|---|
-| `claim(rand)` | chave ausente | `SET V:{claimId} NX PX 45000` | `CLAIMED` — segue para a verificação externa |
+| `claim(rand)` | chave ausente e HMAC/TTL válidos | `SET V:{claimId} NX PX (validade restante do challenge + 5 min)` | `CLAIMED` — segue para a verificação externa; uma vez por challenge |
 | `claim(rand)` | valor `U` | — | `USED` → 403 `ATTESTATION_FAILED` (challenge reusado) |
-| `claim(rand)` | valor `V:*` | — | `IN_PROGRESS` → 409 `CHALLENGE_IN_PROGRESS` (o cliente pede outro challenge: são grátis) |
+| `claim(rand)` | valor `V:*` | — | `IN_PROGRESS` → 409 `CHALLENGE_IN_PROGRESS`; após timeout/crash, cliente inicia outra tentativa com challenge novo |
 | `complete(rand, claimId)` | valor `V:{claimId}` | `SET U PX (validade restante do challenge + folga de 5 min)` | `DONE` — **só agora** cria/atualiza instalação e emite token |
-| `complete(rand, claimId)` | valor ≠ `V:{claimId}` (claim expirou/perdido) | — | `LOST` → **não emite token**; 503 `ATTESTATION_UNAVAILABLE`, cliente pega novo challenge |
-| `release(rand, claimId)` | valor `V:{claimId}` (falha **transitória**) | `DEL` | `RELEASED` — o cliente pode retentar com o **mesmo** challenge dentro do TTL |
-| `burn(rand, claimId)` | valor `V:{claimId}` (falha **definitiva**) | `SET U` | 403 `ATTESTATION_FAILED` |
+| `complete(rand, claimId)` | valor ≠ `V:{claimId}` (estado perdido) | — | `LOST` → **não emite token**; 503 `ATTESTATION_UNAVAILABLE`, cliente pega novo challenge |
+| `burn(rand, claimId)` | valor `V:{claimId}` (falha transitória **ou** definitiva) | `SET U` com TTL restante | challenge consumido; 503 `ATTESTATION_UNAVAILABLE` na falha transitória ou 403 `ATTESTATION_FAILED` na definitiva |
 
-- **Transitória** = Google 5xx/`GOOGLE_SERVER_UNAVAILABLE`, timeout do decode, 429 da cota de decode, erro do
-  store: `release` + 503 `ATTESTATION_UNAVAILABLE` com `retryAfterSeconds`; o plugin faz *backoff*
-  5/10/20 s (≤ 3) e reusa o challenge enquanto ele não expirar.
+- **Transitória** = Google 5xx/`GOOGLE_SERVER_UNAVAILABLE`, timeout do decode, 429 da cota de decode
+  ou erro do store: `burn` se o store estiver disponível; se indisponível, `V` permanece até expirar.
+  Resposta 503 `ATTESTATION_UNAVAILABLE` com `retryAfterSeconds`. O plugin espera 5 s antes da segunda
+  tentativa, 10 s antes da terceira e 20 s de *cooldown* após a terceira falha (backoff 5/10/20 s),
+  no máximo **3 tentativas totais de decode por ação**; cada tentativa obtém **novo challenge e novo
+  integrityToken** vinculado ao `requestHash` desse challenge. Um token já submetido ao decode nunca é
+  reutilizado. Após a terceira falha, encerra a ação; novo acionamento exige novo challenge.
 - **Definitiva** = veredito reprovado, `requestHash` divergente, prova de posse inválida, chave/versão
   fora da política: `burn` (o challenge não vira oráculo de tentativas).
-- **Crash entre `verifying` e `used`:** o claim expira em 45 s e o challenge volta a poder ser
-  reclamado dentro do TTL de 5 min. É seguro: (i) um token Play reapresentado devolve vereditos vazios
-  no segundo decode (proteção do Google) → falha; (ii) uma atestação iOS reapresentada encontra a chave
+- **Crash entre `verifying` e `used`:** `V` permanece até a expiração do ledger; o mesmo challenge
+  não volta a ser reclamável. Depois de 45 s o cliente trata `IN_PROGRESS` como tentativa perdida,
+  aguarda o backoff e obtém outro challenge/token dentro do limite de 3 tentativas da ação. É seguro:
+  (i) o mesmo token Play não é reapresentado ao decode; (ii) uma atestação iOS reapresentada encontra a chave
   já registrada → **409 `KEY_ALREADY_ENROLLED`, sem emitir token** (o enrollment é idempotente por chave
   pública: `gd:pk:{sha256}` com `SET NX`); (iii) o cliente legítimo que perdeu a resposta recupera pela
   **renovação** (Android: Play Integrity novo + prova de posse; iOS: *assertion*), identificando a instalação por `keyThumbprint` (Apêndice B) — nunca
   por replay do enrollment.
-- **Limite de custo:** no máximo **1 decode Google por challenge** (o claim é atômico e vem antes da
-  chamada externa), e a prova de posse/status da instalação é conferida **antes** do decode (T16).
+- **Limite de custo:** no máximo **1 decode Google total por challenge**, inclusive em timeout/crash;
+  no máximo 3 por ciclo automático de uma ação legítima. Challenges arbitrários continuam sujeitos aos
+  limites de IP-hash/instalação, à reserva de cota de renovações e ao alerta de cota (T16). A prova de
+  posse/status da instalação é conferida **antes** do decode.
 
 ---
 
@@ -966,6 +975,9 @@ Regras de interação:
 chamada. Estorno lógico só com **evidência** de falha anterior ao *dispatch* ou de falha
 comprovadamente não cobrada; o resto é `unknown` e **mantém** a unidade de quota. A idempotência é
 **contabilidade**, não *replay* de resposta: **nenhum corpo de pedido ou resposta é guardado**.
+O [OpenRouter](https://openrouter.ai/blog/insights/reliability-failover/) descreve falhas em geral
+sem cobrança, mas reconhece exceções de `429` e saída parcial com créditos consumidos; o status HTTP
+sozinho não constitui evidência de custo zero.
 
 Registro `gd:idem:{installation}:{key}` (TTL 15 min, superior ao horizonte de retentativa) com
 `state ∈ {pending, charged, refunded, unknown}`, `dispatched` (0/1), `t_reserve`, `t_dispatch`,
@@ -978,25 +990,31 @@ silenciosa do token, Seção 7.5); uma nova tentativa do usuário usa **outra** 
 | falha **antes** do *dispatch* (validação, token, config/guard, `CAP_GUARD`, lock) | `dispatched = 0` | `refunded` | estorna | sim |
 | provedor `2xx` com corpo válido | resposta completa | `charged` | mantém | **não** |
 | provedor `2xx` com corpo inválido/acima do teto | o provedor respondeu (custo incorrido) | `charged` | mantém | **não** |
-| provedor `402` com `error.metadata.limit_source` (`openrouter_key_limit`, `openrouter_credits`, `in_flight_budget_exhausted`) | rejeição por **limite/crédito**, documentada; o `in_flight_budget_exhausted` é "rejected … before it reaches a provider" `[OFICIAL]` | `refunded` | estorna | sim (após `Retry-After` quando houver) |
-| provedor `429` ("Rate limit exceeded") | rejeição por limite de taxa, não processada `[INFERÊNCIA; U-20]` | `refunded` | estorna | sim (após espera) |
-| provedor `4xx` de contrato (400/401/403/404) | erro do provedor, sem execução | `refunded` | estorna | sim (≤ 2 tentativas) |
+| provedor `402` com `error.metadata.limit_source` que comprove rejeição **antes da inferência** (`in_flight_budget_exhausted`, ou outro caminho validado em U-20) | evidência do caminho pré-inferência registrada | `refunded` | estorna | **não** se houve *dispatch*; nova ação usa nova chave |
+| provedor `402` sem prova do caminho pré-inferência | após *dispatch*, custo incerto | **`unknown`** | mantém | **não** |
+| provedor `429` ("Rate limit exceeded") | OpenRouter admite exceções com créditos consumidos e *partial output*; medir por caminho em U-20 | **`unknown`** por padrão | mantém | **não** |
+| provedor `4xx` (400/401/403/404) com prova de rejeição **pré-dispatch/pré-inferência** | validação local (`dispatched = 0`) ou rejeição do provedor comprovadamente anterior à inferência | `refunded` | estorna | **não** se houve *dispatch*; nova ação usa nova chave |
+| provedor `4xx` (400/401/403/404) após *dispatch*, sem prova de custo zero | erro HTTP não prova ausência de execução ou cobrança | **`unknown`** | mantém | **não** |
+| erro do provedor cuja documentação e telemetria U-20 comprovem zero cobrança para **aquele caminho** | evidência registrada da classe e do caminho específico, incluindo saída parcial | `refunded` | estorna | **não** se houve *dispatch*; nova ação usa nova chave |
 | provedor `5xx` | *dispatch* feito, resultado incerto | **`unknown`** | mantém | **não** |
 | *timeout*/*abort*/erro de rede **depois** do *dispatch* | incerto | **`unknown`** | mantém | **não** |
 | crash da função entre *dispatch* e *commit* | `pending` com `dispatched = 1` e idade ≥ `DISPATCH_GRACE` (proposta: 60 s) | **`unknown`** (por leitura) | mantém | **não** |
 
 **Mesma `Idempotency-Key`:** `pending` → 409 `REQUEST_IN_PROGRESS`; `charged` → 409
 `ALREADY_PROCESSED` (a resposta não é guardada; o usuário refaz com nova chave); `unknown` → 409
-`OUTCOME_UNKNOWN` (**sem nova chamada paga**; a nova ação do usuário é uma nova solicitação, com
-nova reserva); `refunded` → nova reserva, no máximo 2 tentativas por chave. Nada disso dispara
-segunda chamada ao provedor enquanto o estado é `pending/charged/unknown`.
+`OUTCOME_UNKNOWN` (**sem nova chamada paga**; a nova ação explícita do usuário é uma nova solicitação,
+com nova chave e nova reserva de quota); `refunded` depois de *dispatch* → a chave antiga permanece
+terminal e a nova ação usa outra chave; `refunded` pré-dispatch → nova reserva com a mesma chave é
+permitida, no máximo 2 tentativas por chave. Nenhum estado `pending/charged/unknown` dispara outra
+chamada ao provedor com a mesma chave.
 
 **Como reconciliar o incerto sem guardar corpo/resposta:** (1) contadores **agregados** de `unknown`
 (global e por instalação, por dia); (2) comparação diária de `Σ(charged + unknown) × custo_p95` com o
 `usage_daily` do OpenRouter (`GET /api/v1/key`) → métrica de *drift* `recon.drift`; (3) teto de `unknown`
 por instalação/dia — passou dele, a instalação fica `degraded` (quota reduzida), não banida; (4) se a
-medição em R1 provar que uma classe (por exemplo, `5xx`) **nunca** é cobrada, ela só passa de `unknown`
-para `refunded` **com a evidência registrada neste documento** (U-20). O teto global OpenRouter
+medição em R1 provar que um caminho específico **não** é cobrado, ele só passa de `unknown`
+para `refunded` **com a evidência registrada neste documento** (U-20), inclusive verificação de saída
+parcial e confronto com *usage/activity* do OpenRouter. O teto global OpenRouter
 (L0/L3) **não** depende dessa contabilidade.
 
 ### 8.5 Reset de quota e anti-farming: a força da quota (IR-121-03)
@@ -1090,7 +1108,7 @@ na região da função (`iad1`) `[OFICIAL]`.
 
 **V1: Upstash Redis (Vercel Marketplace), região `us-east-1` (co-localizado com a função `iad1`),
 atrás de uma porta `GuardStore`.** Operações da porta (todas atômicas, sem `GET` solto para decisão de
-segurança): `claimChallenge`/`completeChallenge`/`releaseChallenge`/`burnChallenge`,
+segurança): `claimChallenge`/`completeChallenge`/`burnChallenge` (sem `releaseChallenge`),
 `getInstallation`/`putInstallation` (com `SET NX` no índice de chave), `putSession`/`getSession`,
 `revokeInstallation`/`denylist`, `reserveQuota`/`commitQuota`/`refundQuota`, `idem.reserve`/
 `idem.markDispatched`/`idem.settle(outcome)`, `acquireInFlight`/`releaseInFlight`, `getConfig`,
@@ -1277,10 +1295,10 @@ piso, que já é `enforce`.
 
 | Fase | Objetivo | Entregas (futuros GOALs) | Entrada | Saída | Rollback |
 |---|---|---|---|---|---|
-| **R0** governança e pré-requisitos | destravar sem código | emenda do `CLAUDE.md` (Apêndice D); D-AUTH-01..05; gates G-01..G-06; Redis provisionado **com a configuração exigida** (eviction OFF, auto-upgrade OFF; Preview em banco separado); jurídico iniciado | este documento **e a R2 da revisão independente** | decisões assinadas; `READY_FOR_AUTH_IMPLEMENTATION_GOAL` | — |
-| **R1** enrollment opcional + telemetria + transporte nativo (**Android primeiro**) | medir sem bloquear | (a) **forward-compat do cliente** (default seguro em `aiFailureToUiState`) num release **antes** de qualquer código novo; (b) porta de transporte no cliente sem mudar comportamento; (c) `GuardStore` + Redis; rotas `challenge`/`enroll`/`token`; (d) plugin nativo Android (Keystore + Play Integrity lazy + **transporte autenticado nativo**, 7.5); (e) piso/`gd:cfg`/emergência implementados e testados (12.1); (f) métricas agregadas; (g) `CAP_GUARD` em modo log; (h) `QUOTA_MODE=shadow` com telemetria de anti-farming (`recentDeviceActivity`, enrollments/dia, idade); (i) exclusão de backup no manifest; (j) Data Safety/D-NUT-09 atualizados **antes de testers externos** | R0 | quase todo tráfego dos builds novos com token válido; distribuição de vereditos conhecida (fecha U-01/U-10); p50/p95/p99 de chamadas/dia/instalação e custo por chamada medidos (U-08, U-20); **gate estático "sem bearer no JS" verde e captura de rede provando que o WebView não chama o gateway nos builds novos**; erros de atestação e cota Google dentro do limite definido pelo dono; **nenhum aumento de erro do Assistente** | piso em `off`/`observe` por deploy, ou override de emergência |
+| **R0** governança e pré-requisitos | destravar sem código | emenda do `CLAUDE.md` (Apêndice D); D-AUTH-01..05; gates G-01..G-06; Redis provisionado **com a configuração exigida** (eviction OFF, auto-upgrade OFF; Preview em banco separado); jurídico iniciado | este documento **e a R3 da revisão independente confirmando IR-121-05/06** | decisões assinadas; `READY_FOR_AUTH_IMPLEMENTATION_GOAL` | — |
+| **R1** enrollment opcional + telemetria + transporte nativo (**Android primeiro**) | medir sem bloquear | (a) **forward-compat do cliente** (default seguro em `aiFailureToUiState`) num release **antes** de qualquer código novo; (b) porta de transporte no cliente sem mudar comportamento; (c) `GuardStore` + Redis; rotas `challenge`/`enroll`/`token`; (d) plugin nativo Android (Keystore + Play Integrity lazy + **transporte autenticado nativo**, 7.5); (e) piso/`gd:cfg`/emergência implementados e testados (12.1); (f) métricas agregadas de *outcome*, inclusive `429` e saída parcial, confrontadas com *usage/activity* do OpenRouter (U-20); (g) `CAP_GUARD` em modo log; (h) `QUOTA_MODE=shadow` com telemetria de anti-farming (`recentDeviceActivity`, enrollments/dia, idade); (i) exclusão de backup no manifest; (j) Data Safety/D-NUT-09 atualizados **antes de testers externos** | R0 | quase todo tráfego dos builds novos com token válido; distribuição de vereditos conhecida (fecha U-01/U-10); p50/p95/p99 de chamadas/dia/instalação e custo por chamada medidos (U-08); U-20 mede `429`, saída parcial e divergência de *outcome* × *usage/activity* sem promover classe a `refunded` sem evidência; **gate estático "sem bearer no JS" verde e captura de rede provando que o WebView não chama o gateway nos builds novos**; erros de atestação e cota Google dentro do limite definido pelo dono; **nenhum aumento de erro do Assistente** | piso em `off`/`observe` por deploy, ou override de emergência |
 | **R2** enforcement de atestação | exigir token | **2a `shadow`**: calcula "bloquearia" sem bloquear (contadores + cabeçalho de diagnóstico). **2b `enforce`** (Production nativo): token obrigatório; requisição **sem token** → `503 PROVIDER_UNAVAILABLE` "Atualize o GymFlow" (compat, F-121-04); **bucket `legacy`** global pequeno até o *sunset* (D-AUTH-08) — o dano anônimo máximo passa a ser **exatamente o tamanho desse bucket por dia**; canal `internal` (allowlist do digest, ou códigos de tester) com `internal_until`; **canal web conforme D-AUTH-03** (padrão W1: a UI web deixa de oferecer o Assistente — "disponível no app" — e o servidor já recusa requisições sem token) | R1 concluída; testers atualizados; **testes de piso (store fora, config ausente/ilegível/abaixo do piso, emergência inválida) e do override de emergência verdes (em Preview)** | `legacy` = 0 após o sunset; nenhum tester bloqueado; falsos positivos abaixo do limiar; **`AI_GUARD_MIN_AUTH_MODE = enforce` no deploy de Production**; override de emergência exercitado **uma vez em Production** logo depois de elevar o piso (janela curta, sem tester ativo) e revertido | override de emergência (temporário) ou deploy com piso menor |
-| **R3** quota **`SOFT`** com anti-enrollment mínimo | limitar por identidade, sem prometer unicidade por aparelho | **pré-requisitos (R3.0):** *budgets* de enrollment (global e por IP-hash), quota por idade + **pool de instalações novas**, gate por `recentDeviceActivity` (Play) e limite de resets (8.5); modelo de *outcome*/estorno (8.4); pacing L3 e `CAP_GUARD` em *enforce*. **Depois:** `QUOTA_MODE=shadow → enforce` com números da telemetria (D-AUTH-07); UI `QUOTA_EXCEEDED`; **reavaliar o limite de IP (L1)**; alertas de orçamento | R2b estável | (1) **o vetor de farming foi reproduzido em aparelho real** (laço "limpar dados → enroll" via `adb`) **e contido**: gasto agregado das instalações novas ≤ pool, enrollments/h limitados por *budget* e `recentDeviceActivity`; (2) usuário legítimo (≤ p95) nunca bloqueado; (3) pacing verificado com orçamento simulado esgotado e L0 intacto; (4) `QUOTA_STRENGTH = SOFT` declarado; (5) **`AI_GUARD_MIN_QUOTA_MODE = enforce` no deploy**. **A R3 não fecha T14/T22.** | `QUOTA_MODE=shadow` por deploy ou override |
+| **R3** quota **`SOFT`** com anti-enrollment mínimo | limitar por identidade, sem prometer unicidade por aparelho | **pré-requisitos (R3.0):** *budgets* de enrollment (global e por IP-hash), quota por idade + **pool de instalações novas**, gate por `recentDeviceActivity` (Play) e limite de resets (8.5); modelo de *outcome*/estorno (8.4), com `429` e 4xx pós-dispatch sem prova em `unknown` e promoção a `refunded` só com evidência U-20; pacing L3 e `CAP_GUARD` em *enforce*. **Depois:** `QUOTA_MODE=shadow → enforce` com números da telemetria (D-AUTH-07); UI `QUOTA_EXCEEDED`; **reavaliar o limite de IP (L1)**; alertas de orçamento | R2b estável | (1) **o vetor de farming foi reproduzido em aparelho real** (laço "limpar dados → enroll" via `adb`) **e contido**: gasto agregado das instalações novas ≤ pool, enrollments/h limitados por *budget* e `recentDeviceActivity`; (2) usuário legítimo (≤ p95) nunca bloqueado; (3) pacing verificado com orçamento simulado esgotado e L0 intacto; (4) `QUOTA_STRENGTH = SOFT` declarado; (5) **`AI_GUARD_MIN_QUOTA_MODE = enforce` no deploy**. **A R3 não fecha T14/T22.** | `QUOTA_MODE=shadow` por deploy ou override |
 | **R4** endurecimento e extensões (cada item com GOAL próprio) | reduzir o residual P2 e **habilitar `QUOTA_STRENGTH = STRONG`** | **anti-farming forte:** deviceRecall (após aprovação do beta; G-12/D-AUTH-09) / DeviceCheck + métrica de fraude do App Attest; iOS App Attest (após Apple Developer); tiers (`MEETS_STRONG_INTEGRITY`, `appAccessRisk`); Key Attestation opcional (4.5, *tier* `android_hw`; D-AUTH-10); prova de posse por requisição; **vínculo com conta (GOAL-36)** e entitlements (GOAL-39); remover canal `internal`; consolidar store em Postgres se preciso | R3 | por item; **`STRONG` só após o vetor de 8.5 ser reproduzido com a memória de dispositivo ativa e contido** (novo enrollment no mesmo aparelho **não** rende quota fresca além da política) | por item |
 
 Regras transversais:
@@ -1297,8 +1315,8 @@ Regras transversais:
 Vetor de teste oficial da Apple para o verificador de atestação; fixtures de veredito Play (todos os
 rótulos/erros); teste de contrato "`PersistedState`/backup não têm campos de auth"; **testes do
 transporte nativo (7.5): gate estático sem bearer no JS, JUnit/XCTest, captura de rede e dump de
-storage no aparelho**; **testes da máquina de estados do challenge (7.6): `claim` concorrente, `release`,
-`burn`, crash entre `verifying` e `used`**; **testes de idempotência/*outcome* (8.4): mesma chave em
+storage no aparelho**; **testes da máquina de estados do challenge (7.6): `claim` concorrente, `burn`,
+timeout/crash em `verifying` sem segundo decode, token novo por retry, teto de 3 tentativas**; **testes de idempotência/*outcome* (8.4): mesma chave em
 `pending/charged/unknown/refunded`, crash após *dispatch*, nenhum 2º *dispatch* sem evidência**; testes de
 atomicidade da reserva de quota sob concorrência; **testes do piso e do override de emergência (12.1)**;
 **verificação da configuração do Upstash (eviction OFF, auto-upgrade OFF, escritas rejeitadas no limite →
@@ -1311,12 +1329,12 @@ Play Integrity, Keystore, backup excluído e 429 legível no nativo (U-03/U-18);
 | Métrica (contador/dia, sem identificador de instalação, 90 d) | Uso |
 |---|---|
 | `enroll.ok/fail.<motivo>`, `refresh.pop/reattest/fail.<motivo>`, `token.reject.<motivo>`, `chal.claim.<estado>` | saúde do enrollment; falsos positivos; estados do challenge |
-| `call.ok/quota/budget/provider_error.<classe>`, `outcome.charged/refunded.<motivo>/unknown` | consumo, bloqueios e *outcomes* |
+| `call.ok/quota/budget/provider_error.<classe>`, `outcome.charged/refunded.<motivo>/unknown`, `provider.partial_output` | consumo, bloqueios e *outcomes*, incluindo saída parcial (U-20) |
 | distribuição de rótulos: `v.device.*`, `v.app.*`, `v.lic.*`, `v.activity.LEVEL_n` | política de vereditos; tiers; U-01; anti-farming |
 | `enroll.budget.deny`, `pool.new.exhausted`, `probation.count`, `reset.count` | anti-farming (8.5) |
 | `anon.legacy`, `cap.guard.trip`, `counter.regression` | sunset, cap, sinal de clone |
 | `cfg.below_floor`, `emergency.on/off`, `store.error.<tipo>` | configuração e falhas do store (12.1) |
-| `recon.drift`, cota Google (relatório "Monitor Play Integrity API" do Console + Cloud Console), `usage_daily`/`limit_remaining` do OpenRouter | orçamento, cota e conciliação de *outcomes* incertos |
+| `recon.drift`, cota Google (relatório "Monitor Play Integrity API" do Console + Cloud Console), `usage_daily`/`limit_remaining` e activity do OpenRouter | orçamento, cota e conciliação de *outcomes* incertos por caminho (U-20) |
 
 Alertas: `cap.guard.trip`, pacing ≥ 80% do dia, decode ≥ 70% da cota, pico de falha de enrollment,
 `anon.legacy` > 0 após o sunset, **`emergency.on`, `cfg.below_floor`, `pool.new.exhausted`,
@@ -1376,17 +1394,17 @@ independente (Seção 16); onde a decisão nasceu de um achado, o `IR-121-nn` es
 | D121-006 | **Transporte autenticado nativo** (IR-121-01): o plugin guarda `installation_id`/token/chave/`Idempotency-Key` e faz a chamada ao gateway; o bearer **nunca** entra no JS; sem `getToken` nem HTTP genérico; o preflight/CORS **não** é ampliado; `/api/ai/v1/*` rejeita `Origin`; `Authorization` + `Origin` → 403; o cliente ganha a porta `AssistantTransport` (`WebFetchTransport` legado × `NativeGuardTransport`) |
 | D121-007 | Store V1 = **Upstash Redis** (Marketplace, `us-east-1`) atrás de `GuardStore`, com `EVICTION = OFF`, `AUTO_UPGRADE = OFF`, *budget* se PAYG e banco de Preview separado; **análise de perda por tipo de estado** (9.1); denylist exportada por script; falha de store/limite = *fail-closed* só do Assistente; nada de saúde/treino/nutrição no servidor; Postgres/Supabase só com conta (IR-121-07) |
 | D121-008 | Unidade de quota = chamadas/instalação/dia+mês UTC (reserva atômica) + 1 em voo + pacing global + `CAP_GUARD`; instalação nova nasce em *probation*; números só depois da telemetria da R1 (D-AUTH-07) |
-| D121-009 | Idempotência = contabilidade de *outcomes* `pending`/`charged`/`refunded`/`unknown`; estorno **só com evidência**; a mesma `Idempotency-Key` **nunca** dispara nova chamada paga em `pending/charged/unknown`; nenhum corpo/resposta é guardado (IR-121-06) |
+| D121-009 | Idempotência = contabilidade de *outcomes* `pending`/`charged`/`refunded`/`unknown`; estorno **só com evidência** de pré-dispatch/pré-inferência ou zero cobrança no caminho medido (U-20); `429` e 4xx pós-dispatch sem prova = `unknown`; a mesma `Idempotency-Key` **nunca** dispara nova chamada paga em `pending/charged/unknown`; nova ação do usuário usa nova chave e quota; nenhum corpo/resposta é guardado (IR-121-06) |
 | D121-010 | Anti-farming como **pré-requisito da R3**: *budgets* de enrollment (global e por IP-hash), quota por idade + pool de instalações novas, gate por `recentDeviceActivity` (Play) e limite de resets; `QUOTA_STRENGTH = SOFT` declarado; `STRONG` só na R4 com deviceRecall/DeviceCheck (IR-121-03) |
 | D121-011 | Config fail-safe (IR-121-04): **piso** `AI_GUARD_MIN_AUTH_MODE`/`AI_GUARD_MIN_QUOTA_MODE` versionado por deploy (em Production ausente/ilegível ⇒ `enforce`); `gd:cfg` **só aperta**; **override de emergência** assinado (`EMERGENCY_KEY`), ≤ 4 h, nunca abaixo de `shadow`, auditado; store/config falhando em `enforce` = *fail-closed* só do Assistente. Não existe `AUTH_MODE=off` remoto em Production |
-| D121-012 | Challenge com máquina de estados `verifying`/`used`, *claim* atômico **antes** de qualquer chamada externa, ≤ 1 decode Google por challenge; replay de atestação iOS ⇒ 409 `KEY_ALREADY_ENROLLED` sem token (IR-121-05) |
+| D121-012 | Challenge com máquina de estados `verifying`/`used`, *claim* atômico **antes** de qualquer chamada externa, sem `release`: ≤ 1 decode Google **total** por challenge; falha/timeout/crash consome o challenge, retry com challenge e integrityToken novos, até 3 tentativas por ação com backoff 5/10/20 s; replay de atestação iOS ⇒ 409 `KEY_ALREADY_ENROLLED` sem token (IR-121-05) |
 | D121-013 | O Firewall fica como *backstop*; **não** limita por token no Hobby (chave só IP/JA4); limites por instalação vivem na função |
 | D121-014 | Canal web: padrão **W1** (desligar o Assistente na web Production ao entrar em enforcement), pendente de D-AUTH-03 |
 | D121-015 | Rollout R0–R4 com `AUTH_MODE`/`QUOTA_MODE` e piso versionado; requisição sem token recebe só códigos que os builds atuais mapeiam; `aiFailureToUiState` ganha `default` seguro na 1ª entrega da R1; canal `internal` com sunset |
 | D121-016 | Identidade/sessão **nunca** em WebView/JS, `PersistedState` ou backup; armazenamento nativo fora de backup; testes de contrato, incluindo o **gate estático "nenhum JS monta `Authorization` nem contém `gfat1_`"** |
 | D121-017 | A emenda do `CLAUDE.md` é **proposta**, não aplicada (Apêndice D) |
 | D121-018 | `installation_id` e chave pública/`key_id` são **identificadores persistentes** (potencial dado pessoal até parecer jurídico; sem conclusão LGPD aqui): Data Safety, App Privacy e D-NUT-09 atualizados **antes** de testers externos (IR-121-08) |
-| D121-019 | **Revisão independente:** a tentativa local do executor não rodou (falha de ambiente); a **R1** externa (GPT-5.6 Sol / OpenAI, PR #55) devolveu `CHANGES_REQUIRED` (P0 = 0, P1 = 4, P2 = 4, P3 = 0); as correções IR-121-01..08 foram aplicadas **só na documentação** (`APPLIED`, ainda não `FIXED`); `INDEPENDENT_REVIEW_RESULT = R1_CHANGES_APPLIED_PENDING_R2` e `READY_FOR_AUTH_IMPLEMENTATION_GOAL = PENDING_INDEPENDENT_REREVIEW`; a **R2** é obrigatória antes de qualquer GOAL de implementação (Seção 16, Apêndice F) |
+| D121-019 | **Revisão independente:** a tentativa local do executor não rodou (falha de ambiente); a R1 externa (GPT-5.6 Sol / OpenAI, PR #55) devolveu P0=0/P1=4/P2=4/P3=0. A R2 (mesmo revisor, HEAD `9aa08942`) devolveu `CHANGES_REQUIRED`, P0=0/P1=0/P2=2/P3=0: IR-121-01..04/07/08 `FIXED`, IR-121-05/06 `PARTIAL`. As correções dos dois P2 foram aplicadas só na documentação (`APPLIED_PENDING_R3`, nunca auto-`FIXED`); `INDEPENDENT_REVIEW_RESULT = R2_CHANGES_APPLIED_PENDING_R3`; `READY_FOR_AUTH_IMPLEMENTATION_GOAL = PENDING_INDEPENDENT_REREVIEW` (Seção 16, Apêndice F) |
 
 ### 14.2 Decisões humanas pendentes
 
@@ -1434,23 +1452,22 @@ RESIDUAL_SEVERITY (Seção 3)  P0 = 0 · P1 = 0 · P2 = 10 (T01 T06 T07 T08 T14 
 P0_ARCHITECTURE_UNKNOWN = 0                    (análise do autor)
 P1_ARCHITECTURE_UNKNOWN = 0                    (análise do autor; os 4 P1 da R1 foram corrigidos no texto)
 
-INDEPENDENT_REVIEW_RESULT = R1_CHANGES_APPLIED_PENDING_R2
-     R1 (GPT-5.6 Sol / OpenAI, PR #55): CHANGES_REQUIRED · P0 = 0 · P1 = 4 · P2 = 4 · P3 = 0
-     IR-121-01..08 corrigidos nas seções canônicas (Seção 16.2); nenhuma confirmação independente ainda
+INDEPENDENT_REVIEW_RESULT = R2_CHANGES_APPLIED_PENDING_R3
+      R1 (GPT-5.6 Sol / OpenAI, PR #55): CHANGES_REQUIRED · P0 = 0 · P1 = 4 · P2 = 4 · P3 = 0
+      R2 (GPT-5.6 Sol / OpenAI, PR #55, HEAD 9aa08942): CHANGES_REQUIRED · P0 = 0 · P1 = 0 · P2 = 2 · P3 = 0
+      IR-121-01..04 e 07..08 = FIXED; IR-121-05/06 = APPLIED_PENDING_R3 (eram PARTIAL na R2)
 READY_FOR_AUTH_IMPLEMENTATION_GOAL = PENDING_INDEPENDENT_REREVIEW
 ```
 
-**Por que não é `YES`:** a R1 devolveu `CHANGES_REQUIRED` e escreveu explicitamente que o desenho não
-estava pronto para virar GOAL de implementação. As correções acima foram feitas **pelo autor**;
-nenhum revisor independente confirmou ainda que cada achado está `FIXED` nem que as correções não
-introduziram problemas novos (Seção 16.4 lista onde elas foram mais invasivas). Um `YES` agora
-afirmaria algo que ninguém além do autor verificou. **Regra:** nenhum GOAL de implementação começa
-antes de a **R2** confirmar `FIXED` em IR-121-01..08 e de P0 = P1 = 0 (novos ou antigos). Depois
+**Por que não é `YES`:** a R2 devolveu `CHANGES_REQUIRED` com IR-121-05/06 `PARTIAL`. As duas
+correções deste commit foram feitas **pelo autor** e ainda exigem R3 independente; não são `FIXED`.
+**Regra:** nenhum GOAL de implementação começa antes de a **R3** confirmar `FIXED` em IR-121-05/06,
+preservar os seis achados já `FIXED` e manter P0 = P1 = 0. Depois
 disso o valor passa a `YES` (o *início* ainda depende dos gates G-01, G-02/G-04, G-06 e
 D-AUTH-01/02/04/06, todos enumerados e nenhum é pergunta de arquitetura) ou a
-`BLOCKED_HUMAN_ARCHITECTURE_DECISION` (se a R2 contestar B). **R2 do rollout (enforcement) não está
+`BLOCKED_HUMAN_ARCHITECTURE_DECISION` (se a R3 contestar B). **R2 do rollout (enforcement) não está
 liberada** de qualquer forma: exige R1 do rollout medida e D-AUTH-03/05/08. (Atenção ao nome:
-"R1/R2" da **revisão independente** e "R1/R2" das **fases de rollout** são coisas diferentes.)
+"R1/R2/R3" da **revisão independente** e "R1/R2" das **fases de rollout** são coisas diferentes.)
 
 **Por que P0/P1 desconhecidos = 0 (segundo o autor):** os itens **não verificados** (Apêndice E) são
 todos P2/P3, cada um tem verificação prevista antes de qualquer enforcement, e nenhum muda a
@@ -1463,8 +1480,8 @@ versionado, pacing + cap externos ao Redis). Isto é análise do autor, não rev
 
 ## 16. Revisão independente
 
-**Estado: R1 executada (externa ao executor) → `CHANGES_REQUIRED`; correções aplicadas neste documento;
-R2 pendente.** `INDEPENDENT_REVIEW_RESULT = R1_CHANGES_APPLIED_PENDING_R2`.
+**Estado: R2 executada → `CHANGES_REQUIRED` (dois P2); correções dos dois achados aplicadas neste
+documento; R3 pendente.** `INDEPENDENT_REVIEW_RESULT = R2_CHANGES_APPLIED_PENDING_R3`.
 
 ### 16.1 Rodadas
 
@@ -1472,7 +1489,8 @@ R2 pendente.** `INDEPENDENT_REVIEW_RESULT = R1_CHANGES_APPLIED_PENDING_R2`.
 |---|---|---|---|---|
 | Tentativa local do executor (Codex CLI) | — | — | 2026-09-28, 22:00–22:20Z | **não executada** — falha do ambiente local, não do desenho (16.5); sem resultado |
 | **R1** | **GPT-5.6 Sol (OpenAI)** — família de modelo diferente da do autor (Claude) | este documento em `91fcc92…` (PR #55, base `ebcc786…`) e o código citado | 2026-09-29 (registrada como *review* do PR #55, id 5347464606) | **`CHANGES_REQUIRED` — P0 = 0 · P1 = 4 · P2 = 4 · P3 = 0** |
-| **R2** | a definir (Apêndice F) | este documento **pós-R1** | pendente | pendente |
+| **R2** | **GPT-5.6 Sol / OpenAI** | documento pós-R1 em `9aa08942cc3afa4cf3febc9d02aa5d5b56bbbeb3` (PR #55, base `ebcc7867c60012aee58e9ec7de9beabaec747f4c`) | 2026-09-29 (review do PR #55) | **`CHANGES_REQUIRED` — P0 = 0 · P1 = 0 · P2 = 2 · P3 = 0** |
+| **R3** | a definir | este documento pós-R2; foco IR-121-05/06 | pendente | pendente |
 
 **O que a R1 concluiu:** a arquitetura **B continua viável**, mas **não estava pronta para virar GOAL
 de implementação**; os quatro P1 são corrigíveis no próprio desenho e não exigem nova decisão humana
@@ -1486,45 +1504,39 @@ incompatibilidade real com B; cada P1 foi corrigido *dentro* dela (D121-001).
 
 | ID | Sev. | Onde (versão revisada) | Achado (resumo) | Correção aplicada (seção canônica) | Status |
 |---|---|---|---|---|---|
-| IR-121-01 | **P1** | 7.1, D121-011, Ap. B | Fronteira do token contraditória: "nunca em WebView" × cliente JS que monta `Authorization: Bearer` | **Transporte autenticado nativo**: o plugin guarda as credenciais e faz a chamada; o JS envia só o corpo e recebe resposta sanitizada; sem `getToken` nem HTTP genérico; preflight **não** ampliado; `/api/ai/v1/*` rejeita `Origin`; `Authorization` + `Origin` → 403; porta `AssistantTransport` e migração na R1; gate estático "sem bearer no JS" (**7.5**, 7.1, 11, 12, Ap. B; T05, T25; D121-006/016) | `APPLIED` — aguarda R2 |
-| IR-121-02 | **P1** | 4.2, 4.5, 6, 7 | Chave de prova de posse do Android não é provada em hardware; o `requestHash` liga o SPKI, não a origem da chave; risco de *broker* | **Premissa retirada** no V1: toda renovação exige **Play Integrity novo** + prova de posse (`ATTEST_MAX_AGE = 0`), limitada por `recentDeviceActivity` e taxa; Key Attestation vira *tier* opcional `android_hw` com challenge, cadeia/raízes, CRL, nível de segurança, vínculo de app, *fallback* `play_only` e privacidade definidos (**4.2, 4.5**, 6, 7.1, 7.3; T06, T12, T23; D121-003; D-AUTH-10) | `APPLIED` — aguarda R2 |
-| IR-121-03 | **P1** | 8, 12 (R3→R4), T14/T22 | Quota por instalação resetável (novo enrollment no mesmo aparelho) antes do anti-farming, que só entrava na R4 | Anti-enrollment vira **pré-requisito da R3** (*budgets* global e por IP-hash, pool de instalações novas + quota por idade, gate `recentDeviceActivity`, limite de resets) **e** a quota da R3 é declarada **`SOFT`** (proteção financeira = pacing + cap); `STRONG` só na R4, com memória de dispositivo e o vetor reproduzido em aparelho real (**8.5**, 12.2; T08, T14, T22; D121-002/010; D-AUTH-07/09; G-12) | `APPLIED` — aguarda R2 |
-| IR-121-04 | **P1** | 9, 12 | Config/store em enforcement sem semântica para ausente/ilegível; podia falhar aberto | **Piso versionado no deploy** (`AI_GUARD_MIN_*`; ausente em Production ⇒ `enforce`); `gd:cfg` só aperta; **override de emergência** assinado por HMAC (`EMERGENCY_KEY`), ≤ 4 h, nunca abaixo de `shadow`, auditado; ausente/ilegível/abaixo do piso ⇒ piso; store ou limite indisponível em enforce ⇒ *fail-closed* só do Assistente (**12.1**, 9.3, 7.4, 11; T19, T26; D121-011) | `APPLIED` — aguarda R2 |
-| IR-121-05 | P2 | 7.1 × Ap. C | Ledger de challenge contraditório: `SET NX` "em verificação" no texto × só `used` após sucesso no modelo de dados | Máquina de estados `verifying`/`used`, *claim* atômico antes do decode, operações `claim/complete/release/burn`, falha transitória × definitiva, crash entre estados analisado, ≤ 1 decode por challenge (**7.6**, Ap. C; T16; D121-012) | `APPLIED` — aguarda R2 |
-| IR-121-06 | P2 | 8, 9, Ap. C | Idempotência/estorno sem *outcome* incerto: um *timeout* não prova que o provedor não cobrou | `pending/charged/refunded/unknown` + `dispatched`; estorno só com evidência; a mesma chave nunca re-dispara em `pending/charged/unknown`; reconciliação com `usage_daily`; L0/L3 independem do Redis; nenhum corpo guardado (**8.4**, Ap. C; T27; D121-009; U-20) | `APPLIED` — aguarda R2 |
-| IR-121-07 | P2 | 9.2/9.3, U-06 | Premissas do Upstash desatualizadas: persistência sempre ligada, eviction opt-in/desligada por padrão, free sem a redundância dos planos pagos | Fatos oficiais reescritos e citados; **eviction OFF**, **auto-upgrade OFF**, *budget* se PAYG; limite/escrita rejeitada ⇒ *fail-closed* do Assistente; durabilidade **não** equiparada a HA/SLA; **análise de perda por tipo de estado**; consistência eventual ⇒ decisões de segurança em scripts do líder (**9.1–9.3**, 13/G-06, Ap. A/E; T28; D121-007; U-06, U-21) | `APPLIED` — aguarda R2 |
-| IR-121-08 | P2 | 10.1 | "Chave pública/`key_id` não é PII" é categórico demais | Redação factual: sem nome, e-mail nem conteúdo de saúde, mas **identificador persistente** ⇒ dado de dispositivo/potencial dado pessoal até parecer jurídico; sem conclusão LGPD (**10.1–10.3**, 6; D121-018) | `APPLIED` — aguarda R2 |
+| IR-121-01 | **P1** | 7.1, D121-011, Ap. B | Fronteira do token contraditória: "nunca em WebView" × cliente JS que monta `Authorization: Bearer` | **Transporte autenticado nativo**: o plugin guarda as credenciais e faz a chamada; o JS envia só o corpo e recebe resposta sanitizada; sem `getToken` nem HTTP genérico; preflight **não** ampliado; `/api/ai/v1/*` rejeita `Origin`; `Authorization` + `Origin` → 403; porta `AssistantTransport` e migração na R1; gate estático "sem bearer no JS" (**7.5**, 7.1, 11, 12, Ap. B; T05, T25; D121-006/016) | `FIXED` (R2) |
+| IR-121-02 | **P1** | 4.2, 4.5, 6, 7 | Chave de prova de posse do Android não é provada em hardware; o `requestHash` liga o SPKI, não a origem da chave; risco de *broker* | **Premissa retirada** no V1: toda renovação exige **Play Integrity novo** + prova de posse (`ATTEST_MAX_AGE = 0`), limitada por `recentDeviceActivity` e taxa; Key Attestation vira *tier* opcional `android_hw` com challenge, cadeia/raízes, CRL, nível de segurança, vínculo de app, *fallback* `play_only` e privacidade definidos (**4.2, 4.5**, 6, 7.1, 7.3; T06, T12, T23; D121-003; D-AUTH-10) | `FIXED` (R2) |
+| IR-121-03 | **P1** | 8, 12 (R3→R4), T14/T22 | Quota por instalação resetável (novo enrollment no mesmo aparelho) antes do anti-farming, que só entrava na R4 | Anti-enrollment vira **pré-requisito da R3** (*budgets* global e por IP-hash, pool de instalações novas + quota por idade, gate `recentDeviceActivity`, limite de resets) **e** a quota da R3 é declarada **`SOFT`** (proteção financeira = pacing + cap); `STRONG` só na R4, com memória de dispositivo e o vetor reproduzido em aparelho real (**8.5**, 12.2; T08, T14, T22; D121-002/010; D-AUTH-07/09; G-12) | `FIXED` (R2) |
+| IR-121-04 | **P1** | 9, 12 | Config/store em enforcement sem semântica para ausente/ilegível; podia falhar aberto | **Piso versionado no deploy** (`AI_GUARD_MIN_*`; ausente em Production ⇒ `enforce`); `gd:cfg` só aperta; **override de emergência** assinado por HMAC (`EMERGENCY_KEY`), ≤ 4 h, nunca abaixo de `shadow`, auditado; ausente/ilegível/abaixo do piso ⇒ piso; store ou limite indisponível em enforce ⇒ *fail-closed* só do Assistente (**12.1**, 9.3, 7.4, 11; T19, T26; D121-011) | `FIXED` (R2) |
+| IR-121-05 | P2 | 7.1 × Ap. C | Ledger de challenge contraditório: `SET NX` "em verificação" no texto × só `used` após sucesso no modelo de dados | Máquina de estados `verifying`/`used`, *claim* atômico antes do decode; R2 detectou que `release` permitia mais de um decode total. Texto canônico corrigido: sem `release`, até 1 decode total por challenge; retry com challenge/token novos, máximo 3 tentativas por ação (**7.6**, Ap. B/C; T16; D121-012) | `APPLIED_PENDING_R3` (R2: `PARTIAL`) |
+| IR-121-06 | P2 | 8, 9, Ap. C | Idempotência/estorno sem *outcome* incerto: um *timeout* não prova que o provedor não cobrou | `pending/charged/refunded/unknown` + `dispatched`; R2 detectou `429` e 4xx genericamente estornados sem prova. Texto canônico corrigido: `unknown` após dispatch sem evidência, estorno só com prova por caminho; U-20 confronta *outcome* com *usage/activity* e saída parcial (**8.4**, Ap. C; T27; D121-009) | `APPLIED_PENDING_R3` (R2: `PARTIAL`) |
+| IR-121-07 | P2 | 9.2/9.3, U-06 | Premissas do Upstash desatualizadas: persistência sempre ligada, eviction opt-in/desligada por padrão, free sem a redundância dos planos pagos | Fatos oficiais reescritos e citados; **eviction OFF**, **auto-upgrade OFF**, *budget* se PAYG; limite/escrita rejeitada ⇒ *fail-closed* do Assistente; durabilidade **não** equiparada a HA/SLA; **análise de perda por tipo de estado**; consistência eventual ⇒ decisões de segurança em scripts do líder (**9.1–9.3**, 13/G-06, Ap. A/E; T28; D121-007; U-06, U-21) | `FIXED` (R2) |
+| IR-121-08 | P2 | 10.1 | "Chave pública/`key_id` não é PII" é categórico demais | Redação factual: sem nome, e-mail nem conteúdo de saúde, mas **identificador persistente** ⇒ dado de dispositivo/potencial dado pessoal até parecer jurídico; sem conclusão LGPD (**10.1–10.3**, 6; D121-018) | `FIXED` (R2) |
 
-`APPLIED` significa **texto corrigido pelo autor**, nada mais. Só a R2 pode marcar um achado como
-`FIXED`; o autor não se autoavalia como `FIXED`.
+`APPLIED_PENDING_R3` significa **texto corrigido pelo autor após a R2**, nada mais. Só a R3 pode
+marcar IR-121-05/06 como `FIXED`; os seis `FIXED` restantes são vereditos independentes da R2.
 
-### 16.3 Estado depois da R1
+### 16.3 Estado depois da R2 e correções do autor
 
-- `INDEPENDENT_REVIEW_RESULT = R1_CHANGES_APPLIED_PENDING_R2`
+- `INDEPENDENT_REVIEW_RESULT = R2_CHANGES_APPLIED_PENDING_R3`
+- R2: IR-121-01..04 e 07..08 = `FIXED`; IR-121-05/06 = `PARTIAL` → `APPLIED_PENDING_R3`
 - `TARGET_ARCHITECTURE = B` (preservada)
 - `READY_FOR_AUTH_IMPLEMENTATION_GOAL = PENDING_INDEPENDENT_REREVIEW` — **não é `YES`**
 - o PR #55 continua **rascunho**; nada foi mesclado; nada foi provisionado, configurado ou gasto.
 
-### 16.4 O que a R2 deve atacar (autoavaliação do autor)
+### 16.4 Foco da R3 (autoavaliação do autor)
 
 Por achado, onde procurar falhas na correção:
 
-| Achado | Onde a R2 deve procurar |
+| Achado | Onde a R3 deve procurar |
 |---|---|
-| IR-121-01 | qualquer trecho que ainda diga ou implique que o JS monta `Authorization`, recebe o token ou que o preflight foi ampliado (1.2, 7.1, 7.5, 11, Ap. B, Ap. D); se a superfície do plugin (7.5) permite virar proxy HTTP genérico; a convivência de dois caminhos (`WebFetchTransport` legado e `NativeGuardTransport`) até o *sunset* |
-| IR-121-02 | qualquer trecho que ainda chame a chave Android de "hardware-bound"; custo/cota de 1 decode por renovação e dependência da disponibilidade do Google para renovar (T12); o residual P2 aceito em T23 (*broker*); `recentDeviceActivity` só existe com projeto linkado (U-10) |
-| IR-121-03 | se `SOFT` é honesto e suficiente; se o **efeito colateral aceito** do pool (DoS limitado a instalações novas legítimas, 8.5) é tolerável ou precisa de contramedida; se o limite de resets (que só cobre a ação do app) está descrito sem exagero |
-| IR-121-04 | a precedência piso × `gd:cfg` × emergência (12.1) em todos os casos de falha; o novo segredo `EMERGENCY_KEY`; a lentidão de elevar o piso só por deploy |
-| IR-121-05 | consistência de chaves, TTLs e retornos entre 7.6 e o Apêndice C; degradação de UX sob `IN_PROGRESS`/`LOST` |
-| IR-121-06 | a tabela de *outcomes* (8.4) — em especial `429`/`4xx` do provedor como `refunded` `[INFERÊNCIA; U-20]`, que pode estar otimista; o limiar de *drift* |
-| IR-121-07 | os fatos do Upstash contra as páginas citadas (Ap. A); o que o plano free faz acima de 500 mil comandos/mês (não documentado, U-06) |
-| IR-121-08 | as redações das Seções 6, 10 e 13 e o Apêndice D |
+| IR-121-05 | verificar que nenhum `release` ou expiração de `V` permite segundo decode do mesmo challenge; challenge e integrityToken novos em cada tentativa, backoff e limite total de 3 por ação; crash/timeout *fail-safe* |
+| IR-121-06 | verificar que `429`, 4xx e saída parcial pós-dispatch ficam `unknown` sem prova de custo zero; U-20 confronta *outcome* com *usage/activity* antes de qualquer promoção a `refunded` |
 
-**Onde as correções foram mais invasivas (olhar primeiro):** 7.5 (transporte nativo), 7.6 (challenge),
-8.4 (*outcomes*), 8.5 (anti-farming), 12.1 (piso/emergência), 4.5 (Key Attestation), 9.1 (perda por
-tipo) e os Apêndices B e C. Cada uma é texto novo, sem código, sem medição e sem revisão independente.
+**Onde olhar primeiro:** 7.6 (challenge), 8.4 (*outcomes*), Apêndices B/C e U-20. Estas correções são
+texto novo, sem código ou medição, e ainda não receberam a R3 independente.
 
-**Fora do escopo da R2:** a decisão de governança (D-AUTH-01), conclusões jurídicas e a escolha de
+**Fora do escopo da R3:** a decisão de governança (D-AUTH-01), conclusões jurídicas e a escolha de
 números comerciais (D-AUTH-07).
 
 ### 16.5 Histórico: a tentativa local do executor (não é resultado de revisão)
@@ -1587,6 +1599,7 @@ documentação/plano** e atualizar as Seções 14/15 e os registros em `docs/DEC
 |---|---|---|
 | Vercel | https://vercel.com/docs/storage · /docs/vercel-firewall/vercel-waf/rate-limiting (atualizada em 2026-08-28) · /docs/logs/runtime · /docs/oidc/gcp · /docs/plans/hobby · /pricing · /docs/botid | limites Hobby, logs 1 h, OIDC→GCP, não comercial |
 | OpenRouter | https://openrouter.ai/docs/api_reference/limits | `GET /api/v1/key`, `402 limit_source` |
+| OpenRouter cobrança | https://openrouter.ai/blog/insights/reliability-failover/ | falhas em geral sem cobrança, mas exceções relatadas em `429` e saídas parciais; requer U-20 por caminho |
 | UP-pricing | https://upstash.com/pricing/redis | free/PAYG/Prod Pack; SLA, HA e criptografia em repouso só no Prod Pack |
 | UP-durability | https://upstash.com/docs/redis/features/durability | persistência sempre ligada (memória + *block storage*) |
 | UP-eviction | https://upstash.com/docs/redis/features/eviction | eviction desligada por padrão: no limite, as escritas são rejeitadas |
@@ -1613,8 +1626,8 @@ retryAfterSeconds?, resetsAt?, scope? }` (clientes antigos ignoram os campos nov
 | Rota | Corpo | Resposta 200 | Erros |
 |---|---|---|---|
 | `POST /api/ai/v1/challenge` | `{purpose:'enroll'\|'refresh'\|'reset', platform, installationId?}` | `{challenge, expiresAt}` — **stateless**: HMAC(`kid`, purpose, platform, `iat`, 16 B aleatórios, installationId?); emitir não escreve no store | 400, 429 |
-| `POST /api/ai/v1/enroll` | android: `{platform, challenge, integrityToken, installationPublicKey (SPKI b64url), appVersionCode [, keyAttestationChain]}` (a cadeia só é lida no *tier* opcional `android_hw`, 4.5) · ios: `{platform, challenge, keyId, attestation (b64)}` | `{installationId, token, expiresAt, refreshAfter, attestationLevel, channel}` — **consumido pelo plugin; nunca repassado ao JS** | 400 `INVALID_REQUEST`; 403 `ATTESTATION_FAILED`; 409 `CHALLENGE_IN_PROGRESS` / `KEY_ALREADY_ENROLLED`; 429; 503 `ATTESTATION_UNAVAILABLE` |
-| `POST /api/ai/v1/token` | `installationRef` = `{installationId}` **ou** `{keyThumbprint}` (recuperação depois de perder a resposta do enrollment, 7.6; o servidor resolve por `gd:pk` e, sem a prova de posse, a referência não vale nada) + android: `{challenge, integrityToken (**obrigatório** no V1, IR-121-02), appVersionCode (entra no `requestHash`, 4.2), popSignature (ECDSA P-256/SHA-256, DER, sobre `gf-pop-v1` ‖ challenge ‖ installationId — separação de domínio)}` · ios: `{clientData (b64 JSON), assertion (b64)}` | idem `enroll` (sem trocar `installationId`) | 403 `TOKEN_REVOKED` / `ATTESTATION_FAILED`; 409 `REATTEST_REQUIRED` (política subiu, nível insuficiente ou regressão de `counter`: o plugin refaz o enrollment) / `CHALLENGE_IN_PROGRESS`; 429 (`recentDeviceActivity` alto ou taxa de renovação); 503 |
+| `POST /api/ai/v1/enroll` | android: `{platform, challenge, integrityToken, installationPublicKey (SPKI b64url), appVersionCode [, keyAttestationChain]}` (a cadeia só é lida no *tier* opcional `android_hw`, 4.5) · ios: `{platform, challenge, keyId, attestation (b64)}` | `{installationId, token, expiresAt, refreshAfter, attestationLevel, channel}` — **consumido pelo plugin; nunca repassado ao JS** | 400 `INVALID_REQUEST`; 403 `ATTESTATION_FAILED`; 409 `CHALLENGE_IN_PROGRESS` / `KEY_ALREADY_ENROLLED`; 429; 503 `ATTESTATION_UNAVAILABLE` — após falha transitória, novo challenge e novo integrityToken, jamais o já submetido ao decode (7.6) |
+| `POST /api/ai/v1/token` | `installationRef` = `{installationId}` **ou** `{keyThumbprint}` (recuperação depois de perder a resposta do enrollment, 7.6; o servidor resolve por `gd:pk` e, sem a prova de posse, a referência não vale nada) + android: `{challenge, integrityToken (**obrigatório** no V1, IR-121-02), appVersionCode (entra no `requestHash`, 4.2), popSignature (ECDSA P-256/SHA-256, DER, sobre `gf-pop-v1` ‖ challenge ‖ installationId — separação de domínio)}` · ios: `{clientData (b64 JSON), assertion (b64)}` | idem `enroll` (sem trocar `installationId`) | 403 `TOKEN_REVOKED` / `ATTESTATION_FAILED`; 409 `REATTEST_REQUIRED` (política subiu, nível insuficiente ou regressão de `counter`: o plugin refaz o enrollment) / `CHALLENGE_IN_PROGRESS`; 429 (`recentDeviceActivity` alto ou taxa de renovação); 503. Retry transitório: challenge e integrityToken novos (7.6) |
 | `POST /api/ai/v1/reset` *(opcional)* | `{challenge}` (`purpose:'reset'`) + prova de posse (`popSignature` ou *assertion*) | 204 (remove a instalação; ≤ 1×/dia por instalação, 8.5) | 401/403/429 |
 | `GET /api/ai/v1/quota` *(opcional)* | — (Bearer injetado pelo plugin) | `{day:{remaining, resetsAt}, month:{remaining, resetsAt}}` | 401/403 |
 | `POST /api/nutrition/assistant` *(existente)* | corpo atual + cabeçalhos **injetados pelo plugin**: `Authorization: Bearer gfat1_…`, `X-GymFlow-Client: ai-guard/1`, `Idempotency-Key: <uuid>` (uma por ação do usuário, 8.4) | resposta atual + `meta.quota` aditivo | 401 `TOKEN_MISSING` / `TOKEN_EXPIRED`; 403 `TOKEN_REVOKED` / `ATTESTATION_FAILED` / `Authorization` com `Origin`; 409 `REQUEST_IN_PROGRESS` / `ALREADY_PROCESSED` / `OUTCOME_UNKNOWN`; 429 `QUOTA_EXCEEDED` / `RATE_LIMITED`; 503 `OPENROUTER_BUDGET_EXHAUSTED` / `PROVIDER_UNAVAILABLE` |
@@ -1660,7 +1673,7 @@ segurança roda em **script/comando processado pelo líder** (9.3).
 
 | Chave | Valor | TTL | Operação atômica | Classe (9.1) |
 |---|---|---|---|---|
-| `gd:chal:{rand}` | `V:{claimId}` (*verifying*) **ou** `U` (*used*) — **não** mais um `used` só pós-sucesso (IR-121-05) | `V`: 45 s · `U`: validade restante do challenge + 5 min | scripts `claim` (`SET NX PX`), `complete`, `release`, `burn` (7.6) | Challenge |
+| `gd:chal:{rand}` | `V:{claimId}` (*verifying*) **ou** `U` (*used*); `V` persiste em crash/timeout e bloqueia novo decode (IR-121-05) | `V` e `U`: validade restante do challenge + 5 min; 45 s é timeout do decode, **não** TTL do claim | scripts `claim` (`SET NX PX`), `complete`, `burn`; sem `release` (7.6) | Challenge |
 | `gd:inst:{installation_id}` | hash: `platform, channel, status, epoch, attest_level, key_proof, last_attested_at, app_version, key_thumbprint, created_at, probation_until, [ios: key_id, pubkey, counter, receipt, env]` | 180 d rolante (D-AUTH-06) | `counter`: script *compare-and-set* | Instalação · Contador App Attest |
 | `gd:pk:{sha256(pubkey ou keyId)}` | `installation_id` | igual | `SET NX` (dedupe de chave; enrollment idempotente por chave) | Instalação (índice) |
 | `gd:deny:{sha256(pubkey)}` | motivo + instante da revogação | D-AUTH-06 (proposta: ≥ vida da instalação) | `SET`; **exportada periodicamente por script** para arquivo privado do dono | Revogação |
@@ -1673,7 +1686,7 @@ segurança roda em **script/comando processado pelo líder** (9.3).
 | `gd:refund:d:{inst}:{yyyymmdd}` | inteiro: estornos **com evidência** (8.4) | 48 h | `INCR` | Quota |
 | `gd:unk:d:{inst}:{yyyymmdd}` · `gd:unk:g:{yyyymmdd}` | inteiros: *outcomes* `unknown` (instalação e global) | 48 h | `INCR` | Quota · Idempotência |
 | `gd:infl:{inst}` | `1` | 30 s | `SET NX EX` | Quota (em voo) |
-| `gd:idem:{inst}:{key}` | hash: `state` (`pending`\|`charged`\|`refunded`\|`unknown`), `dispatched` (0\|1), `t_reserve`, `t_dispatch`, `attempts` — **sem corpo nem resposta** (IR-121-06) | 15 min | script `reserve` / `markDispatched` / `settle` | Idempotência |
+| `gd:idem:{inst}:{key}` | hash: `state` (`pending`\|`charged`\|`refunded`\|`unknown`), `dispatched` (0\|1), `t_reserve`, `t_dispatch`, `attempts` — **sem corpo nem resposta**; `429`/4xx pós-dispatch sem prova = `unknown` (IR-121-06) | 15 min | script `reserve` / `markDispatched` / `settle`; `refunded` após dispatch é terminal para a chave | Idempotência |
 | `gd:cfg` | hash: `auth_mode, quota_mode, policy_ver, min_versions, cert_allowlist` | — | leitura com cache local de 30 s; **valor abaixo do piso é ignorado** (12.1) | Config |
 | `gd:emergency` | JSON `{mode_auth?, mode_quota?, expires_at, reason, actor, nonce}` + HMAC (`EMERGENCY_KEY`) | até `expires_at` (≤ 4 h) | `SET EX`; validado por assinatura, validade e limite de descida | Config |
 | `gd:emer:n:{yyyymmdd}` | inteiro: ativações do dia (≤ 3) | 48 h | `INCR` | Config |
@@ -1730,12 +1743,19 @@ Não altera as demais regras técnicas (design system, sem `alert()`, não tocar
 | U-17 | P3 | classe de acessibilidade do Keychain (`ThisDeviceOnly`), **se itens do Keychain sobrevivem à desinstalação** (habilitaria *re-key*) e se `UserDefaults` exige *required reason API* | docs Apple na implementação | Keychain com `ThisDeviceOnly`; re-key só como upside |
 | U-18 | P2 | *(novo, R1)* transporte nativo em aparelho real: 429 do Firewall legível, *timeouts* com o WebView suspenso, o WebView **não** chama o gateway nos builds novos, backup excluído, nenhum `gfat1_` em `localStorage`/IndexedDB/backup JSON | R1, Galaxy S22 + gate estático (7.5) | gate estático e JUnit/XCTest; builds legados seguem no `fetch` até o *sunset* |
 | U-19 | P3 | *(novo, R1)* Key Attestation: cobertura nos aparelhos-alvo (API ≥ 24, raízes e CRL) e escolha do verificador (biblioteca Kotlin oficial × TypeScript próprio) | R4 (D-AUTH-10) | *tier* `play_only`: renovação sempre por Play Integrity novo |
-| U-20 | P2 | *(novo, R1)* semântica de cobrança do OpenRouter por classe de erro (`429`, `5xx`, *timeout* depois do *dispatch*): quais classes nunca são cobradas | R1: contadores de *outcome* × `usage_daily` | `unknown` **mantém** a quota; L0/L3 usam o `usage` do próprio provedor |
+| U-20 | P2 | *(novo, R1; refinado na R2)* semântica de cobrança do OpenRouter por caminho específico (`429`, 4xx, 5xx, timeout e *partial output* depois do *dispatch*) | R1: contadores de *outcome* por caminho confrontados com `usage_daily` **e activity** do OpenRouter, incluindo saídas parciais; registrar evidência antes de classificar custo zero | `unknown` **mantém** a quota; nenhuma classe migra para `refunded` sem evidência registrada; L0/L3 usam o `usage` do próprio provedor |
 | U-21 | P3 | *(novo, R1)* consistência do Upstash ao mudar de plano (réplicas eventuais) | no upgrade de plano | decisões de segurança em scripts processados pelo líder (9.3) |
 
 ---
 
-## Apêndice F — Receita reproduzível da revisão independente (R2 pendente)
+## Apêndice F — Receita reproduzível da revisão independente (R2 executada; R3 focada em IR-121-05/06)
+
+**R3 pendente:** usar o mesmo pacote reproduzível abaixo, substituindo a tabela da rodada anterior
+pelos vereditos da R2 e o diff desde `9aa08942`; revisar **somente** IR-121-05 e IR-121-06, incluindo
+7.6/T16/D121-012/Ap. B/C e 8.4/U-20/D121-009/rollout. Preservar os seis `FIXED` da R2 sem reabrir
+sem nova evidência. R3 decide `FIXED` ou mantém a pendência; este documento não autoavalia a correção.
+
+**Receita histórica da R2 executada:**
 
 Objetivo da **R2**: nova revisão adversarial por **outra família de modelo em relação ao autor**
 (Claude). A R1 foi do GPT-5.6 Sol (OpenAI); manter a mesma família permite comparar achado a achado, e
