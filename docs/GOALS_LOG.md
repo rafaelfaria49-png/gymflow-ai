@@ -4767,3 +4767,93 @@ coordenação entre documentos sem iniciar executor ou qualquer nova operação.
 - **Evidencia IR-121-05:** sem release; o ledger V persiste e o mesmo challenge nao volta a ficar disponivel; no maximo 1 decode total por challenge; retry usa challenge e integrityToken novos; maximo 3 tentativas por acao com backoff 5/10/20 s; timeout/crash nao habilitam segundo decode do mesmo challenge.
 - **Evidencia IR-121-06:** pos-dispatch sem evidencia de custo zero = unknown; OpenRouter 429 por padrao, 4xx pos-dispatch sem prova, 5xx, timeout e network = unknown; partial output em U-20; refunded apenas com evidencia; pending/charged/unknown nunca redispatcham com a mesma Idempotency-Key.
 - **Estado final do desenho:** INDEPENDENT_REVIEW_RESULT=PASS_R3; ARCHITECTURE_REVIEW_STATUS=APPROVED; READY_FOR_AUTH_IMPLEMENTATION_GOAL=YES. Este YES atesta so a revisao arquitetural. AUTH_IMPLEMENTATION_AUTHORIZED=NO; D-AUTH-01..10 e gates G-xx continuam pendentes. AUTHENTICATED_GATEWAY=NO em Production ate implementacao futura. Nenhum backend, codigo, CLAUDE.md, servico, credencial, conta ou configuracao externa alterado; PRODUCTION_CODE_CHANGED=NO; EXTERNAL_SERVICE_PROVISIONED=NO; PAID_SERVICE_ENABLED=NO. Fechamento exclusivamente documental, com `git diff --check`; sem repetir npm test/build.
+
+## GOAL-119 — Clareza do treino mobile, técnica e seletores (2026-09-30)
+
+Execução no worktree dedicado `C:\Projetos\gymflow-goal-119-training-clarity`, branch `feat/gymflow-training-mobile-clarity-pickers-119`. Base histórica do handoff `0679e200fcfff699aced298b43011a42e8cba826`; base atual integrada por merge normal `89220c98b3c0ad9391152afa6850f03402e8b080`, commit de integração `48878d360dfa222611ff2d78c7839feafd3c8837`. O checkout principal permanece na frente documental do GOAL-121.
+
+**Antes → depois**
+
+- Exercício sem mapeamento abria Supino → mapeamento ausente retorna null; biblioteca abre o detalhe do próprio exercício. Guia usa somente mídia válida do exercício e declara “Vídeo técnico ainda não disponível para este exercício.” Não há nova mídia ou autoria fictícia.
+- Índice podia sobreviver à troca ou exceder a lista após erro → players reiniciam pela identidade do exercício/mídia, removem URLs inválidas, limitam o índice e omitem contador sem frames.
+- Guia tentava iniciar outro treino → com sessão ativa, “Voltar ao treino” fecha o guia e retorna diretamente à sessão. Mídia compacta deixa o CTA no primeiro viewport.
+- Check-in tinha dois Pular e respostas default → “Como você está hoje?”, um único Pular, cinco escolhas vazias; envio só após as cinco escolhas. Local de dor opcional e tempo disponível explícito. Pular informa que nenhuma resposta foi enviada.
+- Home tinha recuperação fixa, estatística semanal estática e FAB concorrente → texto neutro, prioridade à sessão em andamento, um CTA principal, FAB oculto e semana calculada com histórico concluído/data civil local.
+- Série era uma grade com ANT/SUG/RPE → cards com Carga anterior, Carga sugerida, Repetições alvo, Carga (kg), Repetições feitas e Concluir série. Esforço e repetições em reserva ficam explicados em detalhes opcionais.
+- Barra contava aquecimentos junto das séries e não revelava campos recolhidos → numeração separada e “Ir para série atual” abre details e foca a carga do alvo real. Rodadas/navegação do domínio existente preservadas.
+- Toque duplo podia desfazer a conclusão e duplicar efeitos → guarda síncrona de 500 ms por identidade no registro e ações críticas, inclusive estágios, mini-séries e séries especiais. Edição de carga/repetições permanece livre.
+- Troca escondia candidatos até escolher um motivo e falhava silenciosamente → lista elegível/busca primeiro, depois motivo e nota, confirmação habilitada apenas quando válida; resultado tipado e erro visível sem fechar o modal. Origem e registro da troca preservados.
+- Adicionar misturava todo o catálogo e cortava em 40 itens → seletor compartilhado com Todos e grupos reais, busca combinada, contagem e Carregar mais a cada 30. Elegibilidade e filtros usam o grupo primário canônico, sem misturar sinergistas.
+- Overlays não tinham limite de safe area e avisos cobriam seus controles → 100dvh, insets e rolagem interna; Android ajusta margens do WebView com force. XP/sucesso/informação ficam abaixo do modal; erros continuam acima. Foco contido/restaurado nos diálogos.
+
+**QA e revisão**
+
+- Export mobile de produção: PASS em 360x800, 390x844 e 412x915; oito verificações por resolução, 38 screenshots, zero pageerrors.
+- Fluxos reais da entrada Demo existente: home → iniciar; check-in pulado em 360 e respondido em 390/412; carga 12,5 kg e 11 repetições; toque duplo preserva conclusão; foco na série indicada; retorno pelo guia; troca com motivo Outro/nota; inclusão com paginação e filtros Peito/Costas; detalhe sem vídeo do próprio exercício; reload preserva a série; resumo cabe no viewport.
+- Falha de add/put do IndexedDB injetada somente no contexto isolado de QA: erro/alerta de armazenamento permanece visível acima do resumo e a sessão continua aberta. Nenhum dado do usuário é alterado.
+- Safe areas: painel dentro do viewport, insets 24/34 px simulados e configuração force confirmada no capacitor.config.json sincronizado. ADB sem dispositivo; não houve teste físico nem alegação de validação em aparelho.
+- Revisão independente: seis achados P2 corrigidos (semana civil, numeração de aquecimento, abertura de details, foco após selecionar substituto, toggles especiais e visibilidade de erros). Revalidação final P0/P1/P2/P3 = 0 pendentes.
+- Script reproduzível: `scripts/qa/training-mobile-119.mjs`. Após build:mobile, ele serve out/ automaticamente; requer Playwright disponível via GOAL119_PLAYWRIGHT_PACKAGE e destino via GOAL119_QA_OUTPUT. Não adiciona dependência ao produto.
+- Evidências locais: `C:\Users\rafae\.codex\visualizations\2026\09\30\01a0f2d7-ae2c-7701-b944-ed584d7c7a76\goal119`.
+
+**Gates**
+
+- Testes focados de treino/mobile/técnica/check-in/seletores: PASS, 113 testes em 11 arquivos (timeout 15.000 ms, um worker).
+- `npm test -- --maxWorkers=1`: PASS, 3.660 testes em 166 arquivos, 203,71 s. Paralelismo padrão excedeu a memória local; execução final com um worker mantém o timeout original de 15.000 ms, sem excluir testes.
+- `npx tsc --noEmit`: PASS.
+- `npm run build`: PASS.
+- `npm run build:mobile`: PASS, export de produção usado no QA e no APK; backend Production do GOAL-118 preservado.
+- `npm run ios:validate`: PASS, 17 testes.
+- `git diff --check`: PASS; também conferido sobre o conteúdo staged antes do commit.
+
+**APK interno**
+
+- Debug, 29.385.522 bytes, app `com.gymflowai.app`, versionCode 1/versionName 1.0, minSdk 23/targetSdk 36.
+- `npx cap sync android` + `npm run android:build`: PASS; Gradle 278 tarefas executadas. Assinatura verificada por apksigner (v1/v2); nenhuma publicação em loja.
+- SHA-256: `ee6242759ad6ceca17ae62211d3a1e718ca9bacd6f2faa12f29d77b53c0df32e`.
+- Artefato: `C:\Users\rafae\.codex\visualizations\2026\09\30\01a0f2d7-ae2c-7701-b944-ed584d7c7a76\goal119\gymflow-goal119-debug.apk`.
+- Mesma implementação do export submetido ao QA; alterações posteriores são documentação. CI/PR/merge ficam registrados no relatório final e no próprio PR.
+
+**Limites de escopo**
+
+Nutrição, backend/auth/quota, pipeline Kai/avatar/GLB, OFF/barcode e publicação em loja não foram alterados. Observações de entrada Demo antes da hidratação e ausência de aparelho estão em PENDENCIAS. Decisões D119-001..006 em DECISOES.
+
+**Arquivos desta implementação (37)**
+
+- `capacitor.config.ts`
+- `docs/DECISOES.md`
+- `docs/GOALS_LOG.md`
+- `docs/PENDENCIAS.md`
+- `docs/training/GOAL_119_HANDOFF.md`
+- `scripts/qa/training-mobile-119.mjs`
+- `src/app/globals.css`
+- `src/components/ActiveWorkoutSetRow.tsx`
+- `src/components/ExerciseCatalogPicker.test.tsx`
+- `src/components/ExerciseCatalogPicker.tsx`
+- `src/components/ExerciseMediaUnifiedPlayer.tsx`
+- `src/components/GlobalVideoPlayer.tsx`
+- `src/components/Navigation.test.tsx`
+- `src/components/Navigation.tsx`
+- `src/components/PreWorkoutReadinessModal.test.tsx`
+- `src/components/PreWorkoutReadinessModal.tsx`
+- `src/components/TechniqueSequencePlayer.tsx`
+- `src/components/TrainingMediaPlayers.test.tsx`
+- `src/components/WhyThisWeightModal.tsx`
+- `src/components/XPBadgeNotification.tsx`
+- `src/components/ui/ConfirmDialog.tsx`
+- `src/components/ui/Toast.tsx`
+- `src/domain/techniques/TechniquePanel.test.tsx`
+- `src/domain/techniques/TechniquePanel.tsx`
+- `src/lib/exerciseTechniqueMap.ts`
+- `src/lib/training-action-guard.test.ts`
+- `src/lib/training-action-guard.ts`
+- `src/lib/training-week-summary.test.ts`
+- `src/lib/training-week-summary.ts`
+- `src/lib/use-training-dialog-focus.ts`
+- `src/lib/workout-picker.ts`
+- `src/lib/workout-session-mutations.ts`
+- `src/modules/ActiveWorkoutPage.tsx`
+- `src/modules/Dashboard.tsx`
+- `src/modules/ExerciseLibrary.tsx`
+- `src/providers/GymFlowContext.storage.test.tsx`
+- `src/providers/GymFlowContext.tsx`

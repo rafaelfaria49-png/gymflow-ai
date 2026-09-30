@@ -84,7 +84,7 @@ const OpenConfirmDialog = ({
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      className="training-overlay fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4"
       onClick={onCancel}
       role="presentation"
     >
@@ -95,7 +95,7 @@ const OpenConfirmDialog = ({
         aria-describedby={description ? 'confirm-dialog-description' : undefined}
         data-keyboard-armed={requireIndependentKeyboardIntent ? (keyboardArmed ? 'true' : 'false') : undefined}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-sm bg-gym-card border border-white/10 rounded-3xl p-6 shadow-2xl animate-toast-in"
+        className="training-dialog overflow-y-auto w-full sm:max-w-sm bg-gym-card border border-white/10 rounded-3xl p-6 shadow-2xl animate-toast-in"
       >
         <div className="flex items-start gap-3 mb-2">
           <div

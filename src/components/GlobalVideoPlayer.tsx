@@ -4,9 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { AvatarDemoPlaceholder } from './AvatarDemoPlaceholder';
 import { Play, Check, ShieldAlert, Award, Clock, ArrowLeft, User, Flame, Maximize2, Minimize2, X, Brain, Dumbbell, Sparkles } from 'lucide-react';
-import { TechniqueSequencePlayer } from './TechniqueSequencePlayer';
 import { ExerciseMediaUnifiedPlayer } from './ExerciseMediaUnifiedPlayer';
 import { getExerciseIdForTechniqueVideoId } from '../lib/exerciseTechniqueMap';
+import { useTrainingDialogFocus } from '../lib/use-training-dialog-focus';
 import { useBackHandler } from '../lib/back-navigation';
 
 export const GlobalVideoPlayer = () => {
@@ -18,9 +18,11 @@ export const GlobalVideoPlayer = () => {
     exercises,
     markVideoLearned,
     openGlobalPlayer,
-    startWorkout,
+    activeWorkout,
+    setActiveView,
   } = useGymFlow();
 
+  const dialogRef = useTrainingDialogFocus(globalPlayerOpen);
   const [isCinemaMode, setIsCinemaMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'guide' | 'related'>('guide');
 
@@ -56,7 +58,8 @@ export const GlobalVideoPlayer = () => {
 
   const handleStartWorkout = () => {
     closeGlobalPlayer();
-    startWorkout(undefined, `Treino — ${video.title}`);
+    if (activeWorkout) setActiveView('active-workout');
+    else setActiveView('workouts');
   };
 
   // Related videos
@@ -77,14 +80,18 @@ export const GlobalVideoPlayer = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+      className="training-overlay fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
       onClick={closeGlobalPlayer}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Guia técnico de execução"
         onClick={(e) => e.stopPropagation()}
-        className={`bg-gym-dark border border-white/10 rounded-3xl w-full relative transition-all duration-300 overflow-hidden shadow-2xl ${
+        className={`training-dialog bg-gym-dark border border-white/10 rounded-3xl w-full relative transition-all duration-300 overflow-hidden shadow-2xl ${
           isCinemaMode ? 'max-w-6xl' : 'max-w-4xl'
-        } max-h-[95vh] flex flex-col`}
+        } flex flex-col`}
       >
         {/* Header border status */}
         <div className="h-1 bg-gradient-to-r from-gym-accent to-gym-emerald"></div>
@@ -115,6 +122,7 @@ export const GlobalVideoPlayer = () => {
               onClick={closeGlobalPlayer}
               className="p-2 text-gym-text-muted hover:text-gym-rose bg-white/5 hover:bg-white/10 rounded-xl transition-all tap-target"
               title="Fechar (ESC)"
+              aria-label="Fechar guia técnico"
             >
               <X className="w-4.5 h-4.5" />
             </button>
@@ -122,7 +130,7 @@ export const GlobalVideoPlayer = () => {
         </div>
 
         {/* Main Workspace */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 overflow-y-auto p-4 md:p-6 gap-6">
+        <div className="grid min-h-0 grid-cols-1 lg:grid-cols-12 flex-1 overflow-y-auto p-4 md:p-6 gap-6">
 
           {/* LADO ESQUERDO: Demonstração + descrições */}
           <div className={`${isCinemaMode ? 'lg:col-span-8' : 'lg:col-span-7'} space-y-4`}>
@@ -132,6 +140,7 @@ export const GlobalVideoPlayer = () => {
               {relatedExercise ? (
                 <ExerciseMediaUnifiedPlayer
                   exercise={relatedExercise}
+                  compact
                   emoji={relatedExercise.thumbnail.split(' ')[0]}
                   fit="contain"
                 />
@@ -139,35 +148,19 @@ export const GlobalVideoPlayer = () => {
                 <div className="aspect-video w-full">
                   <AvatarDemoPlaceholder
                     emoji={video.thumbnail.split(' ')[0]}
-                    title="Demonstração 3D em breve"
-                    subtitle="A demonstração animada do Kai será integrada quando a Motion Engine for aprovada."
+                    title="Vídeo técnico indisponível"
+                    subtitle="Não há mídia técnica associada a este guia."
                   />
                 </div>
               )}
-            </div>
-
-            {/* Banner de honestidade (ETAPA 12) */}
-            <div className="flex items-start gap-2.5 bg-gym-accent/5 border border-gym-accent/15 rounded-2xl p-3">
-              <Sparkles className="w-4 h-4 text-gym-accent mt-0.5 flex-shrink-0" />
-              <p className="text-[11px] text-gym-text-muted leading-relaxed">
-                <span className="text-white font-bold">Sequência visual provisória.</span> Demonstração 3D em breve:
-                o avatar Kai e a Motion Engine seguem em produção no Avatar Lab. Use como referência técnica, não
-                substitui orientação profissional.
-              </p>
             </div>
 
             {/* Descrições */}
             <div className="space-y-2">
               <h2 className="text-lg font-black text-white tracking-tight leading-snug">{video.title}</h2>
               <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-gym-text-muted">
-                <span className="flex items-center gap-1">
-                  <User className="w-3.5 h-3.5 text-gym-accent" /> {video.instructor}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-gym-emerald" /> {video.duration}
-                </span>
                 <span className="bg-white/5 border border-white/10 px-2 py-0.5 rounded text-[10px] font-bold text-white uppercase">
-                  {video.level === 'all' ? 'Todos os Níveis' : video.level}
+                  {({ all: 'Todos os níveis', beginner: 'Iniciante', intermediate: 'Intermediário', advanced: 'Avançado' } as Record<string, string>)[video.level.toLowerCase()] ?? 'Guia de execução'}
                 </span>
               </div>
 
@@ -195,7 +188,7 @@ export const GlobalVideoPlayer = () => {
                 onClick={handleStartWorkout}
                 className="flex-1 py-3 px-4 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-2xl text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-md shadow-gym-accent/15 tap-target"
               >
-                <Dumbbell className="w-4 h-4" /> Iniciar treino
+                <Dumbbell className="w-4 h-4" /> {activeWorkout ? 'Voltar ao treino' : 'Escolher treino'}
               </button>
             </div>
           </div>
@@ -258,22 +251,11 @@ export const GlobalVideoPlayer = () => {
                   </ul>
                 </div>
 
-                {/* Dica da IA */}
-                <div className="bg-gym-accent/5 border border-gym-accent/20 rounded-2xl p-4 space-y-2">
-                  <h4 className="text-[10px] font-bold text-gym-accent flex items-center gap-1 uppercase tracking-wider">
-                    <Brain className="w-3.5 h-3.5" /> Dica de Execução da IA
-                  </h4>
-                  <p className="text-[11px] text-gym-text-muted leading-relaxed font-medium">
-                    Controle a fase excêntrica (descida) por cerca de 2 segundos: isso aumenta o tempo
-                    sob tensão e o estímulo de hipertrofia, mantendo a articulação segura.
-                  </p>
-                </div>
-
                 {/* Learn badge */}
                 {video.learned ? (
                   <div className="bg-gym-accent/10 border border-gym-accent/25 text-gym-accent p-3 rounded-2xl text-xs font-bold text-center flex items-center justify-center gap-2">
                     <Award className="w-5 h-5" />
-                    <span>Técnica marcada como dominada (+50 XP)</span>
+                    <span>Guia marcado como lido (+50 XP)</span>
                   </div>
                 ) : (
                   <button
@@ -281,7 +263,7 @@ export const GlobalVideoPlayer = () => {
                     className="w-full py-3 bg-gym-emerald/15 hover:bg-gym-emerald/25 border border-gym-emerald/25 text-gym-emerald font-extrabold rounded-2xl transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2 tap-target"
                   >
                     <Flame className="w-4 h-4" />
-                    Marcar técnica como aprendida (+50 XP)
+                    Marcar guia como lido (+50 XP)
                   </button>
                 )}
               </div>
@@ -305,7 +287,7 @@ export const GlobalVideoPlayer = () => {
                         {relVid.title}
                       </h5>
                       <span className="text-[9px] text-gym-text-muted block mt-0.5 font-mono">
-                        {relVid.duration} • Prof. {relVid.instructor.split(' ')[0]}
+                        {categoryLabel}
                       </span>
                     </div>
                   </div>

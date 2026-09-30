@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Check, Clock3, LockKeyhole, ShieldAlert, TimerReset } from 'lucide-react';
 import type { Exercise } from '../../types';
 import type { TrainingExperienceLevel } from '../../types/training-profile';
@@ -20,6 +20,7 @@ import {
   recordTechniqueStage,
 } from './model';
 import { getTechniqueGate } from './profileRules';
+import { createTrainingActionGuard } from '../../lib/training-action-guard';
 
 interface TechniquePanelProps {
   plan: TechniquePlan;
@@ -57,7 +58,7 @@ function TechniqueInput({
         value={value}
         aria-label={label}
         onChange={(event) => onChange(numberValue(event.target.value, value))}
-        className="w-full min-h-[40px] rounded-lg border border-white/10 bg-gym-dark/70 px-2 text-center text-xs font-mono text-white outline-none focus:border-gym-accent"
+        className="w-full min-h-[44px] rounded-lg border border-white/10 bg-gym-dark/70 px-2 text-center text-xs font-mono text-white outline-none focus:border-gym-accent"
       />
     </label>
   );
@@ -78,6 +79,7 @@ function StageRow({
   onChange: (patch: Partial<Omit<TechniqueStageLog, 'id' | 'index'>>) => void;
   onTimer: (seconds: number) => void;
 }) {
+  const actionGuard = useRef(createTrainingActionGuard());
   return (
     <div className={`rounded-xl border p-2.5 space-y-2 ${stage.completed ? 'border-gym-accent/30 bg-gym-accent/5' : 'border-white/10 bg-white/[0.03]'}`}>
       <div className="flex items-center justify-between gap-2">
@@ -90,11 +92,12 @@ function StageRow({
         <button
           type="button"
           onClick={() => {
+            if (!actionGuard.current(stage.id)) return;
             const completed = !stage.completed;
             onChange({ completed });
             if (completed && autoTimer && stage.restSec > 0) onTimer(stage.restSec);
           }}
-          className={`min-h-[40px] min-w-[40px] rounded-lg border flex items-center justify-center ${stage.completed ? 'border-gym-accent bg-gym-accent text-gym-dark' : 'border-white/15 bg-white/5 text-transparent hover:border-gym-accent'}`}
+          className={`min-h-[44px] min-w-[44px] rounded-lg border flex items-center justify-center ${stage.completed ? 'border-gym-accent bg-gym-accent text-gym-dark' : 'border-white/15 bg-white/5 text-transparent hover:border-gym-accent'}`}
           aria-label={stage.completed ? `Desmarcar estágio ${index + 1}` : `Concluir estágio ${index + 1}`}
         >
           <Check className="h-4 w-4 stroke-[3px]" />
@@ -103,16 +106,18 @@ function StageRow({
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={() => onChange({ failed: !stage.failed, completed: true })}
-          className={`min-h-[36px] rounded-lg border px-2.5 text-[9px] font-black uppercase tracking-wide ${stage.failed ? 'border-gym-rose/50 bg-gym-rose/15 text-rose-300' : 'border-white/10 bg-white/5 text-gym-text-muted hover:text-white'}`}
+          onClick={() => {
+            if (actionGuard.current(stage.id)) onChange({ failed: !stage.failed, completed: true });
+          }}
+          className={`min-h-[44px] rounded-lg border px-2.5 text-[9px] font-black uppercase tracking-wide ${stage.failed ? 'border-gym-rose/50 bg-gym-rose/15 text-rose-300' : 'border-white/10 bg-white/5 text-gym-text-muted hover:text-white'}`}
         >
           {stage.failed ? 'Falhou aqui' : 'Marcar falhou aqui'}
         </button>
         {stage.restSec > 0 && (
           <button
             type="button"
-            onClick={() => onTimer(stage.restSec)}
-            className="min-h-[36px] rounded-lg border border-white/10 bg-white/5 px-2.5 text-[9px] font-black uppercase tracking-wide text-gym-text-muted hover:text-gym-accent"
+            onClick={() => { if (actionGuard.current(`${stage.id}:timer`)) onTimer(stage.restSec); }}
+            className="min-h-[44px] rounded-lg border border-white/10 bg-white/5 px-2.5 text-[9px] font-black uppercase tracking-wide text-gym-text-muted hover:text-gym-accent"
           >
             <Clock3 className="mr-1 inline h-3 w-3" /> Descanso {stage.restSec}s
           </button>
@@ -135,6 +140,7 @@ function MiniSetRow({
   onChange: (patch: Partial<Omit<TechniqueMiniSetLog, 'id' | 'index'>>) => void;
   onTimer: (seconds: number) => void;
 }) {
+  const actionGuard = useRef(createTrainingActionGuard());
   return (
     <div className={`flex items-center gap-2 rounded-xl border p-2 ${mini.completed ? 'border-gym-accent/30 bg-gym-accent/5' : 'border-white/10 bg-white/[0.03]'}`}>
       <span className="w-16 text-[9px] font-black uppercase tracking-wide text-gym-text-muted">Mini {index + 1}</span>
@@ -148,8 +154,8 @@ function MiniSetRow({
         <button
           type="button"
           disabled={!baseCompleted}
-          onClick={() => onTimer(mini.restSec)}
-          className="min-h-[40px] rounded-lg border border-white/10 bg-white/5 px-2 text-[9px] font-black uppercase tracking-wide text-gym-text-muted hover:text-gym-accent disabled:cursor-not-allowed disabled:opacity-35"
+          onClick={() => { if (actionGuard.current(`${mini.id}:timer`)) onTimer(mini.restSec); }}
+          className="min-h-[44px] rounded-lg border border-white/10 bg-white/5 px-2 text-[9px] font-black uppercase tracking-wide text-gym-text-muted hover:text-gym-accent disabled:cursor-not-allowed disabled:opacity-35"
           aria-label={`Iniciar pausa de ${mini.restSec} segundos da mini-série ${index + 1}`}
         >
           <Clock3 className="mr-1 inline h-3 w-3" />
@@ -159,11 +165,12 @@ function MiniSetRow({
         type="button"
         disabled={!baseCompleted}
         onClick={() => {
+          if (!actionGuard.current(mini.id)) return;
           const completed = !mini.completed;
           onChange({ completed });
           if (completed && mini.restSec > 0) onTimer(mini.restSec);
         }}
-        className={`min-h-[40px] min-w-[40px] rounded-lg border flex items-center justify-center ${mini.completed ? 'border-gym-accent bg-gym-accent text-gym-dark' : 'border-white/15 bg-white/5 text-transparent hover:border-gym-accent'} disabled:cursor-not-allowed disabled:opacity-35`}
+        className={`min-h-[44px] min-w-[44px] rounded-lg border flex items-center justify-center ${mini.completed ? 'border-gym-accent bg-gym-accent text-gym-dark' : 'border-white/15 bg-white/5 text-transparent hover:border-gym-accent'} disabled:cursor-not-allowed disabled:opacity-35`}
         aria-label={mini.completed ? `Desmarcar mini-série ${index + 1}` : `Concluir mini-série ${index + 1}`}
       >
         <Check className="h-4 w-4 stroke-[3px]" />
@@ -183,6 +190,7 @@ function SetRow({
   onChange: (patch: Partial<Omit<TechniqueSetLog, 'id' | 'index'>>) => void;
   failureAction: boolean;
 }) {
+  const actionGuard = useRef(createTrainingActionGuard());
   return (
     <div className={`flex items-center gap-2 rounded-xl border p-2 ${set.completed ? 'border-gym-accent/30 bg-gym-accent/5' : 'border-white/10 bg-white/[0.03]'}`}>
       <span className="w-5 text-[10px] font-black text-gym-accent">{index + 1}</span>
@@ -191,16 +199,20 @@ function SetRow({
       {failureAction && (
         <button
           type="button"
-          onClick={() => onChange({ completed: true, failed: !set.failed })}
-          className={`min-h-[40px] rounded-lg border px-2 text-[9px] font-black uppercase ${set.failed ? 'border-gym-rose/50 bg-gym-rose/15 text-rose-300' : 'border-gym-rose/25 bg-gym-rose/10 text-rose-300'}`}
+          onClick={() => {
+            if (actionGuard.current(set.id)) onChange({ completed: true, failed: !set.failed });
+          }}
+          className={`min-h-[44px] rounded-lg border px-2 text-[9px] font-black uppercase ${set.failed ? 'border-gym-rose/50 bg-gym-rose/15 text-rose-300' : 'border-gym-rose/25 bg-gym-rose/10 text-rose-300'}`}
         >
           {set.failed ? 'Falhou aqui' : 'Marcar falhou aqui'}
         </button>
       )}
       <button
         type="button"
-        onClick={() => onChange({ completed: !set.completed })}
-        className={`min-h-[40px] min-w-[40px] rounded-lg border flex items-center justify-center ${set.completed ? 'border-gym-accent bg-gym-accent text-gym-dark' : 'border-white/15 bg-white/5 text-transparent hover:border-gym-accent'}`}
+        onClick={() => {
+          if (actionGuard.current(set.id)) onChange({ completed: !set.completed });
+        }}
+        className={`min-h-[44px] min-w-[44px] rounded-lg border flex items-center justify-center ${set.completed ? 'border-gym-accent bg-gym-accent text-gym-dark' : 'border-white/15 bg-white/5 text-transparent hover:border-gym-accent'}`}
         aria-label={set.completed ? `Desmarcar série especial ${index + 1}` : `Concluir série especial ${index + 1}`}
       >
         <Check className="h-4 w-4 stroke-[3px]" />
@@ -246,7 +258,7 @@ export const TechniquePanel = ({
             <p className="mt-1 text-[10px] leading-relaxed text-gym-text-muted">{gate.education}</p>
           </div>
         </div>
-        <button type="button" onClick={() => onUnlock(plan.type)} className="min-h-[40px] rounded-xl border border-gym-accent/40 bg-gym-accent/10 px-3 text-[10px] font-black uppercase tracking-wide text-gym-accent">
+        <button type="button" onClick={() => onUnlock(plan.type)} className="min-h-[44px] rounded-xl border border-gym-accent/40 bg-gym-accent/10 px-3 text-[10px] font-black uppercase tracking-wide text-gym-accent">
           Ler e liberar {gate.label}
         </button>
       </div>

@@ -20,6 +20,7 @@ import { resolveMediaRenderTier } from '../domain/media/fallbackChain';
 import { isMediaCached, getMediaPlayableUrl } from '../domain/media/mediaCache';
 import { recordMediaTelemetryEvent } from '../domain/media/telemetry';
 import { AvatarDemoPlaceholder } from './AvatarDemoPlaceholder';
+import { getTechniqueFrames } from '../lib/techniqueFrames';
 
 interface ExerciseMediaUnifiedPlayerProps {
   exercise?: Exercise | null;
@@ -32,7 +33,12 @@ interface ExerciseMediaUnifiedPlayerProps {
   className?: string;
 }
 
-export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProps> = ({
+export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProps> = (props) => {
+  const identity = JSON.stringify([props.exercise?.id, props.exercise?.techniqueFrames, props.exercise?.images, props.media, props.autoplay]);
+  return <ExerciseMediaPlayer key={identity} {...props} />;
+};
+
+const ExerciseMediaPlayer: React.FC<ExerciseMediaUnifiedPlayerProps> = ({
   exercise,
   media,
   name,
@@ -104,15 +110,20 @@ export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProp
     };
   }, [resolvedMedia]);
 
+  const legacyFrames = useMemo(() => {
+    const provided = exercise?.techniqueFrames?.filter(frame => frame.image?.trim());
+    return provided?.length ? provided : getTechniqueFrames(exercise).filter(frame => frame.image?.trim());
+  }, [exercise]);
+
   // Resolução do tier de renderização ativo
   const tierResult = useMemo(() => {
     return resolveMediaRenderTier(resolvedMedia, {
       failedUrls,
       cachedUrls,
       isOffline,
-      legacyFrames: exercise?.techniqueFrames,
+      legacyFrames,
     });
-  }, [resolvedMedia, failedUrls, cachedUrls, isOffline, exercise?.techniqueFrames]);
+  }, [resolvedMedia, failedUrls, cachedUrls, isOffline, legacyFrames]);
 
   // Registro de telemetria
   useEffect(() => {
@@ -128,6 +139,7 @@ export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProp
 
   // Ciclo automático do player de frames (Tier 2)
   const framesCount = tierResult.frames.length;
+  const frameIndex = Math.min(activeFrameIndex, Math.max(0, framesCount - 1));
   useEffect(() => {
     if (tierResult.tier !== 'frames' || !isFramesPlaying || framesCount < 2) return;
     const interval = setInterval(() => {
@@ -138,6 +150,7 @@ export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProp
 
   // Handler de erro no vídeo -> desvia imediatamente para fallback
   const handleVideoError = (failedUrl: string) => {
+    setActiveFrameIndex(0);
     setFailedUrls((prev) => (prev.includes(failedUrl) ? prev : [...prev, failedUrl]));
   };
 
@@ -218,14 +231,14 @@ export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProp
             />
 
             {/* CONTROLES FLUTUANTES SOBRE O VÍDEO */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity flex flex-col justify-end p-3 z-10">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-100 transition-opacity flex flex-col justify-end p-3 z-10">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={toggleVideoPlay}
                     aria-label={isVideoPlaying ? 'Pausar vídeo' : 'Reproduzir vídeo'}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-black/70 text-white hover:text-gym-accent border border-white/15 backdrop-blur-md transition-all"
+                    className="flex h-11 w-11 items-center justify-center rounded-xl bg-black/70 text-white hover:text-gym-accent border border-white/15 backdrop-blur-md transition-all"
                   >
                     {isVideoPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current ml-0.5" />}
                   </button>
@@ -233,7 +246,7 @@ export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProp
                     type="button"
                     onClick={() => setIsMuted((prev) => !prev)}
                     aria-label={isMuted ? 'Ativar áudio' : 'Mutar áudio'}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-black/70 text-white hover:text-gym-accent border border-white/15 backdrop-blur-md transition-all"
+                    className="flex h-11 w-11 items-center justify-center rounded-xl bg-black/70 text-white hover:text-gym-accent border border-white/15 backdrop-blur-md transition-all"
                   >
                     {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                   </button>
@@ -243,7 +256,7 @@ export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProp
                   type="button"
                   onClick={toggleFullscreen}
                   aria-label={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-black/70 text-white hover:text-gym-accent border border-white/15 backdrop-blur-md transition-all"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl bg-black/70 text-white hover:text-gym-accent border border-white/15 backdrop-blur-md transition-all"
                 >
                   {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                 </button>
@@ -255,14 +268,14 @@ export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProp
         {/* TIER 2: SEQUÊNCIA DE FRAMES */}
         {tierResult.tier === 'frames' && (
           <div className="relative h-full w-full flex items-center justify-center bg-black">
-            {tierResult.frames[activeFrameIndex] ? (
+            {tierResult.frames[frameIndex] ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                key={tierResult.frames[activeFrameIndex].url}
-                src={tierResult.frames[activeFrameIndex].url}
-                alt={`${exerciseName} - Etapa ${activeFrameIndex + 1}`}
+                key={tierResult.frames[frameIndex].url}
+                src={tierResult.frames[frameIndex].url}
+                alt={`${exerciseName} - Etapa ${frameIndex + 1}`}
                 loading="lazy"
-                onError={() => handleVideoError(tierResult.frames[activeFrameIndex].url)}
+                onError={() => handleVideoError(tierResult.frames[frameIndex].url)}
                 className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
               />
             ) : (
@@ -276,7 +289,7 @@ export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProp
 
             {/* CONTADOR DE ETAPAS */}
             <span className="absolute right-2.5 top-2.5 z-20 rounded-full border border-white/10 bg-black/75 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur-md">
-              {activeFrameIndex + 1}/{framesCount}
+              {frameIndex + 1}/{framesCount}
             </span>
           </div>
         )}
@@ -298,24 +311,30 @@ export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProp
           <AvatarDemoPlaceholder
             compact={compact}
             emoji={emoji}
-            title="Demonstração 3D em breve"
-            subtitle="O avatar Kai e as gravações do Coach seguem em produção com padrão 9:16 vertical."
+            title="Sem imagens técnicas"
+            subtitle="Não há imagens disponíveis para este exercício."
           />
         )}
       </div>
+
+      {tierResult.tier !== 'video' && (
+        <p className="border-t border-white/5 px-3 py-2 text-xs leading-relaxed text-gym-text-muted" role="status">
+          Vídeo técnico ainda não disponível para este exercício.
+        </p>
+      )}
 
       {/* CONTROLES INFERIORES QUANDO EM TIER DE FRAMES */}
       {tierResult.tier === 'frames' && framesCount > 1 && (
         <div className="flex items-center justify-between border-t border-white/5 bg-gym-card/40 p-2.5 px-3">
           <span className="text-[11px] font-bold text-gym-text-muted truncate max-w-[200px]">
-            {tierResult.frames[activeFrameIndex]?.label || `Etapa ${activeFrameIndex + 1}`}
+            {tierResult.frames[frameIndex]?.label || `Etapa ${frameIndex + 1}`}
           </span>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => setActiveFrameIndex((prev) => (prev - 1 + framesCount) % framesCount)}
               aria-label="Etapa anterior"
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white hover:text-gym-accent"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white hover:text-gym-accent"
             >
               <SkipBack className="h-3.5 w-3.5" />
             </button>
@@ -323,7 +342,7 @@ export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProp
               type="button"
               onClick={() => setIsFramesPlaying((prev) => !prev)}
               aria-label={isFramesPlaying ? 'Pausar' : 'Reproduzir'}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white hover:text-gym-accent"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white hover:text-gym-accent"
             >
               {isFramesPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
             </button>
@@ -331,7 +350,7 @@ export const ExerciseMediaUnifiedPlayer: React.FC<ExerciseMediaUnifiedPlayerProp
               type="button"
               onClick={() => setActiveFrameIndex((prev) => (prev + 1) % framesCount)}
               aria-label="Próxima etapa"
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white hover:text-gym-accent"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white hover:text-gym-accent"
             >
               <SkipForward className="h-3.5 w-3.5" />
             </button>

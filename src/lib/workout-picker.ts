@@ -77,6 +77,11 @@ export type WorkoutPickerAction =
   | { type: 'set-search'; search: string }
   | { type: 'clear-search' };
 
+export interface ExerciseMuscleTarget {
+  muscleGroup: string;
+  primaryMuscleGroupId?: MuscleGroupId;
+}
+
 const PICKER_SECTIONS: readonly Omit<WorkoutPickerSection, 'items'>[] = [
   { id: 'primary', label: 'Principais', collapsedByDefault: false },
   { id: 'secondary', label: 'Sinergistas', collapsedByDefault: true },
@@ -88,7 +93,7 @@ const PICKER_SECTIONS: readonly Omit<WorkoutPickerSection, 'items'>[] = [
   },
 ];
 
-function resolveExercisePrimaryGroup(exercise: Exercise) {
+export function resolveExercisePrimaryGroup(exercise: ExerciseMuscleTarget) {
   return (exercise.primaryMuscleGroupId
     ? getMuscleGroupDefinition(exercise.primaryMuscleGroupId)
     : undefined) ?? resolveLegacyMuscleGroup(exercise.muscleGroup);
@@ -250,4 +255,30 @@ export function buildDayFocusFilterResult(
   });
 
   return { exercises: matched, usesLegacyClassification };
+}
+
+/** Filtros do catálogo usam só o alvo principal; sinergistas pertencem ao seletor de foco do programa. */
+export function getCatalogGroupLabel(exercise: ExerciseMuscleTarget): string {
+  const group = resolveExercisePrimaryGroup(exercise);
+  if (group?.id === 'legs_general') return 'Pernas';
+  if (group?.id === 'core') return 'Abdômen';
+  return group?.label ?? exercise.muscleGroup;
+}
+
+export function getExerciseCatalogTabs(exercises: readonly Exercise[]): WorkoutPickerTab[] {
+  const present = new Set(exercises.map(ex => resolveExercisePrimaryGroup(ex)?.id));
+  return [
+    { id: ALL_EXERCISES_TAB_ID, label: 'Todos' },
+    ...MUSCLE_GROUPS.filter(group => present.has(group.id)).map(group => ({
+      id: group.id,
+      label: getCatalogGroupLabel({ muscleGroup: group.id as Exercise['muscleGroup'], primaryMuscleGroupId: group.id }),
+    })),
+  ];
+}
+
+export function filterExerciseCatalog(exercises: readonly Exercise[], category: WorkoutPickerTabId, search = ''): Exercise[] {
+  return exercises.filter(ex =>
+    (category === ALL_EXERCISES_TAB_ID || resolveExercisePrimaryGroup(ex)?.id === category)
+    && matchesExerciseSearch(ex, search),
+  );
 }

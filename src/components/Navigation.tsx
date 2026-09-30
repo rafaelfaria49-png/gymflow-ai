@@ -201,6 +201,7 @@ export const BottomNavigation = () => {
   // - planner (não cobrir cards semanais nem ações de dia)
   // - modais de escolha de treino (chooserDayName) ou assistente de plano (planAssistantOpen)
   const isExcludedView =
+    activeView === 'dashboard' ||
     activeView === 'active-workout' ||
     activeView === 'workout-builder' ||
     activeView === 'planner';
@@ -285,7 +286,7 @@ const MoreMenuSheet = ({ isOpen, onClose, activeView, isAdmin, onSelect }: MoreM
 
   return (
     <div
-      className="lg:hidden fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end"
+      className="training-overlay lg:hidden fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end"
       onClick={onClose}
       role="presentation"
     >
@@ -294,7 +295,7 @@ const MoreMenuSheet = ({ isOpen, onClose, activeView, isAdmin, onSelect }: MoreM
         role="dialog"
         aria-modal="true"
         aria-label="Mais opções"
-        className="w-full bg-gym-dark border-t border-white/10 rounded-t-3xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl animate-sheet-up"
+        className="training-dialog overflow-y-auto w-full bg-gym-dark border-t border-white/10 rounded-t-3xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl animate-sheet-up"
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-black text-white uppercase tracking-wider">Mais Opções</h2>

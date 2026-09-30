@@ -183,3 +183,23 @@ input::-webkit-inner-spin-button {
 input[type=number] {
   -moz-appearance: textfield;
 }
+
+/* GOAL-119: overlays de treino respeitam barras do sistema e o viewport dinâmico. */
+.training-overlay {
+  height: 100dvh;
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+}
+.training-dialog {
+  max-height: calc(100dvh - max(12px, env(safe-area-inset-top, 0px)) - max(12px, env(safe-area-inset-bottom, 0px)));
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
+/* Avisos não cobrem busca, título ou ações dos modais de treino. */
+body:has(.training-overlay) [data-app-notice="toast"],
+body:has(.training-overlay) [data-app-notice="xp"] {
+  z-index: 40;
+}

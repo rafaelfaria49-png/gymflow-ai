@@ -91,6 +91,7 @@ const ToastViewport = ({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: 
 
   return (
     <div
+      data-app-notice={toasts.some(toast => toast.type === 'error') ? 'error' : 'toast'}
       className="fixed z-[100] inset-x-0 flex flex-col items-center gap-2 px-4 pointer-events-none
         top-[calc(0.75rem+env(safe-area-inset-top))]
         md:inset-x-auto md:items-end md:right-4 md:px-0

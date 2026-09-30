@@ -18,11 +18,14 @@ import {
   ListChecks
 } from 'lucide-react';
 import { defaultTargetMinutes } from '../lib/volumeProfiles';
+import { getTrainingWeekSummary } from '../lib/training-week-summary';
 import { getMuscleGroupLabel } from '../lib/mobile-training-ux';
 
 export const Dashboard = () => {
   const {
     user,
+    activeWorkout,
+    workoutHistory,
     startWorkout,
     setActiveView,
     programs,
@@ -48,6 +51,7 @@ export const Dashboard = () => {
   const needsWorkoutChoice = hasPlan && !hasRealWorkoutToday;
 
   const handleStartTodayWorkout = () => {
+    if (activeWorkout) { setActiveView('active-workout'); return; }
     if (!todayPlan) return;
     startWorkout(todayPlan.programId, todayPlan.workoutName, todayPlan.programDayId);
   };
@@ -83,32 +87,35 @@ export const Dashboard = () => {
     );
   };
 
+  const trainingWeek = getTrainingWeekSummary(workoutHistory);
+  const completedThisWeek = trainingWeek.count;
+
   return (
-    <div className="space-y-6 pb-20 lg:pb-6">
+    <div className="space-y-4 pb-20 lg:pb-6">
       {/* BOAS VINDAS E RESUMO */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-gym-card to-gym-dark border border-white/5 p-6 rounded-3xl relative overflow-hidden">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-gym-card to-gym-dark border border-white/5 p-4 rounded-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-48 h-48 bg-gym-accent/5 rounded-full blur-2xl -z-10"></div>
         <div>
           <div className="flex items-center gap-1.5 text-gym-accent text-xs font-bold uppercase tracking-wider mb-1">
             <Sparkles className="w-3.5 h-3.5" />
-            GymFlow Coach Ativo
+            Seu espaço de treino
           </div>
-          <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+          <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">
             Olá, {user.name.split(' ')[0]}!
           </h1>
           <p className="text-xs text-gym-text-muted mt-0.5">
-            Seu corpo está pronto para a sessão de hoje. Foco no processo!
+            {activeWorkout ? 'Seu treino está em andamento.' : hasRealWorkoutToday ? 'Seu treino de hoje está organizado.' : 'Escolha o treino de hoje.'}
           </p>
         </div>
 
         {/* Mini stats cards */}
-        <div className="flex gap-4">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-center min-w-[70px]">
+        <div className="flex gap-2">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-center min-w-[66px]">
             <Flame className="w-5 h-5 text-gym-accent mx-auto mb-1 animate-pulse" />
-            <span className="block text-xs text-gym-text-muted uppercase">Streak</span>
+            <span className="block text-xs text-gym-text-muted uppercase">Sequência</span>
             <span className="block text-sm font-extrabold text-white">{user.streak} dias</span>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-center min-w-[70px]">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-center min-w-[66px]">
             <Zap className="w-5 h-5 text-gym-emerald mx-auto mb-1" />
             <span className="block text-xs text-gym-text-muted uppercase">Pontos</span>
             <span className="block text-sm font-extrabold text-white">{user.xp} XP</span>
@@ -117,16 +124,17 @@ export const Dashboard = () => {
       </div>
 
       {/* SEÇÃO PRINCIPAL: TREINO DE HOJE */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="glass border border-gym-accent/20 rounded-3xl p-6 relative overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4">
+          <div className="glass border border-gym-accent/20 rounded-3xl p-4 relative overflow-hidden">
             <div className="absolute top-0 right-0 bg-gym-accent text-gym-dark text-[9px] font-black uppercase px-3 py-1 rounded-bl-2xl">
-              {hasRealWorkoutToday ? 'Treino do Dia' : isRestToday ? 'Descanso' : hasPlan ? 'Sem Treino' : 'Planejador'}
+              {activeWorkout ? 'Em andamento' : hasRealWorkoutToday ? 'Treino do Dia' : isRestToday ? 'Descanso' : hasPlan ? 'Sem Treino' : 'Planejador'}
             </div>
 
-            <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block mb-2">Treino do Dia</span>
+            <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block mb-2">{activeWorkout ? 'Treino em andamento' : 'Treino de hoje'}</span>
+            {activeWorkout && <><h2 className="text-xl font-black text-white">{activeWorkout.name}</h2><p className="mt-2 text-xs text-gym-text-muted">{activeWorkout.exercises.length} exercícios · Seu progresso está salvo nesta sessão.</p></>}
 
-            {!hasPlan && (
+            {!hasPlan && !activeWorkout && (
               <>
                 <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">Nenhuma semana planejada ainda</h2>
                 <p className="text-xs text-gym-text-muted mt-1 leading-relaxed max-w-lg">
@@ -135,7 +143,7 @@ export const Dashboard = () => {
               </>
             )}
 
-            {hasPlan && isRestToday && (
+            {hasPlan && isRestToday && !activeWorkout && (
               <>
                 <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">Hoje é dia de descanso</h2>
                 <p className="text-xs text-gym-text-muted mt-1 leading-relaxed max-w-lg">
@@ -144,7 +152,7 @@ export const Dashboard = () => {
               </>
             )}
 
-            {hasPlan && !isRestToday && todayPlan && (
+            {hasPlan && !isRestToday && todayPlan && !activeWorkout && (
               <>
                 <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">{todayPlan.workoutName}</h2>
                 {!hasRealWorkoutToday && (
@@ -154,7 +162,7 @@ export const Dashboard = () => {
                 )}
 
                 {hasRealWorkoutToday && (
-                  <div className="flex flex-wrap items-center gap-4 mt-6 text-xs text-gym-text-muted">
+                  <div className="flex flex-wrap items-center gap-2 mt-3 text-xs text-gym-text-muted">
                     <span className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 font-bold text-white flex items-center gap-1.5">
                       <Dumbbell className="w-3.5 h-3.5 text-gym-accent" />
                       {todayPlan.exerciseCount} Exercícios
@@ -173,70 +181,73 @@ export const Dashboard = () => {
               </>
             )}
 
-            <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-8">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4">
               {/* GOAL-10.6: 3 blocos mutuamente exclusivos — o usuário nunca fica sem
                   um caminho claro para treinar hoje, e nunca inventamos um treino. */}
-              {hasRealWorkoutToday && (
+              {(activeWorkout || hasRealWorkoutToday) && (
                 <button
                   onClick={handleStartTodayWorkout}
-                  className="flex-1 py-4 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-2xl transition-all shadow-lg shadow-gym-accent/15 flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
+                  className="flex-1 min-h-[44px] py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-2xl transition-all shadow-lg shadow-gym-accent/15 flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
                 >
-                  Começar Treino
+                  {activeWorkout ? 'Continuar treino' : 'Começar treino'}
                   <ChevronRight className="w-4 h-4 text-gym-dark" />
                 </button>
               )}
 
-              {needsWorkoutChoice && (
+              {needsWorkoutChoice && !activeWorkout && (
                 <button
                   onClick={handleChooseForToday}
-                  className="flex-1 py-4 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-2xl transition-all shadow-lg shadow-gym-accent/15 flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
+                  className="flex-1 min-h-[44px] py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-2xl transition-all shadow-lg shadow-gym-accent/15 flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
                 >
                   <ListChecks className="w-4 h-4 text-gym-dark" />
                   Escolher Treino para Hoje
                 </button>
               )}
 
-              {!hasPlan && (
+              {!hasPlan && !activeWorkout && (
                 <button
                   onClick={handleBuildFromScratch}
-                  className="flex-1 py-4 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-2xl transition-all shadow-lg shadow-gym-accent/15 flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
+                  className="flex-1 min-h-[44px] py-3 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black rounded-2xl transition-all shadow-lg shadow-gym-accent/15 flex items-center justify-center gap-2 cursor-pointer text-xs uppercase tracking-wider"
                 >
                   Montar Treino
                   <Wrench className="w-4 h-4 text-gym-dark" />
                 </button>
               )}
 
-              {hasRealWorkoutToday && (
-                <>
+              {hasRealWorkoutToday && !activeWorkout && (
+                <details className="w-full">
+                  <summary className="min-h-[44px] cursor-pointer py-3 text-xs font-semibold text-gym-text-muted">Editar ou montar outro treino</summary>
+                  <div className="flex flex-wrap gap-2">
                   <button
                     onClick={handleEditTodayWorkout}
-                    className="py-4 px-6 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
+                    className="min-h-[44px] py-3 px-4 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
                   >
                     <Pencil className="w-4 h-4 text-gym-accent" />
                     Editar Treino
                   </button>
                   <button
                     onClick={handleBuildFromScratch}
-                    className="py-4 px-6 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
+                    className="min-h-[44px] py-3 px-4 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
                   >
                     <Wrench className="w-4 h-4 text-gym-accent" />
                     Montar do Zero
                   </button>
-                </>
+                  </div>
+                </details>
               )}
 
-              {needsWorkoutChoice && (
+              {needsWorkoutChoice && !activeWorkout && (
                 <>
                   <button
                     onClick={handleBuildFromScratch}
-                    className="py-4 px-6 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
+                    className="min-h-[44px] py-3 px-4 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
                   >
                     <Wrench className="w-4 h-4 text-gym-accent" />
                     Montar Treino
                   </button>
                   <button
                     onClick={() => setActiveView('planner')}
-                    className="py-4 px-6 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
+                    className="min-h-[44px] py-3 px-4 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
                   >
                     <Calendar className="w-4 h-4 text-gym-accent" />
                     Ver Planejador
@@ -244,10 +255,10 @@ export const Dashboard = () => {
                 </>
               )}
 
-              {!hasPlan && (
+              {!hasPlan && !activeWorkout && (
                 <button
                   onClick={() => setActiveView('planner')}
-                  className="py-4 px-6 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
+                  className="min-h-[44px] py-3 px-4 bg-gym-card hover:bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
                 >
                   <Calendar className="w-4 h-4 text-gym-accent" />
                   Ver Planejador
@@ -257,7 +268,7 @@ export const Dashboard = () => {
           </div>
 
           {/* EVOLUÇÃO SEMANAL / WIDGETS DE METAS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Metas Semanais */}
             <div className="glass p-5 rounded-3xl border border-white/5 space-y-4">
               <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
@@ -268,10 +279,10 @@ export const Dashboard = () => {
                 <div>
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-gym-text-muted">Treinos Concluídos</span>
-                    <span className="font-bold text-white">3 de {user.frequency} dias</span>
+                    <span className="font-bold text-white">{completedThisWeek} de {user.frequency} dias</span>
                   </div>
                   <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-                    <div className="h-full bg-gym-accent rounded-full" style={{ width: '75%' }}></div>
+                    <div className="h-full bg-gym-accent rounded-full" style={{ width: String(Math.min(100, completedThisWeek / Math.max(1, user.frequency) * 100)) + '%' }}></div>
                   </div>
                 </div>
 
@@ -311,7 +322,7 @@ export const Dashboard = () => {
         </div>
 
         {/* LADO DIREITO: IA COACH TIP & QUICK INFOS */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* IA Coach Card */}
           <div className="glass bg-gradient-to-b from-gym-accent/5 to-transparent border border-white/10 rounded-3xl p-5 space-y-4">
             <div className="flex items-center gap-3">
@@ -319,12 +330,12 @@ export const Dashboard = () => {
                 <IaCoachHologram width={46} height={46} isActive={true} />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-white">IA Coach Dica do Dia</h4>
-                <p className="text-[10px] text-gym-accent font-semibold uppercase">Estudos Científicos</p>
+                <h4 className="text-xs font-bold text-white">Organize seu treino</h4>
+                <p className="text-[10px] text-gym-accent font-semibold uppercase">Seu planejamento</p>
               </div>
             </div>
             <p className="text-xs text-gym-text-muted leading-relaxed">
-              &quot;Fazer uma retração de escápulas rígida no supino reto não apenas protege os rotadores do ombro contra estiramentos como também aumenta em até 12% a ativação das fibras centrais do peitoral maior. Tente focar nisso na sessão de hoje!&quot;
+              Consulte o treino do dia e registre suas séries. Você pode ajustar exercícios e cargas durante a sessão.
             </p>
             <button
               onClick={() => setActiveView('ai-coach')}
@@ -335,34 +346,6 @@ export const Dashboard = () => {
             </button>
           </div>
 
-          {/* Músculos Trabalhados */}
-          <div className="glass p-5 rounded-3xl border border-white/5 space-y-3">
-            <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-              <Activity className="w-4 h-4 text-gym-emerald" />
-              Recuperação Muscular
-            </h3>
-            <div className="space-y-2">
-              {[
-                { name: 'Peitorais', recovery: 85, status: 'Fresco' },
-                { name: 'Quadríceps', recovery: 20, status: 'Fadigado (Recuperando)' },
-                { name: 'Costas', recovery: 95, status: 'Fresco' },
-                { name: 'Deltóides', recovery: 40, status: 'Dolorido' }
-              ].map((m, idx) => (
-                <div key={idx} className="flex justify-between items-center text-xs">
-                  <span className="text-white font-medium">{m.name}</span>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-bold ${m.recovery >= 70 ? 'text-gym-accent' : m.recovery >= 40 ? 'text-yellow-500' : 'text-gym-rose'}`}>
-                      {m.status}
-                    </span>
-                    <div className="w-12 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                      <div className={`h-full ${m.recovery >= 70 ? 'bg-gym-accent' : m.recovery >= 40 ? 'bg-yellow-500' : 'bg-gym-rose'}`} style={{ width: `${m.recovery}%` }}></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* Próximos Eventos / Calendário */}
           <div className="glass p-5 rounded-3xl border border-white/5 space-y-3">
             <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
@@ -371,8 +354,8 @@ export const Dashboard = () => {
             </h3>
             <div className="grid grid-cols-7 gap-1">
               {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((day, idx) => {
-                const trained = idx < 3; // Mocking Trained days
-                const active = idx === 3;
+                const trained = trainingWeek.days[idx].trained;
+                const active = trainingWeek.days[idx].isToday;
                 return (
                   <div
                     key={idx}

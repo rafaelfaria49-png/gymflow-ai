@@ -125,9 +125,12 @@ import {
   adaptWorkoutForCrowdedGym,
   reorderWorkoutExercises,
   swapWorkoutExercise,
+  isEligibleWorkoutSubstitute,
+  type WorkoutExerciseSwapResult,
   toggleWorkoutSetCompletion,
   updateWorkoutExerciseNotes,
 } from '../lib/workout-session-mutations';
+import { createTrainingActionGuard } from '../lib/training-action-guard';
 import {
   applyCompactWorkoutProposal,
   type CompactWorkoutProposal,
@@ -549,7 +552,8 @@ interface GymFlowContextType {
     exerciseIndex: number,
     newExerciseId: string,
     swapMeta?: { reasonCode: WorkoutSwapReasonCode; reasonNote?: string },
-  ) => void;
+    expectedExerciseId?: string,
+  ) => WorkoutExerciseSwapResult;
   finishWorkout: (rpe: number) => void;
   cancelWorkout: () => void;
   workoutDuration: number;
@@ -1025,6 +1029,7 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   // Active workout
   const [activeWorkout, setActiveWorkoutState] = useState<WorkoutSession | null>(null);
   const activeWorkoutRef = useRef<WorkoutSession | null>(null);
+  const trainingActionGuard = useRef(createTrainingActionGuard());
   const finishWorkoutInProgressRef = useRef(false);
   const setActiveWorkout: React.Dispatch<React.SetStateAction<WorkoutSession | null>> = (action) => {
     const next = resolveStateAction(activeWorkoutRef.current, action);
@@ -2775,6 +2780,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
   const completeWorkoutSet = (exerciseIndex: number, setIndex: number) => {
     const currentWorkout = activeWorkoutRef.current;
     if (!currentWorkout) return;
+    const setId = currentWorkout.exercises[exerciseIndex]?.sets[setIndex]?.id;
+    if (!setId || !trainingActionGuard.current(`${currentWorkout.id}:set:${setId}`)) return;
     const transition = toggleWorkoutSetCompletion(currentWorkout, exerciseIndex, setIndex);
     if (!transition.changed) return;
     const toggledExercise = transition.workout.exercises[exerciseIndex];
@@ -2871,13 +2878,22 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     exerciseIndex: number,
     newExerciseId: string,
     swapMeta?: { reasonCode: WorkoutSwapReasonCode; reasonNote?: string },
-  ) => {
+    expectedExerciseId?: string,
+  ): WorkoutExerciseSwapResult => {
+    const fail = (error: string): WorkoutExerciseSwapResult => ({ ok: false, error });
     const currentWorkout = activeWorkoutRef.current;
-    if (!currentWorkout) return;
+    if (!currentWorkout) return fail('Não há treino em andamento. Abra uma sessão antes de trocar.');
     const newEx = exercises.find((e) => e.id === newExerciseId);
-    if (!newEx) return;
+    if (!newEx) return fail('O substituto não está mais disponível no catálogo.');
     const currentExercise = currentWorkout.exercises[exerciseIndex];
-    if (!currentExercise || currentExercise.exerciseId === newExerciseId) return;
+    if (!currentExercise || (expectedExerciseId && currentExercise.id !== expectedExerciseId)) {
+      return fail('A sessão mudou. Feche e abra novamente a troca.');
+    }
+    if (currentExercise.exerciseId === newExerciseId) return fail('Esse exercício já está nesta posição.');
+    const currentMeta = exercises.find(ex => ex.id === currentExercise.exerciseId) ?? currentExercise;
+    if (!isEligibleWorkoutSubstitute(currentMeta, newEx)) return fail('Escolha um substituto do mesmo grupo muscular.');
+    if (swapMeta?.reasonCode === 'other' && !swapMeta.reasonNote?.trim()) return fail('Descreva o motivo da troca.');
+    if (!trainingActionGuard.current(`${currentWorkout.id}:swap:${currentExercise.id}`)) return fail('Aguarde um instante antes de confirmar novamente.');
     // GOAL-24: registra o snapshot estruturado da substituição. Captura o exercício
     // ANTES da troca (original), executa a troca atual e aplica markEntrySwapped com
     // original + motivo + nota + timestamp. O timestamp é lido aqui (fora do domínio
@@ -2899,12 +2915,14 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
       };
     };
     const nextWorkout = applySwap(currentWorkout);
+    if (nextWorkout === currentWorkout) return fail('Não foi possível aplicar a troca. Tente novamente.');
     setActiveWorkout((prev) => {
       if (!prev) return prev;
       return prev === currentWorkout ? nextWorkout : applySwap(prev);
     });
     addXp(20, 'Substituição de exercício executada');
-    toast.success(`Substituição aplicada sem alterar o objetivo muscular do treino: ${currentExercise.name} -> ${newEx.name}.`);
+    toast.success(`Exercício trocado: ${currentExercise.name} → ${newEx.name}.`);
+    return { ok: true };
   };
 
   const crowdedGymMode = activeWorkout?.crowdedGymMode === true;

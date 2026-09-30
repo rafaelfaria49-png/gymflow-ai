@@ -36,6 +36,7 @@ export const XPBadgeNotification = () => {
 
   return (
     <div
+      data-app-notice="xp"
       className="fixed z-50 inset-x-0 flex flex-col items-center gap-2 px-4 pointer-events-none
         top-[calc(4rem+env(safe-area-inset-top))]
         md:inset-x-auto md:items-end md:right-4 md:px-0 md:top-[calc(1rem+env(safe-area-inset-top))]"

@@ -2,6 +2,7 @@ import type { ActiveExercise, Exercise, WorkoutSession } from '../types';
 import type { EquipmentCategory, EquipmentId } from '../types/training-taxonomy';
 import { getEquipmentDefinition } from './equipment-registry';
 import { resolveLegacyEquipment } from './equipment-legacy-map';
+import { resolveExercisePrimaryGroup, type ExerciseMuscleTarget } from './workout-picker';
 
 export function updateWorkoutExerciseNotes(
   workout: WorkoutSession,
@@ -89,7 +90,7 @@ export function crowdedGymEquipmentScore(exercise: Exercise): number {
  * cabos sobem com bônus explícito e empates continuam determinísticos.
  */
 export function rankWorkoutSubstitutes(
-  current: Pick<Exercise, 'id' | 'muscleGroup'>,
+  current: Pick<Exercise, 'id' | 'muscleGroup' | 'primaryMuscleGroupId'>,
   catalog: readonly Exercise[],
   options: WorkoutSubstituteRankingOptions = {},
 ): Exercise[] {
@@ -101,7 +102,7 @@ export function rankWorkoutSubstitutes(
       preferredInCrowdedGym: crowdedGymEquipmentScore(exercise) > 0,
       equipmentCategories: equipmentCategories(exercise),
     }))
-    .filter(({ exercise }) => exercise.muscleGroup === current.muscleGroup && exercise.id !== current.id);
+    .filter(({ exercise }) => exercise.id !== current.id && isEligibleWorkoutSubstitute(current, exercise));
 
   return ranked
     .sort((left, right) => right.score - left.score || left.index - right.index)
@@ -226,3 +227,14 @@ export function toggleWorkoutSetCompletion(
     targetExercise,
   };
 }
+
+export function isEligibleWorkoutSubstitute(
+  current: ExerciseMuscleTarget,
+  replacement: ExerciseMuscleTarget,
+): boolean {
+  const currentGroup = resolveExercisePrimaryGroup(current)?.id;
+  const replacementGroup = resolveExercisePrimaryGroup(replacement)?.id;
+  return currentGroup !== undefined && currentGroup === replacementGroup;
+}
+
+export type WorkoutExerciseSwapResult = { ok: true } | { ok: false; error: string };

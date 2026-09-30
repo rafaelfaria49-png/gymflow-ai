@@ -137,7 +137,7 @@ export function WhyThisWeightModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="why-this-weight-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+      className="training-overlay fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
     >
       {/* Backdrop */}
       <div
@@ -147,7 +147,7 @@ export function WhyThisWeightModal({
       />
 
       {/* Modal Container */}
-      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl border border-white/10 bg-gym-card/95 p-6 shadow-2xl backdrop-blur-xl text-left text-white space-y-5 animate-in fade-in zoom-in-95 duration-200">
+      <div className="training-dialog relative w-full max-w-lg overflow-y-auto rounded-3xl border border-white/10 bg-gym-card/95 p-6 shadow-2xl backdrop-blur-xl text-left text-white space-y-5 animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
           <div className="flex items-center gap-3">
