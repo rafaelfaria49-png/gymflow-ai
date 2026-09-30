@@ -21,6 +21,7 @@
  */
 
 import { AI_ASSISTANT_LIMITS, AiAssistantError } from './ai-assistant-types';
+import { readTextWithinLimit } from './bounded-text';
 
 export interface AiProviderConfig {
   enabled: boolean;
@@ -60,11 +61,24 @@ export function readProviderConfig(env: Record<string, string | undefined> = pro
   };
 }
 
-/** Provedor utilizável somente com as 4 peças presentes (flag + url + key + model). */
+/** Base URL do provedor precisa ser HTTPS válida: a chave vai no header. */
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Provedor utilizável somente com as 4 peças presentes (flag + url + key +
+ * model) e base URL HTTPS (GOAL-118: nunca enviar chave/prompt em claro).
+ */
 export function isProviderConfigured(config: AiProviderConfig): boolean {
   return (
     config.enabled === true
     && config.baseUrl !== null
+    && isHttpsUrl(config.baseUrl)
     && config.apiKey !== null
     && config.model !== null
   );
@@ -150,6 +164,9 @@ export async function callProviderChatCompletion(
         response_format: { type: 'json_object' },
       }),
       signal: controller.signal,
+      // GOAL-118: nunca seguir redirecionamento (um 307/308 para http:// ou
+      // outro host reenviaria prompt e chave fora do destino validado).
+      redirect: 'error',
     });
     if (!response.ok) {
       throw new AiAssistantError(
@@ -157,14 +174,15 @@ export async function callProviderChatCompletion(
         `Provedor de IA respondeu HTTP ${response.status}. Nenhuma sugestão fake foi gerada.`,
       );
     }
-    const text = await response.text();
-    if (text.length > AI_ASSISTANT_LIMITS.MAX_PROVIDER_RESPONSE_BYTES) {
+    // Teto em bytes UTF-8, lendo o stream só até o limite.
+    const read = await readTextWithinLimit(response, AI_ASSISTANT_LIMITS.MAX_PROVIDER_RESPONSE_BYTES);
+    if (read.kind === 'too-large') {
       throw new AiAssistantError(
         'INVALID_MODEL_RESPONSE',
         'Resposta do provedor excede o teto de bytes do contrato.',
       );
     }
-    return text;
+    return read.text;
   } catch (error) {
     if (error instanceof AiAssistantError) throw error;
     if (error instanceof Error && error.name === 'AbortError') {
