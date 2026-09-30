@@ -109,7 +109,7 @@ describe('BottomNavigation — FAB Treinar/Continuar (GOAL-049)', () => {
   });
 
   it('FAB_WITHOUT_ACTIVE: sem treino ativo mostra "Treinar" com aria-label "Iniciar treino" e leva à lista de treinos', () => {
-    const renderer = renderBottomNavigation(buildContext());
+    const renderer = renderBottomNavigation(buildContext({ activeView: 'exercises' }));
 
     const fab = findAllByAriaLabel(renderer.toJSON(), 'Iniciar treino');
     expect(fab).toHaveLength(1);
@@ -140,7 +140,7 @@ describe('BottomNavigation — FAB Treinar/Continuar (GOAL-049)', () => {
       exercises: [],
       xpEarned: 0,
     };
-    const renderer = renderBottomNavigation(buildContext({ activeWorkout }));
+    const renderer = renderBottomNavigation(buildContext({ activeWorkout, activeView: 'exercises' }));
 
     const fab = findAllByAriaLabel(renderer.toJSON(), 'Continuar treino');
     expect(fab).toHaveLength(1);
@@ -163,6 +163,7 @@ describe('BottomNavigation — FAB Treinar/Continuar (GOAL-049)', () => {
 
   it('FAB_ROUTING: FAB é ocultado nas views de foco (active-workout, builder, planner) e com modal aberto', () => {
     const hiddenCases = [
+      { activeView: 'dashboard' },
       { activeView: 'active-workout' },
       { activeView: 'workout-builder' },
       { activeView: 'planner' },

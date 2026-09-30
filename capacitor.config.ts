@@ -11,6 +11,9 @@ const config: CapacitorConfig = {
     // Fundo escuro do WebView: evita o flash branco no boot e casa com o
     // design system (dark + verde-lima). Mesmo tom do background_color do PWA.
     backgroundColor: '#09090b',
+    // GOAL-119: o runtime 7.6.7 usa disable quando omitido; as barras do sistema
+    // devem limitar o WebView também no Android 15/16 com edge-to-edge obrigatório.
+    adjustMarginsForEdgeToEdge: 'force',
     // GOAL-115: debugging do WebView DESLIGADO por padrao para que builds
     // release nao exponham chrome://inspect. Para depurar um APK de debug,
     // ligue temporariamente (true) e reverta antes de gerar release.

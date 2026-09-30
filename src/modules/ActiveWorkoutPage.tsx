@@ -11,7 +11,11 @@ import { getProgramDays } from '../lib/workout-program-days';
 import type { ReadinessAssessment, ReadinessSuggestion } from '../domain/readinessEngine';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { NumericInput } from '../components/ui/NumericInput';
-import { matchesExerciseSearch } from '../lib/exerciseSearch';
+import { ExerciseCatalogPicker } from '../components/ExerciseCatalogPicker';
+import { ActiveWorkoutSetRow } from '../components/ActiveWorkoutSetRow';
+import { getCatalogGroupLabel } from '../lib/workout-picker';
+import { createTrainingActionGuard } from '../lib/training-action-guard';
+import { useTrainingDialogFocus } from '../lib/use-training-dialog-focus';
 import { getTechniqueVideoIdForExerciseId } from '../lib/exerciseTechniqueMap';
 import { defaultTargetMinutes } from '../lib/volumeProfiles';
 import { useToast } from '../components/ui/Toast';
@@ -36,150 +40,6 @@ import { exerciseUsesPlates, getMuscleGroupLabel } from '../lib/mobile-training-
 
 function formatLoadKg(value: number): string {
   return `${Number.isInteger(value) ? value : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '').replace('.', ',')} kg`;
-}
-
-interface ActiveWorkoutSetRowProps {
-  set: WorkoutSet;
-  displayIndex: number;
-  warmupIndex?: number;
-  showRir?: boolean;
-  isCurrentFocus?: boolean;
-  onUpdate: (fields: Partial<WorkoutSet>) => void;
-  onToggle: () => void;
-}
-
-function ActiveWorkoutSetRow({
-  set,
-  displayIndex,
-  warmupIndex,
-  showRir = false,
-  isCurrentFocus = false,
-  onUpdate,
-  onToggle,
-}: ActiveWorkoutSetRowProps) {
-  const label = set.isWarmup ? `A${(warmupIndex ?? 0) + 1}` : String(displayIndex + 1);
-  const setDescription = set.isWarmup ? `aproximação ${label}` : `série ${displayIndex + 1}`;
-  return (
-    <div
-      id={`set-row-${set.id}`}
-      className={`grid grid-cols-12 items-center text-center p-1 rounded-xl transition-all border gap-1 relative ${
-        set.completed
-          ? 'bg-gym-accent/5 border-gym-accent/20'
-          : isCurrentFocus
-            ? 'bg-gym-accent/[0.08] border-gym-accent/50 ring-1 ring-gym-accent/30 shadow-[0_0_12px_rgba(163,230,53,0.12)]'
-            : set.isWarmup
-              ? 'bg-gym-amber/[0.04] border-gym-amber/15'
-              : 'bg-white/5 border-transparent'
-      }`}
-    >
-      <span className="col-span-2 text-xs text-white font-bold text-left pl-2 flex flex-col justify-center relative">
-        {isCurrentFocus && !set.completed && (
-          <span
-            className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-gym-accent animate-pulse"
-            aria-hidden="true"
-          />
-        )}
-        <span className={isCurrentFocus && !set.completed ? 'text-gym-accent font-extrabold' : ''}>{label}</span>
-        {set.isWarmup && (
-          <span className="text-[7px] text-gym-amber uppercase font-extrabold tracking-widest -mt-0.5">Aprox.</span>
-        )}
-      </span>
-
-      <div className="col-span-2 flex flex-col justify-center text-[9px] text-gym-text-muted leading-tight font-mono">
-        <span>{set.isWarmup ? '—' : set.lastWeight ? formatLoadKg(set.lastWeight) : '—'}</span>
-        <span className="text-gym-accent/80 font-bold">
-          {set.isWarmup ? formatLoadKg(set.weight) : set.suggestedWeight ? formatLoadKg(set.suggestedWeight) : '—'}
-        </span>
-      </div>
-
-      <div className="col-span-3 px-0.5">
-        <NumericInput
-          value={set.weight}
-          allowDecimal
-          min={0}
-          disabled={set.completed}
-          aria-label={`Carga da ${setDescription} (kg)`}
-          onValidChange={(value) => onUpdate({ weight: value })}
-          onCommit={(value) => onUpdate({ weight: value ?? 0 })}
-          className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
-        />
-      </div>
-
-      <div className="col-span-2 px-0.5">
-        <NumericInput
-          value={set.reps}
-          min={0}
-          disabled={set.completed}
-          aria-label={`Repetições da ${setDescription}`}
-          onValidChange={(value) => onUpdate({ reps: value })}
-          onCommit={(value) => onUpdate({ reps: value ?? 0 })}
-          className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
-        />
-      </div>
-
-      <div className="col-span-2 px-0.5">
-        <NumericInput
-          value={set.rpe ?? null}
-          min={1}
-          max={10}
-          emptyBehavior="null"
-          placeholder="8"
-          disabled={set.completed}
-          aria-label={`RPE da ${setDescription}`}
-          onValidChange={(value) => onUpdate({ rpe: value })}
-          onCommit={(value) => onUpdate({ rpe: value ?? undefined })}
-          className="w-full min-h-[44px] bg-gym-dark/60 border border-white/10 text-white rounded-lg text-center text-xs font-mono focus:border-gym-accent outline-none"
-        />
-      </div>
-
-      <div className="col-span-1 flex justify-center">
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-label={set.completed ? `Desmarcar ${setDescription}` : `Concluir ${setDescription}`}
-          className="w-11 h-11 -m-2.5 flex items-center justify-center group/check"
-        >
-          <span
-            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all group-active/check:scale-90 ${
-              set.completed
-                ? 'bg-gym-accent text-gym-dark'
-                : 'bg-white/10 border border-white/15 text-transparent group-hover/check:border-gym-accent'
-            }`}
-          >
-            <Check className="w-3.5 h-3.5 stroke-[3px]" />
-          </span>
-        </button>
-      </div>
-
-      {showRir && !set.isWarmup && (
-        <div className="col-span-12 flex items-center gap-2 border-t border-white/5 px-2 pt-2 text-left">
-          <span className="shrink-0 text-[8px] font-black uppercase tracking-wider text-gym-text-muted" title="Repetições em reserva">
-            RIR
-          </span>
-          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-0.5">
-            {[0, 1, 2, 3, 4, 5].map((value) => (
-              <button
-                key={value}
-                type="button"
-                disabled={set.completed}
-                aria-pressed={set.rir === value}
-                aria-label={`RIR ${value}`}
-                onClick={() => onUpdate({ rir: set.rir === value ? undefined : value })}
-                className={`min-h-[32px] min-w-[32px] rounded-lg border px-2 text-[10px] font-black transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                  set.rir === value
-                    ? 'border-gym-accent bg-gym-accent text-gym-dark'
-                    : 'border-white/10 bg-white/5 text-gym-text-muted hover:border-gym-accent/40 hover:text-gym-accent'
-                }`}
-              >
-                {value}
-              </button>
-            ))}
-          </div>
-          <span className="hidden shrink-0 text-[8px] text-gym-text-muted sm:inline">opcional</span>
-        </div>
-      )}
-    </div>
-  );
 }
 
 const FINISH_MODAL_CONFIG: Record<
@@ -277,7 +137,9 @@ export const ActiveWorkoutPage = () => {
   const [swapNote, setSwapNote] = useState('');
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addSearch, setAddSearch] = useState('');
+  const [selectedSwapExercise, setSelectedSwapExercise] = useState<Exercise | null>(null);
+  const [swapError, setSwapError] = useState<string | null>(null);
+  const actionGuard = useRef(createTrainingActionGuard());
   const [compactProposal, setCompactProposal] = useState<CompactWorkoutProposal | null>(null);
   const [quickMinutes, setQuickMinutes] = useState(30);
   const [lastCompletedSet, setLastCompletedSet] = useState<{ sessionId: string; exerciseIndex: number; setIndex: number } | null>(null);
@@ -286,6 +148,9 @@ export const ActiveWorkoutPage = () => {
   const [whyThisWeightExercise, setWhyThisWeightExercise] = useState<ActiveExercise | null>(null);
   const [showReadinessModal, setShowReadinessModal] = useState(false);
   const lastScrolledCompletion = useRef<string | null>(null);
+  const addDialogRef = useTrainingDialogFocus(showAddModal);
+  const swapDialogRef = useTrainingDialogFocus(showSwapModal);
+  const finishDialogRef = useTrainingDialogFocus(showFinishModal);
 
   // Fechamento de modais no botão Voltar Android / ESC (ordem por prioridade)
   useBackHandler(showCancelConfirm, () => setShowCancelConfirm(false), 50);
@@ -492,6 +357,7 @@ export const ActiveWorkoutPage = () => {
   const handleSkipReadiness = () => {
     skipReadinessCheckIn();
     setShowReadinessModal(false);
+    toast.info('Check-in pulado. Nenhuma resposta foi enviada.');
   };
 
   const handleDismissReadinessSuggestion = (suggestionId: string) => {
@@ -520,6 +386,8 @@ export const ActiveWorkoutPage = () => {
   };
 
   const openSwapModal = (idx: number) => {
+    setSelectedSwapExercise(null);
+    setSwapError(null);
     setSwapIndex(idx);
     setSwapReasonCode(null);
     setSwapNote('');
@@ -527,6 +395,8 @@ export const ActiveWorkoutPage = () => {
   };
 
   const closeSwapModal = () => {
+    setSelectedSwapExercise(null);
+    setSwapError(null);
     setShowSwapModal(false);
     setSwapIndex(null);
     setSwapReasonCode(null);
@@ -540,29 +410,30 @@ export const ActiveWorkoutPage = () => {
 
   const handleSwap = (newExId: string) => {
     if (swapIndex === null || swapReasonCode === null || !swapReasonValid) return;
-    swapExerciseInActiveWorkout(swapIndex, newExId, {
-      reasonCode: swapReasonCode,
-      reasonNote: swapNoteTrimmed.length > 0 ? swapNoteTrimmed : undefined,
-    });
-    closeSwapModal();
+    if (!actionGuard.current('swap')) return;
+    try {
+      const result = swapExerciseInActiveWorkout(swapIndex, newExId, {
+        reasonCode: swapReasonCode,
+        reasonNote: swapNoteTrimmed || undefined,
+      }, activeWorkout.exercises[swapIndex]?.id);
+      if (!result.ok) { setSwapError(result.error); return; }
+      closeSwapModal();
+    } catch {
+      setSwapError('Não foi possível trocar o exercício. Tente novamente.');
+    }
   };
 
-  // GOAL-15: adicionar exercício ao Treino Ativo pela busca (persiste de verdade,
-  // via addExerciseToActiveWorkout no contexto — antes a biblioteca mutava o array
-  // sem setState e a alteração não salvava).
-  const addExerciseCandidates = exercises.filter((ex) => matchesExerciseSearch(ex, addSearch)).slice(0, 40);
-
   const handleAddExercise = (exId: string) => {
+    if (!actionGuard.current('add')) return;
     addExerciseToActiveWorkout(exId);
     setShowAddModal(false);
-    setAddSearch('');
   };
 
   // Filtrar substitutos recomendados baseado no mesmo grupo muscular
   const getSubstitutes = (exIndex: number) => {
     const activeExercise = activeWorkout.exercises[exIndex];
     if (!activeExercise) return [];
-    const current: Pick<Exercise, 'id' | 'muscleGroup'> = exercises.find(
+    const current: Pick<Exercise, 'id' | 'muscleGroup' | 'primaryMuscleGroupId'> = exercises.find(
       (exercise) => exercise.id === activeExercise.exerciseId,
     ) ?? {
       id: activeExercise.exerciseId,
@@ -573,7 +444,13 @@ export const ActiveWorkoutPage = () => {
 
   // ActionBar fixa (GOAL-04): estado da próxima série pendente.
   const allSetsCompleted = totalSetsCount > 0 && completedSetsCount === totalSetsCount;
-  const currentSetNumber = Math.min(completedSetsCount + 1, totalSetsCount || 1);
+  const focusSet = nextExercise?.sets.find(set => set.id === currentFocusSetId);
+  const focusRows = nextExercise?.sets.filter(set => Boolean(set.isWarmup) === Boolean(focusSet?.isWarmup)) ?? [];
+  const currentSetNumber = focusRows.findIndex(set => set.id === currentFocusSetId) + 1;
+  const currentExerciseSets = focusRows.length;
+  const guardedAction = (key: string, action: () => void) => {
+    if (actionGuard.current(activeWorkout.id + ':' + key)) action();
+  };
 
   const blurActiveField = () => {
     const activeElement = document.activeElement;
@@ -633,6 +510,11 @@ export const ActiveWorkoutPage = () => {
     const incompleteSet = focusExercise?.sets.find((s) => !s.completed);
     if (incompleteSet) {
       const row = document.getElementById(`set-row-${incompleteSet.id}`);
+      let ancestor = row?.parentElement;
+      while (ancestor) {
+        if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
+        ancestor = ancestor.parentElement;
+      }
       row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       // O campo de carga é o primeiro input da linha (NumericInput = type="text").
       const weightInput = row?.querySelector('input') as HTMLInputElement | null;
@@ -648,7 +530,7 @@ export const ActiveWorkoutPage = () => {
   };
 
   return (
-    <div className="space-y-6 pb-active-workout lg:pb-6 max-w-3xl mx-auto">
+    <div className="space-y-4 pb-active-workout lg:pb-6 max-w-3xl mx-auto">
       {/* HEADER FIXO DE TREINO */}
       <div className="glass border border-white/10 px-3 min-[360px]:px-4 py-3.5 sm:p-5 rounded-2xl sm:rounded-3xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 shadow-xl">
         {/* PARTE SUPERIOR / ÁREA A: Sessão Ativa + Título */}
@@ -736,7 +618,9 @@ export const ActiveWorkoutPage = () => {
         </div>
       </div>
 
-      <div className="bg-gym-accent/5 border border-gym-accent/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+      <details className="group rounded-2xl border border-white/10">
+        <summary className="min-h-[44px] cursor-pointer px-3 py-3 text-xs font-semibold text-gym-text-muted">Ajustes desta sessão e programa de origem</summary>
+      <div className="bg-gym-accent/5 rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex items-start gap-2.5 flex-1 min-w-0">
           <Info className="w-4 h-4 text-gym-accent flex-shrink-0 mt-0.5" />
           <div>
@@ -776,12 +660,14 @@ export const ActiveWorkoutPage = () => {
         )}
       </div>
 
+      </details>
+
       {user && user.level !== 'beginner' && user.rirOnboardingCompleted !== true && (
         <details className="group rounded-2xl border border-gym-accent/20 bg-gym-accent/[0.04]">
           <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 px-3.5 text-xs font-bold text-gym-accent [&::-webkit-details-marker]:hidden">
             <span className="flex items-center gap-2">
               <HelpCircle className="w-4 h-4 text-gym-accent flex-shrink-0" />
-              <span>Entenda a escala RIR (Repetições em Reserva)</span>
+              <span>Entenda as repetições em reserva</span>
             </span>
             <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180 flex-shrink-0" aria-hidden="true" />
           </summary>
@@ -795,7 +681,7 @@ export const ActiveWorkoutPage = () => {
       )}
 
       {activeWorkout.warmup?.enabled && (
-        <details open className="group rounded-2xl border border-gym-amber/20 bg-gym-amber/[0.04]">
+        <details className="group rounded-2xl border border-gym-amber/20 bg-gym-amber/[0.04]">
           <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-3 px-4 [&::-webkit-details-marker]:hidden">
             <span className="flex min-w-0 items-center gap-2">
               <Flame className="h-4 w-4 text-gym-amber" aria-hidden="true" />
@@ -853,22 +739,22 @@ export const ActiveWorkoutPage = () => {
             </div>
 
             <div>
-              <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block">Descanso Biomecânico Ativo</span>
+              <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block">Descanso entre séries</span>
               <p className="text-xs text-gym-text-muted mt-0.5">
-                {restTimerLabel ? `Prepare-se para: ${restTimerLabel}` : 'Oxigenando fibras... Prepare-se para a próxima série.'}
+                {restTimerLabel ? `Prepare-se para: ${restTimerLabel}` : 'Prepare-se para a próxima série.'}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => extendRestTimer(30)}
+              onClick={() => guardedAction('extend-rest', () => extendRestTimer(30))}
               className="text-[10px] bg-white/5 hover:bg-white/10 px-3 py-2 rounded-xl border border-white/10 font-bold text-white transition-all"
             >
               +30s
             </button>
             <button
-              onClick={skipRestTimer}
+              onClick={() => guardedAction('skip-rest', skipRestTimer)}
               className="text-[10px] bg-gym-rose/10 hover:bg-gym-rose/20 text-gym-rose border border-gym-rose/20 px-3 py-2 rounded-xl font-bold transition-all"
             >
               Pular
@@ -878,7 +764,9 @@ export const ActiveWorkoutPage = () => {
       )}
 
       {/* LIVE METRICS PANEL */}
-      <div className="glass p-5 rounded-3xl border border-white/5 space-y-4 shadow-lg">
+      <details className="rounded-2xl border border-white/10 p-3">
+        <summary className="min-h-[44px] cursor-pointer text-xs font-bold text-white">Progresso do treino · {completedSetsCount} de {totalSetsCount} séries</summary>
+        <div className="space-y-4 pt-3">
         <div className="flex justify-between items-center border-b border-white/5 pb-3">
           <span className="text-[10px] font-extrabold text-white uppercase tracking-widest flex items-center gap-1.5">
             <Zap className="w-3.5 h-3.5 text-gym-accent animate-pulse" /> Painel Técnico do Treino
@@ -923,6 +811,8 @@ export const ActiveWorkoutPage = () => {
         </div>
       </div>
 
+      </details>
+
       {/* EXERCISES LIST */}
       <div className="space-y-6">
         {activeWorkout.exercises.map((ex, exIdx) => {
@@ -954,9 +844,9 @@ export const ActiveWorkoutPage = () => {
             .filter(({ set }) => !set.isWarmup);
           const firstWorkingSet = workingRows[0]?.set ?? ex.sets[0];
           return (
-          <div id={`exercise-card-${ex.id}`} key={ex.id} className="glass p-5 rounded-3xl border border-white/5 space-y-4">
+          <div id={`exercise-card-${ex.id}`} key={ex.id} className="glass p-3 sm:p-5 rounded-2xl border border-white/5 space-y-4">
             {/* TÍTULO DO EXERCÍCIO */}
-            <div className="flex justify-between items-start border-b border-white/5 pb-3">
+            <div className="flex flex-col gap-3 border-b border-white/5 pb-3">
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
                   <span className="text-gym-accent">#{exIdx + 1}</span>
@@ -979,7 +869,7 @@ export const ActiveWorkoutPage = () => {
                 <span className="text-[10px] text-gym-text-muted">
                   {/* GOAL-07: meta real do ExerciseSlot quando o treino vem de um Day de programa */}
                   {ex.repRange
-                    ? `${getMuscleGroupLabel(ex.muscleGroup)} • Meta: ${ex.repRange[0] === ex.repRange[1] ? ex.repRange[0] : `${ex.repRange[0]}-${ex.repRange[1]}`} reps • RPE ${ex.targetRPE ?? 8}${ex.restSec ? ` • Descanso ${ex.restSec}s` : ''}`
+                    ? `${getMuscleGroupLabel(ex.muscleGroup)} • Repetições alvo: ${ex.repRange[0] === ex.repRange[1] ? ex.repRange[0] : `${ex.repRange[0]}-${ex.repRange[1]}`} repetições${ex.restSec ? ` • Descanso ${ex.restSec}s` : ''}`
                     : getMuscleGroupLabel(ex.muscleGroup)}
                 </span>
                 {/* GOAL-08 / GOAL-29: motivo honesto e tela "Por que esse peso?" */}
@@ -1012,7 +902,7 @@ export const ActiveWorkoutPage = () => {
               </div>
 
               {/* Ações */}
-              <div className="flex gap-2 flex-wrap justify-end">
+              <div className="flex gap-2 flex-wrap">
                 {firstWorkingSet && exerciseUsesPlates(exercises.find((e) => e.id === ex.exerciseId) ?? ex) && (
                   <button
                     type="button"
@@ -1034,7 +924,7 @@ export const ActiveWorkoutPage = () => {
                 <div className="flex gap-1">
                   <button
                     type="button"
-                    onClick={() => moveExerciseInActiveWorkout(exIdx, exIdx - 1)}
+                    onClick={() => guardedAction('move:' + ex.id, () => moveExerciseInActiveWorkout(exIdx, exIdx - 1))}
                     disabled={exIdx === 0}
                     className="min-h-[44px] w-10 text-gym-text-muted hover:text-gym-accent bg-white/5 hover:bg-gym-accent/10 border border-white/5 rounded-lg flex items-center justify-center transition-all active:scale-95 disabled:opacity-25 disabled:cursor-not-allowed"
                     title="Mover exercício para cima"
@@ -1044,7 +934,7 @@ export const ActiveWorkoutPage = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => moveExerciseInActiveWorkout(exIdx, exIdx + 1)}
+                    onClick={() => guardedAction('move:' + ex.id, () => moveExerciseInActiveWorkout(exIdx, exIdx + 1))}
                     disabled={exIdx === activeWorkout.exercises.length - 1}
                     className="min-h-[44px] w-10 text-gym-text-muted hover:text-gym-accent bg-white/5 hover:bg-gym-accent/10 border border-white/5 rounded-lg flex items-center justify-center transition-all active:scale-95 disabled:opacity-25 disabled:cursor-not-allowed"
                     title="Mover exercício para baixo"
@@ -1063,7 +953,7 @@ export const ActiveWorkoutPage = () => {
                 </button>
                 {activeWorkout.exercises.length > 1 && (
                   <button
-                    onClick={() => removeExerciseFromActiveWorkout(exIdx)}
+                    onClick={() => guardedAction('remove:' + ex.id, () => removeExerciseFromActiveWorkout(exIdx))}
                     className="min-h-[44px] w-11 text-gym-rose bg-gym-rose/10 hover:bg-gym-rose/20 border border-gym-rose/20 rounded-lg flex items-center justify-center transition-all active:scale-95"
                     title="Remover exercício do treino"
                     aria-label={`Remover ${ex.name} do treino`}
@@ -1082,28 +972,26 @@ export const ActiveWorkoutPage = () => {
                 compact
                 fit="cover"
               />
-              <button
-                onClick={() => {
-                  openGlobalPlayer(getTechniqueVideoIdForExerciseId(ex.exerciseId));
-                }}
-                className="w-full min-h-[44px] bg-black/40 hover:bg-black/60 border-t border-white/5 text-white hover:text-gym-accent font-black uppercase tracking-wider text-[10px] flex items-center justify-center gap-1.5 transition-all"
-              >
-                <Play className="w-3 h-3 fill-current" /> Ver Técnica
-              </button>
+              {getTechniqueVideoIdForExerciseId(ex.exerciseId) && (
+                <button type="button" onClick={() => {
+                  const videoId = getTechniqueVideoIdForExerciseId(ex.exerciseId);
+                  if (videoId) openGlobalPlayer(videoId);
+                }} className="min-h-[44px] w-full border-t border-white/10 text-xs font-bold text-gym-accent">
+                  Ver guia técnico
+                </button>
+              )}
             </div>
+            {exercises.find(item => item.id === ex.exerciseId)?.executionSteps.length ? (
+              <details className="border-b border-white/10 pb-2">
+                <summary className="min-h-[44px] cursor-pointer py-3 text-xs font-bold text-gym-text-muted">Como executar este exercício</summary>
+                <ol className="list-inside list-decimal space-y-2 text-xs text-gym-text-muted">
+                  {exercises.find(item => item.id === ex.exerciseId)?.executionSteps.map((step, index) => <li key={index}>{step}</li>)}
+                </ol>
+              </details>
+            ) : null}
 
             {/* TABELA DE SÉRIES */}
             <div className="space-y-2">
-              {/* Table Header */}
-              <div className="grid grid-cols-12 text-center text-[9px] font-bold text-gym-text-muted uppercase tracking-wider pl-1 gap-1">
-                <span className="col-span-2 text-left">Série</span>
-                <span className="col-span-2">Ant/Sug</span>
-                <span className="col-span-3">Carga (kg)</span>
-                <span className="col-span-2">Reps</span>
-                <span className="col-span-2">RPE</span>
-                <span className="col-span-1">OK</span>
-              </div>
-
               {warmupRows.length > 0 && (
                 <details open className="group rounded-xl border border-gym-amber/15 bg-gym-amber/[0.03]">
                   <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 px-3 text-[10px] font-black uppercase tracking-wide text-gym-amber [&::-webkit-details-marker]:hidden">
@@ -1141,6 +1029,7 @@ export const ActiveWorkoutPage = () => {
                     key={set.id}
                     set={set}
                     displayIndex={workIndex}
+                    targetReps={ex.repRange ? ex.repRange[0] === ex.repRange[1] ? String(ex.repRange[0]) : ex.repRange.join('–') : undefined}
                     showRir={user?.level !== 'beginner'}
                     isCurrentFocus={exIdx === nextFocusIndex && !set.completed && set.id === currentFocusSetId}
                     onUpdate={(fields) => updateWorkoutSet(exIdx, setIdx, fields)}
@@ -1220,7 +1109,9 @@ export const ActiveWorkoutPage = () => {
             )}
 
             {/* ANOTAÇÕES DO EXERCÍCIO */}
-            <div className="mt-2.5 bg-white/5 border border-white/5 rounded-2xl p-3">
+            <details className="rounded-xl border border-white/10 p-3">
+              <summary className="min-h-[44px] cursor-pointer text-xs font-semibold text-gym-text-muted">Anotações do exercício</summary>
+              <div>
               <span className="text-[9px] font-bold text-gym-text-muted uppercase tracking-wider block mb-1">
                 Anotações e Ajustes (Ex: Angulação do Banco, Pegada)
               </span>
@@ -1233,16 +1124,18 @@ export const ActiveWorkoutPage = () => {
               />
             </div>
 
+            </details>
+
             {/* AÇÕES DE TABELA */}
             <div className="flex gap-2 justify-end pt-1">
               <button
-                onClick={() => removeSetFromActiveExercise(exIdx)}
+                onClick={() => guardedAction('remove-set:' + ex.id, () => removeSetFromActiveExercise(exIdx))}
                 className="min-h-[44px] text-[10px] text-gym-rose hover:bg-gym-rose/10 px-3 rounded-lg border border-transparent hover:border-gym-rose/20 transition-all font-semibold active:scale-95"
               >
                 - Remover Série
               </button>
               <button
-                onClick={() => addSetToActiveExercise(exIdx)}
+                onClick={() => guardedAction('add-set:' + ex.id, () => addSetToActiveExercise(exIdx))}
                 className="min-h-[44px] text-[10px] text-gym-accent hover:bg-gym-accent/10 px-3 rounded-lg border border-transparent hover:border-gym-accent/20 transition-all font-semibold active:scale-95"
               >
                 + Adicionar Série
@@ -1296,7 +1189,7 @@ export const ActiveWorkoutPage = () => {
       >
         <div className="glass border border-white/10 rounded-2xl shadow-2xl px-4 py-3">
           {restSecondsRemaining > 0 ? (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest truncate">
@@ -1315,31 +1208,32 @@ export const ActiveWorkoutPage = () => {
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
-                  onClick={() => extendRestTimer(30)}
+                  onClick={() => guardedAction('extend-rest', () => extendRestTimer(30))}
                   className="min-h-[44px] px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold text-white transition-all active:scale-95"
                 >
                   +30s
                 </button>
                 <button
-                  onClick={skipRestTimer}
+                  onClick={() => guardedAction('skip-rest', skipRestTimer)}
                   className="min-h-[44px] px-3 bg-gym-rose/10 hover:bg-gym-rose/20 text-gym-rose border border-gym-rose/20 rounded-xl text-[10px] font-bold transition-all active:scale-95"
                 >
-                  Pular
+                  Pular descanso
                 </button>
               </div>
+              <button type="button" onClick={() => guardedAction('current-set', handleContinue)} className="min-h-[44px] text-xs font-bold text-gym-accent">Ir para série atual</button>
             </div>
           ) : (
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex-1 min-w-0 pr-2">
+            <div className="flex flex-col gap-2">
+              <div className="flex-1 min-w-0">
                 <span className="text-[10px] font-extrabold text-gym-accent uppercase tracking-widest block">
-                  Série {currentSetNumber} de {totalSetsCount}
+                  {allSetsCompleted ? 'Séries concluídas' : focusSet?.isWarmup ? 'Aquecimento' : 'Série atual'}{!allSetsCompleted && `: ${currentSetNumber} de ${currentExerciseSets}`}
                 </span>
                 <span className="text-xs font-bold text-white block truncate">
                   {allSetsCompleted ? 'Treino Concluído' : nextExerciseName}
                 </span>
               </div>
               <button
-                onClick={allSetsCompleted ? openFinishModal : handleContinue}
+                onClick={() => guardedAction('current-set', allSetsCompleted ? openFinishModal : handleContinue)}
                 className="flex-shrink-0 min-h-[44px] flex items-center gap-1.5 bg-gym-accent hover:bg-gym-accent-hover text-gym-dark font-black uppercase tracking-wider text-xs px-4 py-3 rounded-xl shadow-md shadow-gym-accent/20 transition-all active:scale-95"
               >
                 {allSetsCompleted ? (
@@ -1348,7 +1242,7 @@ export const ActiveWorkoutPage = () => {
                   </>
                 ) : (
                   <>
-                    Continuar <ChevronRight className="w-3.5 h-3.5" />
+                    Ir para série atual <ChevronRight className="w-3.5 h-3.5" />
                   </>
                 )}
               </button>
@@ -1359,12 +1253,12 @@ export const ActiveWorkoutPage = () => {
 
       {/* MODAL DE PROPOSTA DO TREINO RÁPIDO (GOAL-25): só aplica após confirmação. */}
       {compactProposal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="training-overlay fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="compact-workout-title"
-            className="bg-gym-dark border border-gym-accent/25 rounded-3xl w-full max-w-md p-6 relative max-h-[85vh] overflow-y-auto shadow-2xl"
+            className="training-dialog bg-gym-dark border border-gym-accent/25 rounded-3xl w-full max-w-md p-6 relative  overflow-y-auto shadow-2xl"
           >
             <button
               type="button"
@@ -1459,170 +1353,66 @@ export const ActiveWorkoutPage = () => {
 
       {/* MODAL DE TROCA DE EXERCÍCIO */}
       {showSwapModal && swapIndex !== null && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-gym-dark border border-white/10 rounded-3xl w-full max-w-md p-6 relative max-h-[80vh] overflow-y-auto">
-            <button
-              onClick={closeSwapModal}
-              className="absolute top-4 right-4 text-gym-text-muted hover:text-white rounded-lg bg-white/5 tap-target flex items-center justify-center"
-              aria-label="Fechar"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h3 className="text-sm font-bold text-gym-accent uppercase tracking-wider mb-2">Substituir exercício</h3>
-            <h2 className="text-base font-bold text-white mb-4">
-              Substituir &quot;{activeWorkout.exercises[swapIndex]?.name}&quot;
-            </h2>
-
-            {crowdedGymMode && (
-              <div className="mb-4 rounded-2xl border border-gym-accent/20 bg-gym-accent/5 p-3 text-[10px] font-semibold leading-relaxed text-gym-accent">
-                Academia cheia ativa: pesos livres e cabos aparecem primeiro nesta fila.
+        <div className="training-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div ref={swapDialogRef} role="dialog" aria-modal="true" aria-labelledby="swap-title" className="training-dialog relative flex h-full w-full max-w-md flex-col rounded-3xl border border-white/10 bg-gym-dark p-4">
+            <div className="mb-3 flex shrink-0 items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h2 id="swap-title" className="text-base font-bold text-white">Trocar exercício</h2>
+                <p className="mt-1 text-xs text-gym-text-muted">{activeWorkout.exercises[swapIndex]?.name}</p>
+              </div>
+              <button type="button" onClick={closeSwapModal} className="tap-target flex items-center justify-center rounded-xl bg-white/5 text-gym-text-muted" aria-label="Fechar troca de exercício"><X className="h-5 w-5" /></button>
+            </div>
+            {swapError && <p role="alert" className="mb-3 rounded-xl border border-gym-rose/30 p-3 text-sm text-gym-rose">{swapError}</p>}
+            {!selectedSwapExercise ? (
+              <>
+                <p className="mb-3 text-xs text-gym-text-muted">Substitutos do mesmo grupo muscular.{crowdedGymMode ? ' Pesos livres e cabos aparecem primeiro.' : ''}</p>
+                <ExerciseCatalogPicker exercises={getSubstitutes(swapIndex)} actionLabel="Selecionar"
+                  emptyMessage="Não há substitutos elegíveis para este exercício."
+                  onSelect={exercise => { setSelectedSwapExercise(exercise); setSwapError(null); }} />
+              </>
+            ) : (
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+                <div className="rounded-xl border border-gym-accent/25 bg-gym-accent/5 p-3">
+                  <p className="text-xs text-gym-text-muted">Substituto escolhido</p>
+                  <p className="mt-1 text-sm font-bold text-white">{selectedSwapExercise.name}</p>
+                  <p className="mt-1 text-xs text-gym-text-muted">{getCatalogGroupLabel(selectedSwapExercise)} · {selectedSwapExercise.equipment}</p>
+                </div>
+                <fieldset>
+                  <legend className="mb-2 text-sm font-semibold text-white">Por que você quer trocar?</legend>
+                  <div className="flex flex-wrap gap-2">{SWAP_REASON_ORDER.map(code =>
+                    <button key={code} type="button" aria-pressed={swapReasonCode === code} onClick={() => setSwapReasonCode(code)}
+                      className={'min-h-[44px] rounded-xl border px-3 text-xs font-bold ' + (swapReasonCode === code ? 'border-gym-accent bg-gym-accent/15 text-gym-accent' : 'border-white/10 text-gym-text-muted')}>
+                      {SWAP_REASON_LABELS[code]}
+                    </button>)}</div>
+                </fieldset>
+                <details open={swapReasonCode === 'other' ? true : undefined}>
+                  <summary className="flex min-h-[44px] cursor-pointer items-center text-xs text-gym-text-muted">Nota {swapReasonCode === 'other' ? '(obrigatória para Outro)' : '(opcional)'}</summary>
+                  <label htmlFor="swap-note" className="text-xs text-gym-text-muted">Detalhe do motivo · {swapNote.length}/{MAX_SWAP_REASON_NOTE_LENGTH}</label>
+                  <input id="swap-note" type="text" value={swapNote} maxLength={MAX_SWAP_REASON_NOTE_LENGTH}
+                    onChange={event => setSwapNote(event.target.value)} placeholder="Descreva o motivo"
+                    className="mt-2 min-h-[44px] w-full rounded-xl border border-white/10 bg-gym-card px-3 text-base text-white" />
+                </details>
               </div>
             )}
-
-            {/* GOAL-24: motivo da troca (obrigatório) */}
-            <div className="mb-4">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-gym-text-muted mb-1.5">
-                Motivo da troca
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {SWAP_REASON_ORDER.map((code) => {
-                  const active = swapReasonCode === code;
-                  return (
-                    <button
-                      key={code}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => setSwapReasonCode(code)}
-                      className={`min-h-[44px] px-3.5 rounded-xl text-[11px] font-bold border transition-all ${
-                        active
-                          ? 'bg-gym-accent/15 border-gym-accent text-gym-accent'
-                          : 'bg-white/5 border-white/5 text-gym-text-muted hover:text-white hover:border-white/20'
-                      }`}
-                    >
-                      {SWAP_REASON_LABELS[code]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* GOAL-24: nota — opcional, exceto para "Outro"; limitada a 120 caracteres */}
-            <div className="mb-4">
-              <label
-                htmlFor="swap-note"
-                className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gym-text-muted mb-1.5"
-              >
-                <span>Nota {swapReasonCode === 'other' ? '(obrigatória)' : '(opcional)'}</span>
-                <span className="text-gym-text-muted/70 normal-case tracking-normal">
-                  {swapNote.length}/{MAX_SWAP_REASON_NOTE_LENGTH}
-                </span>
-              </label>
-              <input
-                id="swap-note"
-                type="text"
-                value={swapNote}
-                maxLength={MAX_SWAP_REASON_NOTE_LENGTH}
-                onChange={(e) => setSwapNote(e.target.value)}
-                placeholder={
-                  swapReasonCode === 'other'
-                    ? 'Descreva o motivo da troca...'
-                    : 'Detalhe opcional (ex.: barra ocupada, ombro sensível)...'
-                }
-                className="w-full min-h-[44px] bg-gym-card border border-white/10 focus:border-gym-accent rounded-2xl px-3.5 py-2.5 text-sm text-white placeholder-gym-text-muted/50 outline-none transition-all"
-              />
-              {swapReasonCode === 'other' && swapNoteTrimmed.length === 0 && (
-                <p className="text-[10px] text-amber-400/90 mt-1.5">
-                  Para o motivo &quot;Outro&quot;, descreva o motivo na nota.
-                </p>
-              )}
-            </div>
-
-            {/* SUBSTITUTOS — bloqueados até o motivo obrigatório ser válido */}
-            <div className="space-y-2">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-gym-text-muted mb-0.5">
-                Escolha o substituto
-              </span>
-              {!swapReasonValid && (
-                <p className="text-[10px] text-gym-text-muted mb-1">
-                  Selecione um motivo{swapReasonCode === 'other' ? ' e preencha a nota' : ''} para liberar a troca.
-                </p>
-              )}
-              {getSubstitutes(swapIndex).length === 0 ? (
-                <p className="text-xs text-gym-text-muted text-center py-4">Nenhum exercício similar encontrado.</p>
-              ) : (
-                getSubstitutes(swapIndex).map((subEx) => (
-                  <button
-                    key={subEx.id}
-                    type="button"
-                    disabled={!swapReasonValid}
-                    onClick={() => handleSwap(subEx.id)}
-                    className="w-full text-left bg-gym-card/50 border border-white/5 hover:border-gym-accent/30 p-3 rounded-2xl flex items-center justify-between transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <div>
-                      <h4 className="text-xs font-bold text-white">{subEx.name}</h4>
-                      <p className="text-[9px] text-gym-text-muted uppercase font-bold mt-0.5">{subEx.equipment}</p>
-                    </div>
-                    <span className="text-[10px] text-gym-accent font-bold uppercase">Substituir</span>
-                  </button>
-                ))
-              )}
-            </div>
+            {selectedSwapExercise && <div className="mt-3 flex shrink-0 gap-2 border-t border-white/10 pt-3">
+              <button type="button" onClick={() => { setSelectedSwapExercise(null); setSwapReasonCode(null); setSwapNote(''); setSwapError(null); }}
+                className="min-h-[44px] flex-1 rounded-xl border border-white/10 text-xs font-bold text-white">Escolher outro</button>
+              <button type="button" disabled={!swapReasonValid} onClick={() => handleSwap(selectedSwapExercise.id)}
+                className="min-h-[44px] flex-1 rounded-xl bg-gym-accent px-2 text-xs font-bold text-gym-dark disabled:opacity-40">Confirmar troca</button>
+            </div>}
           </div>
         </div>
       )}
 
-      {/* MODAL DE ADICIONAR EXERCÍCIO (GOAL-15) — busca com aliases/sem acento */}
+      {/* MODAL DE ADICIONAR EXERCÍCIO */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-gym-dark border border-white/10 rounded-3xl w-full max-w-md p-6 relative max-h-[85vh] flex flex-col">
-            <button
-              onClick={() => {
-                setShowAddModal(false);
-                setAddSearch('');
-              }}
-              className="absolute top-4 right-4 text-gym-text-muted hover:text-white rounded-lg bg-white/5 tap-target flex items-center justify-center"
-              aria-label="Fechar"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h3 className="text-sm font-bold text-gym-accent uppercase tracking-wider mb-1">Adicionar ao treino</h3>
-            <h2 className="text-base font-bold text-white mb-3">Escolha um exercício</h2>
-
-            <div className="relative mb-3">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gym-text-muted" />
-              <input
-                type="text"
-                autoFocus
-                placeholder="Buscar (ex: tríceps polia, remada baixa)..."
-                value={addSearch}
-                onChange={(e) => setAddSearch(e.target.value)}
-                className="w-full bg-gym-card border border-white/10 focus:border-gym-accent rounded-2xl py-3 pl-10 pr-4 text-sm text-white placeholder-gym-text-muted outline-none transition-all"
-              />
+        <div className="training-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div ref={addDialogRef} role="dialog" aria-modal="true" aria-labelledby="add-title" className="training-dialog flex h-full w-full max-w-md flex-col rounded-3xl border border-white/10 bg-gym-dark p-4">
+            <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
+              <h2 id="add-title" className="text-base font-bold text-white">Adicionar exercício</h2>
+              <button type="button" onClick={() => setShowAddModal(false)} className="tap-target flex items-center justify-center rounded-xl bg-white/5 text-gym-text-muted" aria-label="Fechar adicionar exercício"><X className="h-5 w-5" /></button>
             </div>
-
-            <div className="space-y-2 overflow-y-auto flex-1 -mr-2 pr-2">
-              {addExerciseCandidates.length === 0 ? (
-                <p className="text-xs text-gym-text-muted text-center py-6">
-                  Nenhum exercício encontrado para “{addSearch}”.
-                </p>
-              ) : (
-                addExerciseCandidates.map((ex) => (
-                  <button
-                    key={ex.id}
-                    onClick={() => handleAddExercise(ex.id)}
-                    className="w-full text-left bg-gym-card/50 border border-white/5 hover:border-gym-accent/30 p-3 rounded-2xl flex items-center justify-between transition-all active:scale-[0.99]"
-                  >
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-bold text-white truncate">{ex.name}</h4>
-                      <p className="text-[9px] text-gym-text-muted uppercase font-bold mt-0.5 truncate">{ex.equipment}</p>
-                    </div>
-                    <Plus className="w-4 h-4 text-gym-accent flex-shrink-0 ml-2" />
-                  </button>
-                ))
-              )}
-            </div>
+            <ExerciseCatalogPicker exercises={exercises} onSelect={exercise => handleAddExercise(exercise.id)} />
           </div>
         </div>
       )}
@@ -1662,8 +1452,8 @@ export const ActiveWorkoutPage = () => {
         const IconComponent = modalConfig.icon;
         const isAbandoned = statusKey === 'abandoned';
         return (
-          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="bg-gym-dark border border-white/10 rounded-3xl w-full max-w-md p-6 text-center space-y-5 shadow-2xl relative overflow-hidden">
+          <div className="training-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+            <div ref={finishDialogRef} role="dialog" aria-modal="true" aria-label="Resumo do treino" className="training-dialog bg-gym-dark border border-white/10 rounded-3xl w-full max-w-md p-4 text-center space-y-4 shadow-2xl relative overflow-y-auto">
               <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${modalConfig.bannerGradient}`}></div>
 
               <div className={`w-12 h-12 border rounded-full flex items-center justify-center mx-auto ${modalConfig.iconContainerClass}`}>
@@ -1742,7 +1532,7 @@ export const ActiveWorkoutPage = () => {
               {!isAbandoned && (
                 <div className="space-y-2 text-left bg-white/5 border border-white/5 rounded-2xl p-4">
                   <div className="flex justify-between text-[10px] text-gym-text-muted font-bold">
-                    <span>Esforço Físico (RPE)</span>
+                    <span>Esforço do treino (1 a 10)</span>
                     <span className="text-gym-accent font-black">{rpe} / 10</span>
                   </div>
                   <input
@@ -1759,8 +1549,8 @@ export const ActiveWorkoutPage = () => {
                       : rpe <= 6
                       ? 'Intensidade moderada. Bom estímulo.'
                       : rpe <= 8
-                      ? 'Intensidade perfeita para hipertrofia e ganho de força!'
-                      : 'Extremo. Perto da falha concêntrica absoluta.'}
+                      ? 'Intensidade alta. Ainda conseguiria algumas repetições.'
+                      : 'Esforço máximo ou próximo do limite.'}
                   </p>
                 </div>
               )}
@@ -1790,6 +1580,7 @@ export const ActiveWorkoutPage = () => {
                   type="button"
                   onClick={() => {
                     blurActiveField();
+                    if (!actionGuard.current('finish')) return;
                     finishWorkout(rpe);
                   }}
                   className={`flex-1 py-3 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md ${modalConfig.ctaClass}`}

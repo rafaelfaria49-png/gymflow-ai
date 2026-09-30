@@ -1335,3 +1335,45 @@ describe('GymFlowProvider real — data civil em peso, medidas e conquistas (GOA
     });
   });
 });
+
+describe('GymFlowProvider real — treino mobile GOAL-119', () => {
+  it('toque duplo conclui uma série e concede XP uma vez; a mudança persiste', async () => {
+    const activeWorkout = makeActiveSession();
+    activeWorkout.exercises[0].sets[0].completed = false;
+    seedV1Envelope({ activeWorkout });
+    const handle = await mountHydrated();
+    const xp = handle.context().user!.xp;
+    act(() => {
+      const context = handle.context();
+      context.completeWorkoutSet(0, 0);
+      context.completeWorkoutSet(0, 0);
+    });
+    await settle(10);
+    await act(async () => { windowStub.dispatchEvent(new Event('pagehide')); });
+    expect(handle.context().activeWorkout!.exercises[0].sets[0].completed).toBe(true);
+    expect(handle.context().user!.xp).toBe(xp + 10);
+    expect(persistedCore().activeWorkout!.exercises[0].sets[0].completed).toBe(true);
+  });
+  it('troca válida preserva a origem, persiste, e erro não troca nem dá XP', async () => {
+    seedV1Envelope();
+    const handle = await mountHydrated();
+    const context = handle.context();
+    const replacement = context.exercises.find(ex => ex.muscleGroup === 'chest' && ex.id !== 'chest_supino_reto')!;
+    const wrongGroup = context.exercises.find(ex => ex.muscleGroup === 'back')!;
+    const xp = context.user!.xp;
+    const results: ReturnType<GymFlowValue['swapExerciseInActiveWorkout']>[] = [];
+    act(() => {
+      results.push(context.swapExerciseInActiveWorkout(0, wrongGroup.id, { reasonCode: 'preference' }));
+      results.push(context.swapExerciseInActiveWorkout(0, 'unknown', { reasonCode: 'preference' }));
+      results.push(context.swapExerciseInActiveWorkout(0, replacement.id, { reasonCode: 'preference' }, 'entry-1'));
+      results.push(context.swapExerciseInActiveWorkout(0, replacement.id, { reasonCode: 'preference' }, 'entry-1'));
+    });
+    await settle(10);
+    await act(async () => { windowStub.dispatchEvent(new Event('pagehide')); });
+    expect(results.map(result => result.ok)).toEqual([false, false, true, false]);
+    expect(handle.context().activeWorkout!.exercises[0].exerciseId).toBe(replacement.id);
+    expect(handle.context().activeWorkout!.exercises[0].entryOrigin).toBe('swapped');
+    expect(handle.context().user!.xp).toBe(xp + 20);
+    expect(persistedCore().activeWorkout!.exercises[0].exerciseId).toBe(replacement.id);
+  });
+});

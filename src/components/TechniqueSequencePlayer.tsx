@@ -31,7 +31,12 @@ const normalizeFrames = (frames: TechniqueFrame[]) =>
     .sort((a, b) => a.order - b.order)
     .map((frame, index) => ({ ...frame, order: index + 1 }));
 
-export const TechniqueSequencePlayer: React.FC<TechniqueSequencePlayerProps> = ({
+export const TechniqueSequencePlayer: React.FC<TechniqueSequencePlayerProps> = (props) => {
+  const identity = JSON.stringify([props.exercise?.id, props.exercise?.images, props.exercise?.techniqueFrames, props.frames, props.autoplay]);
+  return <TechniqueSequenceContent key={identity} {...props} />;
+};
+
+const TechniqueSequenceContent: React.FC<TechniqueSequencePlayerProps> = ({
   exercise,
   frames,
   name,
@@ -43,42 +48,38 @@ export const TechniqueSequencePlayer: React.FC<TechniqueSequencePlayerProps> = (
   className = ''
 }) => {
   const resolvedFrames = useMemo(() => {
-    if (frames && frames.length > 0) return normalizeFrames(frames);
+    if (frames) return normalizeFrames(frames);
     return getTechniqueFrames(exercise);
   }, [exercise, frames]);
 
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(autoplay && resolvedFrames.length > 1);
+  const [isPlaying, setIsPlaying] = useState(autoplay);
   const [failedSrcs, setFailedSrcs] = useState<string[]>([]);
 
   const delay = clampInterval(intervalMs);
-  const activeFrame = resolvedFrames[activeIndex] ?? resolvedFrames[0];
+  const validFrames = resolvedFrames.filter(frame => frame.image && !failedSrcs.includes(frame.image));
+  const frameIndex = Math.min(activeIndex, Math.max(0, validFrames.length - 1));
+  const activeFrame = validFrames[frameIndex];
   const exerciseName = name || exercise?.name || 'Exercício';
   const hasImage = !!activeFrame?.image && !failedSrcs.includes(activeFrame.image);
-  const canNavigate = resolvedFrames.length > 1;
+  const canNavigate = validFrames.length > 1;
 
   useEffect(() => {
-    setActiveIndex(0);
-    setFailedSrcs([]);
-    setIsPlaying(autoplay && resolvedFrames.length > 1);
-  }, [autoplay, resolvedFrames]);
-
-  useEffect(() => {
-    if (!isPlaying || resolvedFrames.length < 2) return;
+    if (!isPlaying || validFrames.length < 2) return;
     const timer = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % resolvedFrames.length);
+      setActiveIndex((prev) => (prev + 1) % validFrames.length);
     }, delay);
     return () => clearInterval(timer);
-  }, [delay, isPlaying, resolvedFrames.length]);
+  }, [delay, isPlaying, validFrames.length]);
 
   const goTo = (index: number) => {
-    if (resolvedFrames.length === 0) return;
-    setActiveIndex((index + resolvedFrames.length) % resolvedFrames.length);
+    if (validFrames.length === 0) return;
+    setActiveIndex((index + validFrames.length) % validFrames.length);
   };
 
   const restart = () => {
     setActiveIndex(0);
-    setIsPlaying(autoplay && resolvedFrames.length > 1);
+    setIsPlaying(autoplay && validFrames.length > 1);
   };
 
   return (
@@ -91,15 +92,15 @@ export const TechniqueSequencePlayer: React.FC<TechniqueSequencePlayerProps> = (
             src={activeFrame.image}
             alt={`${exerciseName} - ${activeFrame.label}`}
             loading="lazy"
-            onError={() => setFailedSrcs((prev) => (prev.includes(activeFrame.image) ? prev : [...prev, activeFrame.image]))}
+            onError={() => { setActiveIndex(0); setFailedSrcs((prev) => (prev.includes(activeFrame.image) ? prev : [...prev, activeFrame.image])); }}
             className={`absolute inset-0 h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} transition-opacity duration-300`}
           />
         ) : (
           <AvatarDemoPlaceholder
             compact={compact}
             emoji={emoji}
-            title="Demonstração 3D em breve"
-            subtitle="Ainda sem sequência visual real para esta etapa. O fallback atual segue honesto e provisório."
+            title="Sem imagens técnicas"
+            subtitle="Não há imagens disponíveis para este exercício."
           />
         )}
 
@@ -110,9 +111,9 @@ export const TechniqueSequencePlayer: React.FC<TechniqueSequencePlayerProps> = (
           </span>
         </div>
 
-        <span className="absolute right-2 top-2 z-10 rounded-full border border-white/10 bg-black/65 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur-sm">
-          {activeIndex + 1}/{resolvedFrames.length}
-        </span>
+        {validFrames.length > 0 && <span className="absolute right-2 top-2 z-10 rounded-full border border-white/10 bg-black/65 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur-sm">
+          {frameIndex + 1}/{validFrames.length}
+        </span>}
       </div>
 
       <div className="space-y-3 border-t border-white/5 bg-gym-card/40 p-3">
@@ -121,10 +122,10 @@ export const TechniqueSequencePlayer: React.FC<TechniqueSequencePlayerProps> = (
             <div className="min-w-0">
               <h4 className="text-sm font-black leading-tight text-white">{activeFrame?.label ?? 'Referência técnica'}</h4>
               <p className="mt-1 text-[11px] font-medium leading-relaxed text-gym-text-muted">
-                {activeFrame?.cue ?? 'Use esta etapa como referência técnica provisória.'}
+                {activeFrame?.cue ?? 'Imagens técnicas ainda não disponíveis.'}
               </p>
               <span className="mt-2 inline-flex rounded-full border border-gym-accent/20 bg-gym-accent/10 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-gym-accent">
-                Demonstração 3D em breve
+                Referência de execução
               </span>
             </div>
           </div>
@@ -134,7 +135,7 @@ export const TechniqueSequencePlayer: React.FC<TechniqueSequencePlayerProps> = (
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => goTo(activeIndex - 1)}
+              onClick={() => goTo(frameIndex - 1)}
               disabled={!canNavigate}
               aria-label="Etapa anterior"
               title="Etapa anterior"
@@ -154,7 +155,7 @@ export const TechniqueSequencePlayer: React.FC<TechniqueSequencePlayerProps> = (
             </button>
             <button
               type="button"
-              onClick={() => goTo(activeIndex + 1)}
+              onClick={() => goTo(frameIndex + 1)}
               disabled={!canNavigate}
               aria-label="Próxima etapa"
               title="Próxima etapa"
@@ -174,18 +175,18 @@ export const TechniqueSequencePlayer: React.FC<TechniqueSequencePlayerProps> = (
           </div>
 
           <div className="flex max-w-[45%] items-center justify-end gap-0.5 overflow-x-auto">
-            {resolvedFrames.map((frame, index) => (
+            {validFrames.map((frame, index) => (
               <button
                 key={`${frame.image}-${frame.order}`}
                 type="button"
                 onClick={() => goTo(index)}
                 aria-label={`Ir para etapa ${index + 1}: ${frame.label}`}
                 title={frame.label}
-                className="flex h-11 w-8 shrink-0 items-center justify-center"
+                className="flex h-11 w-11 shrink-0 items-center justify-center"
               >
                 <span
                   className={`h-2.5 rounded-full transition-all ${
-                    index === activeIndex ? 'w-6 bg-gym-accent' : 'w-2.5 bg-white/25 hover:bg-white/45'
+                    index === frameIndex ? 'w-6 bg-gym-accent' : 'w-2.5 bg-white/25 hover:bg-white/45'
                   }`}
                 />
               </button>

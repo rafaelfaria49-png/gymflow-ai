@@ -37,6 +37,13 @@ function collectText(node: unknown): string {
   return collectText(candidate.children);
 }
 
+function chooseRemainingAnswers(root: TestRenderer.ReactTestInstance) {
+  for (const label of ['Nenhuma', 'Baixo', 'Livre']) {
+    const button = root.findAllByType('button').find(b => collectText(b.props.children).includes(label));
+    act(() => button!.props.onClick());
+  }
+}
+
 describe('PreWorkoutReadinessModal (GOAL-30)', () => {
   it('não renderiza nada quando isOpen é false', () => {
     let renderer: TestRenderer.ReactTestRenderer;
@@ -77,7 +84,7 @@ describe('PreWorkoutReadinessModal (GOAL-30)', () => {
       return /pular/i.test(text);
     });
 
-    expect(skipButtons.length).toBeGreaterThan(0);
+    expect(skipButtons).toHaveLength(1);
     act(() => {
       skipButtons[0].props.onClick();
     });
@@ -116,6 +123,7 @@ describe('PreWorkoutReadinessModal (GOAL-30)', () => {
     });
 
     // Clica em Concluir Check-in
+    chooseRemainingAnswers(root);
     const submitBtn = root.findAllByType('button').find((b) => collectText(b.props.children).includes('Concluir Check-in'));
     expect(submitBtn).toBeDefined();
     act(() => {
@@ -160,6 +168,7 @@ describe('PreWorkoutReadinessModal (GOAL-30)', () => {
     });
 
     // Clica em Concluir Check-in
+    chooseRemainingAnswers(root);
     const submitBtn = root.findAllByType('button').find((b) => collectText(b.props.children).includes('Concluir Check-in'));
     act(() => {
       submitBtn!.props.onClick();
@@ -208,6 +217,7 @@ describe('PreWorkoutReadinessModal (GOAL-30)', () => {
       poorSleepBtn!.props.onClick();
     });
 
+    chooseRemainingAnswers(root);
     const submitBtn = root.findAllByType('button').find((b) => collectText(b.props.children).includes('Concluir Check-in'));
     act(() => {
       submitBtn!.props.onClick();
@@ -238,6 +248,45 @@ describe('PreWorkoutReadinessModal (GOAL-30)', () => {
 
     const textAfter = collectText(renderer!.toJSON());
     expect(textAfter).not.toContain('Redução Suave de Volume');
-    expect(textAfter).toContain('Nenhuma adaptação necessária');
+    expect(textAfter).toContain('Sugestões dispensadas');
+  });
+});
+
+describe('GOAL-119 — respostas explícitas', () => {
+  it('inicia sem seleção, recusa envio parcial e pula uma única vez sem gravar respostas', () => {
+    const onComplete = vi.fn(), onSkip = vi.fn();
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(<PreWorkoutReadinessModal isOpen session={mockSession} onComplete={onComplete} onSkip={onSkip} onApplySuggestion={vi.fn()} onDismissSuggestion={vi.fn()} />); });
+    expect(collectText(renderer.toJSON())).toContain('Como você está hoje?');
+    expect(renderer.root.findAllByType('button').filter(b => b.props['aria-pressed'])).toHaveLength(0);
+    const submit = renderer.root.findAllByType('button').find(b => collectText(b).includes('Escolha as 5 respostas'));
+    expect(submit!.props.disabled).toBe(true);
+    act(() => submit!.props.onClick());
+    expect(onComplete).not.toHaveBeenCalled();
+    const skip = renderer.root.findAllByType('button').filter(b => collectText(b) === 'Pular');
+    expect(skip).toHaveLength(1);
+    act(() => { skip[0].props.onClick(); skip[0].props.onClick(); });
+    expect(onSkip).toHaveBeenCalledTimes(1);
+    expect(onComplete).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+  it('não preenche local da dor nem tempo livre e reseta ao reabrir', () => {
+    const onComplete = vi.fn();
+    const props = { session: mockSession, onComplete, onSkip: vi.fn(), onApplySuggestion: vi.fn(), onDismissSuggestion: vi.fn() };
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(<PreWorkoutReadinessModal {...props} isOpen />); });
+    for (const label of ['Alta','Ótimo','Nenhuma','Baixo','Livre']) {
+      const button = renderer.root.findAllByType('button').find(b => collectText(b.props.children).includes(label));
+      act(() => button!.props.onClick());
+    }
+    const submit = renderer.root.findAllByType('button').find(b => collectText(b).includes('Concluir Check-in'));
+    act(() => { submit!.props.onClick(); submit!.props.onClick(); });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete.mock.calls[0][0].checkIn.sorenessLocation).toBeUndefined();
+    expect(onComplete.mock.calls[0][0].checkIn.timeAvailableMinutes).toBeUndefined();
+    act(() => renderer.update(<PreWorkoutReadinessModal {...props} isOpen={false} />));
+    act(() => renderer.update(<PreWorkoutReadinessModal {...props} isOpen />));
+    expect(renderer.root.findAllByType('button').filter(b => b.props['aria-pressed'])).toHaveLength(0);
+    act(() => renderer.unmount());
   });
 });

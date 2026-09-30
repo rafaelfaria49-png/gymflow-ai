@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Activity,
   BatteryCharging,
@@ -28,6 +28,7 @@ import type {
   ReadinessSuggestion,
   ReadinessTime,
 } from '../domain/readinessEngine';
+import { useTrainingDialogFocus } from '../lib/use-training-dialog-focus';
 import { evaluateReadiness } from '../domain/readinessEngine';
 import type { WorkoutSession, Exercise } from '../types';
 
@@ -53,7 +54,12 @@ const MUSCLE_LOCATIONS = [
   'Articulações',
 ];
 
-export function PreWorkoutReadinessModal({
+export function PreWorkoutReadinessModal(props: PreWorkoutReadinessModalProps) {
+  if (!props.isOpen) return null;
+  return <ReadinessForm key={props.session.id} {...props} />;
+}
+
+function ReadinessForm({
   isOpen,
   session,
   catalog,
@@ -64,20 +70,34 @@ export function PreWorkoutReadinessModal({
   onApplySuggestion,
   onDismissSuggestion,
 }: PreWorkoutReadinessModalProps) {
+  const dialogRef = useTrainingDialogFocus(isOpen);
   // Estado dos 5 toques
-  const [energy, setEnergy] = useState<ReadinessEnergy>('medium');
-  const [sleep, setSleep] = useState<ReadinessSleep>('fair');
-  const [soreness, setSoreness] = useState<ReadinessSoreness>('none');
-  const [sorenessLocation, setSorenessLocation] = useState<string>('Peito');
-  const [stress, setStress] = useState<ReadinessStress>('low');
-  const [timeAvailable, setTimeAvailable] = useState<ReadinessTime>('normal');
+  const [energy, setEnergy] = useState<ReadinessEnergy | undefined>();
+  const [sleep, setSleep] = useState<ReadinessSleep | undefined>();
+  const [soreness, setSoreness] = useState<ReadinessSoreness | undefined>();
+  const [sorenessLocation, setSorenessLocation] = useState<string | undefined>();
+  const [stress, setStress] = useState<ReadinessStress | undefined>();
+  const [timeAvailable, setTimeAvailable] = useState<ReadinessTime | undefined>();
+
+  const completedRef = useRef(false);
+  const canSubmit = !!(energy && sleep && soreness && stress && timeAvailable);
+  const completeOnce = (assessment: ReadinessAssessment) => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    onComplete(assessment);
+  };
+  const skipOnce = () => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    onSkip();
+  };
 
   // Estado de avaliação
   const [evaluation, setEvaluation] = useState<ReadinessAssessment | null>(null);
 
   if (!isOpen) return null;
 
-  const currentAnswers: ReadinessAnswers = {
+  const currentAnswers: ReadinessAnswers | null = canSubmit && energy && sleep && soreness && stress && timeAvailable ? {
     energy,
     sleep,
     soreness,
@@ -85,10 +105,11 @@ export function PreWorkoutReadinessModal({
     stress,
     timeAvailable,
     timeAvailableMinutes:
-      timeAvailable === 'short' ? 30 : timeAvailable === 'normal' ? session.plannedDuration ?? 50 : 75,
-  };
+      timeAvailable === 'short' ? 30 : timeAvailable === 'normal' ? session.plannedDuration ?? 50 : undefined,
+  } : null;
 
   const handleEvaluate = () => {
+    if (!currentAnswers || completedRef.current || evaluation) return;
     const result = evaluateReadiness(currentAnswers, {
       session,
       catalog,
@@ -97,20 +118,20 @@ export function PreWorkoutReadinessModal({
     setEvaluation(result);
     // Se tudo ok (sem sugestões ativas), conclui imediatamente sem tela intermediária invasiva
     if (result.status === 'all-good' || result.suggestions.length === 0) {
-      onComplete(result);
+      completeOnce(result);
     }
   };
 
   const handleProceedWithCurrent = () => {
     if (evaluation) {
-      onComplete(evaluation);
-    } else {
+      completeOnce(evaluation);
+    } else if (currentAnswers) {
       const result = evaluateReadiness(currentAnswers, {
         session,
         catalog,
         availableProgramDays,
       });
-      onComplete(result);
+      completeOnce(result);
     }
   };
 
@@ -123,10 +144,10 @@ export function PreWorkoutReadinessModal({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Check-in de Prontidão Diária"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+      aria-label="Como você está hoje?"
+      className="training-overlay fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
     >
-      <div className="relative w-full max-w-lg bg-gym-card border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div ref={dialogRef} className="training-dialog relative w-full max-w-lg bg-gym-card border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         {/* Cabeçalho */}
         <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
           <div className="flex items-center gap-2.5">
@@ -134,30 +155,21 @@ export function PreWorkoutReadinessModal({
               <Activity className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white leading-tight">Check-in de Prontidão</h3>
+              <h3 className="text-sm font-bold text-white leading-tight">Como você está hoje?</h3>
               <p className="text-[11px] text-gym-text-muted leading-none mt-0.5">
-                {session.name} • Adaptação diária inteligente
+                {session.name}
               </p>
             </div>
           </div>
 
-          {/* Botão de Skip de 1 toque (PROG §6) */}
-          <button
-            type="button"
-            onClick={onSkip}
-            className="text-xs text-gym-text-muted hover:text-white px-2.5 py-1.5 rounded-lg border border-white/10 hover:border-white/20 transition-all flex items-center gap-1 font-medium active:scale-95"
-          >
-            <span>Pular</span>
-            <ChevronRight className="w-3 h-3" />
-          </button>
         </div>
 
         {/* Corpo do Modal */}
-        <div className="p-4 overflow-y-auto space-y-4 text-xs">
+        <div className="min-h-0 flex-1 p-4 overflow-y-auto space-y-4 text-xs">
           {!evaluation ? (
             <>
               <p className="text-gym-text-muted text-[11px]">
-                5 toques rápidos para ajustar carga, volume ou descanso de hoje conforme sua recuperação.
+                Escolha uma resposta em cada pergunta ou pule sem enviar respostas.
               </p>
 
               {/* 1. Energia */}
@@ -170,13 +182,14 @@ export function PreWorkoutReadinessModal({
                   {(
                     [
                       { id: 'low', label: 'Baixa', emoji: '🪫', desc: 'Cansaço/Lento' },
-                      { id: 'medium', label: 'Normal', emoji: '⚡', desc: 'Pronto p/ treinar' },
+                      { id: 'medium', label: 'Normal', emoji: '⚡', desc: 'Disposição habitual' },
                       { id: 'high', label: 'Alta', emoji: '🔥', desc: '100% disposto' },
                     ] as const
                   ).map((opt) => (
                     <button
                       key={opt.id}
                       type="button"
+                      aria-pressed={energy === opt.id}
                       onClick={() => setEnergy(opt.id)}
                       className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center min-h-[44px] ${
                         energy === opt.id
@@ -186,6 +199,7 @@ export function PreWorkoutReadinessModal({
                     >
                       <span className="text-base leading-none mb-1">{opt.emoji}</span>
                       <span className="text-[11px] leading-none">{opt.label}</span>
+                      {'desc' in opt && typeof opt.desc === 'string' && <span className="mt-1 text-[10px] leading-tight">{opt.desc}</span>}
                     </button>
                   ))}
                 </div>
@@ -208,15 +222,17 @@ export function PreWorkoutReadinessModal({
                     <button
                       key={opt.id}
                       type="button"
+                      aria-pressed={sleep === opt.id}
                       onClick={() => setSleep(opt.id)}
                       className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center min-h-[44px] ${
                         sleep === opt.id
-                          ? 'bg-gym-cyan/15 border-gym-cyan text-white font-bold'
+                          ? 'bg-gym-accent/15 border-gym-accent text-white font-bold'
                           : 'bg-white/5 border-white/10 text-gym-text-muted hover:bg-white/10'
                       }`}
                     >
                       <span className="text-base leading-none mb-1">{opt.emoji}</span>
                       <span className="text-[11px] leading-none">{opt.label}</span>
+                      {'desc' in opt && typeof opt.desc === 'string' && <span className="mt-1 text-[10px] leading-tight">{opt.desc}</span>}
                     </button>
                   ))}
                 </div>
@@ -239,35 +255,36 @@ export function PreWorkoutReadinessModal({
                     <button
                       key={opt.id}
                       type="button"
+                      aria-pressed={soreness === opt.id}
                       onClick={() => setSoreness(opt.id)}
                       className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center min-h-[44px] ${
                         soreness === opt.id
-                          ? opt.id === 'severe'
-                            ? 'bg-gym-coral/20 border-gym-coral text-white font-bold'
-                            : 'bg-gym-amber/20 border-gym-amber text-white font-bold'
+                          ? 'bg-gym-accent/15 border-gym-accent text-white font-bold'
                           : 'bg-white/5 border-white/10 text-gym-text-muted hover:bg-white/10'
                       }`}
                     >
                       <span className="text-base leading-none mb-1">{opt.emoji}</span>
                       <span className="text-[11px] leading-none">{opt.label}</span>
+                      {'desc' in opt && typeof opt.desc === 'string' && <span className="mt-1 text-[10px] leading-tight">{opt.desc}</span>}
                     </button>
                   ))}
                 </div>
 
-                {soreness !== 'none' && (
+                {soreness && soreness !== 'none' && (
                   <div className="pt-2">
                     <span className="text-[10px] text-gym-text-muted block mb-1">
-                      Onde é o desconforto principal?
+                      Onde é o desconforto principal? (opcional)
                     </span>
                     <div className="flex flex-wrap gap-1">
                       {MUSCLE_LOCATIONS.map((loc) => (
                         <button
                           key={loc}
                           type="button"
+                          aria-pressed={sorenessLocation === loc}
                           onClick={() => setSorenessLocation(loc)}
-                          className={`px-2 py-1 rounded-lg text-[10px] border transition-all ${
+                          className={`min-h-[44px] px-3 py-2 rounded-lg text-[10px] border transition-all ${
                             sorenessLocation === loc
-                              ? 'bg-gym-amber/20 border-gym-amber text-white font-bold'
+                              ? 'bg-gym-accent/15 border-gym-accent text-white font-bold'
                               : 'bg-white/5 border-white/10 text-gym-text-muted hover:bg-white/10'
                           }`}
                         >
@@ -296,15 +313,17 @@ export function PreWorkoutReadinessModal({
                     <button
                       key={opt.id}
                       type="button"
+                      aria-pressed={stress === opt.id}
                       onClick={() => setStress(opt.id)}
                       className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center min-h-[44px] ${
                         stress === opt.id
-                          ? 'bg-gym-purple/20 border-gym-purple text-white font-bold'
+                          ? 'bg-gym-accent/15 border-gym-accent text-white font-bold'
                           : 'bg-white/5 border-white/10 text-gym-text-muted hover:bg-white/10'
                       }`}
                     >
                       <span className="text-base leading-none mb-1">{opt.emoji}</span>
                       <span className="text-[11px] leading-none">{opt.label}</span>
+                      {'desc' in opt && typeof opt.desc === 'string' && <span className="mt-1 text-[10px] leading-tight">{opt.desc}</span>}
                     </button>
                   ))}
                 </div>
@@ -327,6 +346,7 @@ export function PreWorkoutReadinessModal({
                     <button
                       key={opt.id}
                       type="button"
+                      aria-pressed={timeAvailable === opt.id}
                       onClick={() => setTimeAvailable(opt.id)}
                       className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center min-h-[44px] ${
                         timeAvailable === opt.id
@@ -336,6 +356,7 @@ export function PreWorkoutReadinessModal({
                     >
                       <span className="text-base leading-none mb-1">{opt.emoji}</span>
                       <span className="text-[11px] leading-none">{opt.label}</span>
+                      {'desc' in opt && typeof opt.desc === 'string' && <span className="mt-1 text-[10px] leading-tight">{opt.desc}</span>}
                     </button>
                   ))}
                 </div>
@@ -364,7 +385,7 @@ export function PreWorkoutReadinessModal({
                     <p className="text-[10px] text-gym-text-muted">
                       {activeSuggestions.length > 0
                         ? `${activeSuggestions.length} sugestão(ões) explicada(s) para o seu treino:`
-                        : 'Condições favoráveis para treinar conforme planejado.'}
+                        : 'Você pode seguir com o treino planejado.'}
                     </p>
                   </div>
                 </div>
@@ -390,10 +411,11 @@ export function PreWorkoutReadinessModal({
                       </div>
 
                       {/* Ações de 1 toque */}
-                      <div className="flex items-center gap-2 pt-1">
+                      <div className="flex flex-col gap-2 pt-1">
                         <button
                           type="button"
                           onClick={() => {
+                            if (completedRef.current) return;
                             onApplySuggestion(sugg);
                             handleProceedWithCurrent();
                           }}
@@ -416,9 +438,9 @@ export function PreWorkoutReadinessModal({
               ) : (
                 <div className="p-4 rounded-xl bg-gym-accent/10 border border-gym-accent/20 text-center space-y-1.5">
                   <CheckCircle2 className="w-6 h-6 text-gym-accent mx-auto" />
-                  <p className="text-xs font-bold text-white">Nenhuma adaptação necessária!</p>
+                  <p className="text-xs font-bold text-white">Sugestões dispensadas</p>
                   <p className="text-[11px] text-gym-text-muted">
-                    Todas as sugestões foram dispensadas ou seus indicadores estão equilibrados.
+                    Você pode seguir com o treino planejado.
                   </p>
                 </div>
               )}
@@ -432,7 +454,7 @@ export function PreWorkoutReadinessModal({
             <>
               <button
                 type="button"
-                onClick={onSkip}
+                onClick={skipOnce}
                 className="w-1/3 min-h-[44px] py-2.5 px-3 rounded-xl border border-white/10 text-gym-text-muted hover:text-white hover:bg-white/5 text-center text-xs font-semibold transition-all active:scale-98"
               >
                 Pular
@@ -440,9 +462,10 @@ export function PreWorkoutReadinessModal({
               <button
                 type="button"
                 onClick={handleEvaluate}
-                className="w-2/3 min-h-[44px] py-2.5 px-4 rounded-xl bg-gym-accent text-black font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-gym-accent/90 transition-all active:scale-98 shadow-md"
+                disabled={!canSubmit}
+                className="w-2/3 disabled:opacity-40 disabled:cursor-not-allowed min-h-[44px] py-2.5 px-4 rounded-xl bg-gym-accent text-black font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-gym-accent/90 transition-all active:scale-98 shadow-md"
               >
-                <span>Concluir Check-in</span>
+                <span>{canSubmit ? 'Concluir Check-in' : 'Escolha as 5 respostas'}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </>

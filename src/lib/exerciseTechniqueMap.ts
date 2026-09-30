@@ -26,7 +26,7 @@ const VIDEO_TO_EXERCISE_ID: Record<string, string> = {
 };
 
 export function getTechniqueVideoIdForExerciseId(exerciseId: string) {
-  return EXERCISE_TO_VIDEO_ID[exerciseId] ?? 'vid_supino_1';
+  return EXERCISE_TO_VIDEO_ID[exerciseId] ?? null;
 }
 
 export function getExerciseIdForTechniqueVideoId(videoId: string) {

@@ -4,7 +4,9 @@ import React, { useState } from 'react';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { Exercise } from '../types';
 import { Search, X, ShieldAlert, Heart, Sparkles, ChevronRight, Clock, BookOpen, Film } from 'lucide-react';
-import { matchesExerciseSearch } from '../lib/exerciseSearch';
+import { filterExerciseCatalog, getCatalogGroupLabel, getExerciseCatalogTabs, type WorkoutPickerTabId } from '../lib/workout-picker';
+import { useTrainingDialogFocus } from '../lib/use-training-dialog-focus';
+import { getMuscleGroupLabel } from '../lib/mobile-training-ux';
 import { ExerciseMedia } from '../components/ExerciseMedia';
 import { ExerciseMediaUnifiedPlayer } from '../components/ExerciseMediaUnifiedPlayer';
 import { OfflineMediaModal } from '../components/OfflineMediaModal';
@@ -24,26 +26,14 @@ export const ExerciseLibrary = () => {
   } = useGymFlow();
 
   const [search, setSearch] = useState('');
-  const [selectedMuscle, setSelectedMuscle] = useState<string>('all');
+  const [selectedMuscle, setSelectedMuscle] = useState<WorkoutPickerTabId>('all');
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [currentLibraryTab, setCurrentLibraryTab] = useState<'all' | 'favorites' | 'recommended' | 'trends' | 'recent'>('all');
   const [isOfflineModalOpen, setIsOfflineModalOpen] = useState(false);
 
-  const musclesList = [
-    { id: 'all', label: 'Todos' },
-    { id: 'chest', label: 'Peito' },
-    { id: 'back', label: 'Costas' },
-    { id: 'shoulders', label: 'Ombros' },
-    { id: 'biceps', label: 'Bíceps' },
-    { id: 'triceps', label: 'Tríceps' },
-    { id: 'legs', label: 'Pernas' },
-    { id: 'glutes', label: 'Glúteos' },
-    { id: 'abs', label: 'Abdômen' },
-    { id: 'calves', label: 'Panturrilha' },
-    { id: 'cardio', label: 'Cardio' },
-    { id: 'mobility', label: 'Mobilidade' },
-    { id: 'functional', label: 'Funcional' }
-  ];
+  const detailDialogRef = useTrainingDialogFocus(Boolean(selectedExercise));
+
+  const musclesList = getExerciseCatalogTabs(exercises);
 
   const getTabFilteredExercises = () => {
     let base = exercises;
@@ -80,11 +70,7 @@ export const ExerciseLibrary = () => {
       base = exercises.filter(ex => recentExIds.includes(ex.id));
     }
 
-    return base.filter((ex) => {
-      const matchesSearch = matchesExerciseSearch(ex, search);
-      const matchesMuscle = selectedMuscle === 'all' || ex.muscleGroup === selectedMuscle;
-      return matchesSearch && matchesMuscle;
-    });
+    return filterExerciseCatalog(base, selectedMuscle, search);
   };
 
   const finalExercises = getTabFilteredExercises();
@@ -103,18 +89,14 @@ export const ExerciseLibrary = () => {
 
   const handleOpenVideo = (exId: string) => {
     const videoId = getTechniqueVideoIdForExerciseId(exId);
-    openGlobalPlayer(videoId);
+    if (videoId) openGlobalPlayer(videoId);
+    else {
+      const exercise = exercises.find(item => item.id === exId);
+      if (exercise) setSelectedExercise(exercise);
+    }
   };
 
-  // Get muscle group translation
-  const getMuscleLabel = (mg: string) => {
-    const map: {[key: string]: string} = {
-      'chest': 'Peito', 'legs': 'Pernas', 'back': 'Costas', 'shoulders': 'Ombros',
-      'biceps': 'Bíceps', 'triceps': 'Tríceps', 'abs': 'Abdômen', 'glutes': 'Glúteos',
-      'cardio': 'Cardio', 'mobility': 'Mobilidade', 'functional': 'Funcional', 'calves': 'Panturrilha'
-    };
-    return map[mg.toLowerCase()] || mg;
-  };
+  const getMuscleLabel = getMuscleGroupLabel;
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
@@ -198,7 +180,8 @@ export const ExerciseLibrary = () => {
           <button
             key={m.id}
             onClick={() => setSelectedMuscle(m.id)}
-            className={`py-2 px-4 rounded-xl text-xs font-bold transition-all ${
+            aria-pressed={selectedMuscle === m.id}
+            className={`min-h-[44px] py-2 px-4 rounded-xl text-xs font-bold transition-all ${
               selectedMuscle === m.id
                 ? 'bg-gym-accent text-gym-dark shadow-md'
                 : 'text-gym-text-muted hover:text-white hover:bg-white/5'
@@ -295,7 +278,7 @@ export const ExerciseLibrary = () => {
                     {ex.name}
                   </h3>
                   <p className="text-[10px] text-gym-text-muted capitalize mt-1">
-                    {getMuscleLabel(ex.muscleGroup)} • {ex.equipment}
+                    {getCatalogGroupLabel(ex)} • {ex.equipment}
                   </p>
                 </div>
                 
@@ -322,12 +305,16 @@ export const ExerciseLibrary = () => {
       {/* EXERCISE DETAIL DRAWER MODAL */}
       {selectedExercise && (
         <div
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+          className="training-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
           onClick={() => setSelectedExercise(null)}
         >
           <div
+            ref={detailDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={selectedExercise.name}
             onClick={(e) => e.stopPropagation()}
-            className="bg-gym-dark border border-white/10 rounded-3xl w-full max-w-3xl p-6 lg:p-8 relative max-h-[90vh] overflow-y-auto space-y-6"
+            className="training-dialog bg-gym-dark border border-white/10 rounded-3xl w-full max-w-3xl p-6 lg:p-8 relative overflow-y-auto space-y-6"
           >
             
             {/* Top Close */}
@@ -373,7 +360,7 @@ export const ExerciseLibrary = () => {
                 <div className="bg-white/5 border border-white/5 p-4 rounded-2xl space-y-2">
                   <span className="text-[9px] font-extrabold text-gym-accent uppercase tracking-wider block">Grupos Envolvidos</span>
                   <div className="text-xs text-white">
-                    Músculo Alvo: <span className="font-bold text-gym-accent capitalize">{getMuscleLabel(selectedExercise.muscleGroup)}</span>
+                    Músculo Alvo: <span className="font-bold text-gym-accent capitalize">{getCatalogGroupLabel(selectedExercise)}</span>
                   </div>
                   {selectedExercise.secondaryMuscles && (
                     <div className="text-[11px] text-gym-text-muted capitalize">
