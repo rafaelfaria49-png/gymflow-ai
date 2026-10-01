@@ -66,6 +66,28 @@ const catalog = [
   makeExercise('dumbbell-chest', 'Supino com halteres', 'chest', 'Halteres'),
 ];
 
+describe('referências de carga após troca GOAL-122', () => {
+  it.each([undefined, 35])('usa somente ANT do substituto (%s), sem herdar sugestão', replacementLastWeight => {
+    const workout = makeWorkout();
+    const entry = workout.exercises[0];
+    entry.progressionNote = 'Aumentar a carga do exercício original';
+    entry.sets = entry.sets.map(set => ({ ...set, lastWeight: 75, suggestedWeight: 82.5 }));
+    const original = structuredClone(workout);
+    const swapped = swapWorkoutExercise(workout, 0, catalog[1], replacementLastWeight);
+    expect(swapped.exercises[0].progressionNote).toBeUndefined();
+    expect(swapped.exercises[0].progressionDecision).toBeUndefined();
+    expect(swapped.exercises[0].progressionComparison).toBeUndefined();
+    swapped.exercises[0].sets.forEach((set, index) => {
+      expect(set.lastWeight).toBe(replacementLastWeight);
+      expect(set.suggestedWeight).toBeUndefined();
+      expect({ ...set, lastWeight: 75, suggestedWeight: 82.5 }).toEqual(original.exercises[0].sets[index]);
+    });
+    expect(swapped.exercises[0].id).toBe(entry.id);
+    expect(swapped.exercises[0].restSec).toBe(entry.restSec);
+    expect(workout).toEqual(original);
+  });
+});
+
 describe('mutações puras da sessão ativa', () => {
   it('aplica duas alterações sequenciais sem a segunda sobrescrever a primeira', () => {
     const original = makeWorkout();

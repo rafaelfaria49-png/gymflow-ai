@@ -1376,4 +1376,33 @@ describe('GymFlowProvider real — treino mobile GOAL-119', () => {
     expect(handle.context().user!.xp).toBe(xp + 20);
     expect(persistedCore().activeWorkout!.exercises[0].exerciseId).toBe(replacement.id);
   });
+
+  it.each([undefined, 35])('troca persiste ANT próprio (%s) e limpa SUG/progressão do original', async replacementLastWeight => {
+    const activeWorkout = makeActiveSession();
+    activeWorkout.exercises[0].progressionNote = 'Aumentar carga do original';
+    activeWorkout.exercises[0].sets = activeWorkout.exercises[0].sets.map(set => ({...set, lastWeight: 75, suggestedWeight: 82.5}));
+    const originalSets = structuredClone(activeWorkout.exercises[0].sets);
+    const replacementId = 'chest_supino_inclinado_haltere';
+    const history = makeActiveSession({id:'replacement-history'});
+    history.exercises[0].exerciseId = replacementId;
+    history.exercises[0].sets = [{id:'historical-set',weight:replacementLastWeight ?? 0,reps:10,completed:true}];
+    seedV1Envelope({activeWorkout,workoutHistory:replacementLastWeight === undefined ? [] : [history]});
+    const handle = await mountHydrated();
+    let ok = false;
+    act(() => {ok = handle.context().swapExerciseInActiveWorkout(0,replacementId,{reasonCode:'preference'}).ok;});
+    await settle(10);
+    await act(async () => {windowStub.dispatchEvent(new Event('pagehide'));});
+    expect(ok).toBe(true);
+    const entry = handle.context().activeWorkout!.exercises[0];
+    expect(entry.progressionNote).toBeUndefined();
+    expect(entry.progressionDecision).toBeUndefined();
+    entry.sets.forEach((set,index) => {
+      expect(set.lastWeight).toBe(replacementLastWeight);
+      expect(set.suggestedWeight).toBeUndefined();
+      expect({...set,lastWeight:75,suggestedWeight:82.5}).toEqual(originalSets[index]);
+    });
+    expect(persistedCore().activeWorkout!.exercises[0].sets[0].lastWeight).toBe(replacementLastWeight);
+    expect(persistedCore().activeWorkout!.exercises[0].sets[0].suggestedWeight).toBeUndefined();
+  });
+
 });

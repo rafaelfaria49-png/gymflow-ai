@@ -4927,3 +4927,27 @@ XML gerado após timeout do uiautomator não serve como prova; nesses estados,
 foram usadas screenshots recentes. QA122_STATUS.md e qa122-status.json serão
 atualizados com o SHA integrado, APK completo assinado e resultado físico final.
 READY_FOR_MEDIA_INVENTORY depende desse último fechamento; nenhuma mídia gerada.
+
+Continuação do GOAL-122 após PR #57 (2026-10-01): S22-122-02 P2 encontrado na
+conferência de uma troca com histórico anterior real. Desenvolvimento de Ombros
+registrado com 10 kg → troca para Arnold sem histórico próprio → Carga anterior,
+Carga sugerida e nota de progressão ainda herdavam o exercício original.
+Correção necessária: atualizar somente referências de histórico/progressão do
+substituto; preservar peso/reps editados, séries concluídas, ids, descanso e origem.
+Não encerrar o aceite/APK enquanto esse caso não passar física e automaticamente.
+S22-122-02 — correção e reteste do candidato (2026-10-01)
+- Antes: troca Desenvolvimento (ANT/SUG 10 kg) → Arnold sem histórico próprio
+  mantinha as referências e a nota de progressão do original (95/96).
+- Depois: ANT consulta o histórico real do substituto; SUG e metadados de
+  progressão herdados são removidos. Nenhuma alteração de motor de progressão.
+- Físico: candidato assinado compatível atualizado por install -r, sem wipe.
+  Desenvolvimento mostrou ANT 10 kg e SUG Sem registro (99/100); retorno para
+  Arnold mostrou ANT/SUG Sem registro e preservou série concluída, 12,5 kg,
+  11 repetições e total 1/7 (106/107). Nota de progressão antiga removida.
+- Recents: somente cartão GymFlow removido, confirmado ausente (108/109 XML);
+  relaunch COLD 702 ms. Arnold, referências vazias e série concluída persistidos
+  (110). Teclado/CTA, decimal, reps e Back continuam corretos.
+- Validação: focados 59/4; full 3668/167, exit 0; tsc --noEmit, npm run build,
+  export mobile/cap sync, ios:validate 17, diff check e APK release PASS.
+- Dois P2 encontrados e corrigidos no GOAL-122; zero aberto no escopo do
+  candidato. Integração, CI e rebuild/reteste do master final ainda obrigatórios.

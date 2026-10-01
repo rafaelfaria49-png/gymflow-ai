@@ -2903,7 +2903,8 @@ export const GymFlowProvider = ({ children }: { children: ReactNode }) => {
     const swappedAt = Date.now();
     const applySwap = (workout: WorkoutSession): WorkoutSession => {
       const original = workout.exercises[exerciseIndex];
-      const swapped = swapWorkoutExercise(workout, exerciseIndex, newEx);
+      const replacementLastWeight = lastRecordedWeight(exerciseHistoryFor(newEx.id)) ?? undefined;
+      const swapped = swapWorkoutExercise(workout, exerciseIndex, newEx, replacementLastWeight);
       if (swapped === workout) return workout;
       return {
         ...swapped,
