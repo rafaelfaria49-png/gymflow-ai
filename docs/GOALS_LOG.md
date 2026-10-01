@@ -4889,3 +4889,42 @@ Status: EM EXECUÇÃO. Rebuild/reinstalação da correção, restante do smoke f
 CI/integração e APK final integrado ainda pendentes. Não certifica aceite final.
 Evidências locais: C:\Users\rafae\.codex\visualizations\2026\09\30\01a0f3e2-fe7b-71c1-8e0f-6a957338bd18\goal122.
 Sem geração de mídia, alteração de AI-Guard/auth, serviços ou Play Store.
+
+
+Fechamento do smoke físico (2026-10-01):
+- Home, safe areas, sessão ativa, navegação/Back e teclado: PASS.
+- Check-in respondido: cinco escolhas explícitas (alta, ótimo, nenhuma, baixo,
+  normal/17 min), nenhum default e submit habilitado somente após escolher.
+  Segunda sessão nova: Pular único, toast sem respostas enviadas; Back fecha o modal.
+- Normal/double/repeated taps: uma conclusão por ação, +10 XP por série.
+  Bursts de dois e quatro toques não duplicaram séries/XP nem travaram UI.
+- Todos os 19 tabs presentes no seletor (incluindo Todos) exercitados; Peito 24,
+  Costas 25, Ombros 19, Bíceps 14, Tríceps 14, Antebraços 2, Quadríceps 6,
+  Posterior de coxa 3, Glúteos 12, Adutores 1, Abdutores 1, Panturrilhas 8,
+  Pernas 23, Abdômen 13, Lombar 1, Funcional 4, Cardio 7, Mobilidade 7.
+  Costas + supino = vazio; Costas + remada = 11. Todos paginou 30 → 60/184.
+- Remada Curvada adicionada (#8, 22 → 25 séries), trocada por Remada Sentada
+  com Triângulo com motivo Preferência. Elegíveis antes do motivo; confirmar
+  desabilitado sem escolha; cancelamento por Back não troca o exercício.
+- Recents fechou só o cartão GymFlow; cartão ausente após swipe, relaunch COLD.
+  4/25 séries, 2530 XP, série atual 4 e cargas persistiram; histórico posterior
+  conserva oito exercícios, Remada Sentada e registro da troca/motivo.
+- Guia de Remada abriu mídia própria e voltou à sessão por Back, sem Supino.
+  Tríceps e demais sem vídeo técnico declararam ausência e usaram imagens próprias.
+  Sequências 2/2 e 5/5 coerentes. Falha controlada física: APK temporário do mesmo
+  código/assinatura sem step-02 de Desenvolvimento; 5 frames → 4, navegação 2/4 e
+  3/4 sem contador inválido. Cópia da imagem restaurada no finally do build;
+  esse APK de injeção não é o artefato de entrega.
+- Sessão preexistente autorizada registrada como parcial (4/25, 475 kg), sem
+  fabricar conclusão das séries incompletas. Treino de Ombros respondido também
+  registrado parcial. Histórico mantém as sessões anteriores; nenhuma exclusão.
+- Logcat crash/eventos am_anr desde início do smoke: zero ocorrência do pacote.
+  Exit-info confirma REMOVE TASK no recents e PACKAGE UPDATED nas reinstalações.
+- S22-122-01 P2 corrigido; P0/P1/P2/P3 abertos no escopo: 0/0/0/0.
+
+Evidências: screenshots 00–91, XMLs dos estados estáticos, logcat-audit.txt,
+candidate-signature.txt e fault-signature.txt na pasta local de evidências.
+XML gerado após timeout do uiautomator não serve como prova; nesses estados,
+foram usadas screenshots recentes. QA122_STATUS.md e qa122-status.json serão
+atualizados com o SHA integrado, APK completo assinado e resultado físico final.
+READY_FOR_MEDIA_INVENTORY depende desse último fechamento; nenhuma mídia gerada.
