@@ -4857,3 +4857,35 @@ Nutrição, backend/auth/quota, pipeline Kai/avatar/GLB, OFF/barcode e publicaç
 - `src/modules/ExerciseLibrary.tsx`
 - `src/providers/GymFlowContext.storage.test.tsx`
 - `src/providers/GymFlowContext.tsx`
+
+## GOAL-122 — QA físico do GOAL-119 no Galaxy S22 (2026-09-30 / 2026-10-01)
+
+Base integrada: 2284cce2fb44c89e5adda07320b1ce71adfae751 (PR #56).
+Execução em codex/goal119-s22-physical-qa-122, worktree próprio a partir de origin/master.
+S22 SM-S901E / RXCT300L33Y, Android 16 / API 36. APK anterior 1.0/código 1:
+certificado SHA-256 a3273a11a7c932f1397911ad02d62a8789522564f3ac6f7ff8d918dc1ade547c,
+idêntico ao release interno novo. install -r = Success; firstInstallTime preservado
+(2026-09-22 11:17:58), sessão 0/22 e 2470 XP recuperados. Nenhum uninstall/clear/wipe.
+Usuário autorizou usar e concluir a sessão preexistente Dia C — Peito e Tríceps
+(Alto Volume) como treino de QA.
+
+**Antes → depois (regressão física S22-122-01):**
+teclado numérico redimensionava a WebView, mas bottom nav e barra de série atual
+subiam sobre os campos, deixando Concluir série fora da área visível →
+listeners nativos keyboardDidShow/Hide ocultam essas barras somente durante
+entrada em um card de série; após resize o card focado é revelado com margem
+para a TopBar. Fechar o teclado restaura as barras sem nova rolagem programática.
+Listeners e frame pendente são limpos também quando desmonta antes de registrar.
+
+Validação da correção: testes focados 30/30 (6 arquivos); suíte completa
+3664/3664 (167 arquivos, maxWorkers=1, timeout original 15000 ms); typecheck,
+build web, build mobile, cap sync android, ios:validate (17 testes) e diff-check PASS.
+Build inicial do worktree encontrou limite de root do Turbopack para node_modules
+ligado; repetição com TURBOPACK_ROOT=C:\ (suportado pela configuração existente)
+PASS, sem modificar Next/config/dependências. A suíte relatou warnings de teardown
+de forks em dois arquivos de storage e terminou exit 0, sem teste falho.
+
+Status: EM EXECUÇÃO. Rebuild/reinstalação da correção, restante do smoke físico,
+CI/integração e APK final integrado ainda pendentes. Não certifica aceite final.
+Evidências locais: C:\Users\rafae\.codex\visualizations\2026\09\30\01a0f3e2-fe7b-71c1-8e0f-6a957338bd18\goal122.
+Sem geração de mídia, alteração de AI-Guard/auth, serviços ou Play Store.

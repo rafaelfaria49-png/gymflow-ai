@@ -1185,7 +1185,7 @@ export const ActiveWorkoutPage = () => {
           GOAL-06: quando o timer de descanso está ativo, a barra mostra o descanso
           (tempo + progresso + +30s/Pular) no lugar de Continuar/Finalizar. */}
       <div
-        className="lg:hidden fixed inset-x-0 z-30 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] px-4"
+        className="training-action-bar lg:hidden fixed inset-x-0 z-30 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] px-4"
       >
         <div className="glass border border-white/10 rounded-2xl shadow-2xl px-4 py-3">
           {restSecondsRemaining > 0 ? (

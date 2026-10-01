@@ -225,7 +225,7 @@ export const BottomNavigation = () => {
         </button>
       )}
 
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-gym-dark/95 backdrop-blur-xl border-t border-white/10 px-1.5 pt-1 pb-safe flex justify-around items-stretch">
+      <nav className="mobile-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-gym-dark/95 backdrop-blur-xl border-t border-white/10 px-1.5 pt-1 pb-safe flex justify-around items-stretch">
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeView === item.view;

@@ -5,6 +5,7 @@ import { App as CapApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Keyboard, KeyboardResize } from '@capacitor/keyboard';
 import { SplashScreen } from '@capacitor/splash-screen';
+import { observeNativeTrainingKeyboard } from '../lib/native-training-keyboard';
 import { useGymFlow } from '../providers/GymFlowContext';
 import { useToast } from './ui/Toast';
 import { isCapacitorNative, isCapacitorAndroid } from '../lib/platform';
@@ -72,6 +73,11 @@ export function NativeAppBridge() {
     }, 150);
 
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!isCapacitorNative()) return;
+    return observeNativeTrainingKeyboard(Keyboard);
   }, []);
 
   // Listener do botão físico Voltar do Android (@capacitor/app)

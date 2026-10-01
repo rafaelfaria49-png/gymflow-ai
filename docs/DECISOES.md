@@ -2218,3 +2218,5 @@ Numeracao espelha a secao 14.1 do documento canonico (docs/security/GYMFLOW_AI_G
 - D119-004: ações críticas têm guarda síncrona de 500 ms por identidade. Conclusão e falha da mesma série especial compartilham a guarda; edição de carga/repetições não é bloqueada. A navegação entre exercícios preserva o domínio de rodadas existente.
 - D119-005: Android usa adjustMarginsForEdgeToEdge=force. O CapConfig.java da versão instalada usa disable quando omitido, apesar do comentário da declaração TypeScript dizer auto. O WebView recebe margens de systemBars/displayCutout e consome os insets; overlays web também respeitam env(safe-area-inset-*) e 100dvh.
 - D119-006: progresso semanal deriva de sessões concluídas e datas civis locais, sem estatística fixa nem afirmação de recuperação. O FAB da home fica oculto e a sessão existente tem prioridade no CTA.
+
+- D122-001 (2026-10-01): a correção física do teclado usa eventos nativos do Capacitor e se limita à entrada em cards de série: oculta barras sobrepostas enquanto o teclado está aberto, revela o card após resize e não reposiciona a rolagem no fechamento; web e demais formulários mantêm o comportamento existente.
