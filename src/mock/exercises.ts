@@ -1,4 +1,5 @@
 import { Exercise } from '../types';
+import { usableLocalMediaPaths } from '../domain/media/localMediaPolicy';
 
 // GOAL-09: biblioteca real. BASE_EXERCISES = curadoria original preservada;
 // EXPANSION_EXERCISES (fim do arquivo) = exercícios reais adicionados.
@@ -3298,10 +3299,10 @@ const EXPANSION_EXERCISES: Exercise[] = [
 // (validado pela suíte src/mock/exercises.test.ts). Exercícios sem pasta local ficam sem images.
 const withLocalImages = (exercise: Exercise): Exercise => ({
   ...exercise,
-  images: exercise.images ?? [
+  images: usableLocalMediaPaths(exercise.images ?? [
     `/assets/exercises/${exercise.id}/0.jpg`,
     `/assets/exercises/${exercise.id}/1.jpg`
-  ]
+  ])
 });
 
 // GOAL-15: apelidos/termos de academia por id — aplicados no build para a busca
@@ -3369,7 +3370,11 @@ import { LOTE_7_EXPANSION } from '../../scripts/library/curation-data/lote7';
 
 export const BASE_CATALOG_126: Exercise[] = [...BASE_EXERCISES, ...EXPANSION_EXERCISES];
 
-export const MOCK_EXERCISES: Exercise[] = [
+export { LOTE_6_EXPANSION, LOTE_7_EXPANSION };
+export const MEDIA_CATALOG_SCOPE = 'RUNTIME_CATALOG' as const;
+
+/** All selectable built-in exercises; the historical 126-ID baseline stays separate. */
+export const RUNTIME_CATALOG: Exercise[] = [
   ...BASE_CATALOG_126,
   ...LOTE_6_EXPANSION,
   ...LOTE_7_EXPANSION
@@ -3377,3 +3382,6 @@ export const MOCK_EXERCISES: Exercise[] = [
   .map(withCuration)
   .map(withLocalImages)
   .map(withSearchTerms);
+
+// Keep existing consumers on the same operational source of truth.
+export const MOCK_EXERCISES = RUNTIME_CATALOG;

@@ -1086,7 +1086,7 @@ Auditoria independente 054: **APTO / Classe B**, com um achado **P1**.
   Classe C; nenhuma UI, executor, política de idade/quantidade, seleção,
   deleção, push, PR ou merge foi iniciada.
 
-- **MEDIA-053-001 — frame fantasma no manifest para `chest_supino_reto`.** *Aberto · P2.*
+- **MEDIA-053-001 — frame fantasma no manifest para `chest_supino_reto`.** *RESOLVIDO no GOAL-124 (2026-10-01).* A lista obsoleta foi desativada, com metadados originais preservados no snapshot; o fallback usa os cinco frames próprios já existentes, sem nova aprovação. Registro original abaixo:
   O `src/domain/media/manifest.json` referencia `/assets/exercises/chest_supino_reto/2.jpg`
   (frame do GOAL-34), mas o binário não existe em `public/` (há apenas `0.jpg`, `1.jpg` e
   `sequence/step-01..05.jpg` do lote GOAL-14). No `ExerciseMediaUnifiedPlayer` o frame 2 dá 404
@@ -1287,11 +1287,17 @@ Arquitetura B definida em `docs/security/GYMFLOW_AI_GATEWAY_AUTH_ARCHITECTURE_12
 
 ## GOAL-123 — Auditoria do inventário de mídia (2026-10-01)
 
-- **Escopo do catálogo runtime.** O inventário canônico solicitado cobre os 126 IDs de BASE_CATALOG_126. MOCK_EXERCISES contém 58 itens adicionais de LOTE_6/LOTE_7, listados por ID em docs/media/GYMFLOW_EXERCISE_MEDIA_INVENTORY.json; decidir sua reconciliação com o catálogo canônico antes de incluí-los em outro lote de produção de mídia.
+- **Escopo do catálogo runtime. RESOLVIDO no GOAL-124.** MEDIA_CATALOG_SCOPE=RUNTIME_CATALOG: 126 base + 29 de LOTE_6 + 29 de LOTE_7 = 184 selecionáveis, todos presentes no inventário V2. BASE_CATALOG_126 e as métricas originais do GOAL-123 permanecem preservados no snapshot. Nenhum exercício removido.
 - **Referência visual do personal.** PERSONAL_REFERENCE_MISSING_FROM_REPO=YES. docs/avatar-design/KAI_DNA_v1.md, KAI_MOODBOARD_v1.md e docs/GYMFLOW_ART_BIBLE_V1.md são referências documentais, sem imagem oficial suficiente para fixar o mesmo rosto. O pipeline futuro exige uma referência visual aprovada; nenhuma identidade deve ser inventada.
-- **Gap de asset.** triceps_maquina tem catálogo, mas não diretório próprio nem mídia válida: MISSING_ASSET_DIRECTORY=YES, prioridade P1, ação GENERATE_REFERENCE_IMAGES.
-- **Manifest sem catálogo e thumbnails quebradas.** back_puxada_atras (retired), chest_supino_declinado (draft) e legs_hack_squat (draft) não pertencem aos catálogos runtime/canônico e apontam para thumbnails locais ausentes. chest_supino_reto também contém o frame /assets/exercises/chest_supino_reto/2.jpg, inexistente. Resolver a propriedade dos IDs e os paths em GOAL próprio, preservando status e proveniência.
-- **IDs órfãos no mapa técnico.** glutes_elevacao_pelvica aponta para extra_vid_technique_2 e extra_vid_technique_6; legs_legpress_45 aponta para extra_vid_machines_1 e extra_vid_machines_5. Esses IDs não existem em MOCK_VIDEOS, usado nesta auditoria apenas para detectar referências penduradas; não os tratar como mídia disponível.
-- **Asset visual incompatível.** /assets/exercises/mobility_alongamento_quadriceps/0.jpg mostra alongamento posterior de coxa e é idêntico a /assets/exercises/mobility_alongamento_posterior/0.jpg. mobility_alongamento_quadriceps/1.jpg fica como candidata de capa, ainda pendente de aprovação humana.
+- **Gap de asset, recontado no GOAL-124.** 59 exercícios runtime sem qualquer asset: triceps_maquina + 29 de LOTE_6 + 29 de LOTE_7. MISSING_ASSET_DIRECTORY=YES, NO_MEDIA, prioridade de produção P1, ação GENERATE_REFERENCE_IMAGES. Nenhuma mídia gerada; não confundir backlog de produção com erros estruturais ativos.
+- **Manifest sem catálogo e thumbnails quebradas. RESOLVIDO no GOAL-124.** Os três registros foram preservados integralmente em historicalAssets, fora do player e sem remapeamento não comprovado. A lista antiga de frames do supino foi desativada em favor de seu fallback próprio de cinco. Quatro paths quebrados históricos continuam rastreáveis; zero ativos. Status/proveniência intactos.
+- **IDs órfãos no mapa técnico. RESOLVIDO no GOAL-124.** extra_vid_technique_2, extra_vid_technique_6, extra_vid_machines_1 e extra_vid_machines_5 são mappings mortos de mock educacional; removidos sem substituição por outra aula. Origem, consumidores e decisões preservados no snapshot/inventário. Zero órfãos técnicos ativos.
+- **Asset visual incompatível, preservado e bloqueado no GOAL-124.** /assets/exercises/mobility_alongamento_quadriceps/0.jpg mostra alongamento posterior de coxa e é idêntico a /assets/exercises/mobility_alongamento_posterior/0.jpg. Permanece no disco para HUMAN_REVIEW_REQUIRED, excluído das imagens runtime e da escolha automática de capa/técnica. mobility_alongamento_quadriceps/1.jpg continua candidata pendente de aprovação humana.
 - **Duplicata local.** /assets/exercises/back_remada_curvada_supinada/0.jpg e 1.jpg são bytes idênticos. Não substituídos nesta auditoria; revisar em futuro lote.
-- **Aprovação de capa.** As 125 candidatas têm galleryCoverNeedsHumanApproval=true; flags de capa não aprovam biomecânica. Os pares dHash próximos permanecem somente candidatos algorítmicos, sem flag de duplicidade automática.
+- **Aprovação de capa, recontada no GOAL-124.** 122 COVER_EXISTING_CANDIDATE, 3 COVER_NEEDS_REVIEW, 59 COVER_MISSING, 0 COVER_BLOCKED_WRONG_MEDIA sem alternativa. As 125 candidatas disponíveis continuam com galleryCoverNeedsHumanApproval=true; flags não aprovam biomecânica. Os pares dHash próximos permanecem somente candidatos algorítmicos.
+
+## GOAL-124 — Pendências humanas de mídia (2026-10-01)
+
+- Receber referência visual oficial do personal conforme docs/media/GYMFLOW_PERSONAL_REFERENCE_INTAKE.md; PERSONAL_REFERENCE_STATUS=MISSING_OFFICIAL_VISUAL_REFERENCE. Geração bloqueada; intake pronto.
+- Revisar os dois pares DUPLICATE_EXACT, quadríceps/0.jpg, as 125 capas candidatas e os dois candidatos semânticos históricos (rosca W e leg press 45) sem excluir exercícios ou remapear sua mídia automaticamente.
+- Não havia aparelho conectado ao ADB na conferência do GOAL-124. As correções de catálogo/player foram verificadas em código/testes; o smoke físico S22 não foi realizado.

@@ -1,0 +1,848 @@
+{
+  "schemaVersion": 1,
+  "goal": "GOAL-123",
+  "baseSha": "747e85c7d79ec7acb1df3121e88e881292f52d02",
+  "scope": {
+    "canonicalSource": "src/mock/exercises.ts#BASE_CATALOG_126",
+    "canonicalCatalogCount": 126,
+    "runtimeMockExercisesCount": 184,
+    "runtimeSupplementalExerciseCount": 58,
+    "runtimeSupplementalIds": [
+      "abs_pallof_press",
+      "abs_prancha_lateral_elevacao_quadril",
+      "abs_woodchopper_cabo",
+      "back_pullover_maquina",
+      "back_puxada_articulada_invertida",
+      "back_puxador_articulado",
+      "back_puxador_articulado_unilateral",
+      "back_remada_articulada_neutra",
+      "back_remada_articulada_pronada",
+      "back_remada_cavalinho_apoiada",
+      "back_remada_peito_apoiado_halteres",
+      "back_superman_solo",
+      "biceps_rosca_aranha",
+      "biceps_rosca_bayesian",
+      "biceps_rosca_duplo_cabo",
+      "biceps_rosca_punho_barra",
+      "biceps_rosca_punho_inversa_barra",
+      "calves_panturrilha_smith",
+      "calves_panturrilha_solo_livre",
+      "calves_panturrilha_step_haltere",
+      "chest_crossover_medio",
+      "chest_crucifixo_inclinado_maquina",
+      "chest_flexao_joelhos",
+      "chest_supino_articulado_declinado",
+      "chest_supino_articulado_inclinado",
+      "chest_supino_articulado_reto",
+      "chest_supino_articulado_vertical",
+      "chest_supino_smith_inclinado",
+      "chest_supino_smith_reto",
+      "glutes_abducao_cabo",
+      "glutes_coice_maquina",
+      "glutes_elevacao_pelvica_maquina",
+      "glutes_ponte_elevada_banco",
+      "legs_aducao_cabo",
+      "legs_afundo_smith",
+      "legs_agachamento_bulgaro_smith",
+      "legs_agachamento_frontal_maquina",
+      "legs_agachamento_hack_invertido",
+      "legs_agachamento_pendulo",
+      "legs_agachamento_sissy",
+      "legs_agachamento_sumo_smith",
+      "legs_flexora_articulada",
+      "legs_flexora_em_pe_maquina",
+      "legs_hack_sentado",
+      "legs_leg_press_90",
+      "legs_stiff_smith",
+      "mobility_quadril_90_90",
+      "mobility_tornozelo_dorsiflexao",
+      "shoulder_crucifixo_inverso_halteres_banco",
+      "shoulder_desenvolvimento_articulado",
+      "shoulder_desenvolvimento_smith",
+      "shoulder_elevacao_frontal_anilha",
+      "shoulder_elevacao_lateral_cabo_unilateral",
+      "shoulder_elevacao_lateral_inclinada",
+      "shoulder_elevacao_lateral_maquina",
+      "triceps_frances_unilateral_cabo",
+      "triceps_jm_press",
+      "triceps_testa_cabo"
+    ],
+    "scopeNote": "MOCK_EXERCISES tem 58 exercícios adicionais das expansões LOTE_6/LOTE_7; este inventário segue os 126 em BASE_CATALOG_126 e registra os extras como pendência."
+  },
+  "counts": {
+    "assetDirectories": 125,
+    "missingAssetDirectories": 1,
+    "manifestEntries": 28,
+    "manifestInternalEqualsPublic": true,
+    "videoApprovedCount": 2,
+    "validVideoApprovedCount": 2,
+    "videoApprovedIds": [
+      "back_puxada_pulley",
+      "back_remada_baixa"
+    ],
+    "videoDraftCount": 25,
+    "videoRetiredCount": 1,
+    "sequence5Count": 10,
+    "sequence5Ids": [
+      "chest_supino_reto",
+      "chest_supino_inclinado_haltere",
+      "back_puxada_pulley",
+      "back_remada_baixa",
+      "shoulder_desenvolvimento_haltere",
+      "shoulder_elevecao_lateral",
+      "biceps_rosca_direta",
+      "triceps_polia_corda",
+      "legs_agachamento_barra",
+      "legs_legpress_45"
+    ],
+    "localImages2Count": 125,
+    "images2LegacyPrimaryClassCount": 99,
+    "noMediaCount": 1,
+    "coverageClassCounts": {
+      "VIDEO_APPROVED": 2,
+      "SEQUENCE_5_APPROVED": 6,
+      "IMAGES_2_LEGACY": 99,
+      "IMAGE_SINGLE": 0,
+      "NO_MEDIA": 1,
+      "MANIFEST_DRAFT_VIDEO": 15,
+      "MANIFEST_RETIRED": 0,
+      "MAPPING_INCONSISTENT": 3
+    },
+    "priorityCounts": {
+      "P1": 2,
+      "P2": 3,
+      "P3": 111,
+      "P4": 10
+    },
+    "priorityByMuscleGroup": {
+      "chest": {
+        "P1": 0,
+        "P2": 0,
+        "P3": 13,
+        "P4": 2,
+        "total": 15
+      },
+      "back": {
+        "P1": 0,
+        "P2": 1,
+        "P3": 14,
+        "P4": 2,
+        "total": 17
+      },
+      "shoulders": {
+        "P1": 0,
+        "P2": 0,
+        "P3": 10,
+        "P4": 2,
+        "total": 12
+      },
+      "biceps": {
+        "P1": 0,
+        "P2": 0,
+        "P3": 10,
+        "P4": 1,
+        "total": 11
+      },
+      "triceps": {
+        "P1": 1,
+        "P2": 0,
+        "P3": 9,
+        "P4": 1,
+        "total": 11
+      },
+      "legs": {
+        "P1": 0,
+        "P2": 0,
+        "P3": 21,
+        "P4": 2,
+        "total": 23
+      },
+      "glutes": {
+        "P1": 0,
+        "P2": 1,
+        "P3": 5,
+        "P4": 0,
+        "total": 6
+      },
+      "abs": {
+        "P1": 0,
+        "P2": 0,
+        "P3": 10,
+        "P4": 0,
+        "total": 10
+      },
+      "cardio": {
+        "P1": 0,
+        "P2": 0,
+        "P3": 7,
+        "P4": 0,
+        "total": 7
+      },
+      "calves": {
+        "P1": 0,
+        "P2": 0,
+        "P3": 5,
+        "P4": 0,
+        "total": 5
+      },
+      "functional": {
+        "P1": 0,
+        "P2": 0,
+        "P3": 4,
+        "P4": 0,
+        "total": 4
+      },
+      "mobility": {
+        "P1": 1,
+        "P2": 1,
+        "P3": 3,
+        "P4": 0,
+        "total": 5
+      }
+    },
+    "galleryCoverReadyCount": 0,
+    "galleryCoverReviewCount": 125,
+    "galleryCoverMissingCount": 1,
+    "visualFlagCounts": {
+      "NEEDS_HUMAN_REVIEW": 125,
+      "USABLE_AS_GALLERY_COVER": 125,
+      "DUPLICATE_OR_NEAR_DUPLICATE": 3,
+      "WRONG_EXERCISE": 1
+    }
+  },
+  "baseCatalogIds": [
+    "chest_supino_reto",
+    "chest_supino_haltere",
+    "chest_supino_inclinado_haltere",
+    "chest_supino_inclinado_barra",
+    "chest_crucifixo_polia",
+    "chest_peck_deck",
+    "chest_paralelas",
+    "back_barra_fixa",
+    "back_puxada_pulley",
+    "back_remada_curvada",
+    "back_remada_baixa",
+    "shoulder_desenvolvimento_haltere",
+    "shoulder_elevecao_lateral",
+    "shoulder_elevecao_posterior",
+    "biceps_rosca_direta",
+    "biceps_rosca_martelo",
+    "triceps_polia_corda",
+    "triceps_testa",
+    "legs_agachamento_barra",
+    "legs_leg_press",
+    "legs_cadeira_extensora",
+    "legs_mesa_flexora",
+    "legs_stiff",
+    "glutes_elevacao_pelvica",
+    "glutes_gluteo_cabo",
+    "abs_prancha_abdominal",
+    "cardio_corrida_esteira",
+    "legs_levantamento_terra",
+    "legs_legpress_45",
+    "chest_flexao_bracos",
+    "chest_crucifixo_haltere",
+    "chest_crucifixo_inclinado_haltere",
+    "chest_crossover_polia",
+    "chest_crossover_baixo",
+    "chest_supino_declinado_barra",
+    "chest_supino_maquina",
+    "chest_pullover_haltere",
+    "back_serrote",
+    "back_remada_cavalinho",
+    "back_puxada_triangulo",
+    "back_puxada_supinada",
+    "back_puxada_fechada",
+    "back_barra_fixa_supinada",
+    "back_pulldown_braco_reto",
+    "back_remada_maquina",
+    "back_hiperextensao_lombar",
+    "back_remada_curvada_supinada",
+    "back_remada_invertida",
+    "back_encolhimento_halteres",
+    "back_encolhimento_barra",
+    "shoulder_desenvolvimento_militar_barra",
+    "shoulder_desenvolvimento_barra_sentado",
+    "shoulder_desenvolvimento_arnold",
+    "shoulder_desenvolvimento_maquina",
+    "shoulder_elevacao_frontal_halteres",
+    "shoulder_elevacao_lateral_polia",
+    "shoulder_face_pull",
+    "shoulder_crucifixo_inverso_maquina",
+    "shoulder_remada_alta_barra",
+    "biceps_rosca_alternada",
+    "biceps_rosca_scott",
+    "biceps_rosca_scott_maquina",
+    "biceps_rosca_concentrada",
+    "biceps_rosca_polia",
+    "biceps_rosca_martelo_cabo",
+    "biceps_rosca_inclinada",
+    "biceps_rosca_w",
+    "biceps_rosca_inversa",
+    "triceps_supino_fechado",
+    "triceps_mergulho_banco",
+    "triceps_paralelas",
+    "triceps_frances_haltere",
+    "triceps_coice",
+    "triceps_polia_barra",
+    "triceps_polia_v",
+    "triceps_frances_corda_polia",
+    "legs_agachamento_frontal",
+    "legs_agachamento_goblet",
+    "legs_agachamento_corporal",
+    "legs_agachamento_hack",
+    "legs_agachamento_smith",
+    "legs_agachamento_sumo_halter",
+    "legs_afundo_halteres",
+    "legs_passada_barra",
+    "legs_agachamento_bulgaro",
+    "legs_terra_romeno",
+    "legs_terra_sumo",
+    "legs_stiff_halteres",
+    "legs_cadeira_adutora",
+    "legs_cadeira_abdutora",
+    "legs_flexora_sentado",
+    "legs_subida_banco",
+    "glutes_coice_quatro_apoios",
+    "glutes_ponte_solo",
+    "glutes_ponte_unilateral",
+    "glutes_bom_dia_barra",
+    "calves_panturrilha_em_pe",
+    "calves_panturrilha_sentado",
+    "calves_panturrilha_leg_press",
+    "calves_panturrilha_halter",
+    "calves_panturrilha_burro",
+    "abs_abdominal_supra",
+    "abs_abdominal_declinado",
+    "abs_abdominal_polia",
+    "abs_abdominal_maquina",
+    "abs_abdominal_infra",
+    "abs_elevacao_pernas_barra",
+    "abs_prancha_lateral",
+    "abs_abdominal_obliquo",
+    "abs_russian_twist",
+    "cardio_caminhada_esteira",
+    "cardio_bicicleta",
+    "cardio_eliptico",
+    "cardio_pular_corda",
+    "cardio_remo_ergometro",
+    "cardio_escada",
+    "functional_kettlebell_swing",
+    "functional_escalador",
+    "functional_farmer_walk",
+    "functional_battle_rope",
+    "mobility_alongamento_posterior",
+    "mobility_alongamento_quadriceps",
+    "mobility_gato_coluna",
+    "mobility_alongamento_peitoral",
+    "mobility_flexores_quadril",
+    "triceps_maquina"
+  ],
+  "findings": [
+    {
+      "type": "BROKEN_MANIFEST_ASSET_PATH",
+      "exerciseId": "back_puxada_atras",
+      "assetId": "thumb_back_puxada_atras_v1",
+      "path": "/assets/exercises/back_puxada_atras/1.jpg",
+      "role": "thumbnail"
+    },
+    {
+      "type": "BROKEN_MANIFEST_ASSET_PATH",
+      "exerciseId": "chest_supino_declinado",
+      "assetId": "thumb_chest_supino_declinado_v1",
+      "path": "/assets/exercises/chest_supino_declinado/1.jpg",
+      "role": "thumbnail"
+    },
+    {
+      "type": "BROKEN_MANIFEST_ASSET_PATH",
+      "exerciseId": "chest_supino_reto",
+      "assetId": "frame_chest_supino_reto_2",
+      "path": "/assets/exercises/chest_supino_reto/2.jpg",
+      "role": "frame"
+    },
+    {
+      "type": "BROKEN_MANIFEST_ASSET_PATH",
+      "exerciseId": "legs_hack_squat",
+      "assetId": "thumb_legs_hack_squat_v1",
+      "path": "/assets/exercises/legs_hack_squat/1.jpg",
+      "role": "thumbnail"
+    },
+    {
+      "type": "MANIFEST_ENTRY_WITHOUT_CATALOG",
+      "exerciseId": "back_puxada_atras",
+      "entryExerciseId": "back_puxada_atras",
+      "existsInRuntimeCatalog": false,
+      "existsInCanonical126": false
+    },
+    {
+      "type": "MANIFEST_ENTRY_WITHOUT_CATALOG",
+      "exerciseId": "chest_supino_declinado",
+      "entryExerciseId": "chest_supino_declinado",
+      "existsInRuntimeCatalog": false,
+      "existsInCanonical126": false
+    },
+    {
+      "type": "MANIFEST_ENTRY_WITHOUT_CATALOG",
+      "exerciseId": "legs_hack_squat",
+      "entryExerciseId": "legs_hack_squat",
+      "existsInRuntimeCatalog": false,
+      "existsInCanonical126": false
+    },
+    {
+      "type": "ORPHAN_TECHNIQUE_VIDEO_ID",
+      "exerciseId": "glutes_elevacao_pelvica",
+      "videoId": "extra_vid_technique_2",
+      "directions": [
+        "exercise_to_video",
+        "video_to_exercise"
+      ]
+    },
+    {
+      "type": "ORPHAN_TECHNIQUE_VIDEO_ID",
+      "exerciseId": "glutes_elevacao_pelvica",
+      "videoId": "extra_vid_technique_6",
+      "directions": [
+        "video_to_exercise"
+      ]
+    },
+    {
+      "type": "ORPHAN_TECHNIQUE_VIDEO_ID",
+      "exerciseId": "legs_legpress_45",
+      "videoId": "extra_vid_machines_1",
+      "directions": [
+        "exercise_to_video",
+        "video_to_exercise"
+      ]
+    },
+    {
+      "type": "ORPHAN_TECHNIQUE_VIDEO_ID",
+      "exerciseId": "legs_legpress_45",
+      "videoId": "extra_vid_machines_5",
+      "directions": [
+        "video_to_exercise"
+      ]
+    }
+  ],
+  "exactDuplicateImagePairs": [
+    {
+      "pathA": "/assets/exercises/back_remada_curvada_supinada/0.jpg",
+      "pathB": "/assets/exercises/back_remada_curvada_supinada/1.jpg"
+    },
+    {
+      "pathA": "/assets/exercises/mobility_alongamento_posterior/0.jpg",
+      "pathB": "/assets/exercises/mobility_alongamento_quadriceps/0.jpg"
+    }
+  ],
+  "manifestEntryFingerprints": {
+    "chest_supino_reto": "85fcd60d00f07940ece6bad2c3b392d1b51ef9d8579331b5a1817afac92afeea",
+    "chest_supino_haltere": "e769732222870e3130985a63616a6e545ef34813ebb7357d2c9f2a6d7e01fc22",
+    "chest_supino_inclinado_haltere": "8fef4befe344c654d444433f00acf5c05968c0fd058a9f0b5c264b0e872c173f",
+    "chest_supino_inclinado_barra": "14e8e04304ae20fa8e42f3686875c24377acc80a6b51a7a123673e4be388ea30",
+    "chest_crucifixo_polia": "1c997bd84ef21a4377588801110a5c14436013c59ad87caf7770b6017a272c50",
+    "chest_peck_deck": "05efe4239eab7eb029f62fd73f925e22b7fa8d6bd9093f33f51145163c353a37",
+    "chest_paralelas": "3fbcd1a2b9c1b55ee28d3a55c3acae51e7002c86e621e7b1d5069b3e8b3b0cad",
+    "back_barra_fixa": "ff53ac2203f465e942457df72439cadccb240ae0b9f99009c2ccd0e22049a964",
+    "back_puxada_pulley": "1de441b93b5f1577d7142f5fbbfd33aaaff5dd75025e0ca24ff14d2dda0933c1",
+    "back_remada_curvada": "c437165d5a8f76a203772a045ff7b431882faea1e43f4b9777b33962d985aeb2",
+    "back_remada_baixa": "40e476452fff6a9378cf03d098de61b475d8006abad98b3feb48db114857eff3",
+    "shoulder_desenvolvimento_haltere": "397b59c53c88bee210465e0c36c9f9c9ae918411d85e63510773168cc6790cb0",
+    "shoulder_elevecao_lateral": "73c895ebb45a6a201965a3d756d4f4a5d2c74265e6ba8016e464462ac652c358",
+    "shoulder_elevecao_posterior": "3cb16efe536504d41cb9a9507e8c2bc7b29c72c301cb3f214564cba1ef79d8e7",
+    "biceps_rosca_direta": "269eae0e59711b1ca0aa850402c4bdffd7bb98f742775da5e97a6b5caf4e214a",
+    "biceps_rosca_martelo": "977fe938ad77e22abf1db89bf4be0ef8ffa63c107684a1d59a6670e1720baa89",
+    "triceps_polia_corda": "a99371c4228ec3f7f9a18e20543539fe95a953cb93f4293dc0b03b839a4e871b",
+    "triceps_testa": "39601f855f7a609e52ac1a840571594cb814f209d41abd1d91e7e551ad4da59f",
+    "legs_agachamento_barra": "9ee34120ec666913f344d59705141eda056ab6812ba658af455b401925aeddd5",
+    "legs_leg_press": "f4d0942487742a2e7da9e0b276d1e943d984056049fb49bab3595e6184ecfcd0",
+    "legs_cadeira_extensora": "abb861636c338ea0ce4cc9c0abf3021f00a23700930c3606d6f2882156e4962e",
+    "legs_mesa_flexora": "1cebad593729c73e9b8e15d1f6a093b0ecbe082fea192b39203b10bd1ec62713",
+    "legs_stiff": "1ac55803d13a53c193942a62c422fcf66120159f75e7f4204fdb1af39ce745dc",
+    "glutes_elevacao_pelvica": "8668a1c134b11c2db412f7cb97037a83ed8de01b2dcd3933b6e93ead7eb18adc",
+    "abs_prancha_abdominal": "b65a50d7faa52b951cc2553a979b523e07b6e52c8e9fe9591e9e73c7ac896668",
+    "legs_hack_squat": "bcdb738583a113129a0d7c6c564774e6d52aca57c0ab9fa76b33916ba81a8a4a",
+    "chest_supino_declinado": "b8b16503eb1463efa24bdfcb38a64d2c791eba96240883b90cca618a2d03086b",
+    "back_puxada_atras": "9e7769ca7b277216913f45b766d2c2ffda8b7df9dba7160d0656a0db2fd7e24f"
+  },
+  "manifestAssetFingerprints": {
+    "thumb_chest_supino_reto_v1": {
+      "sha256": "a83c4775764c0e51dc012b9160b8d8b26a193f1845a2fbfe6af0e8bdbe1ff7de",
+      "status": "approved"
+    },
+    "vid_chest_supino_reto_v1": {
+      "sha256": "f3cfb5df7d5fcd316afe9185923ae7df42974c8d3bc4497bf3568ba1651b56a3",
+      "status": "draft"
+    },
+    "frame_chest_supino_reto_1": {
+      "sha256": "46dc032a33309bd1c6188d097936af62b813351a068cf231eaeca72b1eacb425",
+      "status": "approved"
+    },
+    "frame_chest_supino_reto_2": {
+      "sha256": "fc55476660be266d95325fa39a9e60416bf14ae426becc4828bc4498f9b0d1bf",
+      "status": "approved"
+    },
+    "thumb_chest_supino_haltere_v1": {
+      "sha256": "d7cfefa1a13f8ae1c45183b8e0829e47cb7961bc7584d1bed9f875e08cc4c7aa",
+      "status": "approved"
+    },
+    "vid_chest_supino_haltere_v1": {
+      "sha256": "9169e800d0f964869f3e2e13961c2c6e2050a92486647b7c5edddc3f4602937a",
+      "status": "draft"
+    },
+    "thumb_chest_supino_inclinado_haltere_v1": {
+      "sha256": "6941a717d2cc2b3110856c982a92c0b86007f3ccb4ef73bf4c0d6e8a110d41d8",
+      "status": "approved"
+    },
+    "vid_chest_supino_inclinado_haltere_v1": {
+      "sha256": "d6da6d97301232141b0c29c24503dd71fc56537bac0b590614583ce6af10b5ad",
+      "status": "draft"
+    },
+    "thumb_chest_supino_inclinado_barra_v1": {
+      "sha256": "8ba010702846b4a4722a88ec39a7120b33e2494f8d61db0e081be271059978a4",
+      "status": "approved"
+    },
+    "vid_chest_supino_inclinado_barra_v1": {
+      "sha256": "1e6a3131b89605b2a6a7edae3e42587dd09569bbcbf10c8aaec5933d7d0efde6",
+      "status": "draft"
+    },
+    "thumb_chest_crucifixo_polia_v1": {
+      "sha256": "7e19a4b936677393dd937c6adc3ba4ed8f13d33a3f9417e4fe3d03b30abb1720",
+      "status": "approved"
+    },
+    "vid_chest_crucifixo_polia_v1": {
+      "sha256": "af3bb1b7a4873b436f5c1a97836833cbdaf6fd703a6b20553ff6dd34e84867c5",
+      "status": "draft"
+    },
+    "thumb_chest_peck_deck_v1": {
+      "sha256": "26e7ebe35513feb6df1f66b70ed38cd2bc6604702d71c14d8e781b6fd24c63ac",
+      "status": "approved"
+    },
+    "vid_chest_peck_deck_v1": {
+      "sha256": "3d09f9106ce0460607bc264ad95d383a6924b99d0afcab70ecce8b1b49dd190a",
+      "status": "draft"
+    },
+    "thumb_chest_paralelas_v1": {
+      "sha256": "8beda1a9a56945a2019bd845a03752cb84fd3db2cd36b4fab622fe4b8191dfe6",
+      "status": "approved"
+    },
+    "vid_chest_paralelas_v1": {
+      "sha256": "073f9eba4722b13b8bdfdba6c76943d9a9b7a1486e14380405c2a3391988802e",
+      "status": "draft"
+    },
+    "thumb_back_barra_fixa_v1": {
+      "sha256": "ae6bfd081d989270421b9a0ebe2c6e8c4ed273e43c6fe0bd139e93739e9f5a0c",
+      "status": "approved"
+    },
+    "vid_back_barra_fixa_v1": {
+      "sha256": "ccaa3a23939f6cec2d29f83f446060e21ecb2f37165c2f47c4b56816b8c0e1a7",
+      "status": "draft"
+    },
+    "thumb_back_puxada_pulley_v1": {
+      "sha256": "a297911aafeefbb3889c547a3138163bb9a8b834715e9fa5b77c0ba17160f2f3",
+      "status": "approved"
+    },
+    "vid_back_puxada_pulley_v1": {
+      "sha256": "c043b16c49fa73aaf282b7b64463d47937b415e9bb72ee1e56a603f898f7e1dd",
+      "status": "approved"
+    },
+    "thumb_back_remada_curvada_v1": {
+      "sha256": "6f1fef2715667fcc21e85324bb5d9e73f6dc06711cdf465f430232a48646cbef",
+      "status": "approved"
+    },
+    "vid_back_remada_curvada_v1": {
+      "sha256": "ff67e60113c80c856f72b9e4185e342e89bfdeb4ff04faddd26b7333b9b3fc0e",
+      "status": "draft"
+    },
+    "thumb_back_remada_baixa_v1": {
+      "sha256": "ccc72677675f453e6b2287ddf59a4b1b52dfe19d0789996168a1162c51ab8f23",
+      "status": "approved"
+    },
+    "vid_back_remada_baixa_v1": {
+      "sha256": "d581eef3dae978145fbe695621f3d6581b0771fc813139867a6564c83c122cb2",
+      "status": "approved"
+    },
+    "thumb_shoulder_desenvolvimento_haltere_v1": {
+      "sha256": "c7d6ae68097c7708e744667fba5ecb14143edac886d7aded8bc24c41f436618f",
+      "status": "approved"
+    },
+    "vid_shoulder_desenvolvimento_haltere_v1": {
+      "sha256": "d6ff7d7cb095e0cfbb2d36b7682f3305b8562444fe1b9600427d2d3a41f4be5e",
+      "status": "draft"
+    },
+    "thumb_shoulder_elevecao_lateral_v1": {
+      "sha256": "12e4db336b67164639f6d0c94edad1bde0d9010526b99dd8ba89d49bad0fa9da",
+      "status": "approved"
+    },
+    "vid_shoulder_elevecao_lateral_v1": {
+      "sha256": "47d9947cc55d4e2045a502a98b442f07c143f7fb34ceca644218a04b66ec4f20",
+      "status": "draft"
+    },
+    "thumb_shoulder_elevecao_posterior_v1": {
+      "sha256": "7ea0d75dedf25389e2bd3268a08948f0f1cb51adb0a2a547d6ad522e5632b988",
+      "status": "approved"
+    },
+    "vid_shoulder_elevecao_posterior_v1": {
+      "sha256": "b83cf4f8cb0260997982e164cfa5063d72e9cd41adb67a9969e097bae025dcf3",
+      "status": "draft"
+    },
+    "thumb_biceps_rosca_direta_v1": {
+      "sha256": "57e3cbf230b1733d24939d2b763e08fe68994a5942795b233df855e00dbb489c",
+      "status": "approved"
+    },
+    "vid_biceps_rosca_direta_v1": {
+      "sha256": "ce205f084884aee11dc4441ac234f2c4c677cab70ccad21eec8ed15b39afef70",
+      "status": "draft"
+    },
+    "thumb_biceps_rosca_martelo_v1": {
+      "sha256": "6799a14fed8a73509d6ef3f1695bb234d1f3bef4a801ebcf99b3c358e70625b0",
+      "status": "approved"
+    },
+    "vid_biceps_rosca_martelo_v1": {
+      "sha256": "769ee2f6b1edbe8f382fc77b3eb01555b56afc0f4b8f3e2bcb9867494f655401",
+      "status": "draft"
+    },
+    "thumb_triceps_polia_corda_v1": {
+      "sha256": "3c36dbb855b9cd2b8f2fe55a1d69f9b160656965a6a6c22b076786e8c851de32",
+      "status": "approved"
+    },
+    "vid_triceps_polia_corda_v1": {
+      "sha256": "2883a751a4835a0805baa91aa544a81a5fc9e4050ecfec8cefcceac51516062e",
+      "status": "draft"
+    },
+    "thumb_triceps_testa_v1": {
+      "sha256": "0c90e3caf77c50449af9d04c46973d2f68fca071c82d5354c4ad0bb69225929e",
+      "status": "approved"
+    },
+    "vid_triceps_testa_v1": {
+      "sha256": "f781d7abc865d4a18209f8b4571a10553762890769e079c34292d64a82f34fed",
+      "status": "draft"
+    },
+    "thumb_legs_agachamento_barra_v1": {
+      "sha256": "bee667ce53e8d8ec8812a218296781077e23c746d753f8ed0666af3d0349e710",
+      "status": "approved"
+    },
+    "vid_legs_agachamento_barra_v1": {
+      "sha256": "6a5b773e85e599af3f781a130054ae6551e81ede78da91047ce6c6ebc93e3d50",
+      "status": "draft"
+    },
+    "thumb_legs_leg_press_v1": {
+      "sha256": "283f23820300276904e57da5a4fc62686df2f0d910eb6776a04aaaf788e0fe39",
+      "status": "approved"
+    },
+    "vid_legs_leg_press_v1": {
+      "sha256": "deb272238504afed05a041da3bc489910e11d086498a91df6c94d0d6ec51572d",
+      "status": "draft"
+    },
+    "thumb_legs_cadeira_extensora_v1": {
+      "sha256": "125c483278113f102750376b77985641662727df336b64f8f5f0ee8ff43a74fd",
+      "status": "approved"
+    },
+    "vid_legs_cadeira_extensora_v1": {
+      "sha256": "e82049e4fd529c175b0b2ef27b134ab0063ce0a203f44916e5159442b79c6900",
+      "status": "draft"
+    },
+    "thumb_legs_mesa_flexora_v1": {
+      "sha256": "a38f5a896c8970363e29ae6077598dfa6d50067cbffc20643de5f529fbd5464c",
+      "status": "approved"
+    },
+    "vid_legs_mesa_flexora_v1": {
+      "sha256": "b35be4f8f8b661e27b86cb91f6acc34bc7041f886d0fc9e14b34fc0f714d31ac",
+      "status": "draft"
+    },
+    "thumb_legs_stiff_v1": {
+      "sha256": "b34c58f340ae3d60213c46328a2c0a4ff0d1ddff3c49f89d5566dd138b9ef35b",
+      "status": "approved"
+    },
+    "vid_legs_stiff_v1": {
+      "sha256": "f84231bf338bb79dfbfec8bcfca22d1037bc75e79ce92eb0e66877e4630a594d",
+      "status": "draft"
+    },
+    "thumb_glutes_elevacao_pelvica_v1": {
+      "sha256": "2d9d857a0e06b2fd67fd021e1179cbace24d3ac5de3d1ea129c303a922bb4ead",
+      "status": "approved"
+    },
+    "vid_glutes_elevacao_pelvica_v1": {
+      "sha256": "aadafd7f4491bc8388648e18e92c65fbb01cc2e00589e4a686d326e424850af6",
+      "status": "draft"
+    },
+    "thumb_abs_prancha_abdominal_v1": {
+      "sha256": "91db56a26a87787c86b4572c734dcd0c253db8eff59a26d740d852b9d3850fdd",
+      "status": "approved"
+    },
+    "vid_abs_prancha_abdominal_v1": {
+      "sha256": "fd7152c2785d1e0a8867bb9e5eab0cb09a9f7552cbdc004a5f8fce7abde52ca5",
+      "status": "draft"
+    },
+    "thumb_legs_hack_squat_v1": {
+      "sha256": "e1da7ff23c564fc4d7a8040a50a794fb782fff6031247103d5f964ca1f249f0c",
+      "status": "approved"
+    },
+    "vid_legs_hack_squat_draft": {
+      "sha256": "bbf561da8433c235e3fdbbee0fd4c0e19d9b2f58b06acac38c20f750325a2aae",
+      "status": "draft"
+    },
+    "thumb_chest_supino_declinado_v1": {
+      "sha256": "1454ed448f27cea6daa2e327075a17657492eae2f111039cf8a673623008ce5a",
+      "status": "approved"
+    },
+    "vid_chest_supino_declinado_draft": {
+      "sha256": "3670271e1ad8f948156df126894f99891563edad6088873a17f6591636447d54",
+      "status": "draft"
+    },
+    "thumb_back_puxada_atras_v1": {
+      "sha256": "86d4ae30ea453036c4162e20549e637687cd9f8c80e4ecbbcd93e5cfb33f456c",
+      "status": "approved"
+    },
+    "vid_back_puxada_atras_retired": {
+      "sha256": "5f9754f9828edfc8c0322bbfc9f9a684fe51cc1b79aaf96ad4644ecc6a931b67",
+      "status": "retired"
+    }
+  },
+  "deactivatedManifestFrames": {
+    "chest_supino_reto": [
+      {
+        "id": "frame_chest_supino_reto_1",
+        "url": "/assets/exercises/chest_supino_reto/1.jpg",
+        "bytes": 48200,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      },
+      {
+        "id": "frame_chest_supino_reto_2",
+        "url": "/assets/exercises/chest_supino_reto/2.jpg",
+        "bytes": 49100,
+        "width": 720,
+        "height": 480,
+        "version": 1,
+        "status": "approved",
+        "contentType": "image/jpeg",
+        "provenance": {
+          "provider": "gymflow_catalog",
+          "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
+        }
+      }
+    ]
+  },
+  "manifestOrphanDecisions": [
+    {
+      "exerciseId": "back_puxada_atras",
+      "classification": "HISTORICAL_RETIRED",
+      "candidateCanonicalIds": [],
+      "exactCanonicalEquivalent": null,
+      "reason": "Puxada atrás da nuca não consta do runtime; puxadas pela frente não são equivalentes. Retired legítimo no histórico, sem consumidor runtime.",
+      "action": "ARCHIVE_VERBATIM_NO_REMAP",
+      "activeRuntimeConsumers": []
+    },
+    {
+      "exerciseId": "chest_supino_declinado",
+      "classification": "ABANDONED_DRAFT_UNSPECIFIED_EQUIPMENT",
+      "candidateCanonicalIds": [
+        "chest_supino_declinado_barra",
+        "chest_supino_articulado_declinado"
+      ],
+      "exactCanonicalEquivalent": null,
+      "reason": "Draft placeholder sem descrição do movimento ou equipamento. O ID genérico não comprova equivalência com barra ou máquina; sem consumidor runtime.",
+      "action": "ARCHIVE_VERBATIM_NO_REMAP",
+      "activeRuntimeConsumers": []
+    },
+    {
+      "exerciseId": "legs_hack_squat",
+      "classification": "ABANDONED_DRAFT_UNSPECIFIED_VARIANT",
+      "candidateCanonicalIds": [
+        "legs_agachamento_hack",
+        "legs_agachamento_hack_invertido",
+        "legs_hack_sentado"
+      ],
+      "exactCanonicalEquivalent": null,
+      "reason": "Draft placeholder sem prova do modelo/posição. Sem consumidor runtime; não remapear por semelhança do nome.",
+      "action": "ARCHIVE_VERBATIM_NO_REMAP",
+      "activeRuntimeConsumers": []
+    }
+  ],
+  "techniqueOrphanDecisions": [
+    {
+      "videoId": "extra_vid_technique_2",
+      "exerciseIds": [
+        "glutes_elevacao_pelvica"
+      ],
+      "directions": [
+        "exercise_to_video",
+        "video_to_exercise"
+      ],
+      "mockVideoRecordPresent": false,
+      "classification": "DEAD_SYNTHETIC_EDUCATIONAL_MAPPING",
+      "origin": "src/mock/videos.ts#programmatic VIDEO_CATEGORIES[i % 6]",
+      "generatedIdAtSameIndex": "extra_vid_machines_2",
+      "consumers": [
+        "src/modules/ExerciseLibrary.tsx#handleOpenVideo",
+        "src/components/GlobalVideoPlayer.tsx#relatedExercise"
+      ],
+      "action": "REMOVE_MAPPING_NO_REPLACEMENT",
+      "reason": "O índice usa outra categoria; nem o ID morto nem o registro genérico real provam mídia do exercício. Não remapear para outra aula."
+    },
+    {
+      "videoId": "extra_vid_machines_1",
+      "exerciseIds": [
+        "legs_legpress_45"
+      ],
+      "directions": [
+        "exercise_to_video",
+        "video_to_exercise"
+      ],
+      "mockVideoRecordPresent": false,
+      "classification": "DEAD_SYNTHETIC_EDUCATIONAL_MAPPING",
+      "origin": "src/mock/videos.ts#programmatic VIDEO_CATEGORIES[i % 6]",
+      "generatedIdAtSameIndex": "extra_vid_technique_1",
+      "consumers": [
+        "src/modules/ExerciseLibrary.tsx#handleOpenVideo",
+        "src/components/GlobalVideoPlayer.tsx#relatedExercise"
+      ],
+      "action": "REMOVE_MAPPING_NO_REPLACEMENT",
+      "reason": "O índice usa outra categoria; nem o ID morto nem o registro genérico real provam mídia do exercício. Não remapear para outra aula."
+    },
+    {
+      "videoId": "extra_vid_technique_6",
+      "exerciseIds": [
+        "glutes_elevacao_pelvica"
+      ],
+      "directions": [
+        "video_to_exercise"
+      ],
+      "mockVideoRecordPresent": false,
+      "classification": "DEAD_SYNTHETIC_EDUCATIONAL_MAPPING",
+      "origin": "src/mock/videos.ts#programmatic VIDEO_CATEGORIES[i % 6]",
+      "generatedIdAtSameIndex": "extra_vid_posture_6",
+      "consumers": [
+        "src/modules/ExerciseLibrary.tsx#handleOpenVideo",
+        "src/components/GlobalVideoPlayer.tsx#relatedExercise"
+      ],
+      "action": "REMOVE_MAPPING_NO_REPLACEMENT",
+      "reason": "O índice usa outra categoria; nem o ID morto nem o registro genérico real provam mídia do exercício. Não remapear para outra aula."
+    },
+    {
+      "videoId": "extra_vid_machines_5",
+      "exerciseIds": [
+        "legs_legpress_45"
+      ],
+      "directions": [
+        "video_to_exercise"
+      ],
+      "mockVideoRecordPresent": false,
+      "classification": "DEAD_SYNTHETIC_EDUCATIONAL_MAPPING",
+      "origin": "src/mock/videos.ts#programmatic VIDEO_CATEGORIES[i % 6]",
+      "generatedIdAtSameIndex": "extra_vid_injury-prevention_5",
+      "consumers": [
+        "src/modules/ExerciseLibrary.tsx#handleOpenVideo",
+        "src/components/GlobalVideoPlayer.tsx#relatedExercise"
+      ],
+      "action": "REMOVE_MAPPING_NO_REPLACEMENT",
+      "reason": "O índice usa outra categoria; nem o ID morto nem o registro genérico real provam mídia do exercício. Não remapear para outra aula."
+    }
+  ]
+}

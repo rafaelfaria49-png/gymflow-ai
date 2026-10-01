@@ -13,10 +13,10 @@ describe('Manifest de Mídia (GOAL-34)', () => {
     resetToDefaultManifest();
   });
 
-  it('carrega o manifest baseline com version 4, schema 1.1.0, cdn real (Vercel Blob) e 2 vídeos aprovados reais', () => {
+  it('carrega o manifest reconciliado com version 5, schema 1.2.0, cdn real (Vercel Blob) e 2 vídeos aprovados reais', () => {
     const manifest = getActiveManifest();
-    expect(manifest.version).toBe(4);
-    expect(manifest.schemaVersion).toBe('1.1.0');
+    expect(manifest.version).toBe(5);
+    expect(manifest.schemaVersion).toBe('1.2.0');
     // GOAL-053: cdnBaseUrl passou a apontar para a origem REAL (Vercel Blob public storage)
     expect(manifest.cdnBaseUrl).toBe('https://jmnpdtxahhb8xobk.public.blob.vercel-storage.com');
 

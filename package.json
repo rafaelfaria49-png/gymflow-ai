@@ -10,7 +10,7 @@
     "test": "vitest run --testTimeout 15000",
     "library:validate": "vitest run scripts/library/validator.test.ts",
     "media:validate": "vitest run scripts/media/manifest-validator.test.ts",
-    "media:inventory:test": "vitest run scripts/media/exercise-media-inventory.test.mjs",
+    "media:inventory:test": "vitest run scripts/media/exercise-media-inventory.test.mjs --testTimeout 15000",
     "media:inventory": "node scripts/media/exercise-media-inventory.mjs",
     "media:inventory:check": "node scripts/media/exercise-media-inventory.mjs --check",
     "media:contact-sheets": "node scripts/media/generate-exercise-media-contact-sheets.mjs",

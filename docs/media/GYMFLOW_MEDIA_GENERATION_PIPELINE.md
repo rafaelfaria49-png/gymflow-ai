@@ -1,24 +1,37 @@
 # GymFlow — Especificação do pipeline futuro de mídia
 
-Status: especificação documental. O GOAL-123 não chamou modelo de imagem/vídeo, não gerou mídia de exercício e não mudou aprovações.
+Status: especificação documental atualizada pelo GOAL-124. Nenhum modelo de imagem/vídeo foi chamado; nenhuma mídia foi gerada ou enviada; nenhuma aprovação foi alterada.
 
 ## Gate de prontidão
 
-READY_FOR_MEDIA_GENERATION_GOAL=NO enquanto não houver no repositório uma referência visual oficial, aprovada e utilizável do personal. KAI_DNA_v1.md, KAI_MOODBOARD_v1.md e GYMFLOW_ART_BIBLE_V1.md registram intenção por texto, mas não fixam visualmente o rosto. As imagens existentes podem ajudar a avaliar composição; não são prova de identidade oficial. Não inventar nem reconstruir o personal a partir de texto.
+O próximo GOAL somente poderá gerar mídia quando **todos** os critérios forem satisfeitos:
+
+| Critério | Estado após GOAL-124 | Exigência |
+|---|---|---|
+| CATALOG_RUNTIME_RECONCILED | YES | YES; 126 + 29 + 29 = 184 IDs únicos e válidos |
+| STRUCTURAL_MEDIA_P0_P1 | 0 | 0; nenhum path ou mapping quebrado ativo |
+| INVENTORY_RUNTIME_COMPLETE | YES | YES; os 184 IDs selecionáveis no inventário |
+| PERSONAL_REFERENCE_STATUS | MISSING_OFFICIAL_VISUAL_REFERENCE | READY |
+
+READY_FOR_PERSONAL_REFERENCE_INTAKE=YES. READY_FOR_MEDIA_GENERATION_GOAL=NO. A referência visual oficial ainda falta. KAI_DNA_v1.md, KAI_MOODBOARD_v1.md e GYMFLOW_ART_BIBLE_V1.md registram intenção por texto, mas não fixam visualmente rosto, corpo ou roupa. As imagens existentes não comprovam a identidade oficial. Não inventar nem reconstruir o personal a partir de texto. O contrato de recebimento está em [GYMFLOW_PERSONAL_REFERENCE_INTAKE.md](./GYMFLOW_PERSONAL_REFERENCE_INTAKE.md).
 
 Antes de uma execução futura, o GOAL deverá:
 
 1. receber/adicionar a referência visual oficial aprovada sem alterar docs/avatar-design neste GOAL;
-2. decidir se os 58 IDs extras de LOTE_6/LOTE_7 também entram no escopo, conforme docs/PENDENCIAS.md;
+2. confirmar MEDIA_CATALOG_SCOPE=RUNTIME_CATALOG e rodar media:inventory:check; os 58 IDs de LOTE_6/LOTE_7 já pertencem ao escopo operacional;
 3. revisar as flags objetivas, as capas e os achados do inventário;
 4. confirmar os IDs canônicos e os equipamentos de cada lote.
 
 ## Fonte e preservação
 
-- Usar src/mock/exercises.ts#BASE_CATALOG_126 como escopo atual acordado e equipment do catálogo como requisito por exercício.
+- Usar src/mock/exercises.ts#RUNTIME_CATALOG como única fonte operacional; MOCK_EXERCISES é a mesma lista. BASE_CATALOG_126 permanece como baseline histórico, sem limitar a cobertura atual. Usar equipment do catálogo como requisito por exercício.
 - Consultar o inventário JSON para os paths locais, sequências e estado do manifest. MOCK_VIDEOS não é fonte de disponibilidade ou aprovação.
 - Preservar os dois vídeos approved (back_puxada_pulley, back_remada_baixa) e suas evidências de proveniência.
 - Preservar as 10 sequências de cinco frames. Não as reescrever nem regenerar automaticamente.
+- Manifest: assets contém 25 entradas operacionais; historicalAssets contém três registros preservados sem remapeamento. Os totais históricos são 2 vídeos approved, 25 draft e 1 retired; os ativos são 2 approved e 23 draft. Nunca consultar historicalAssets no player, preload ou download. Draft não é vídeo disponível; retired não pode voltar automaticamente ao runtime.
+- Há 59 exercícios runtime sem qualquer asset: triceps_maquina + 29 de LOTE_6 + 29 de LOTE_7. Manter NO_MEDIA / P1 / GENERATE_REFERENCE_IMAGES até uma produção futura autorizada.
+- Bloquear quadriceps/0.jpg, preservado no disco como WRONG_EXERCISE / HUMAN_REVIEW_REQUIRED. Apenas quadriceps/1.jpg é candidata, ainda sem aprovação. Preservar os dois pares DUPLICATE_EXACT / HUMAN_REVIEW_REQUIRED do inventário, sem exclusão automática.
+- As classes de capa são disjuntas: COVER_EXISTING_CANDIDATE=122, COVER_NEEDS_REVIEW=3, COVER_MISSING=59 e COVER_BLOCKED_WRONG_MEDIA=0. Há 125 candidatas locais ao todo e todas aguardam aprovação humana; uma alternativa segura para quadríceps não remove o achado sobre 0.jpg.
 - Para exercício sem vídeo approved e sem sequência de cinco frames a preservar, o alvo padrão é uma sequência coerente de três imagens: posição inicial, meio e posição final. A posição inicial é a candidata de capa.
 - Tratar imagens legacy como disponibilidade técnica até revisão humana; não pressupor aprovação por haver dois arquivos.
 

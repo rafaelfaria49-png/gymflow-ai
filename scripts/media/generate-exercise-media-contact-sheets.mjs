@@ -16,7 +16,7 @@ if (!Module._extensions['.ts']?.gymflowInventoryLoader) {
   loader.gymflowInventoryLoader = true;
   Module._extensions['.ts'] = loader;
 }
-const { BASE_CATALOG_126 } = require(path.join(root, 'src/mock/exercises.ts'));
+const { RUNTIME_CATALOG } = require(path.join(root, 'src/mock/exercises.ts'));
 const columns = 4, cellWidth = 480, cellHeight = 225, imageWidth = 230, imageHeight = 153;
 
 function esc(value) {
@@ -45,9 +45,9 @@ async function card(exercise) {
 export async function generateContactSheets() {
   const out = path.join(root, 'docs/media/contact-sheets');
   fs.mkdirSync(out, { recursive: true });
-  const groups = [...new Set(BASE_CATALOG_126.map(x => x.muscleGroup))].sort(), results = [];
+  const groups = [...new Set(RUNTIME_CATALOG.map(x => x.muscleGroup))].sort(), results = [];
   for (const group of groups) {
-    const exercises = BASE_CATALOG_126.filter(x => x.muscleGroup === group).sort((a,b) => a.id.localeCompare(b.id));
+    const exercises = RUNTIME_CATALOG.filter(x => x.muscleGroup === group).sort((a,b) => a.id.localeCompare(b.id));
     const cards = await Promise.all(exercises.map(card));
     const layers = cards.map((input,i) => ({ input, left: (i % columns) * cellWidth, top: Math.floor(i / columns) * cellHeight }));
     const output = path.join(out, group + '.jpg');

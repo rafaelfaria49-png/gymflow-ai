@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Exercise } from '../types';
 import { ExerciseMedia } from '../domain/media/types';
-import { getExerciseMedia } from '../domain/media/manifest';
+import { getExerciseMedia, isRuntimeMediaExerciseId } from '../domain/media/manifest';
 import { resolveMediaRenderTier } from '../domain/media/fallbackChain';
 import { isMediaCached, getMediaPlayableUrl } from '../domain/media/mediaCache';
 import { recordMediaTelemetryEvent } from '../domain/media/telemetry';
@@ -53,7 +53,7 @@ const ExerciseMediaPlayer: React.FC<ExerciseMediaUnifiedPlayerProps> = ({
 
   // Resolução da mídia via prop direta ou manifest
   const resolvedMedia = useMemo(() => {
-    if (media) return media;
+    if (media && media.exerciseId === exerciseId && isRuntimeMediaExerciseId(exerciseId)) return media;
     if (exerciseId) return getExerciseMedia(exerciseId);
     return null;
   }, [media, exerciseId]);

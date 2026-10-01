@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { MOCK_EXERCISES } from './exercises';
+import { MOCK_EXERCISES, BASE_CATALOG_126, RUNTIME_CATALOG } from './exercises';
 import { MOCK_PROGRAMS } from './programs';
 
 // GOAL-09: validação da biblioteca real de exercícios.
@@ -15,8 +15,12 @@ import { LOTE_6_EXPANSION } from '../../scripts/library/curation-data/lote6';
 import { LOTE_7_EXPANSION } from '../../scripts/library/curation-data/lote7';
 
 describe('biblioteca de exercícios (GOAL-09 & GOAL-33)', () => {
-  it('tem pelo menos 175 exercícios reais (GOAL-33)', () => {
-    expect(MOCK_EXERCISES.length).toBeGreaterThanOrEqual(175);
+  it('preserva 126 base + 29 do lote 6 + 29 do lote 7 = 184 selecionáveis (GOAL-124)', () => {
+    expect(BASE_CATALOG_126).toHaveLength(126);
+    expect(LOTE_6_EXPANSION).toHaveLength(29);
+    expect(LOTE_7_EXPANSION).toHaveLength(29);
+    expect(MOCK_EXERCISES).toHaveLength(184);
+    expect(MOCK_EXERCISES).toBe(RUNTIME_CATALOG);
   });
 
   it('tem IDs únicos', () => {

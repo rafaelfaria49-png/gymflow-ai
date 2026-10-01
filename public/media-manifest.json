@@ -1,7 +1,7 @@
 {
-  "version": 4,
-  "schemaVersion": "1.1.0",
-  "updatedAt": "2026-09-11T02:46:47.000Z",
+  "version": 5,
+  "schemaVersion": "1.2.0",
+  "updatedAt": "2026-10-01T16:36:05.466Z",
   "cdnBaseUrl": "https://jmnpdtxahhb8xobk.public.blob.vercel-storage.com",
   "assets": {
     "chest_supino_reto": {
@@ -20,36 +20,6 @@
           "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
         }
       },
-      "frames": [
-        {
-          "id": "frame_chest_supino_reto_1",
-          "url": "/assets/exercises/chest_supino_reto/1.jpg",
-          "bytes": 48200,
-          "width": 720,
-          "height": 480,
-          "version": 1,
-          "status": "approved",
-          "contentType": "image/jpeg",
-          "provenance": {
-            "provider": "gymflow_catalog",
-            "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
-          }
-        },
-        {
-          "id": "frame_chest_supino_reto_2",
-          "url": "/assets/exercises/chest_supino_reto/2.jpg",
-          "bytes": 49100,
-          "width": 720,
-          "height": 480,
-          "version": 1,
-          "status": "approved",
-          "contentType": "image/jpeg",
-          "provenance": {
-            "provider": "gymflow_catalog",
-            "termsOrLicenseRef": "GymFlow Catalog Internal Assets"
-          }
-        }
-      ],
       "video": {
         "id": "vid_chest_supino_reto_v1",
         "url": "https://assets.gymflow.ai/media/videos/chest_supino_reto_v1.mp4",
@@ -992,13 +962,15 @@
           "provenanceNotes": "Especificacao tecnica D12 gerada; aguarda producao final e aprovacao humana formal do GymFlow."
         }
       }
-    },
-    "legs_hack_squat": {
-      "exerciseId": "legs_hack_squat",
+    }
+  },
+  "historicalAssets": {
+    "back_puxada_atras": {
+      "exerciseId": "back_puxada_atras",
       "thumbnail": {
-        "id": "thumb_legs_hack_squat_v1",
-        "url": "/assets/exercises/legs_hack_squat/1.jpg",
-        "bytes": 49000,
+        "id": "thumb_back_puxada_atras_v1",
+        "url": "/assets/exercises/back_puxada_atras/1.jpg",
+        "bytes": 46000,
         "width": 720,
         "height": 480,
         "version": 1,
@@ -1010,13 +982,13 @@
         }
       },
       "video": {
-        "id": "vid_legs_hack_squat_draft",
-        "url": "https://assets.gymflow.ai/media/videos/legs_hack_squat_draft.mp4",
-        "bytes": 1700000,
+        "id": "vid_back_puxada_atras_retired",
+        "url": "https://assets.gymflow.ai/media/videos/back_puxada_atras_retired.mp4",
+        "bytes": 1550000,
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "draft",
+        "status": "retired",
         "contentType": "video/mp4",
         "durationSeconds": 6,
         "repCount": 2,
@@ -1069,12 +1041,12 @@
         }
       }
     },
-    "back_puxada_atras": {
-      "exerciseId": "back_puxada_atras",
+    "legs_hack_squat": {
+      "exerciseId": "legs_hack_squat",
       "thumbnail": {
-        "id": "thumb_back_puxada_atras_v1",
-        "url": "/assets/exercises/back_puxada_atras/1.jpg",
-        "bytes": 46000,
+        "id": "thumb_legs_hack_squat_v1",
+        "url": "/assets/exercises/legs_hack_squat/1.jpg",
+        "bytes": 49000,
         "width": 720,
         "height": 480,
         "version": 1,
@@ -1086,13 +1058,13 @@
         }
       },
       "video": {
-        "id": "vid_back_puxada_atras_retired",
-        "url": "https://assets.gymflow.ai/media/videos/back_puxada_atras_retired.mp4",
-        "bytes": 1550000,
+        "id": "vid_legs_hack_squat_draft",
+        "url": "https://assets.gymflow.ai/media/videos/legs_hack_squat_draft.mp4",
+        "bytes": 1700000,
         "width": 720,
         "height": 1280,
         "version": 1,
-        "status": "retired",
+        "status": "draft",
         "contentType": "video/mp4",
         "durationSeconds": 6,
         "repCount": 2,

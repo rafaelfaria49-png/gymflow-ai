@@ -40,7 +40,7 @@ describe('Cadeia de Fallback e QA Gate (GOAL-34 & LIBRARY §2–4)', () => {
       },
       {
         id: 'frame_2',
-        url: '/assets/exercises/chest_supino_reto/2.jpg',
+        url: '/assets/exercises/chest_supino_reto/0.jpg',
         bytes: 46000,
         width: 720,
         height: 480,

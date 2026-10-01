@@ -11,7 +11,8 @@ describe('Validador de Manifest de Mídia (GOAL-34 & Decisões D11–D14)', () =
     expect(report.valid).toBe(true);
     // GOAL-059: 2 vídeos aprovados reais (back_remada_baixa + back_puxada_pulley) com aprovação humana comprovada
     expect(report.approvedVideosCount).toBe(2);
-    expect(report.draftVideosCount).toBeGreaterThanOrEqual(25);
+    // Two abandoned drafts remain historical, outside the operational player contract.
+    expect(report.draftVideosCount).toBe(23);
     // Reporta explicitamente pendência de produção de conteúdo
     expect(report.contentAcceptance.fulfilled).toBe(false);
     expect(report.contentAcceptance.status).toBe('pending_human_production');
