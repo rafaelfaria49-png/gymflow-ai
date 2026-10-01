@@ -2222,3 +2222,5 @@ Numeracao espelha a secao 14.1 do documento canonico (docs/security/GYMFLOW_AI_G
 - D122-001 (2026-10-01): a correção física do teclado usa eventos nativos do Capacitor e se limita à entrada em cards de série: oculta barras sobrepostas enquanto o teclado está aberto, revela o card após resize e não reposiciona a rolagem no fechamento; web e demais formulários mantêm o comportamento existente.
 
 - D122-002 (2026-10-01): ao trocar exercício, ANT consulta somente séries concluídas no histórico do substituto; SUG e metadados de progressão do original são removidos, pois não houve cálculo para o novo exercício. IDs, carga/repetições preenchidas, séries concluídas e demais dados da sessão permanecem intactos.
+
+- D123-001 (2026-10-01): o escopo canônico do GOAL-123 é src/mock/exercises.ts#BASE_CATALOG_126 (126 IDs), conforme a baseline explícita; os 58 itens adicionais de MOCK_EXERCISES/LOTE_6 e LOTE_7 ficam identificados em separado no inventário e em docs/PENDENCIAS.md até reconciliação de escopo.
