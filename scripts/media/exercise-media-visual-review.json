@@ -1,0 +1,1045 @@
+{
+  "interpretation": "USABLE_AS_GALLERY_COVER indica somente candidato visual de capa. Nao aprova biomecanica nem dispensa aprovacao humana final; toda capa permanece com galleryCoverNeedsHumanApproval=true.",
+  "schemaVersion": 1,
+  "reviewedContactSheets": [
+    "abs.jpg",
+    "back.jpg",
+    "biceps.jpg",
+    "calves.jpg",
+    "cardio.jpg",
+    "chest.jpg",
+    "functional.jpg",
+    "glutes.jpg",
+    "legs.jpg",
+    "mobility.jpg",
+    "shoulders.jpg",
+    "triceps.jpg"
+  ],
+  "exercises": {
+    "chest_supino_reto": {
+      "imageFlags": {
+        "/assets/exercises/chest_supino_reto/sequence/step-01.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "SEQUENCE_STEP_01"
+    },
+    "chest_supino_haltere": {
+      "imageFlags": {
+        "/assets/exercises/chest_supino_haltere/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "chest_supino_inclinado_haltere": {
+      "imageFlags": {
+        "/assets/exercises/chest_supino_inclinado_haltere/sequence/step-01.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "SEQUENCE_STEP_01"
+    },
+    "chest_supino_inclinado_barra": {
+      "imageFlags": {
+        "/assets/exercises/chest_supino_inclinado_barra/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "chest_crucifixo_polia": {
+      "imageFlags": {
+        "/assets/exercises/chest_crucifixo_polia/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "chest_peck_deck": {
+      "imageFlags": {
+        "/assets/exercises/chest_peck_deck/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "chest_paralelas": {
+      "imageFlags": {
+        "/assets/exercises/chest_paralelas/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_barra_fixa": {
+      "imageFlags": {
+        "/assets/exercises/back_barra_fixa/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_puxada_pulley": {
+      "imageFlags": {
+        "/assets/exercises/back_puxada_pulley/1.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "VIDEO_THUMBNAIL"
+    },
+    "back_remada_curvada": {
+      "imageFlags": {
+        "/assets/exercises/back_remada_curvada/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_remada_baixa": {
+      "imageFlags": {
+        "/assets/exercises/back_remada_baixa/1.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "VIDEO_THUMBNAIL"
+    },
+    "shoulder_desenvolvimento_haltere": {
+      "imageFlags": {
+        "/assets/exercises/shoulder_desenvolvimento_haltere/sequence/step-01.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "SEQUENCE_STEP_01"
+    },
+    "shoulder_elevecao_lateral": {
+      "imageFlags": {
+        "/assets/exercises/shoulder_elevecao_lateral/sequence/step-01.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "SEQUENCE_STEP_01"
+    },
+    "shoulder_elevecao_posterior": {
+      "imageFlags": {
+        "/assets/exercises/shoulder_elevecao_posterior/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "biceps_rosca_direta": {
+      "imageFlags": {
+        "/assets/exercises/biceps_rosca_direta/sequence/step-01.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "SEQUENCE_STEP_01"
+    },
+    "biceps_rosca_martelo": {
+      "imageFlags": {
+        "/assets/exercises/biceps_rosca_martelo/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "triceps_polia_corda": {
+      "imageFlags": {
+        "/assets/exercises/triceps_polia_corda/sequence/step-01.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "SEQUENCE_STEP_01"
+    },
+    "triceps_testa": {
+      "imageFlags": {
+        "/assets/exercises/triceps_testa/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_agachamento_barra": {
+      "imageFlags": {
+        "/assets/exercises/legs_agachamento_barra/sequence/step-01.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "SEQUENCE_STEP_01"
+    },
+    "legs_leg_press": {
+      "imageFlags": {
+        "/assets/exercises/legs_leg_press/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_cadeira_extensora": {
+      "imageFlags": {
+        "/assets/exercises/legs_cadeira_extensora/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_mesa_flexora": {
+      "imageFlags": {
+        "/assets/exercises/legs_mesa_flexora/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_stiff": {
+      "imageFlags": {
+        "/assets/exercises/legs_stiff/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "glutes_elevacao_pelvica": {
+      "imageFlags": {
+        "/assets/exercises/glutes_elevacao_pelvica/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "glutes_gluteo_cabo": {
+      "imageFlags": {
+        "/assets/exercises/glutes_gluteo_cabo/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "abs_prancha_abdominal": {
+      "imageFlags": {
+        "/assets/exercises/abs_prancha_abdominal/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "cardio_corrida_esteira": {
+      "imageFlags": {
+        "/assets/exercises/cardio_corrida_esteira/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_levantamento_terra": {
+      "imageFlags": {
+        "/assets/exercises/legs_levantamento_terra/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_legpress_45": {
+      "imageFlags": {
+        "/assets/exercises/legs_legpress_45/sequence/step-01.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "SEQUENCE_STEP_01"
+    },
+    "chest_flexao_bracos": {
+      "imageFlags": {
+        "/assets/exercises/chest_flexao_bracos/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "chest_crucifixo_haltere": {
+      "imageFlags": {
+        "/assets/exercises/chest_crucifixo_haltere/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "chest_crucifixo_inclinado_haltere": {
+      "imageFlags": {
+        "/assets/exercises/chest_crucifixo_inclinado_haltere/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "chest_crossover_polia": {
+      "imageFlags": {
+        "/assets/exercises/chest_crossover_polia/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "chest_crossover_baixo": {
+      "imageFlags": {
+        "/assets/exercises/chest_crossover_baixo/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "chest_supino_declinado_barra": {
+      "imageFlags": {
+        "/assets/exercises/chest_supino_declinado_barra/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "chest_supino_maquina": {
+      "imageFlags": {
+        "/assets/exercises/chest_supino_maquina/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "chest_pullover_haltere": {
+      "imageFlags": {
+        "/assets/exercises/chest_pullover_haltere/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_serrote": {
+      "imageFlags": {
+        "/assets/exercises/back_serrote/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_remada_cavalinho": {
+      "imageFlags": {
+        "/assets/exercises/back_remada_cavalinho/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_puxada_triangulo": {
+      "imageFlags": {
+        "/assets/exercises/back_puxada_triangulo/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_puxada_supinada": {
+      "imageFlags": {
+        "/assets/exercises/back_puxada_supinada/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_puxada_fechada": {
+      "imageFlags": {
+        "/assets/exercises/back_puxada_fechada/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_barra_fixa_supinada": {
+      "imageFlags": {
+        "/assets/exercises/back_barra_fixa_supinada/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_pulldown_braco_reto": {
+      "imageFlags": {
+        "/assets/exercises/back_pulldown_braco_reto/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_remada_maquina": {
+      "imageFlags": {
+        "/assets/exercises/back_remada_maquina/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_hiperextensao_lombar": {
+      "imageFlags": {
+        "/assets/exercises/back_hiperextensao_lombar/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_remada_curvada_supinada": {
+      "imageFlags": {
+        "/assets/exercises/back_remada_curvada_supinada/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_remada_invertida": {
+      "imageFlags": {
+        "/assets/exercises/back_remada_invertida/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_encolhimento_halteres": {
+      "imageFlags": {
+        "/assets/exercises/back_encolhimento_halteres/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "back_encolhimento_barra": {
+      "imageFlags": {
+        "/assets/exercises/back_encolhimento_barra/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "shoulder_desenvolvimento_militar_barra": {
+      "imageFlags": {
+        "/assets/exercises/shoulder_desenvolvimento_militar_barra/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "shoulder_desenvolvimento_barra_sentado": {
+      "imageFlags": {
+        "/assets/exercises/shoulder_desenvolvimento_barra_sentado/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "shoulder_desenvolvimento_arnold": {
+      "imageFlags": {
+        "/assets/exercises/shoulder_desenvolvimento_arnold/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "shoulder_desenvolvimento_maquina": {
+      "imageFlags": {
+        "/assets/exercises/shoulder_desenvolvimento_maquina/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "shoulder_elevacao_frontal_halteres": {
+      "imageFlags": {
+        "/assets/exercises/shoulder_elevacao_frontal_halteres/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "shoulder_elevacao_lateral_polia": {
+      "imageFlags": {
+        "/assets/exercises/shoulder_elevacao_lateral_polia/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "shoulder_face_pull": {
+      "imageFlags": {
+        "/assets/exercises/shoulder_face_pull/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "shoulder_crucifixo_inverso_maquina": {
+      "imageFlags": {
+        "/assets/exercises/shoulder_crucifixo_inverso_maquina/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "shoulder_remada_alta_barra": {
+      "imageFlags": {
+        "/assets/exercises/shoulder_remada_alta_barra/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "biceps_rosca_alternada": {
+      "imageFlags": {
+        "/assets/exercises/biceps_rosca_alternada/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "biceps_rosca_scott": {
+      "imageFlags": {
+        "/assets/exercises/biceps_rosca_scott/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "biceps_rosca_scott_maquina": {
+      "imageFlags": {
+        "/assets/exercises/biceps_rosca_scott_maquina/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "biceps_rosca_concentrada": {
+      "imageFlags": {
+        "/assets/exercises/biceps_rosca_concentrada/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "biceps_rosca_polia": {
+      "imageFlags": {
+        "/assets/exercises/biceps_rosca_polia/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "biceps_rosca_martelo_cabo": {
+      "imageFlags": {
+        "/assets/exercises/biceps_rosca_martelo_cabo/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "biceps_rosca_inclinada": {
+      "imageFlags": {
+        "/assets/exercises/biceps_rosca_inclinada/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "biceps_rosca_w": {
+      "imageFlags": {
+        "/assets/exercises/biceps_rosca_w/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "biceps_rosca_inversa": {
+      "imageFlags": {
+        "/assets/exercises/biceps_rosca_inversa/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "triceps_supino_fechado": {
+      "imageFlags": {
+        "/assets/exercises/triceps_supino_fechado/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "triceps_mergulho_banco": {
+      "imageFlags": {
+        "/assets/exercises/triceps_mergulho_banco/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "triceps_paralelas": {
+      "imageFlags": {
+        "/assets/exercises/triceps_paralelas/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "triceps_frances_haltere": {
+      "imageFlags": {
+        "/assets/exercises/triceps_frances_haltere/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "triceps_coice": {
+      "imageFlags": {
+        "/assets/exercises/triceps_coice/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "triceps_polia_barra": {
+      "imageFlags": {
+        "/assets/exercises/triceps_polia_barra/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "triceps_polia_v": {
+      "imageFlags": {
+        "/assets/exercises/triceps_polia_v/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "triceps_frances_corda_polia": {
+      "imageFlags": {
+        "/assets/exercises/triceps_frances_corda_polia/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_agachamento_frontal": {
+      "imageFlags": {
+        "/assets/exercises/legs_agachamento_frontal/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_agachamento_goblet": {
+      "imageFlags": {
+        "/assets/exercises/legs_agachamento_goblet/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_agachamento_corporal": {
+      "imageFlags": {
+        "/assets/exercises/legs_agachamento_corporal/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_agachamento_hack": {
+      "imageFlags": {
+        "/assets/exercises/legs_agachamento_hack/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_agachamento_smith": {
+      "imageFlags": {
+        "/assets/exercises/legs_agachamento_smith/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_agachamento_sumo_halter": {
+      "imageFlags": {
+        "/assets/exercises/legs_agachamento_sumo_halter/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_afundo_halteres": {
+      "imageFlags": {
+        "/assets/exercises/legs_afundo_halteres/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_passada_barra": {
+      "imageFlags": {
+        "/assets/exercises/legs_passada_barra/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_agachamento_bulgaro": {
+      "imageFlags": {
+        "/assets/exercises/legs_agachamento_bulgaro/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_terra_romeno": {
+      "imageFlags": {
+        "/assets/exercises/legs_terra_romeno/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_terra_sumo": {
+      "imageFlags": {
+        "/assets/exercises/legs_terra_sumo/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_stiff_halteres": {
+      "imageFlags": {
+        "/assets/exercises/legs_stiff_halteres/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_cadeira_adutora": {
+      "imageFlags": {
+        "/assets/exercises/legs_cadeira_adutora/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_cadeira_abdutora": {
+      "imageFlags": {
+        "/assets/exercises/legs_cadeira_abdutora/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_flexora_sentado": {
+      "imageFlags": {
+        "/assets/exercises/legs_flexora_sentado/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "legs_subida_banco": {
+      "imageFlags": {
+        "/assets/exercises/legs_subida_banco/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "glutes_coice_quatro_apoios": {
+      "imageFlags": {
+        "/assets/exercises/glutes_coice_quatro_apoios/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "glutes_ponte_solo": {
+      "imageFlags": {
+        "/assets/exercises/glutes_ponte_solo/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "glutes_ponte_unilateral": {
+      "imageFlags": {
+        "/assets/exercises/glutes_ponte_unilateral/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "glutes_bom_dia_barra": {
+      "imageFlags": {
+        "/assets/exercises/glutes_bom_dia_barra/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "calves_panturrilha_em_pe": {
+      "imageFlags": {
+        "/assets/exercises/calves_panturrilha_em_pe/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "calves_panturrilha_sentado": {
+      "imageFlags": {
+        "/assets/exercises/calves_panturrilha_sentado/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "calves_panturrilha_leg_press": {
+      "imageFlags": {
+        "/assets/exercises/calves_panturrilha_leg_press/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "calves_panturrilha_halter": {
+      "imageFlags": {
+        "/assets/exercises/calves_panturrilha_halter/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "calves_panturrilha_burro": {
+      "imageFlags": {
+        "/assets/exercises/calves_panturrilha_burro/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "abs_abdominal_supra": {
+      "imageFlags": {
+        "/assets/exercises/abs_abdominal_supra/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "abs_abdominal_declinado": {
+      "imageFlags": {
+        "/assets/exercises/abs_abdominal_declinado/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "abs_abdominal_polia": {
+      "imageFlags": {
+        "/assets/exercises/abs_abdominal_polia/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "abs_abdominal_maquina": {
+      "imageFlags": {
+        "/assets/exercises/abs_abdominal_maquina/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "abs_abdominal_infra": {
+      "imageFlags": {
+        "/assets/exercises/abs_abdominal_infra/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "abs_elevacao_pernas_barra": {
+      "imageFlags": {
+        "/assets/exercises/abs_elevacao_pernas_barra/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "abs_prancha_lateral": {
+      "imageFlags": {
+        "/assets/exercises/abs_prancha_lateral/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "abs_abdominal_obliquo": {
+      "imageFlags": {
+        "/assets/exercises/abs_abdominal_obliquo/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "abs_russian_twist": {
+      "imageFlags": {
+        "/assets/exercises/abs_russian_twist/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "cardio_caminhada_esteira": {
+      "imageFlags": {
+        "/assets/exercises/cardio_caminhada_esteira/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "cardio_bicicleta": {
+      "imageFlags": {
+        "/assets/exercises/cardio_bicicleta/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "cardio_eliptico": {
+      "imageFlags": {
+        "/assets/exercises/cardio_eliptico/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "cardio_pular_corda": {
+      "imageFlags": {
+        "/assets/exercises/cardio_pular_corda/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "cardio_remo_ergometro": {
+      "imageFlags": {
+        "/assets/exercises/cardio_remo_ergometro/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "cardio_escada": {
+      "imageFlags": {
+        "/assets/exercises/cardio_escada/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "functional_kettlebell_swing": {
+      "imageFlags": {
+        "/assets/exercises/functional_kettlebell_swing/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "functional_escalador": {
+      "imageFlags": {
+        "/assets/exercises/functional_escalador/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "functional_farmer_walk": {
+      "imageFlags": {
+        "/assets/exercises/functional_farmer_walk/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "functional_battle_rope": {
+      "imageFlags": {
+        "/assets/exercises/functional_battle_rope/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "mobility_alongamento_posterior": {
+      "imageFlags": {
+        "/assets/exercises/mobility_alongamento_posterior/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "mobility_alongamento_quadriceps": {
+      "imageFlags": {
+        "/assets/exercises/mobility_alongamento_quadriceps/0.jpg": [
+          "WRONG_EXERCISE"
+        ],
+        "/assets/exercises/mobility_alongamento_quadriceps/1.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_1"
+    },
+    "mobility_gato_coluna": {
+      "imageFlags": {
+        "/assets/exercises/mobility_gato_coluna/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "mobility_alongamento_peitoral": {
+      "imageFlags": {
+        "/assets/exercises/mobility_alongamento_peitoral/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "mobility_flexores_quadril": {
+      "imageFlags": {
+        "/assets/exercises/mobility_flexores_quadril/0.jpg": [
+          "USABLE_AS_GALLERY_COVER"
+        ]
+      },
+      "galleryCoverCandidate": "EXISTING_0"
+    },
+    "triceps_maquina": {
+      "imageFlags": {},
+      "galleryCoverCandidate": "NONE"
+    }
+  },
+  "findings": [
+    {
+      "flag": "WRONG_EXERCISE",
+      "exerciseId": "mobility_alongamento_quadriceps",
+      "detail": "O frame mostra alongamento posterior de coxa e e uma duplicata exata de mobility_alongamento_posterior/0.jpg. EXISTING_1 fica como candidato de capa.",
+      "path": "/assets/exercises/mobility_alongamento_quadriceps/0.jpg"
+    },
+    {
+      "flag": "DUPLICATE_OR_NEAR_DUPLICATE",
+      "exerciseId": "back_remada_curvada_supinada",
+      "paths": [
+        "/assets/exercises/back_remada_curvada_supinada/0.jpg",
+        "/assets/exercises/back_remada_curvada_supinada/1.jpg"
+      ],
+      "detail": "Os dois arquivos sao identicos por SHA-256; mantidos sem substituicao."
+    }
+  ],
+  "reviewMethod": "Inspecao visual das 12 folhas legacy por grupo e dos 10 frames step-01 selecionados."
+}
