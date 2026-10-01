@@ -203,3 +203,12 @@ body:has(.training-overlay) [data-app-notice="toast"],
 body:has(.training-overlay) [data-app-notice="xp"] {
   z-index: 40;
 }
+
+/* Native training keyboard: reserve the resized viewport for the set fields. */
+.training-keyboard-open .training-action-bar,
+.training-keyboard-open .mobile-bottom-nav {
+  display: none;
+}
+.training-set-row {
+  scroll-margin-top: calc(4.75rem + env(safe-area-inset-top));
+}

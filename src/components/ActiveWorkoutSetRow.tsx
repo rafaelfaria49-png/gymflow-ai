@@ -25,7 +25,7 @@ export function ActiveWorkoutSetRow({ set, displayIndex, warmupIndex, showRir = 
   const guard = useRef(createTrainingActionGuard());
   const description = set.isWarmup ? 'aquecimento ' + ((warmupIndex ?? 0) + 1) : 'série ' + (displayIndex + 1);
   return (
-    <div id={'set-row-' + set.id} className={'space-y-3 rounded-xl border p-3 ' + (set.completed ? 'border-gym-accent/20 bg-gym-accent/5' : isCurrentFocus ? 'border-gym-accent/60 bg-gym-accent/[0.08]' : 'border-white/10 bg-white/5')}>
+    <div data-training-set-row id={'set-row-' + set.id} className={'training-set-row space-y-3 rounded-xl border p-3 ' + (set.completed ? 'border-gym-accent/20 bg-gym-accent/5' : isCurrentFocus ? 'border-gym-accent/60 bg-gym-accent/[0.08]' : 'border-white/10 bg-white/5')}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm font-bold text-white">{set.isWarmup ? 'Aquecimento ' + ((warmupIndex ?? 0) + 1) : 'Série ' + (displayIndex + 1)}</span>
         <span className="text-xs font-bold text-gym-accent">{set.completed ? 'Concluída' : isCurrentFocus ? 'Série atual' : 'Pendente'}</span>

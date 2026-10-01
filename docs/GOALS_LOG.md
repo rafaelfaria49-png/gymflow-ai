@@ -4857,3 +4857,73 @@ Nutrição, backend/auth/quota, pipeline Kai/avatar/GLB, OFF/barcode e publicaç
 - `src/modules/ExerciseLibrary.tsx`
 - `src/providers/GymFlowContext.storage.test.tsx`
 - `src/providers/GymFlowContext.tsx`
+
+## GOAL-122 — QA físico do GOAL-119 no Galaxy S22 (2026-09-30 / 2026-10-01)
+
+Base integrada: 2284cce2fb44c89e5adda07320b1ce71adfae751 (PR #56).
+Execução em codex/goal119-s22-physical-qa-122, worktree próprio a partir de origin/master.
+S22 SM-S901E / RXCT300L33Y, Android 16 / API 36. APK anterior 1.0/código 1:
+certificado SHA-256 a3273a11a7c932f1397911ad02d62a8789522564f3ac6f7ff8d918dc1ade547c,
+idêntico ao release interno novo. install -r = Success; firstInstallTime preservado
+(2026-09-22 11:17:58), sessão 0/22 e 2470 XP recuperados. Nenhum uninstall/clear/wipe.
+Usuário autorizou usar e concluir a sessão preexistente Dia C — Peito e Tríceps
+(Alto Volume) como treino de QA.
+
+**Antes → depois (regressão física S22-122-01):**
+teclado numérico redimensionava a WebView, mas bottom nav e barra de série atual
+subiam sobre os campos, deixando Concluir série fora da área visível →
+listeners nativos keyboardDidShow/Hide ocultam essas barras somente durante
+entrada em um card de série; após resize o card focado é revelado com margem
+para a TopBar. Fechar o teclado restaura as barras sem nova rolagem programática.
+Listeners e frame pendente são limpos também quando desmonta antes de registrar.
+
+Validação da correção: testes focados 30/30 (6 arquivos); suíte completa
+3664/3664 (167 arquivos, maxWorkers=1, timeout original 15000 ms); typecheck,
+build web, build mobile, cap sync android, ios:validate (17 testes) e diff-check PASS.
+Build inicial do worktree encontrou limite de root do Turbopack para node_modules
+ligado; repetição com TURBOPACK_ROOT=C:\ (suportado pela configuração existente)
+PASS, sem modificar Next/config/dependências. A suíte relatou warnings de teardown
+de forks em dois arquivos de storage e terminou exit 0, sem teste falho.
+
+Status: SMOKE FÍSICO DA CORREÇÃO PASS. Candidato reinstalado preservando dados; CI da PR #57 inicial: 3/3 SUCCESS. Integração por merge commit e entrega do APK de master são rastreadas no relatório final externo abaixo, com SHA/hash e repetição física.
+Evidências locais: C:\Users\rafae\.codex\visualizations\2026\09\30\01a0f3e2-fe7b-71c1-8e0f-6a957338bd18\goal122.
+Sem geração de mídia, alteração de AI-Guard/auth, serviços ou Play Store.
+
+
+Fechamento do smoke físico (2026-10-01):
+- Home, safe areas, sessão ativa, navegação/Back e teclado: PASS.
+- Check-in respondido: cinco escolhas explícitas (alta, ótimo, nenhuma, baixo,
+  normal/17 min), nenhum default e submit habilitado somente após escolher.
+  Segunda sessão nova: Pular único, toast sem respostas enviadas; Back fecha o modal.
+- Normal/double/repeated taps: uma conclusão por ação, +10 XP por série.
+  Bursts de dois e quatro toques não duplicaram séries/XP nem travaram UI.
+- Todos os 19 tabs presentes no seletor (incluindo Todos) exercitados; Peito 24,
+  Costas 25, Ombros 19, Bíceps 14, Tríceps 14, Antebraços 2, Quadríceps 6,
+  Posterior de coxa 3, Glúteos 12, Adutores 1, Abdutores 1, Panturrilhas 8,
+  Pernas 23, Abdômen 13, Lombar 1, Funcional 4, Cardio 7, Mobilidade 7.
+  Costas + supino = vazio; Costas + remada = 11. Todos paginou 30 → 60/184.
+- Remada Curvada adicionada (#8, 22 → 25 séries), trocada por Remada Sentada
+  com Triângulo com motivo Preferência. Elegíveis antes do motivo; confirmar
+  desabilitado sem escolha; cancelamento por Back não troca o exercício.
+- Recents fechou só o cartão GymFlow; cartão ausente após swipe, relaunch COLD.
+  4/25 séries, 2530 XP, série atual 4 e cargas persistiram; histórico posterior
+  conserva oito exercícios, Remada Sentada e registro da troca/motivo.
+- Guia de Remada abriu mídia própria e voltou à sessão por Back, sem Supino.
+  Tríceps e demais sem vídeo técnico declararam ausência e usaram imagens próprias.
+  Sequências 2/2 e 5/5 coerentes. Falha controlada física: APK temporário do mesmo
+  código/assinatura sem step-02 de Desenvolvimento; 5 frames → 4, navegação 2/4 e
+  3/4 sem contador inválido. Cópia da imagem restaurada no finally do build;
+  esse APK de injeção não é o artefato de entrega.
+- Sessão preexistente autorizada registrada como parcial (4/25, 475 kg), sem
+  fabricar conclusão das séries incompletas. Treino de Ombros respondido também
+  registrado parcial. Histórico mantém as sessões anteriores; nenhuma exclusão.
+- Logcat crash/eventos am_anr desde início do smoke: zero ocorrência do pacote.
+  Exit-info confirma REMOVE TASK no recents e PACKAGE UPDATED nas reinstalações.
+- S22-122-01 P2 corrigido; P0/P1/P2/P3 abertos no escopo: 0/0/0/0.
+
+Evidências: screenshots 00–91, XMLs dos estados estáticos, logcat-audit.txt,
+candidate-signature.txt e fault-signature.txt na pasta local de evidências.
+XML gerado após timeout do uiautomator não serve como prova; nesses estados,
+foram usadas screenshots recentes. QA122_STATUS.md e qa122-status.json serão
+atualizados com o SHA integrado, APK completo assinado e resultado físico final.
+READY_FOR_MEDIA_INVENTORY depende desse último fechamento; nenhuma mídia gerada.
