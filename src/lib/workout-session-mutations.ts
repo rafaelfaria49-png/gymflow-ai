@@ -23,6 +23,7 @@ export function swapWorkoutExercise(
   workout: WorkoutSession,
   exerciseIndex: number,
   replacement: Pick<Exercise, 'id' | 'name' | 'muscleGroup'>,
+  replacementLastWeight?: number,
 ): WorkoutSession {
   const exercise = workout.exercises[exerciseIndex];
   if (!exercise || exercise.exerciseId === replacement.id) return workout;
@@ -35,6 +36,15 @@ export function swapWorkoutExercise(
             exerciseId: replacement.id,
             name: replacement.name,
             muscleGroup: replacement.muscleGroup,
+            // References belong to the replacement; entered/completed work stays intact.
+            progressionNote: undefined,
+            progressionDecision: undefined,
+            progressionComparison: undefined,
+            sets: item.sets.map(set => ({
+              ...set,
+              lastWeight: replacementLastWeight,
+              suggestedWeight: undefined,
+            })),
           }
         : item
     )),
