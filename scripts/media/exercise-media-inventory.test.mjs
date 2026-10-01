@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildInventory, EXPECTED_SEQUENCE_IDS, APPROVED_VIDEO_IDS } from './exercise-media-inventory.mjs';
+import { buildInventory, generateArtifacts, EXPECTED_SEQUENCE_IDS, APPROVED_VIDEO_IDS } from './exercise-media-inventory.mjs';
 
 let cached;
 const inventory = () => cached ??= buildInventory(process.cwd());
@@ -97,5 +97,9 @@ describe('GOAL-123 exercise media inventory', () => {
     const legacy = data.exercises.find(x => x.exerciseId === 'chest_supino_haltere');
     expect(legacy.techniqueMappingExists).toBe(false);
     expect(legacy.techniqueFramesAvailable).toBe(true);
+  });
+  it('checks generated reports across Windows line ending conversion', async () => {
+    const result = await generateArtifacts(process.cwd(), true);
+    expect(result.checked).toBe(true);
   });
 });

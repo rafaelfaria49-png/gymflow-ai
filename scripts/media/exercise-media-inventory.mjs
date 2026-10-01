@@ -289,7 +289,8 @@ export async function generateArtifacts(root=ROOT,checkOnly=false){
   const j=path.join(dir,'GYMFLOW_EXERCISE_MEDIA_INVENTORY.json'),m=path.join(dir,'GYMFLOW_EXERCISE_MEDIA_INVENTORY.md');
   const jsonText=JSON.stringify(inv,null,2)+'\n',mdText=renderMarkdown(inv);
   if(checkOnly){
-    if(!fs.existsSync(j)||!fs.existsSync(m)||fs.readFileSync(j,'utf8')!==jsonText||fs.readFileSync(m,'utf8')!==mdText)throw new Error('Inventário desatualizado. Rode npm run media:inventory e inspecione o diff.');
+    const normalizeLineEndings=text=>text.replace(/\r\n?/g,'\n');
+    if(!fs.existsSync(j)||!fs.existsSync(m)||normalizeLineEndings(fs.readFileSync(j,'utf8'))!==normalizeLineEndings(jsonText)||normalizeLineEndings(fs.readFileSync(m,'utf8'))!==normalizeLineEndings(mdText))throw new Error('Inventário desatualizado. Rode npm run media:inventory e inspecione o diff.');
     return{jsonPath:j,markdownPath:m,checked:true,inventory:inv};
   }
   fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(j,jsonText,'utf8');fs.writeFileSync(m,mdText,'utf8');
