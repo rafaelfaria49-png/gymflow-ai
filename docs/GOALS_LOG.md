@@ -4885,8 +4885,7 @@ ligado; repetição com TURBOPACK_ROOT=C:\ (suportado pela configuração existe
 PASS, sem modificar Next/config/dependências. A suíte relatou warnings de teardown
 de forks em dois arquivos de storage e terminou exit 0, sem teste falho.
 
-Status: EM EXECUÇÃO. Rebuild/reinstalação da correção, restante do smoke físico,
-CI/integração e APK final integrado ainda pendentes. Não certifica aceite final.
+Status: SMOKE FÍSICO DA CORREÇÃO PASS. Candidato reinstalado preservando dados; CI da PR #57 inicial: 3/3 SUCCESS. Integração por merge commit e entrega do APK de master são rastreadas no relatório final externo abaixo, com SHA/hash e repetição física.
 Evidências locais: C:\Users\rafae\.codex\visualizations\2026\09\30\01a0f3e2-fe7b-71c1-8e0f-6a957338bd18\goal122.
 Sem geração de mídia, alteração de AI-Guard/auth, serviços ou Play Store.
 
@@ -4928,3 +4927,4 @@ XML gerado após timeout do uiautomator não serve como prova; nesses estados,
 foram usadas screenshots recentes. QA122_STATUS.md e qa122-status.json serão
 atualizados com o SHA integrado, APK completo assinado e resultado físico final.
 READY_FOR_MEDIA_INVENTORY depende desse último fechamento; nenhuma mídia gerada.
+
