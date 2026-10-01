@@ -4927,4 +4927,3 @@ XML gerado após timeout do uiautomator não serve como prova; nesses estados,
 foram usadas screenshots recentes. QA122_STATUS.md e qa122-status.json serão
 atualizados com o SHA integrado, APK completo assinado e resultado físico final.
 READY_FOR_MEDIA_INVENTORY depende desse último fechamento; nenhuma mídia gerada.
-
