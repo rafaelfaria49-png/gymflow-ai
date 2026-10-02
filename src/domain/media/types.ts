@@ -110,6 +110,8 @@ export interface MediaManifest {
   cdnBaseUrl: string;
   /** Mapa indexado por exerciseId */
   assets: Record<string, ExerciseMedia>;
+  /** Historical records preserved verbatim for audit; never queried or served by players. */
+  historicalAssets?: Record<string, ExerciseMedia>;
 }
 
 export type MediaRenderTier = 'video' | 'frames' | 'thumbnail' | 'placeholder';

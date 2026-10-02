@@ -1,5 +1,6 @@
 import { ExerciseMedia, MediaAsset, MediaManifest } from './types';
 import defaultManifestJson from './manifest.json';
+import { RUNTIME_CATALOG } from '../../mock/exercises';
 
 /**
  * Manifest padrão embutido como baseline segura
@@ -7,6 +8,11 @@ import defaultManifestJson from './manifest.json';
 const DEFAULT_MANIFEST: MediaManifest = defaultManifestJson as MediaManifest;
 
 let activeManifest: MediaManifest = DEFAULT_MANIFEST;
+const runtimeExerciseIds = new Set(RUNTIME_CATALOG.map(exercise => exercise.id));
+
+export function isRuntimeMediaExerciseId(exerciseId: string): boolean {
+  return runtimeExerciseIds.has(exerciseId);
+}
 
 /**
  * Retorna o manifest ativo em memória
@@ -269,7 +275,10 @@ function validateVideoApproval(approval: unknown, path: string, errors: string[]
  * Obtém os dados de mídia de um exercício a partir do manifest ativo
  */
 export function getExerciseMedia(exerciseId: string, manifest: MediaManifest = activeManifest): ExerciseMedia | null {
-  return manifest.assets[exerciseId] ?? null;
+  // Also protects against an older remote/cached manifest containing historical IDs.
+  if (!isRuntimeMediaExerciseId(exerciseId)) return null;
+  const media = manifest.assets[exerciseId];
+  return media?.exerciseId === exerciseId ? media : null;
 }
 
 /**

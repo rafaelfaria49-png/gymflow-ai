@@ -2224,3 +2224,8 @@ Numeracao espelha a secao 14.1 do documento canonico (docs/security/GYMFLOW_AI_G
 - D122-002 (2026-10-01): ao trocar exercício, ANT consulta somente séries concluídas no histórico do substituto; SUG e metadados de progressão do original são removidos, pois não houve cálculo para o novo exercício. IDs, carga/repetições preenchidas, séries concluídas e demais dados da sessão permanecem intactos.
 
 - D123-001 (2026-10-01): o escopo canônico do GOAL-123 é src/mock/exercises.ts#BASE_CATALOG_126 (126 IDs), conforme a baseline explícita; os 58 itens adicionais de MOCK_EXERCISES/LOTE_6 e LOTE_7 ficam identificados em separado no inventário e em docs/PENDENCIAS.md até reconciliação de escopo.
+
+- D124-001 (2026-10-01): MEDIA_CATALOG_SCOPE=RUNTIME_CATALOG (126 + 29 + 29 = 184 selecionáveis); MOCK_EXERCISES é a mesma lista, BASE_CATALOG_126 e o snapshot GOAL-123 permanecem históricos; nenhum ID é excluído para fechar contagem.
+- D124-002 (2026-10-01): três orphans de manifest sem equivalência semântica comprovada ficam integrais em historicalAssets, nunca servidos; lista obsoleta de frames do supino é desativada e preservada no snapshot, usando os cinco frames próprios sem nova aprovação.
+- D124-003 (2026-10-01): capas usam quatro classes disjuntas; todas as 125 candidatas disponíveis aguardam aprovação humana, incluindo três com achados específicos. Quadríceps/0.jpg permanece no disco e é bloqueado na seleção runtime; duplicatas não são excluídas.
+- D124-004 (2026-10-01): searchTerms é busca por tokens, sem resolver identidade/mídia; nomes e termo leg press 45 ambíguos são documentados para revisão humana, preservando exercícios e mappings individuais.

@@ -4951,3 +4951,21 @@ S22-122-02 — correção e reteste do candidato (2026-10-01)
   export mobile/cap sync, ios:validate 17, diff check e APK release PASS.
 - Dois P2 encontrados e corrigidos no GOAL-122; zero aberto no escopo do
   candidato. Integração, CI e rebuild/reteste do master final ainda obrigatórios.
+
+## GOAL-124 — Reconciliação do catálogo runtime e mídia (2026-10-01)
+
+**Base:** 747e85c7d79ec7acb1df3121e88e881292f52d02, confirmada por fetch; HEAD/origin/master iguais e árvore rastreada limpa. Branch codex/goal-124-media-runtime-reconciliation. .claude/settings.local.json preservado fora do commit, com SHA-256 conferido antes/depois.
+
+**Antes:** inventário limitado a 126 dos 184 selecionáveis, 1 gap reportado em vez de 59; quatro paths quebrados, três entries sem exercício e quatro IDs técnicos mortos. Supino priorizava contrato obsoleto de dois frames; quadríceps podia começar pela imagem incompatível; mídia direta podia pertencer a outro exercício.
+
+**Depois:** MEDIA_CATALOG_SCOPE=RUNTIME_CATALOG, 126 + 29 + 29 = 184; MOCK_EXERCISES é a mesma lista, nenhum exercício removido. Inventário V2 com todos os IDs e métricas históricas preservadas. 125 diretórios e 59 NO_MEDIA explícitos. Os 11 achados ficam rastreados individualmente e resolvidos no escopo ativo: P0=0/P1=0. Três entradas arquivadas integralmente em historicalAssets, sem remapeamento especulativo; frames antigos desativados com metadados preservados; quatro mappings mortos removidos sem aulas substitutas. Supino usa seus cinco frames próprios. Player rejeita mídia de outro exercício/ID histórico.
+
+**Preservação:** 2 vídeos approved, 25 draft, 1 retired e 10 sequências de cinco; 25 entradas ativas + 3 históricas, manifests sincronizados. Status, URL, versão e proveniência dos assets originais validados por SHA-256. Quadríceps/0.jpg bloqueado na seleção automática, mas preservado no disco; 1.jpg candidata pendente. Dois pares DUPLICATE_EXACT/HUMAN_REVIEW_REQUIRED preservados. Capas disjuntas 122 candidatas/3 review/59 missing/0 blocked sem alternativa; as 125 disponíveis exigem aprovação humana. Nomes históricos ambíguos classificados sem eliminar IDs.
+
+**Gate:** PERSONAL_REFERENCE_STATUS=MISSING_OFFICIAL_VISUAL_REFERENCE; contrato de recebimento documentado. CATALOG_RUNTIME_RECONCILED=YES, INVENTORY_RUNTIME_COMPLETE=YES, READY_FOR_PERSONAL_REFERENCE_INTAKE=YES, READY_FOR_MEDIA_GENERATION_GOAL=NO. Nenhuma imagem/vídeo gerado, GPT Image, upload, CDN, AI-Guard, Nutrição ou Play Store alterados.
+
+**Validação local:** media:inventory:test PASS (15); media:inventory:check PASS; media:validate PASS (10); testes focados de técnica/mídia/catálogo/seletor PASS (98 em 13 arquivos); library:validate PASS (1); tsc --noEmit PASS; build PASS; build:mobile PASS; diff --check PASS. A primeira execução do inventário excedeu o timeout padrão de 5 s; o comando foi alinhado ao limite de 15 s da suíte existente e passou integralmente. Workflow Media Catalog Integrity adiciona o gate reproduzível ao PR.
+
+**QA — fechamento em 2026-10-02:** revisão independente integral do PR #61 no HEAD funcional 8408a29c2507ddd3e5440bd8d7bd7e53f55478fe: 28 arquivos = 22 modificados + 6 adicionados; único P2 era QA física pendente. S22 SM-S901E Android 16/API 36, espaço livre 1.613.916 KiB, APK preparado instalado com adb install -r e SHA-256 instalado idêntico ao candidato; assinatura e firstInstallTime preservados, lastUpdateTime atualizado. BASE, LOTE_6, LOTE_7, dois approved, draft, exclusão histórica, supino cinco frames próprios, triceps_maquina e NO_MEDIA dos dois lotes, quadríceps/0.jpg bloqueado, mappings sem fallback cruzado, player/Back/safe area/navegação PASS. Fechamento pelo Recents e reabertura fria preservaram perfil, 3150 XP, seis dias, plano e métricas históricas. FATAL_EXCEPTION=0/ANR=0 no intervalo. S22_PHYSICAL_SMOKE=PASS; INDEPENDENT_REVIEW_P2=FIXED_BY_PHYSICAL_EVIDENCE; P0=0/P1=0/P2=0/P3=0; FUNCTIONAL_CODE_CHANGED_AFTER_REVIEW=NO. Fechamento docs-only, sem rebuild nem nova revisão; merge normal condicionado a quatro checks SUCCESS no novo HEAD.
+
+**Documentos:** docs/media/GYMFLOW_MEDIA_RUNTIME_RECONCILIATION_124.md, inventários JSON/MD, GYMFLOW_MEDIA_GENERATION_PIPELINE.md e GYMFLOW_PERSONAL_REFERENCE_INTAKE.md.

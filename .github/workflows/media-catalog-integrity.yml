@@ -1,0 +1,28 @@
+name: Media Catalog Integrity
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  media-catalog-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run media:inventory:test
+      - run: npm run media:inventory:check
+      - run: npm run media:validate
+      - name: Technique, media and runtime catalog regression tests
+        run: npx vitest run src/domain/media/ src/lib/techniqueFrames.test.ts src/components/TrainingMediaPlayers.test.tsx src/mock/exercises.test.ts src/lib/exerciseSearch.test.ts src/components/ExerciseCatalogPicker.test.tsx --testTimeout 15000 --maxWorkers=1
+      - run: npx tsc --noEmit
+      - run: npm run build
