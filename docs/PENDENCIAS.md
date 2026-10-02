@@ -1300,4 +1300,4 @@ Arquitetura B definida em `docs/security/GYMFLOW_AI_GATEWAY_AUTH_ARCHITECTURE_12
 
 - Receber referência visual oficial do personal conforme docs/media/GYMFLOW_PERSONAL_REFERENCE_INTAKE.md; PERSONAL_REFERENCE_STATUS=MISSING_OFFICIAL_VISUAL_REFERENCE. Geração bloqueada; intake pronto.
 - Revisar os dois pares DUPLICATE_EXACT, quadríceps/0.jpg, as 125 capas candidatas e os dois candidatos semânticos históricos (rosca W e leg press 45) sem excluir exercícios ou remapear sua mídia automaticamente.
-- Não havia aparelho conectado ao ADB na conferência do GOAL-124. As correções de catálogo/player foram verificadas em código/testes; o smoke físico S22 não foi realizado.
+- **QA física RESOLVIDA em 2026-10-02:** S22 SM-S901E, APK preparado do HEAD funcional 8408a29 instalado com adb install -r após liberação de espaço pelo usuário; smoke PASS, assinatura/dados/firstInstallTime preservados, reabertura pelo Recents PASS, FATAL_EXCEPTION=0/ANR=0. Único P2 da revisão independente encerrado por evidência física; nenhum código funcional alterado após a revisão. As pendências humanas de mídia acima permanecem abertas.
