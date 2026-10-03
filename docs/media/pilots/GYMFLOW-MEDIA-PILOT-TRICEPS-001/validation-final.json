@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "scope": "FULL_LOCAL_ARCHIVE_PLUS_PORTABLE",
+  "finalUsableFrames": 29,
+  "threeFrameSequences": 9,
+  "twoFrameSequences": 1,
+  "machine02": "PRESERVED_LOCALLY_EXCLUDED_FROM_FINAL_SEQUENCE",
+  "french": "ACCEPTED_WITH_CAVEAT",
+  "references": "HASHES_AND_DIMENSIONS_PASS",
+  "protectedFilesUnchanged": 309,
+  "localFramesChecked": 30,
+  "localAttemptsChecked": 64,
+  "versionedBinaryBytes": 6172121,
+  "runtimeMediaChanged": false,
+  "approvalStatusChanged": false,
+  "cdnChanged": false
+}

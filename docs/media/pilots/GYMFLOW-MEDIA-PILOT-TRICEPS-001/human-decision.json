@@ -1,0 +1,8 @@
+{
+  "goal": "GYMFLOW-MEDIA-PILOT-CLOSE-AND-SKILL-125",
+  "date": "2026-10-03",
+  "source": "Explicit human GOAL-125 request",
+  "scope": "PILOT_VISUAL_STANDARD_ONLY",
+  "french": "Accept current 03_final with small elbow/upper-arm drift; execution remains understandable and usable.",
+  "machine": "Explicitly authorize TWO_FRAME_EXCEPTION using only 01_inicial and 03_final. Preserve and exclude 02_intermediaria."
+}

@@ -1,0 +1,1933 @@
+{
+  "pilotId": "GYMFLOW-MEDIA-PILOT-TRICEPS-001",
+  "sourceLocalCommits": [
+    "0cea2210062a738e04418b1b8e087bad2bd62727",
+    "5fea5f561e5a8b37f4726ae5adfcdf877386e842",
+    "81de00def98f4f884014a6e644874b5b463ef209"
+  ],
+  "historyDisposition": "PRESERVED_LOCALLY_UNMODIFIED",
+  "sourceGenerationLog": {
+    "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/generation-log.json",
+    "sha256": "21c55b1f4014624a63411dc9cb59e4f110472bc78b3521b133c9b51e0953bf70"
+  },
+  "sourcePromptLog": {
+    "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/prompt-log.json",
+    "sha256": "842bb2db7862b1338cc80e02f5cc13b3d47c13e39e5acaf8d7306c17a30a6026"
+  },
+  "selectedCount": 29,
+  "excludedCount": 1,
+  "attemptCount": 64,
+  "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL",
+  "attempts": [
+    {
+      "id": "triceps_polia_corda/01_inicial/1",
+      "exerciseId": "triceps_polia_corda",
+      "phase": "01_inicial",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "5b0c0c5867b3f348a11328187002f01f6eaebb2bf5cb4a9585d81367308454ab",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_corda/01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-5304d7ab-f3e2-4b8d-bffa-aadb334009b4.png",
+      "promptSha256": "773e3eca4b837bfa0a7a0bf4f347fd23b5ffdf883ceeb2b0cebe9021083bfc44",
+      "prompt": "Use case: scientific-educational, photorealistic exercise demonstration.\nAsset: GymFlow draft pilot, triceps_polia_corda, frame 01_inicial. Generate ONE standalone vertical 2:3 photograph, no collage, no lettering.\nReference roles: first file is the OFFICIAL PERSONAL identity reference; preserve exactly that man's face, beard, hairstyle, muscular athletic body proportions, skin tone, charcoal-gray short sleeve fitted shirt, black shorts and black sneakers. Second file is ENVIRONMENT AND LIGHTING reference only; use its clean neutral gray gym walls, dark speckled rubber floor, black gym equipment, soft even realistic lighting. Do not copy its bench-press exercise.\nExercise: standing high-pulley rope triceps pushdown, INITIAL FLEXED POSITION immediately before pushing down. Equipment is one believable black cable station with high pulley above head height, taut continuous steel cable, carabiner, and a single double-ended black braided triceps rope with rubber end stops. Two hands grasp the two rope ends with neutral grips. Elbows remain tucked against the sides of his lower ribs, upper arms nearly vertical and still. Both elbows bent at about 90 degrees, forearms approximately horizontal; rope grips near upper waist. Wrists straight. No overhead extension and no biceps curl. Feet hip-width, knees soft, torso inclined forward only about 10 degrees, neutral back, shoulders relaxed, calm focused face.\nCamera lock for this exercise: tripod photograph from a front-side three-quarter view on the athlete's working side; clear view of both elbows, rope and cable path. Medium distance, normal 50mm-lens perspective, camera approximately lower-chest height. Athlete's complete body and shoes inside frame with margins, cable pulley visible near upper edge, no confusing crops. Face sufficiently visible to compare to official reference. Cable station adjacent to him in the same scene; minimal distant black gym equipment.\nQuality: realistic anatomy, two arms/two hands/five fingers, hands actually gripping rope, plausible symmetrical cable tension and apparatus. Shirt has no logo, skin and fabric natural. No other people, signs, branding, watermarks, arrows, labels or sequence numbers. This is a single phase image, not a multi-panel sequence. Keep a clean background suitable for an exercise library.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "snapshotPath": "references/ambiente-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_corda/02_intermediaria/1",
+      "exerciseId": "triceps_polia_corda",
+      "phase": "02_intermediaria",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "0b97dff43583dce043463653e13e76ae5861cfaadfed2538cd1a4b7ee2612fd7",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_corda/02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-504314ed-f605-45b2-bd5e-4f22bba54ea3.png",
+      "promptSha256": "b1db360658dac3eab002796c94d571b0d394f6d19e6391584b8fa9256df98c46",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference image into ONE standalone vertical 2:3 photorealistic GymFlow exercise phase. First image is the scene/camera/subject/equipment lock. Second is the official character identity lock.\nPRESERVE EXACTLY: same personal face/beard/hair/body, gray short-sleeve shirt, black shorts and shoes, facial expression, feet planted in the same places, torso/head/upper-arm position, same gray gym wall, dumbbell rack and plate stack, black cable machine/pulley/weight stack/floor, lighting, identical tripod camera angle, distance, crop and image dimensions. Do not recompose, rotate camera, mirror the image, change body scale, change hairstyle, change apparatus or add people. Only the elbow extension, forearm/hands positions, cable attachment/rope follow the real movement.\nExercise: triceps_polia_corda, high pulley rope triceps pushdown. Keep elbows pinned alongside lower ribs, upper arms vertical and stationary, wrists neutral, continuous taut cable through upper pulley connecting through the carabiner to the double-ended braided black rope; both hands grasp their same rope end above rubber stops, with realistic fingers. No words, arrows, panels, logos or watermark. No collage.\nMIDPOINT: extend both elbows from the initial 90 degree angle to about 130-135 degrees, forearms pointing diagonally forward and downward about 45 degrees below horizontal. Rope hands clearly lower than the initial frame, near the front of the pelvis, but not fully extended. Only elbows hinge; upper arms/elbows remain in the exact same position. The rope and carabiner travel downward coherently and the taut cable grows longer below the pulley.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_corda\\01_inicial.png",
+          "sha256": "5b0c0c5867b3f348a11328187002f01f6eaebb2bf5cb4a9585d81367308454ab",
+          "snapshotPath": "attempts/triceps_polia_corda/01_inicial-attempt-01.png",
+          "evidence": "RECONSTRUCTED_FROM_PRIOR_SAVED_ATTEMPT"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_corda\\01_inicial.png",
+          "sha256": "5b0c0c5867b3f348a11328187002f01f6eaebb2bf5cb4a9585d81367308454ab",
+          "evidence": "RECONSTRUCTED_FROM_PRIOR_SAVED_ATTEMPT"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_corda/03_final/1",
+      "exerciseId": "triceps_polia_corda",
+      "phase": "03_final",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "6916872dd2f2e0cbd07b7731b0f880732da147bfb3df8663efb8daa5e6965875",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_corda/03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-c31cec03-3470-4f96-bae4-c63c530e4655.png",
+      "promptSha256": "b44a0ec64df1447ead1ce8960b7cd910c45b3b3d32491138a3dbe05dc70b392f",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference image into ONE standalone vertical 2:3 photorealistic GymFlow exercise phase. First image is the scene/camera/subject/equipment lock. Second is the official character identity lock.\nPRESERVE EXACTLY: same personal face/beard/hair/body, gray short-sleeve shirt, black shorts and shoes, facial expression, feet planted in the same places, torso/head/upper-arm position, same gray gym wall, dumbbell rack and plate stack, black cable machine/pulley/weight stack/floor, lighting, identical tripod camera angle, distance, crop and image dimensions. Do not recompose, rotate camera, mirror the image, change body scale, change hairstyle, change apparatus or add people. Only the elbow extension, forearm/hands positions, cable attachment/rope follow the real movement.\nExercise: triceps_polia_corda, high pulley rope triceps pushdown. Keep elbows pinned alongside lower ribs, upper arms vertical and stationary, wrists neutral, continuous taut cable through upper pulley connecting through the carabiner to the double-ended braided black rope; both hands grasp their same rope end above rubber stops, with realistic fingers. No words, arrows, panels, logos or watermark. No collage.\nFINAL CONTRACTION: extend both elbows to about 170-175 degrees, nearly straight without hyperextension. Upper arms and elbows remain in their initial positions beside the ribcage. Hands now down by the upper thighs, separate the two rope ends gently outward so rubber end stops beside the outer thighs. Shoulders stationary and relaxed; torso must not bend further to cheat. The rope connection and taut cable follow downward coherently. Maintain the exact crop and camera of the initial photo.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_corda\\01_inicial.png",
+          "sha256": "5b0c0c5867b3f348a11328187002f01f6eaebb2bf5cb4a9585d81367308454ab",
+          "snapshotPath": "attempts/triceps_polia_corda/01_inicial-attempt-01.png",
+          "evidence": "RECONSTRUCTED_FROM_PRIOR_SAVED_ATTEMPT"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_corda\\01_inicial.png",
+          "sha256": "5b0c0c5867b3f348a11328187002f01f6eaebb2bf5cb4a9585d81367308454ab",
+          "evidence": "RECONSTRUCTED_FROM_PRIOR_SAVED_ATTEMPT"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_barra/01_inicial/1",
+      "exerciseId": "triceps_polia_barra",
+      "phase": "01_inicial",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "c4751d1657f76009ffc609adfef57aab89eb3c5e9a14fa73d53a8c5a761651fa",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_barra/01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-bec352d7-7588-4f85-8245-b66e5c6db9c7.png",
+      "promptSha256": "2b8945fca79183f8abb90a7d8bdc4e09342edf6ee4c990fd9b6a4ea5c2f815bc",
+      "prompt": "Use case: scientific-educational, photorealistic exercise demonstration for GymFlow draft pilot.\nGenerate ONE standalone vertical 2:3 photograph (1024x1536). No collage or multiple panels. Reference 1 is the OFFICIAL PERSONAL: exactly preserve that man's face, beard, dark hairstyle, skin tone, athletic muscular body proportions and outfit, charcoal-gray fitted short-sleeve shirt, black shorts, black sneakers. Reference 2 is ENVIRONMENT STYLE ONLY: clean gray gym walls, dark speckled rubber flooring, black equipment, soft even neutral light and natural textures. Do not reproduce the bench-press exercise in reference 2. Same visual world as the completed rope pushdown sequence. Full body and relevant equipment with clear joints and margins, no confusing crop. Natural anatomical hands with five fingers, plausible continuous machinery, visible correct grip, realistic loading. Calm focused expression. No other people, text, logo, watermarks, signs, anatomy overlays or arrows.\n\nCanonical exercise: triceps_polia_barra.\nStanding high-pulley STRAIGHT BAR triceps pushdown. One black cable tower adjacent to athlete; taut steel cable runs from high pulley above his head to carabiner at center of one SHORT STRAIGHT metallic horizontal bar, approximately shoulder width. Both hands pronated (palms down), thumbs wrapped, equal grip. Upper arms vertical with elbows pinned beside ribs, wrists straight; torso stable with slight forward lean, feet hip-width, soft knees. Show full body, high pulley and complete attachment. Camera front-side three-quarter at lower chest height, 50mm natural perspective. Background minimal black dumbbell rack and weights.\nINITIAL loaded position: elbows bent about 90 degrees, forearms near horizontal, short straight bar in front of upper waist. This is a triceps pushdown, not a curl.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "snapshotPath": "references/ambiente-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_v/01_inicial/1",
+      "exerciseId": "triceps_polia_v",
+      "phase": "01_inicial",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "473494a8e4fe2944f427a4a84006cd7474b8384eeeb611062cd37f45ca24867d",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_v/01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-be73e87c-c4cc-4bdb-89e3-d7bf8f0742c2.png",
+      "promptSha256": "1bfbdc00e630e1ea24d18f0b412dde8ff60fa0c524470a392ffd27af3b286686",
+      "prompt": "Use case: scientific-educational, photorealistic exercise demonstration for GymFlow draft pilot.\nGenerate ONE standalone vertical 2:3 photograph (1024x1536). No collage or multiple panels. Reference 1 is the OFFICIAL PERSONAL: exactly preserve that man's face, beard, dark hairstyle, skin tone, athletic muscular body proportions and outfit, charcoal-gray fitted short-sleeve shirt, black shorts, black sneakers. Reference 2 is ENVIRONMENT STYLE ONLY: clean gray gym walls, dark speckled rubber flooring, black equipment, soft even neutral light and natural textures. Do not reproduce the bench-press exercise in reference 2. Same visual world as the completed rope pushdown sequence. Full body and relevant equipment with clear joints and margins, no confusing crop. Natural anatomical hands with five fingers, plausible continuous machinery, visible correct grip, realistic loading. Calm focused expression. No other people, text, logo, watermarks, signs, anatomy overlays or arrows.\n\nCanonical exercise: triceps_polia_v.\nStanding high-pulley V-BAR triceps pushdown. One black cable station with upper pulley, continuous taut cable and carabiner attached to central apex of a SHORT RIGID V-SHAPED metal triceps attachment. Both hands grasp the two slanted rubber-coated handles with a neutral-inclined grip; the attachment is clearly a solid V bar, not rope or a straight bar. Elbows tucked into lower ribs, upper arms vertical and stationary, wrists neutral. Feet hip-width, slight forward torso lean, soft knees. Full body and high pulley within portrait frame, front-side three-quarter camera at lower-chest height, 50mm.\nINITIAL: elbows bent about 90 degrees, forearms near horizontal, V-bar at upper waist.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "snapshotPath": "references/ambiente-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_frances_haltere/01_inicial/1",
+      "exerciseId": "triceps_frances_haltere",
+      "phase": "01_inicial",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "29289d178d0c2b138ab3fbe1d1fe9efabacb68674683e7448e626af7559d6de7",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_haltere/01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-47691fa2-c143-4325-9066-02e2a7578446.png",
+      "promptSha256": "b9e599a73528bf98a139aa2aa06d0a644889a61903aa6dc6f1b93c20fb5d73df",
+      "prompt": "Use case: scientific-educational, photorealistic exercise demonstration for GymFlow draft pilot.\nGenerate ONE standalone vertical 2:3 photograph (1024x1536). No collage or multiple panels. Reference 1 is the OFFICIAL PERSONAL: exactly preserve that man's face, beard, dark hairstyle, skin tone, athletic muscular body proportions and outfit, charcoal-gray fitted short-sleeve shirt, black shorts, black sneakers. Reference 2 is ENVIRONMENT STYLE ONLY: clean gray gym walls, dark speckled rubber flooring, black equipment, soft even neutral light and natural textures. Do not reproduce the bench-press exercise in reference 2. Same visual world as the completed rope pushdown sequence. Full body and relevant equipment with clear joints and margins, no confusing crop. Natural anatomical hands with five fingers, plausible continuous machinery, visible correct grip, realistic loading. Calm focused expression. No other people, text, logo, watermarks, signs, anatomy overlays or arrows.\n\nCanonical exercise: triceps_frances_haltere.\nSEATED TWO-HAND OVERHEAD DUMBBELL TRICEPS EXTENSION, on a simple black flat gym bench. Upright stable torso, neutral spine, feet flat and apart. ONE moderate black round dumbbell held vertically, BOTH hands cup the underside of its upper weight plate around the short handle, thumbs and fingers safely securing it. Upper arms raised nearly vertical close to ears, elbows narrow and pointing upward; only forearms pivot. Camera front-side three-quarter approximately 65 degrees to the athlete's front, at seated shoulder height, so BOTH bent elbows and the dumbbell behind his head are visible as well as his face/profile. Full body, shoes, bench feet and all of overhead movement fit with margin. Same minimal gray gym background.\nINITIAL loaded stretch: elbows bent about 90 degrees, upper arms vertical beside ears, forearms folded backward, the single vertical dumbbell lowered behind head/upper neck without touching neck. Both hands securely cup underside of its upper plate; avoid a behind-neck barbell pose.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "snapshotPath": "references/ambiente-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_frances_unilateral_cabo/01_inicial/1",
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "phase": "01_inicial",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "86391800720d6cdfc6e78e20e8295de0fb47e08303f84fb10f2876aa8d14db20",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-1a55a03e-a1ef-4b26-82ea-7d065a48dc9d.png",
+      "promptSha256": "a67d5c251063ab8280236c31736ee713e9827098a944ad75610bbba789eef1fd",
+      "reason": "Remove unwanted small shorts symbol.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_testa/01_inicial/1",
+      "exerciseId": "triceps_testa",
+      "phase": "01_inicial",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "b443fc871b6eaae0ad158ecdd04fb185548592fd2470625236ea0e0243dc66b8",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa/01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-61196a2d-7cfb-4300-bdda-7f2b22878886.png",
+      "promptSha256": "38d2d610532d8b144ed530f2a497a233c17f64d84a5c6cfcddbb4c00ee707e20",
+      "reason": "Loaded bar W position too high above forehead.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_testa_cabo/01_inicial/1",
+      "exerciseId": "triceps_testa_cabo",
+      "phase": "01_inicial",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "e2a7d4cb05e21f33798431fbfaa67e26f429efcddf0017766c85ad9602c98a0e",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa_cabo/01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-11d79ce1-ccff-40a9-97b1-15c28c1e3fc2.png",
+      "promptSha256": "0553cdfe503d1c2215fb10c9e5f661fae1430496e278be7f5783a0e885c352b7",
+      "prompt": "Use case: scientific-educational, photorealistic exercise demonstration for GymFlow draft pilot.\nGenerate ONE standalone vertical 2:3 photograph (1024x1536). No collage or multiple panels. Reference 1 is the OFFICIAL PERSONAL: exactly preserve that man's face, beard, dark hairstyle, skin tone, athletic muscular body proportions and outfit, charcoal-gray fitted short-sleeve shirt, black shorts, black sneakers. Reference 2 is ENVIRONMENT STYLE ONLY: clean gray gym walls, dark speckled rubber flooring, black equipment, soft even neutral light and natural textures. Do not reproduce the bench-press exercise in reference 2. Same visual world as the completed rope pushdown sequence. Full body and relevant equipment with clear joints and margins, no confusing crop. Natural anatomical hands with five fingers, plausible continuous machinery, visible correct grip, realistic loading. Calm focused expression. No other people, text, logo, watermarks, signs, anatomy overlays or arrows.\n\nCanonical exercise: triceps_testa_cabo.\nLYING LOW-CABLE ROPE SKULL CRUSHER. Athlete lies supine on a flat black bench with HEAD TOWARD the black cable tower, feet flat planted. Low pulley at ankle/floor height behind head end of bench. Continuous taut cable from low pulley diagonally upward to carabiner at center of double-ended black rope. Both hands hold rope ends with neutral grip. Upper arms near vertical above shoulders, elbows narrow pointing ceiling and fixed. Camera elevated three-quarter from working side at bench midpoint, diagonal bench axis fits vertical portrait with full body, bench, head, elbows, both rope ends and low pulley visible. Cable route behind head must be physically continuous and never intersect head, body, bench or arms. No dumbbells, barbell or chest-fly motion.\nINITIAL loaded flexed phase: elbows bent about 90 degrees, upper arms near vertical, forearms folded toward head, both rope handles beside/just behind crown but safely above and outside head. Center rope carabiner behind head above bench level, cable taut to low pulley behind bench. Do not let cable go through head.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "snapshotPath": "references/ambiente-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_coice/01_inicial/1",
+      "exerciseId": "triceps_coice",
+      "phase": "01_inicial",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "71531c4e10bdd6e76c97f3e2adac4cd9254381e52b1ed6cf638d9d32b1640dc8",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_coice/01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-186a0119-4602-4744-bc90-6559ca844eec.png",
+      "promptSha256": "e3e2525cff3f66b772d6837fcdd755e24121a2dfdeaaa873d14201f8a475dfdf",
+      "reason": "Altura do cotovelo e orientação do braço na inicial inconsistentes com as fases seguintes.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_mergulho_banco/01_inicial/1",
+      "exerciseId": "triceps_mergulho_banco",
+      "phase": "01_inicial",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "1896faba2b23796cd1af44fe9882c5c1b65e503e0e272a531bae15ee37cbab34",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_mergulho_banco/01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-ccff31c7-b01b-4d7d-ba60-4b343348c14f.png",
+      "promptSha256": "b32af88232cf85a120e4fc5db150a446c881f788e8b5d45f18ccaf0330722a4d",
+      "prompt": "Use case: scientific-educational, photorealistic exercise demonstration for GymFlow draft pilot.\nGenerate ONE standalone vertical 2:3 photograph (1024x1536). No collage or multiple panels. Reference 1 is the OFFICIAL PERSONAL: exactly preserve that man's face, beard, dark hairstyle, skin tone, athletic muscular body proportions and outfit, charcoal-gray fitted short-sleeve shirt, black shorts, black sneakers. Reference 2 is ENVIRONMENT STYLE ONLY: clean gray gym walls, dark speckled rubber flooring, black equipment, soft even neutral light and natural textures. Do not reproduce the bench-press exercise in reference 2. Same visual world as the completed rope pushdown sequence. Full body and relevant equipment with clear joints and margins, no confusing crop. Natural anatomical hands with five fingers, plausible continuous machinery, visible correct grip, realistic loading. Calm focused expression. No other people, text, logo, watermarks, signs, anatomy overlays or arrows.\n\nCanonical exercise: triceps_mergulho_banco.\nBODYWEIGHT BENCH DIP with ONE sturdy black flat bench behind athlete, heels on FLOOR as canonical executionSteps specify. Both palms planted shoulder-width on FRONT EDGE of bench behind hips, fingers point forward over edge, wrists firm. Legs extend ahead with knees almost straight, heels planted on dark floor; body stays very close to bench edge. Chest open, shoulders down, elbows point back rather than out. Camera front-side three-quarter, sufficiently lateral to see palm contact with bench edge, elbows, hip distance to bench and heels, full athlete and bench within portrait. Neutral gray wall and minimal black equipment. No second bench, weights or parallel bars. Phase progression is ascent from flexed bottom to contracted top.\nINITIAL bottom/load position: elbows bent approximately 90 degrees, hips lowered immediately in front of bench edge, shoulders not shrugged and no excessive depth. Both palms stationary on bench, legs extended and heels floor.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "snapshotPath": "references/ambiente-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/01_inicial/1",
+      "exerciseId": "triceps_maquina",
+      "phase": "01_inicial",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "d29b611a7ae21186bc947063578c7833d5973e5dd615c7d9de23524bda426b12",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-d1f3f383-bbd0-4c0f-8ca7-c1e2ff3daee7.png",
+      "promptSha256": "500950fe6aaea6c48ca6594bc7242ac2f297f94e52197b8bebd358531c5b15ea",
+      "reason": "Improve machine pivot alignment and simplify connected lever geometry.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_frances_unilateral_cabo/01_inicial/2",
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "phase": "01_inicial",
+      "attempt": 2,
+      "revisionId": "initial",
+      "revisionAttempt": 2,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "e6a392a7ef20de6f10314058127dc67d46c0158a5b9df91f080521d2477c66f2",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/01_inicial-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-01f90d75-b3a1-4933-a89e-35c2231c0288.png",
+      "promptSha256": "c9b0ad19cc7999daf45fdcbac730685ef252c7f9fdace4ecc11935938155eedf",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\nThis is a precise small garment cleanup, with NO change in exercise pose. Remove the tiny light-colored decorative logo/mark from the lower outer portion of his black shorts; make both legs of the shorts completely plain black fabric. Preserve every other detail of the first reference: exactly same official face, anatomy, overhead right-arm cable pose, D-handle grip, low pulley, cable routing, camera and frame. No text, branding or marks anywhere.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_frances_unilateral_cabo\\01_inicial.png",
+          "sha256": "86391800720d6cdfc6e78e20e8295de0fb47e08303f84fb10f2876aa8d14db20",
+          "snapshotPath": "attempts/triceps_frances_unilateral_cabo/01_inicial-attempt-01.png",
+          "evidence": "RECONSTRUCTED_FROM_PRIOR_SAVED_ATTEMPT"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_frances_unilateral_cabo\\01_inicial.png",
+          "sha256": "86391800720d6cdfc6e78e20e8295de0fb47e08303f84fb10f2876aa8d14db20",
+          "evidence": "RECONSTRUCTED_FROM_PRIOR_SAVED_ATTEMPT"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_testa/01_inicial/2",
+      "exerciseId": "triceps_testa",
+      "phase": "01_inicial",
+      "attempt": 2,
+      "revisionId": "initial",
+      "revisionAttempt": 2,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "a3cb0379f6fdb494c045e6de5ae8213863ed132a8d8cbb5e9d7fabe92cc0ea3d",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa/01_inicial-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-3d2c7b3b-602e-4afe-bb19-d7ce79dba28c.png",
+      "promptSha256": "a0d09fe3b21351e669900db70df35bc25f073e949d610f445781d0eaca8313a0",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\nTarget exercise: lying EZ/W-bar skull crusher, INITIAL fully loaded elbow-flexed position. Correct only arm pose and implement placement, preserving original face/body lying support, full bench, feet and exact camera/background. The previous bar was too high. Keep both upper arms approximately vertical above shoulders, elbows narrow facing ceiling. Bend ONLY the elbows to lower the same light short EZ/W bar down toward his forehead. Bar central bends now approximately 5 cm above the top of forehead, not 30 cm away. Both forearms lean backward toward head with approximately 90-degree bent elbows. Bar has the same two small black plates/collars, hands on same inner bends with thumbs wrapped. Do not turn it into bench press, biceps curl, overhead French seated or move bar to chest. Show natural bent elbows and clear safe gap from face.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_testa\\01_inicial.png",
+          "sha256": "b443fc871b6eaae0ad158ecdd04fb185548592fd2470625236ea0e0243dc66b8",
+          "snapshotPath": "attempts/triceps_testa/01_inicial-attempt-01.png",
+          "evidence": "RECONSTRUCTED_FROM_PRIOR_SAVED_ATTEMPT"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_testa\\01_inicial.png",
+          "sha256": "b443fc871b6eaae0ad158ecdd04fb185548592fd2470625236ea0e0243dc66b8",
+          "evidence": "RECONSTRUCTED_FROM_PRIOR_SAVED_ATTEMPT"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/01_inicial/2",
+      "exerciseId": "triceps_maquina",
+      "phase": "01_inicial",
+      "attempt": 2,
+      "revisionId": "initial",
+      "revisionAttempt": 2,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "881b8f3a26bff4c69cdac7ab876d9db72124427b4706b4af8a606f0e43dcaff3",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/01_inicial-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-4aa55636-8e23-45de-8c93-9aeeb5955505.png",
+      "promptSha256": "c28127b222f3e4f8f5938141b1cee3bdf0723df2a0dd540141f3eae45d727524",
+      "reason": "Substituída na correção cirúrgica r1 após revisão humana: New near pivot connected by a visible continuous external steel support to floor chassis; matching paired levers and supported flexed elbows. Accepted as scene/camera/equipment lock for remaining machine frames.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_v/03_final/1",
+      "exerciseId": "triceps_polia_v",
+      "phase": "03_final",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "2e336dc9d25bae05037f54f7165ceeaf4a43675d7dce805e61574f0997a40d7c",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_v/03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-d430b437-02f6-483b-a6f5-3056873d4ac2.png",
+      "promptSha256": "3e665ca7c40b5639b8e1cf067ddcd510267430d0416c23316e31703f3c37b8e8",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\n\nCanonical exercise: triceps_polia_v.\nFINAL: elbows extended nearly straight at 170-175 degrees, V attachment just in front of upper thighs, both hands maintain same angled neutral grips. No extra torso leaning.\nInherit the exact initial photograph camera, apparatus, elbow/upper-arm location and standing pose; continuous taut cable to same high pulley. Do not move torso or feet to simulate the push.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_v\\01_inicial.png",
+          "sha256": "473494a8e4fe2944f427a4a84006cd7474b8384eeeb611062cd37f45ca24867d",
+          "snapshotPath": "attempts/triceps_polia_v/01_inicial-attempt-01.png",
+          "evidence": "RECONSTRUCTED_FROM_PRIOR_SAVED_ATTEMPT"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_v\\01_inicial.png",
+          "sha256": "473494a8e4fe2944f427a4a84006cd7474b8384eeeb611062cd37f45ca24867d",
+          "evidence": "RECONSTRUCTED_FROM_PRIOR_SAVED_ATTEMPT"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_v/02_intermediaria/1",
+      "exerciseId": "triceps_polia_v",
+      "phase": "02_intermediaria",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "a2a1334bbcff8918ce7ef6bbae3ce513c6f3c9c01f1a8f069413c15c8a0f1802",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_v/02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-8630f308-9644-45ba-9680-abce24a18479.png",
+      "promptSha256": "866bbf16d7595e59dfee1a208dc4d399a99c239496d848242e3fdd1a1c0bfbb2",
+      "reason": "Substituída na correção cirúrgica r1 após revisão humana: Approximately mid-amplitude elbow extension with same rigid V attachment and stable camera; both endpoints remain distinct.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_barra/03_final/1",
+      "exerciseId": "triceps_polia_barra",
+      "phase": "03_final",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "e8a478bcb1088ee9587084a32dadc31259ad3f32ea59ebbc70dd22a722ad18bb",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_barra/03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-6a2652cf-177f-433c-ab73-99c3ef0332f3.png",
+      "promptSha256": "308c018b1cc7a5110dbccf8c572cee8c5ff505921d70c973f6d0bb15282bb00a",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\n\nCanonical exercise: triceps_polia_barra.\nFINAL contraction: keep elbows beside ribs and extend nearly straight to 170-175 degrees without hyperextension. Short straight bar horizontal just in front of upper thighs; wrists straight, torso/feet unchanged.\nInherit the exact initial photograph camera, apparatus, elbow/upper-arm location and standing pose; continuous taut cable to same high pulley. Do not move torso or feet to simulate the push.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_barra\\01_inicial.png",
+          "sha256": "c4751d1657f76009ffc609adfef57aab89eb3c5e9a14fa73d53a8c5a761651fa",
+          "snapshotPath": "attempts/triceps_polia_barra/01_inicial-attempt-01.png",
+          "evidence": "RECONSTRUCTED_FROM_PRIOR_SAVED_ATTEMPT"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_barra\\01_inicial.png",
+          "sha256": "c4751d1657f76009ffc609adfef57aab89eb3c5e9a14fa73d53a8c5a761651fa",
+          "evidence": "RECONSTRUCTED_FROM_PRIOR_SAVED_ATTEMPT"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "OFFICIAL_REFERENCE_BASELINE"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_barra/02_intermediaria/1",
+      "exerciseId": "triceps_polia_barra",
+      "phase": "02_intermediaria",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "aedf483dc3048101f34ffecadcf6c8f59dd0e2959cdfee266d0e5dc541d3e16f",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_barra/02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-4b36467a-4952-453c-9ae4-a13812ad0aa3.png",
+      "promptSha256": "99cebe6cc8ddb3192062dadbf721755f259a381acfb7229f3f09429dc83bbcfa",
+      "reason": "Substituída na correção cirúrgica r1 após revisão humana: Forearms now follow a diagonal halfway arc; distinct from preserved start and finish with stable camera, body and straight-bar accessory.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_frances_haltere/02_intermediaria/1",
+      "exerciseId": "triceps_frances_haltere",
+      "phase": "02_intermediaria",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "02d6415b7c35fba0f9c339d1eb55f82e09f98c750668c10efc46105964a29113",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_haltere/02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-abe77212-fe58-41bf-a4cb-d5e01456e817.png",
+      "promptSha256": "6983d3205ad0b92f801eccdd47ce434e4d98aa9392bc97b6b117b05135d05bab",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\n\nCanonical exercise: triceps_frances_haltere.\nMIDPOINT: keep upper arms vertical, elbows fixed beside ears; extend elbows to about 135 degrees and lift the same single dumbbell above/behind crown of head. Both hands retain identical cupped grip. Upright torso/feet/bench unchanged.\nIMPORTANT: retain exactly the same upper-arm and elbow positions beside the head, torso, legs, feet and seat when present. Middle phase must have a plainly bent elbow, distinct from final nearly straight arm. Keep entire implement and hand(s) inside the original crop, and shirt/shorts completely plain without marks.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_frances_haltere\\01_inicial.png",
+          "sha256": "29289d178d0c2b138ab3fbe1d1fe9efabacb68674683e7448e626af7559d6de7",
+          "snapshotPath": "attempts/triceps_frances_haltere/01_inicial-attempt-01.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_frances_haltere\\01_inicial.png",
+          "sha256": "29289d178d0c2b138ab3fbe1d1fe9efabacb68674683e7448e626af7559d6de7"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_frances_haltere/03_final/1",
+      "exerciseId": "triceps_frances_haltere",
+      "phase": "03_final",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "1dbe2d32cec236e88770427a9a92206de1285ee1b087529f422ad938cba6673c",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_haltere/03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-c4adb01b-abc9-47cd-bb93-5bf4d9210f3d.png",
+      "promptSha256": "2e3d795f2391ced725d140b42ad8645b803e355175b911bf9727e45706541de4",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\n\nCanonical exercise: triceps_frances_haltere.\nFINAL contraction: arms nearly straight overhead at 170-175 degrees, upper arms still beside ears, same single dumbbell vertical above head with both hands supporting underside of its upper plate. No back arch or elbow flare; leave full dumbbell visible.\nIMPORTANT: retain exactly the same upper-arm and elbow positions beside the head, torso, legs, feet and seat when present. Middle phase must have a plainly bent elbow, distinct from final nearly straight arm. Keep entire implement and hand(s) inside the original crop, and shirt/shorts completely plain without marks.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_frances_haltere\\01_inicial.png",
+          "sha256": "29289d178d0c2b138ab3fbe1d1fe9efabacb68674683e7448e626af7559d6de7",
+          "snapshotPath": "attempts/triceps_frances_haltere/01_inicial-attempt-01.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_frances_haltere\\01_inicial.png",
+          "sha256": "29289d178d0c2b138ab3fbe1d1fe9efabacb68674683e7448e626af7559d6de7"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_frances_unilateral_cabo/02_intermediaria/1",
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "phase": "02_intermediaria",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "00b6fb319181006bab2b0505e2004198055a4cb55f3541d18621240b6c58de12",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-0da66cd0-4564-4899-8275-19d1d900df5b.png",
+      "promptSha256": "7047ac1fb25d74f786fcc9abd44b59a319eb55ada91113e94efedf57fce70566",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\n\nCanonical exercise: triceps_frances_unilateral_cabo.\nMIDPOINT: right upper arm/elbow remain fixed beside ear; right elbow opens to approximately 135 degrees as the D-handle moves diagonally up and slightly forward above crown. Continuous cable length/path changes realistically and avoids body; left arm, torso, feet fixed.\nIMPORTANT: retain exactly the same upper-arm and elbow positions beside the head, torso, legs, feet and seat when present. Middle phase must have a plainly bent elbow, distinct from final nearly straight arm. Keep entire implement and hand(s) inside the original crop, and shirt/shorts completely plain without marks.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_frances_unilateral_cabo\\01_inicial.png",
+          "sha256": "e6a392a7ef20de6f10314058127dc67d46c0158a5b9df91f080521d2477c66f2",
+          "snapshotPath": "attempts/triceps_frances_unilateral_cabo/01_inicial-attempt-02.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_frances_unilateral_cabo\\01_inicial.png",
+          "sha256": "e6a392a7ef20de6f10314058127dc67d46c0158a5b9df91f080521d2477c66f2"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_frances_unilateral_cabo/03_final/1",
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "phase": "03_final",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "49d7ac9c3b03953841bb4d022e9e1f310b067eba4271513c23b6d37d7b28e09b",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-698a9211-78bd-4899-b275-c5eedf537c49.png",
+      "promptSha256": "68611b608bde857d021fa06a28e30c2687837030e9452b3c699af68e80ff3f13",
+      "reason": "Final candidate retains excessive elbow flexion and is too similar to middle phase.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_testa/02_intermediaria/1",
+      "exerciseId": "triceps_testa",
+      "phase": "02_intermediaria",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "9ffb54871c3a67813018931b76196a88da20a0ec397fefe9ba8f8f589b18a5b8",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa/02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-226b0ec2-afae-4255-9064-8dc0a4667cc7.png",
+      "promptSha256": "544afbbe9b8231d62e92b8e0886d53d5b5aeb50eb6914c022bdb0d3ee8f86da4",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\n\nCanonical exercise: triceps_testa.\nMIDPOINT: fixed upper arms and elbow locations above shoulders; elbows open to approximately 135 degrees, EZ/W bar travels up and away from forehead. Both hands remain on the same inner bends, plate size/bar orientation identical. Head/body/feet unchanged.\nMotion is only elbow extension. The initial image fixes position of upper arms and elbows above shoulders, so do not spread or lower them like a bench press. Middle phase must show visibly BENT elbows, approximately 120-135 degrees rather than almost straight. Final phase must be nearly straight 170-175 degrees. Preserve safe clearance to face, identical hand grip, same implement weights/rope length, and continuous plausible cable routing when present.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_testa\\01_inicial.png",
+          "sha256": "a3cb0379f6fdb494c045e6de5ae8213863ed132a8d8cbb5e9d7fabe92cc0ea3d",
+          "snapshotPath": "attempts/triceps_testa/01_inicial-attempt-02.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_testa\\01_inicial.png",
+          "sha256": "a3cb0379f6fdb494c045e6de5ae8213863ed132a8d8cbb5e9d7fabe92cc0ea3d"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_testa_cabo/02_intermediaria/1",
+      "exerciseId": "triceps_testa_cabo",
+      "phase": "02_intermediaria",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "76d7a9a94c1ab9de5771069ea9421c03658959a3323e20e18e6a2464d23debb7",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa_cabo/02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-855d2b3b-cc4e-428f-8b39-72218807b69e.png",
+      "promptSha256": "79900c89c009912a5947d832268438904698557eeeb2894fb62dd1649bf5ec18",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\n\nCanonical exercise: triceps_testa_cabo.\nMIDPOINT: upper arms/elbows fixed above shoulders; elbows open approximately 135 degrees, rope grips travel upward toward ceiling from loaded position. Same rope, neutral grips, cable attachment continuous to low pulley. Torso/head/feet/bench unchanged.\nMotion is only elbow extension. The initial image fixes position of upper arms and elbows above shoulders, so do not spread or lower them like a bench press. Middle phase must show visibly BENT elbows, approximately 120-135 degrees rather than almost straight. Final phase must be nearly straight 170-175 degrees. Preserve safe clearance to face, identical hand grip, same implement weights/rope length, and continuous plausible cable routing when present.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_testa_cabo\\01_inicial.png",
+          "sha256": "e2a7d4cb05e21f33798431fbfaa67e26f429efcddf0017766c85ad9602c98a0e",
+          "snapshotPath": "attempts/triceps_testa_cabo/01_inicial-attempt-01.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_testa_cabo\\01_inicial.png",
+          "sha256": "e2a7d4cb05e21f33798431fbfaa67e26f429efcddf0017766c85ad9602c98a0e"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_testa/03_final/1",
+      "exerciseId": "triceps_testa",
+      "phase": "03_final",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "1c1602599212875b057c0919b2fcf2374d8fadbb72bb0c15ae55fef35fc6d78b",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa/03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-168af4a7-fea5-4055-9457-dfafe9668a5b.png",
+      "promptSha256": "5ad545ae704ad627349296df86c9d9cd030526fb387d6ae193ad79e4551eb467",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\n\nCanonical exercise: triceps_testa.\nFINAL: both elbows almost straight at 170-175 degrees, same EZ/W bar above shoulder/upper-chest line, upper arms vertical and narrow. No horizontal arm spread, shoulder press or bench-press grip. Preserve foot placement and entire apparatus.\nMotion is only elbow extension. The initial image fixes position of upper arms and elbows above shoulders, so do not spread or lower them like a bench press. Middle phase must show visibly BENT elbows, approximately 120-135 degrees rather than almost straight. Final phase must be nearly straight 170-175 degrees. Preserve safe clearance to face, identical hand grip, same implement weights/rope length, and continuous plausible cable routing when present.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_testa\\01_inicial.png",
+          "sha256": "a3cb0379f6fdb494c045e6de5ae8213863ed132a8d8cbb5e9d7fabe92cc0ea3d",
+          "snapshotPath": "attempts/triceps_testa/01_inicial-attempt-02.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_testa\\01_inicial.png",
+          "sha256": "a3cb0379f6fdb494c045e6de5ae8213863ed132a8d8cbb5e9d7fabe92cc0ea3d"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_testa_cabo/03_final/1",
+      "exerciseId": "triceps_testa_cabo",
+      "phase": "03_final",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "3be3f2834c9ad038e2d008ab1ebfb55c0e850106e7171fa3bfd047e18358562b",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa_cabo/03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-1c8c20ab-c1bc-4530-90af-96ec92f04da9.png",
+      "promptSha256": "810124f5c13105b75478cca403b35bcd6acb74092cc56a5c58dfe1c16962270e",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\n\nCanonical exercise: triceps_testa_cabo.\nFINAL: elbows almost straight at 170-175 degrees; both rope handles above shoulders, ends spread slightly outward with neutral grip. Upper arms vertical, cable taut diagonally behind head to low pulley, passing entirely clear of head. Same bench and rope, no equipment substitution.\nMotion is only elbow extension. The initial image fixes position of upper arms and elbows above shoulders, so do not spread or lower them like a bench press. Middle phase must show visibly BENT elbows, approximately 120-135 degrees rather than almost straight. Final phase must be nearly straight 170-175 degrees. Preserve safe clearance to face, identical hand grip, same implement weights/rope length, and continuous plausible cable routing when present.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_testa_cabo\\01_inicial.png",
+          "sha256": "e2a7d4cb05e21f33798431fbfaa67e26f429efcddf0017766c85ad9602c98a0e",
+          "snapshotPath": "attempts/triceps_testa_cabo/01_inicial-attempt-01.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_testa_cabo\\01_inicial.png",
+          "sha256": "e2a7d4cb05e21f33798431fbfaa67e26f429efcddf0017766c85ad9602c98a0e"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_coice/02_intermediaria/1",
+      "exerciseId": "triceps_coice",
+      "phase": "02_intermediaria",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "7de8f1c42bf9ea5cd32dc4a540a3b2a231e2bb214e20739ba6b1678813839f61",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_coice/02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-7abe19e6-88d1-4932-a1f2-4db9c3e29bea.png",
+      "promptSha256": "98ca85769cf6e4dea8eddfa1756cac1d3b5a2752ad748ed617b0fce67c0867ae",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\n\nCanonical exercise: triceps_coice.\nMIDPOINT: keep right upper arm parallel floor/elbow at EXACT same place; right elbow opens to about 135 degrees, right forearm and dumbbell point diagonally down and backward. No movement of shoulder, back, supports or torso.\nCRITICAL: fixed shoulder-to-elbow segment and elbow at original height beside torso. Only right FOREARM rotates backward around that elbow. Do not row or lift elbow/upper arm. Dumbbell has the exact same shape, size and weight, securely gripped. Left palm/knee and right foot never move.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_coice\\01_inicial.png",
+          "sha256": "71531c4e10bdd6e76c97f3e2adac4cd9254381e52b1ed6cf638d9d32b1640dc8",
+          "snapshotPath": "attempts/triceps_coice/01_inicial-attempt-01.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_coice\\01_inicial.png",
+          "sha256": "71531c4e10bdd6e76c97f3e2adac4cd9254381e52b1ed6cf638d9d32b1640dc8"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_coice/03_final/1",
+      "exerciseId": "triceps_coice",
+      "phase": "03_final",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "434bef9589818faf20ba6d501945aaddca9d218998aaec3c9aa6b15592a670c4",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_coice/03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-b7298164-9647-469f-a4ad-65a05a1f152b.png",
+      "promptSha256": "556dfc3b0872c04be14556130cf3cb48e1cd8f751539f2576a9ecfab8d68c036",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\n\nCanonical exercise: triceps_coice.\nFINAL: right elbow almost straight 170-175 degrees, entire right arm/dumbbell extends backward approximately parallel floor beside torso. Upper arm/elbow stay at original height, torso and left hand/knee supports fixed. No lifting upper arm behind body above spine.\nCRITICAL: fixed shoulder-to-elbow segment and elbow at original height beside torso. Only right FOREARM rotates backward around that elbow. Do not row or lift elbow/upper arm. Dumbbell has the exact same shape, size and weight, securely gripped. Left palm/knee and right foot never move.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_coice\\01_inicial.png",
+          "sha256": "71531c4e10bdd6e76c97f3e2adac4cd9254381e52b1ed6cf638d9d32b1640dc8",
+          "snapshotPath": "attempts/triceps_coice/01_inicial-attempt-01.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_coice\\01_inicial.png",
+          "sha256": "71531c4e10bdd6e76c97f3e2adac4cd9254381e52b1ed6cf638d9d32b1640dc8"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_mergulho_banco/02_intermediaria/1",
+      "exerciseId": "triceps_mergulho_banco",
+      "phase": "02_intermediaria",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "c89d0c8eaad81bb5325be252f38ce8b38bfcf3b60a7b80de06a8e98a3c8f1013",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_mergulho_banco/02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-0135f6e0-c5bf-443c-bfb7-54460732a838.png",
+      "promptSha256": "645aa8c16932fbfc2d1db3e75d62861394a02d299c6c061d021fb0ebda591b68",
+      "reason": "Substituída na correção cirúrgica r1 após revisão humana: Pose visibly between bottom and top, hands/heels anchored, hips close to bench, elbows partly opened; one bench follows canonical floor-heel execution steps.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_mergulho_banco/03_final/1",
+      "exerciseId": "triceps_mergulho_banco",
+      "phase": "03_final",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "60473b233d4c994bb54b3a0e142fe9b32f0a6be051bc2ebde34361ecd065986f",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_mergulho_banco/03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-8360da3b-dc3a-4c51-a09f-536a74eacf63.png",
+      "promptSha256": "227b0486c7dc44bb6694d0a48dac331ef89c81d0b45a4ec41e9c8b6e37e68d90",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\n\nCanonical exercise: triceps_mergulho_banco.\nFINAL top: elbows nearly straight 170-175 degrees without hyperextension, hips elevated just in front of bench edge rather than resting on bench. Same palms planted, legs forward and heels on floor, shoulders down. Camera and bench untouched; body has risen from prior frames.\nCRITICAL: the palms stay on the exact same bench edge and heels at the exact same floor locations. Head/torso/hips may rise together because this is a dip ascent, but camera, bench and foot contact cannot move. Do not sit hips back onto bench. No shoulder shrug or excessive depth.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_mergulho_banco\\01_inicial.png",
+          "sha256": "1896faba2b23796cd1af44fe9882c5c1b65e503e0e272a531bae15ee37cbab34",
+          "snapshotPath": "attempts/triceps_mergulho_banco/01_inicial-attempt-01.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_mergulho_banco\\01_inicial.png",
+          "sha256": "1896faba2b23796cd1af44fe9882c5c1b65e503e0e272a531bae15ee37cbab34"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/02_intermediaria/1",
+      "exerciseId": "triceps_maquina",
+      "phase": "02_intermediaria",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "d920d64335a0c387fdd28707952c493427134a43eda0c230e8352b9ec2866046",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-67c693d0-e668-4822-98d2-ce7bb3a34353.png",
+      "promptSha256": "ae845d762aa4f8e1a05b0740185a6d16db901abb6af939ec8d818e7cced61484",
+      "reason": "Intermediária quase reta e deslocamento do apoio/pivô em relação à inicial.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/03_final/1",
+      "exerciseId": "triceps_maquina",
+      "phase": "03_final",
+      "attempt": 1,
+      "revisionId": "initial",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "00952835f09f566a2d9348e84f7a5cc6bdb9bd086e89a8f763559e097943677e",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-cbed745f-9946-4110-942b-b4db7c619354.png",
+      "promptSha256": "7fce689bcb0f3c2f38533e1b16c23505e4c5d62a3f45b6911a48f0ee3a1e8a4e",
+      "reason": "Geometria do apoio e pivô alterada em relação à inicial.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_frances_unilateral_cabo/03_final/2",
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "phase": "03_final",
+      "attempt": 2,
+      "revisionId": "initial",
+      "revisionAttempt": 2,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "c400c7ad90c0a8e43885926123b86a3d13a7d37feddf8955ad20b1d896fb4073",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/03_final-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-b91d344d-22e5-4869-b2bc-0722a3d30695.png",
+      "promptSha256": "32babbdaabacb137fb2d40224316a3d0de34edda0970fe928cb296050370ddd7",
+      "reason": "Substituída na correção cirúrgica r1 após revisão humana: Best full-grip framing after three new attempts: hand and handle entirely inside with gray margin. Retain NEEDS_HUMAN_REVIEW because raised elbow/upper-arm geometry drifts relative to the two protected phases.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_barra/02_intermediaria/2",
+      "exerciseId": "triceps_polia_barra",
+      "phase": "02_intermediaria",
+      "attempt": 2,
+      "revisionId": "initial",
+      "revisionAttempt": 2,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "d87bdd58116b95ecf9876a135276e13354ad524f16e4d307d97e5e4d7ef505f3",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_barra/02_intermediaria-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-a6fd3672-d6ec-448b-affd-472dd1fa0159.png",
+      "promptSha256": "bf5f440d33bffc4d6ff8426ff17e7b0e20dc4b8224a7e4628362b81ae3f511c1",
+      "reason": "Não melhorou a fase intermediária: próxima da inicial ou sem progressão central.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_v/02_intermediaria/2",
+      "exerciseId": "triceps_polia_v",
+      "phase": "02_intermediaria",
+      "attempt": 2,
+      "revisionId": "initial",
+      "revisionAttempt": 2,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "4ef6fa40524dfca8aa534c214f63cc1c57b93055807424de89e0da5b2152762f",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_v/02_intermediaria-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-1b551ada-d55f-47e2-af71-c7df575170f6.png",
+      "promptSha256": "e28c03b3756770a775a7581ed86d59be1a702fb91b4488a3e6edcd53010c9176",
+      "reason": "Não melhorou a fase intermediária: próxima da inicial ou sem progressão central.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_mergulho_banco/02_intermediaria/2",
+      "exerciseId": "triceps_mergulho_banco",
+      "phase": "02_intermediaria",
+      "attempt": 2,
+      "revisionId": "initial",
+      "revisionAttempt": 2,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "39d361eb3ec776404f4c3d708a67f6d069a5923a17291faa520d8abb349eef06",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_mergulho_banco/02_intermediaria-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-8317fe18-a87d-49c2-95be-dc2db0781948.png",
+      "promptSha256": "aa326c632c1e2a8d7671f4fb89f74d7fd4aacba249d0cc4f85820eb3207ff658",
+      "reason": "Não melhorou a fase intermediária: próxima da inicial ou sem progressão central.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_coice/01_inicial/2",
+      "exerciseId": "triceps_coice",
+      "phase": "01_inicial",
+      "attempt": 2,
+      "revisionId": "initial",
+      "revisionAttempt": 2,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "5abba384eaa52a0558f2174e4e57755838d346eef503429eea711349e00afe45",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_coice/01_inicial-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-17cf59dd-a131-4e22-9030-8d227d72c35a.png",
+      "promptSha256": "e9e9813e9a9edc8c871aa24ccf6d696594cfde612a65cef37cc4b262cb5e7f26",
+      "prompt": "Use case: scientific-educational. Edit the FIRST reference into ONE standalone vertical 2:3 photorealistic exercise phase. First reference locks the exact camera and scene; second locks official personal identity. PRESERVE the same face, hair, beard, body proportions, gray fitted short-sleeve shirt, black shorts/shoes, same apparatus/model/bench, same gray walls and black rubber flooring, same lighting, camera lens/angle/height/distance/crop and image dimensions. Keep all stationary supports, equipment and floor details in the same positions. Change only the anatomically real motion described below and its associated implement/cable/lever positions. No camera shift, mirroring, reframing, face change, extra person, lettering, logo, panels or collage. All grips remain anatomically correct and firm. This is ONE phase photograph, not a contact sheet.\n\nEXERCISE: triceps_coice\nPRECISE CORRECTION: Create INITIAL 90-degree elbow position by editing this kickback MIDPOINT. Absolutely lock RIGHT shoulder, RIGHT upper arm horizontal along torso, RIGHT elbow center, body, face, left palm, left knee/shin, right planted foot and bench at EXACT FIRST image positions. Change ONLY right forearm and its firmly gripped dumbbell: rotate forearm to hang straight VERTICALLY DOWN below unchanged elbow, forming 90 degrees. The right upper arm must remain horizontal at torso height, never lowered or raised. One identical black hex dumbbell directly beneath elbow, neutral straight wrist, anatomically clear hand. First reference is middle to preserve elbow location; output must be initial.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_coice\\02_intermediaria.png",
+          "sha256": "7de8f1c42bf9ea5cd32dc4a540a3b2a231e2bb214e20739ba6b1678813839f61",
+          "snapshotPath": "attempts/triceps_coice/02_intermediaria-attempt-01.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_AT_CANDIDATE_SAVE"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_coice\\02_intermediaria.png",
+          "sha256": "7de8f1c42bf9ea5cd32dc4a540a3b2a231e2bb214e20739ba6b1678813839f61"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12"
+        }
+      ],
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_barra/02_intermediaria/3",
+      "exerciseId": "triceps_polia_barra",
+      "phase": "02_intermediaria",
+      "attempt": 3,
+      "revisionId": "initial",
+      "revisionAttempt": 3,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "eb95e5505e918a25060c83d823c6660817d079aa5a56d1ce97d0aeb34711a982",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_barra/02_intermediaria-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-ff5509e0-3d73-4ab5-9eab-7842067784f9.png",
+      "promptSha256": "00492041e521258a2feace4786ac52636700c14a4f67ad619cbe3761eb89b443",
+      "reason": "Não melhorou a fase intermediária: próxima da inicial ou sem progressão central.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_v/02_intermediaria/3",
+      "exerciseId": "triceps_polia_v",
+      "phase": "02_intermediaria",
+      "attempt": 3,
+      "revisionId": "initial",
+      "revisionAttempt": 3,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "00c4829558e49be9c3d63628e7fc875f76054d023de69f7ad2cdb89aa1815447",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_v/02_intermediaria-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-9d0912b5-1df6-4d89-b717-d93f7285ea38.png",
+      "promptSha256": "76765d50e16f454339e45e7015ff9c317643f1a2ff740f248d018502d7dcf6b4",
+      "reason": "Não melhorou a fase intermediária: próxima da inicial ou sem progressão central.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_mergulho_banco/02_intermediaria/3",
+      "exerciseId": "triceps_mergulho_banco",
+      "phase": "02_intermediaria",
+      "attempt": 3,
+      "revisionId": "initial",
+      "revisionAttempt": 3,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "a965b0496a44c26d998698c75a8b5e7c00cc25608e2d660bd5f515ebf6111350",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_mergulho_banco/02_intermediaria-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-90f2e8d0-0517-4efa-8b5f-393001720cc6.png",
+      "promptSha256": "ae28084ae34f982eb8ed186afe3429d585cb443294848453d79523b4265afe3f",
+      "reason": "Não melhorou a fase intermediária: próxima da inicial ou sem progressão central.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/02_intermediaria/2",
+      "exerciseId": "triceps_maquina",
+      "phase": "02_intermediaria",
+      "attempt": 2,
+      "revisionId": "initial",
+      "revisionAttempt": 2,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "f05bb87a00f221f0df32afc4fa6843c9891ca18ca6b6045018e53b17204e6d3e",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/02_intermediaria-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-4298b8c7-6a95-419f-854f-e4fa25364d85.png",
+      "promptSha256": "65ebd3d37404220caa759627fb1f410a43fc502fd1f8b263bb32e375eb6bfe90",
+      "reason": "Substituída na correção cirúrgica r1 após revisão humana: Best retained machine geometry after three bounded attempts, but midpoint overshoots toward final. Select as draft needing human review; do not claim 50% amplitude achieved.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/03_final/2",
+      "exerciseId": "triceps_maquina",
+      "phase": "03_final",
+      "attempt": 2,
+      "revisionId": "initial",
+      "revisionAttempt": 2,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "03aa494c5f1fc01a17272c9b541eb2d1f6142f2b3d559061c484f6c9e6f48064",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/03_final-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-a9ef2781-4575-4dc2-aefb-03901a34a0c9.png",
+      "promptSha256": "1b17307055e749ea34616751f7a144be2c54c811885f18a24971ba8490ef5082",
+      "reason": "Substituída na correção cirúrgica r1 após revisão humana: Both forearms and same connected lever handles extended forward/down around fixed paired pivots; stationary chassis, pad, scene, feet and camera retained.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_barra/02_intermediaria/4",
+      "exerciseId": "triceps_polia_barra",
+      "phase": "02_intermediaria",
+      "attempt": 4,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "eff3435380914be0f9aea3e20b2e08cd50e53a68fe41cc98c5fbde3b92c269c9",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_barra/02_intermediaria-attempt-04.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-18567fb7-74d0-4390-be61-fcfc93e625e8.png",
+      "promptSha256": "16ff2a21d5c53033a22d28fd3b374326a6e44517d4796e9a11536e3514933f4b",
+      "reason": "02 repete praticamente a flexão de 01; mãos e barra não atingem o meio real da amplitude.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_v/02_intermediaria/4",
+      "exerciseId": "triceps_polia_v",
+      "phase": "02_intermediaria",
+      "attempt": 4,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "7e23f4e02f9ce8fc32fa292e5a123967c2dd5088388be3418d188dab9ca8f81f",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_v/02_intermediaria-attempt-04.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-a44bb141-3d22-481d-87c4-63c6f5fbc35d.png",
+      "promptSha256": "b3949156294294c2590044673ad99c9ebc46f4c8919c8bec0a1f1cce5bcc4c9f",
+      "reason": "02 melhora a separação, mas ainda fica mais próxima de 01 do que de 03; falta extensão intermediária.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_frances_unilateral_cabo/03_final/3",
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "phase": "03_final",
+      "attempt": 3,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "46953dd239adbb09edd5923ef2cf6ff762cf6868c64460e065b627b02f82bc8a",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/03_final-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-6dcbf317-2912-4ab7-9577-af7b99292a2c.png",
+      "promptSha256": "71b0c67fb81d068a82049c2c8918c9ccbccf207a7b331cf4f8e378e22dfc8afd",
+      "reason": "A mão/pegador encostam no limite superior; falta margem completa sem alterar câmera.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/01_inicial/3",
+      "exerciseId": "triceps_maquina",
+      "phase": "01_inicial",
+      "attempt": 3,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "c48321dcebcde9d726a3bc79c78547380fb22eb1c7b06db85ee643668d85e70e",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/01_inicial-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-378851b6-0873-4fa4-bc4b-2745d12d7631.png",
+      "promptSha256": "abfee12cedfca836cafd98701db7e1c587c2b17e82589b2173f9b02124cedc04",
+      "reason": "Pivôs visíveis ficam à frente dos cotovelos, em vez de aproximadamente coaxiais; não usar como lock.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_mergulho_banco/02_intermediaria/4",
+      "exerciseId": "triceps_mergulho_banco",
+      "phase": "02_intermediaria",
+      "attempt": 4,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "dd8b670bd022b99b026376bc0785946411ead3e7a2047cd0485de46534b84013",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_mergulho_banco/02_intermediaria-attempt-04.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-972451af-6eb1-4c2e-8b26-a521ba575082.png",
+      "promptSha256": "4a988589b7489e095b4448f5ce3d0d1ac11007f00e8e97249ecf54bcfe96bf33",
+      "reason": "Altura do tronco/quadril e flexão continuam quase iguais ao fundo de 01.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_barra/02_intermediaria/5",
+      "exerciseId": "triceps_polia_barra",
+      "phase": "02_intermediaria",
+      "attempt": 5,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 2,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "581af9f661ed0799f8eedb29e7594988b7e395f6b9388a02ad70e76d060ad121",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_barra/02_intermediaria-attempt-05.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-e3306283-0cd3-40eb-92e2-4d38adcc115f.png",
+      "promptSha256": "39bc70f80e60bc80149e71f009433ce156e5497057a41addd9e3a2bf258a4e28",
+      "prompt": "Edit the FIRST image of the straight-bar pushdown, moving ONLY the forearms/hands/bar DOWN through another 25 degrees of elbow extension. First image is an unsuccessful middle that still looks like the start. Second image is the fixed true 01/start; third is the fixed true 03/end; fourth is official identity ONLY. Output one full 1024x1536 portrait photographic frame for 02 at HALF the actual angular range between images 2 and 3. Both forearms must slope diagonally DOWN and FORWARD approximately 40 degrees below horizontal, unmistakably halfway between near-horizontal start and nearly-vertical finish. Move the hands and short straight horizontal bar LOWER than the first image, to the lower abdomen/waistband region, roughly wrists at y=730 in this unchanged 1536px view, NOT y=650 start and NOT y=800 finish. Keep the shoulders and both elbow hinges in their exact starting locations: upper arms beside ribs, no shoulder movement or lowered elbows. Keep the entire face, head, clothes, shirt pattern, feet, torso, body scale, camera, tower, dumbbell rack, lighting, wall and floor IDENTICAL to first/second reference. Maintain cable, center carabiner, short rigid straight bar and same two anatomical pronated grips. Do not reproduce the start pose. Do not fully straighten the arms. No logos, symbols, tattoos, text, arrows or diagrams. No reframing, zoom, perspective shift or new apparatus.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\attempts\\triceps_polia_barra\\02_intermediaria-attempt-04.png",
+          "sha256": "eff3435380914be0f9aea3e20b2e08cd50e53a68fe41cc98c5fbde3b92c269c9",
+          "snapshotPath": "attempts/triceps_polia_barra/02_intermediaria-attempt-04.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_barra\\01_inicial.png",
+          "sha256": "c4751d1657f76009ffc609adfef57aab89eb3c5e9a14fa73d53a8c5a761651fa",
+          "snapshotPath": "attempts/triceps_polia_barra/01_inicial-attempt-01.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_barra\\03_final.png",
+          "sha256": "e8a478bcb1088ee9587084a32dadc31259ad3f32ea59ebbc70dd22a722ad18bb",
+          "snapshotPath": "attempts/triceps_polia_barra/03_final-attempt-01.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\attempts\\triceps_polia_barra\\02_intermediaria-attempt-04.png",
+          "sha256": "eff3435380914be0f9aea3e20b2e08cd50e53a68fe41cc98c5fbde3b92c269c9",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_barra\\01_inicial.png",
+          "sha256": "c4751d1657f76009ffc609adfef57aab89eb3c5e9a14fa73d53a8c5a761651fa",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_barra\\03_final.png",
+          "sha256": "e8a478bcb1088ee9587084a32dadc31259ad3f32ea59ebbc70dd22a722ad18bb",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "reason": "Forearms now follow a diagonal halfway arc; distinct from preserved start and finish with stable camera, body and straight-bar accessory.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_polia_v/02_intermediaria/5",
+      "exerciseId": "triceps_polia_v",
+      "phase": "02_intermediaria",
+      "attempt": 5,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 2,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "fb98b9d242ac9caad28470cfc7840b0bbb03df1bb19f4cac4ef3805e6bbf0f25",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_v/02_intermediaria-attempt-05.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-c9f6ab2a-1e0a-4790-8c60-27748a21519c.png",
+      "promptSha256": "ca36587ff91a4d3010938425ba88cca626fcb9a28fa3c9a8b98c18d533144328",
+      "prompt": "Edit ONLY forearms/hands and V attachment in FIRST image. It is an unsuccessful middle too close to the start. Second image is exact fixed 01/start; third is exact fixed 03/final; fourth is official identity. Create 02 at approximately 50% of their REAL ELBOW angular range. Open both elbows further than in first image: forearms now slope DOWN and FORWARD 40-45 degrees below horizontal, hands at waistband/lower abdomen, visibly LOWER than first/current position, roughly hands y=700-720 of the original 1536px portrait. This is midway on the same elbow-centered arc between upper waist start and upper thighs finish; DO NOT copy either endpoint. Lock shoulders, elbow hinges and upper arms against ribs, face, hair, beard, shirt texture, shorts/shoes, torso, feet, neutral wrists, tower, weight stack, taut cable, carabiner, wall, rack, lighting, exact camera/crop/body size. Keep the short rigid METAL V BAR with TWO slanted rubber grips and central apex exactly the same accessory, same grip; no rope or straight bar. Output ONE 1024x1536 photographic frame, no captions, logos, symbols, tattoos, arrows, diagrams, extra limbs or malformed obvious fingers.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\attempts\\triceps_polia_v\\02_intermediaria-attempt-04.png",
+          "sha256": "7e23f4e02f9ce8fc32fa292e5a123967c2dd5088388be3418d188dab9ca8f81f",
+          "snapshotPath": "attempts/triceps_polia_v/02_intermediaria-attempt-04.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_v\\01_inicial.png",
+          "sha256": "473494a8e4fe2944f427a4a84006cd7474b8384eeeb611062cd37f45ca24867d",
+          "snapshotPath": "attempts/triceps_polia_v/01_inicial-attempt-01.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_v\\03_final.png",
+          "sha256": "2e336dc9d25bae05037f54f7165ceeaf4a43675d7dce805e61574f0997a40d7c",
+          "snapshotPath": "attempts/triceps_polia_v/03_final-attempt-01.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\attempts\\triceps_polia_v\\02_intermediaria-attempt-04.png",
+          "sha256": "7e23f4e02f9ce8fc32fa292e5a123967c2dd5088388be3418d188dab9ca8f81f",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_v\\01_inicial.png",
+          "sha256": "473494a8e4fe2944f427a4a84006cd7474b8384eeeb611062cd37f45ca24867d",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_polia_v\\03_final.png",
+          "sha256": "2e336dc9d25bae05037f54f7165ceeaf4a43675d7dce805e61574f0997a40d7c",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "reason": "Approximately mid-amplitude elbow extension with same rigid V attachment and stable camera; both endpoints remain distinct.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_frances_unilateral_cabo/03_final/4",
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "phase": "03_final",
+      "attempt": 4,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 2,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "b81bc5c120c0e9ec75ad5af432c81047235d62a5216c61adbbdf484815a7fcb3",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/03_final-attempt-04.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-a3e26bb5-d4f0-44c8-ab38-7a5439b1ad89.png",
+      "promptSha256": "eec361571a6741de69edf6c4120357296c7155ed207f7d8edc5bb60cee8d5505",
+      "reason": "Hand is inside but remains too close to top edge (about 10 pixels); final needs a plainly visible gray margin.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_mergulho_banco/02_intermediaria/5",
+      "exerciseId": "triceps_mergulho_banco",
+      "phase": "02_intermediaria",
+      "attempt": 5,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 2,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "d8aa8767218e6af0b93291e1d5f4dca4ed2745755bf814ee39a5eda0f4283745",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_mergulho_banco/02_intermediaria-attempt-05.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-8b1df88a-a258-41d2-9f5a-d3c83e6e6b2e.png",
+      "promptSha256": "0f7bfc8c3610ee67d9c84460b5fe7134ac324ef88cc9b684027912c2d2bab9bb",
+      "reason": "Middle is improved but body height still nearer bottom; raise a little further without changing scale or supports.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/01_inicial/4",
+      "exerciseId": "triceps_maquina",
+      "phase": "01_inicial",
+      "attempt": 4,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 2,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "ab8bbecdfdd58230c2d6286e7001a5deb42251fbe64dc8ffe2154703091d0f83",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/01_inicial-attempt-04.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-e7e1f20e-3d06-45a3-95b9-d3b15fb7e70a.png",
+      "promptSha256": "37452630d197ea7f2640be95874fd3e5d094a537228195f8e317108b11feea60",
+      "reason": "Outboard elbow-level pivots improved, but near pivot support ends ambiguously by lap; clarify its continuous connection to stationary frame.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_frances_unilateral_cabo/03_final/5",
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "phase": "03_final",
+      "attempt": 5,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 3,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "298f13f23caea409f9175e741a148e3513bf083190438f7e2dbb7182c352b2f4",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/03_final-attempt-05.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-046d865b-3f6b-479c-97a1-22117cdd49b9.png",
+      "promptSha256": "9cf33f04b8668a8e94539683d04650400e49fc97fdf3d3f306f2ee7c8cec996f",
+      "prompt": "Make ONE surgical repair to FIRST photo, the final of single-right-arm overhead LOW-CABLE triceps extension. All hand/D-handle pixels currently are dangerously close to top. Output the SAME photo/camera/body with the complete hand and complete D-handle lowered just 30 pixels so the topmost finger or handle has a clear gray 40-pixel margin above it. Leave right upper arm and elbow joint, shoulder, face, torso, left hand on hip, feet, camera crop, rack, tower, low pulley and floor EXACTLY fixed. Accomplish this with a slight additional soft elbow bend and neutral wrist/grip orientation toward the front, never a shorter forearm or resized athlete. Final elbow around 160-170 degrees, visibly more extended than fixed 02. Anatomical normal hand, every finger attached and natural secure grip on the same small D-handle. Empty gray wall above ALL fingers and handle, no contact with image edge. Second photo fixed 01, third fixed 02, fourth official identity. Preserve same dark gray texture shirt, shorts/shoes, no logos/symbols/tattoos/text. Continuous taut cable from same D-handle behind shoulder to same low pulley, avoiding body. 1024x1536 single photorealistic frame. Camera MUST NOT move or zoom out.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\attempts\\triceps_frances_unilateral_cabo\\03_final-attempt-04.png",
+          "sha256": "b81bc5c120c0e9ec75ad5af432c81047235d62a5216c61adbbdf484815a7fcb3",
+          "snapshotPath": "attempts/triceps_frances_unilateral_cabo/03_final-attempt-04.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_frances_unilateral_cabo\\01_inicial.png",
+          "sha256": "e6a392a7ef20de6f10314058127dc67d46c0158a5b9df91f080521d2477c66f2",
+          "snapshotPath": "attempts/triceps_frances_unilateral_cabo/01_inicial-attempt-02.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_frances_unilateral_cabo\\02_intermediaria.png",
+          "sha256": "00b6fb319181006bab2b0505e2004198055a4cb55f3541d18621240b6c58de12",
+          "snapshotPath": "attempts/triceps_frances_unilateral_cabo/02_intermediaria-attempt-01.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\attempts\\triceps_frances_unilateral_cabo\\03_final-attempt-04.png",
+          "sha256": "b81bc5c120c0e9ec75ad5af432c81047235d62a5216c61adbbdf484815a7fcb3",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_frances_unilateral_cabo\\01_inicial.png",
+          "sha256": "e6a392a7ef20de6f10314058127dc67d46c0158a5b9df91f080521d2477c66f2",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_frances_unilateral_cabo\\02_intermediaria.png",
+          "sha256": "00b6fb319181006bab2b0505e2004198055a4cb55f3541d18621240b6c58de12",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "reason": "Best full-grip framing after three new attempts: hand and handle entirely inside with gray margin. Retain NEEDS_HUMAN_REVIEW because raised elbow/upper-arm geometry drifts relative to the two protected phases.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_mergulho_banco/02_intermediaria/6",
+      "exerciseId": "triceps_mergulho_banco",
+      "phase": "02_intermediaria",
+      "attempt": 6,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 3,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "d4adb477fe8f95d6d5b575bac69517da44d4049a6519ce7604e8a7b7c33c0136",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_mergulho_banco/02_intermediaria-attempt-06.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-0279977e-4740-420e-a37b-088d038404e3.png",
+      "promptSha256": "f74001ec75f23abb76330742bf2ccc797bd7068938f8feff03f9abf2b21d2ab8",
+      "prompt": "FIRST photo is an almost-correct middle of one-bench dip with heels on FLOOR. Edit only the dip pose: RAISE head/shoulders/chest/hips together another 20-25 pixels compared to FIRST, while preserving EXACT body scale and both hand positions on bench and both heel floor positions. Put head crown at approximately y=205 in unchanged 1024x1536 portrait. Second photo is fixed bottom/01, third fixed top/03. Visually midpoint between those two references, around 50% ascent or descent, elbows half extended about 130-135 degrees, neither the deeply bent start nor the near-straight top. Keep hips very close to bench front and shoulders down, no forward collapse. Same ONE black bench, rack, black weights, floor seams, gray wall/light, same camera/lens/height/crop/athlete size and side. Same official face/hair/beard/proportions/plain patterned gray shirt/black shorts and shoes as fourth image. The first middle photo has correct body scale; DO NOT make him smaller or recompose. Hands and heels anchored; no foot motion, no sitting, no second bench. Single photographic frame no logo, symbol, tattoo, text or diagram.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\attempts\\triceps_mergulho_banco\\02_intermediaria-attempt-05.png",
+          "sha256": "d8aa8767218e6af0b93291e1d5f4dca4ed2745755bf814ee39a5eda0f4283745",
+          "snapshotPath": "attempts/triceps_mergulho_banco/02_intermediaria-attempt-05.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_mergulho_banco\\01_inicial.png",
+          "sha256": "1896faba2b23796cd1af44fe9882c5c1b65e503e0e272a531bae15ee37cbab34",
+          "snapshotPath": "attempts/triceps_mergulho_banco/01_inicial-attempt-01.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_mergulho_banco\\03_final.png",
+          "sha256": "60473b233d4c994bb54b3a0e142fe9b32f0a6be051bc2ebde34361ecd065986f",
+          "snapshotPath": "attempts/triceps_mergulho_banco/03_final-attempt-01.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\attempts\\triceps_mergulho_banco\\02_intermediaria-attempt-05.png",
+          "sha256": "d8aa8767218e6af0b93291e1d5f4dca4ed2745755bf814ee39a5eda0f4283745",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_mergulho_banco\\01_inicial.png",
+          "sha256": "1896faba2b23796cd1af44fe9882c5c1b65e503e0e272a531bae15ee37cbab34",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_mergulho_banco\\03_final.png",
+          "sha256": "60473b233d4c994bb54b3a0e142fe9b32f0a6be051bc2ebde34361ecd065986f",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "reason": "Pose visibly between bottom and top, hands/heels anchored, hips close to bench, elbows partly opened; one bench follows canonical floor-heel execution steps.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/01_inicial/5",
+      "exerciseId": "triceps_maquina",
+      "phase": "01_inicial",
+      "attempt": 5,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 3,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "eaa9dedb28b8714e2833540d4be29671cc24c76c58261d240d22f4cfc0c018a7",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/01_inicial-attempt-05.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-621d9ea8-f59a-4eab-8a89-ee3bc562d6b6.png",
+      "promptSha256": "86b6a44da2d98c5328902551b5589b3e69674ee5cb8161a9fa1453d766736ff8",
+      "prompt": "FIRST photo is the nearly-correct INITIAL 01 of a seated triceps EXTENSION machine. Preserve official athlete and entire pose, flexed elbows, real supported upper arms, hand grips, symmetric levers and elbow-level OUTBOARD circular pivots; preserve exact scene/camera/crop. Repair only the STATIONARY MACHINE SUPPORTS. The near right pivot has an ambiguous vertical black stem ending by the lap. Remove that dangling stem and instead mount the near circular elbow-level hub on a continuous sturdy bent black steel side bracket that goes OUTSIDE and BEHIND the athlete's right body outline to the outer right floor-mounted side rail. One continuous physically joined support from hub outward/right to side of backrest then down to floor base, visibly clear of upper arm, forearm, hip, thigh and leg. No steel through skin or through lap. Matching far elbow-level hub is supported by a corresponding stationary bracket connected to left tower/floor rail. Inclined upper-arm support pad mounted on real central support, padded seat/backrest securely connected to same welded floor chassis. Both circular hubs approximately coaxial with real elbows at distal pad edge. Handle-bearing levers are the ONLY moving pieces: rigid connected bars from each hub to same paired gripped handles, symmetry and plausible arc, no extra joints or floating parts. Show a credible weight-stack cable/link to far cam; all gears and levers remain mechanically connected. Second image identity, third environment style only. Keep full portrait and both planted feet, no different personal, clothing, logos, letters, numbers, symbols or tattoos. Do not modify pose or camera. 1024x1536 photorealism.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\attempts\\triceps_maquina\\01_inicial-attempt-04.png",
+          "sha256": "ab8bbecdfdd58230c2d6286e7001a5deb42251fbe64dc8ffe2154703091d0f83",
+          "snapshotPath": "attempts/triceps_maquina/01_inicial-attempt-04.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "snapshotPath": "references/ambiente-original.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\attempts\\triceps_maquina\\01_inicial-attempt-04.png",
+          "sha256": "ab8bbecdfdd58230c2d6286e7001a5deb42251fbe64dc8ffe2154703091d0f83",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "reason": "New near pivot connected by a visible continuous external steel support to floor chassis; matching paired levers and supported flexed elbows. Accepted as scene/camera/equipment lock for remaining machine frames.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/03_final/3",
+      "exerciseId": "triceps_maquina",
+      "phase": "03_final",
+      "attempt": 3,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 1,
+      "finalDisposition": "PILOT_SELECTED",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "f37b85598abe0a7fb55089b2a773703223efef3c44b5a2661c00e7d71ea611e5",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/03_final-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-eb2d0139-d5ef-4e19-9a29-5de308ffb503.png",
+      "promptSha256": "325a27e8bb8607dc8367dea8e72a180f306c4550f6c36f7bf68f7f13089a85c4",
+      "prompt": "Edit FIRST reference into the FINAL 03 of seated triceps elbow extension. First is the accepted new INITIAL 01 and is STRICT scene, exact camera, crop, equipment and athlete lock; second is official identity only. Keep every stationary part pixel-position stable: near round hub centered around x=758,y=610, far hub around x=425,y=570, the inclined upper-arm support pad, both circular pivots, steel side supports down to base, weight-stack tower, seat/backrest and floor chassis, gray wall, rack, light, whole apparent body size. Keep head/face, hair/beard/shirt, torso, shoulders, back against backrest, feet planted, BOTH UPPER ARMS resting on SAME pad with both anatomical elbow joints at SAME pivot locations. ONLY extend both elbows from flexed 90 to nearly straight 170 degrees. Forearms and BOTH SAME firmly gripped handles rotate FORWARD AND DOWN, away from face, through a constant-radius arc around their own fixed elbow-aligned pivots. Final hands are in front and below pad edge with forearms nearly collinear with supported upper arms. Both SHORT RIGID HANDLE-BEARING LEVERS rotate DOWN and FORWARD around the two fixed circular hubs; preserve lever lengths, handle shapes and spacing, same neutral grips, no new joint, no floating handle, no lever passing through flesh. The external curved steel support from near hub to outer floor rail is stationary and MUST remain exactly unchanged. Far cam stays connected to stack; plausible mechanical link, no biceps curl, chest press or dip. Hands anatomically normal, elbows soft not hyperextended, no moving shoulder or lifting arms off pad. No camera reframe, zoom, angle/crop/distance changes, no logos/symbols/tattoos/text. Output ONE 1024x1536 photorealistic image with complete machine and athlete.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_maquina\\01_inicial.png",
+          "sha256": "eaa9dedb28b8714e2833540d4be29671cc24c76c58261d240d22f4cfc0c018a7",
+          "snapshotPath": "attempts/triceps_maquina/01_inicial-attempt-05.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_maquina\\01_inicial.png",
+          "sha256": "eaa9dedb28b8714e2833540d4be29671cc24c76c58261d240d22f4cfc0c018a7",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "reason": "Both forearms and same connected lever handles extended forward/down around fixed paired pivots; stationary chassis, pad, scene, feet and camera retained.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/02_intermediaria/3",
+      "exerciseId": "triceps_maquina",
+      "phase": "02_intermediaria",
+      "attempt": 3,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "e01790ee8b59b1ab501bb6edc7b85b56501dc82aab624007fdd3ecf9d3b12f2b",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/02_intermediaria-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-8c02c877-55a6-4f94-8639-e57f3031c4b1.png",
+      "promptSha256": "61df1feedc1370660bb5c1f367e9ceafcff31f5e5215589108fbfe1c9dcecb33",
+      "reason": "Far pivot shifts upward relative to accepted endpoints, extra fork-like lever structure appears and handle-bearing bars shorten; stationary equipment lock fails.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/02_intermediaria/4",
+      "exerciseId": "triceps_maquina",
+      "phase": "02_intermediaria",
+      "attempt": 4,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 2,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "8aabf98d2b6b96b587c5a1ef520f8acab117ee062980bc50ec12049261ff451c",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/02_intermediaria-attempt-04.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-232ae872-3019-4ecd-989a-07ae4a256468.png",
+      "promptSha256": "971bff3977960b019537eac52200658dcbf0b6d2a3d75d1cf628628998a29f43",
+      "reason": "Stationary geometry improved, but hands/lever rotation return close to the flexed initial pose; midpoint distinction fails.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/02_intermediaria/5",
+      "exerciseId": "triceps_maquina",
+      "phase": "02_intermediaria",
+      "attempt": 5,
+      "revisionId": "human-review-r1",
+      "revisionAttempt": 3,
+      "finalDisposition": "EXCLUDED_FROM_FINAL_SEQUENCE",
+      "historicalAgentDisposition": "SELECTED_CANDIDATE",
+      "outputSha256": "8723a5b1dcbe469d3011c5cb6ca365b76eb528688a1586145c0589a9696029cd",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/02_intermediaria-attempt-05.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-37d0b819-afba-4c3c-a820-4bff21d107eb.png",
+      "promptSha256": "105c2b29137235286905ec0f12996eacf268b781794a0d34814ba0d7cb5b9d3c",
+      "prompt": "Make ONE surgical pose edit to FIRST image of triceps-extension machine. FIRST has correct fixed machine but is almost the INITIAL pose: MOVE BOTH HANDS AND HANDLES MUCH LOWER AND FARTHER FORWARD by extending ONLY the elbow hinges. Second is exact 01/start; third exact 03/end; fourth identity. Output 02, actual HALF angular arc between second and third. The NEW FOREARMS must point FORWARD/LEFT ALMOST HORIZONTALLY, only slightly upward (around 10-20 degrees above horizontal), NOT pointing up near face or chest. Put hands at approximately y=590-610 rather than current y=430 of the same 1024x1536 view, near the FRONT of the inclined upper-arm pad. Both hands are around elbow height, not raised to the face, not lowered onto thighs. Thus elbows partly extended about 130-135 degrees, neither flexed 01 nor straight 03. Keep anatomical elbows and BOTH UPPER ARMS resting in exact same place on the support pad; head, shoulders, back, torso, feet and entire camera/crop/body size fixed. ONLY the original two single rigid handle-bearing levers rotate DOWN/FORWARD around the EXACT original fixed two round pivots. Near pivot center x~758,y~610, far x~425,y~570 unchanged; near lever now points FORWARD/LEFT about horizontal with slight upward slope, same rigid length and same cylindrical transverse handle. Keep only original two moving levers: NO additional fork/extra bars/extra handle, NO relocating hub or shortening/telescoping lever. All stationary black machine pieces unchanged, curved near support to floor, far fixed support, seat/backrest, inclined pad, tower and welded chassis. Both natural anatomical hands grip exact original handles, neutral wrists. Same exact photo personal, shirt pattern without logo, hair/face/beard, black shorts/shoes, gray wall, floor, rack and light. Clearly DIFFERENT from raised-hand first/second and downward straight-arm third. Do not copy the first pose, do not reframe. One 1024x1536 photographic frame, no text/symbols/tattoos/diagrams.",
+      "referenceSnapshots": [
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\attempts\\triceps_maquina\\02_intermediaria-attempt-04.png",
+          "sha256": "8aabf98d2b6b96b587c5a1ef520f8acab117ee062980bc50ec12049261ff451c",
+          "snapshotPath": "attempts/triceps_maquina/02_intermediaria-attempt-04.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_maquina\\01_inicial.png",
+          "sha256": "eaa9dedb28b8714e2833540d4be29671cc24c76c58261d240d22f4cfc0c018a7",
+          "snapshotPath": "attempts/triceps_maquina/01_inicial-attempt-05.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_maquina\\03_final.png",
+          "sha256": "f37b85598abe0a7fb55089b2a773703223efef3c44b5a2661c00e7d71ea611e5",
+          "snapshotPath": "attempts/triceps_maquina/03_final-attempt-03.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "requestedPath": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "snapshotPath": "references/personal-oficial-original.png",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "referenceHashEvidence": [
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\attempts\\triceps_maquina\\02_intermediaria-attempt-04.png",
+          "sha256": "8aabf98d2b6b96b587c5a1ef520f8acab117ee062980bc50ec12049261ff451c",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_maquina\\01_inicial.png",
+          "sha256": "eaa9dedb28b8714e2833540d4be29671cc24c76c58261d240d22f4cfc0c018a7",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\exercises\\triceps_maquina\\03_final.png",
+          "sha256": "f37b85598abe0a7fb55089b2a773703223efef3c44b5a2661c00e7d71ea611e5",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        },
+        {
+          "path": "C:\\Projetos\\gymflow-ai\\docs\\media\\pilots\\GYMFLOW-MEDIA-PILOT-TRICEPS-001\\references\\personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "evidence": "HASHED_BEFORE_GENERATION"
+        }
+      ],
+      "reason": "Explicit human TWO_FRAME_EXCEPTION excludes midpoint; bytes retained locally.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_frances_unilateral_cabo/03_final/6",
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "phase": "03_final",
+      "attempt": 6,
+      "revisionId": "human-review-r2",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "1f9481512d96d93617faba0529db2182707bff4766d84c8e9a31cbbd1b7ff963",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/03_final-attempt-06.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-6eca1c98-19e3-4f35-92be-800509d33ce1.png",
+      "promptSha256": "e995fc9962712013b1bf66ec81636edbbd6d74105d2e6173c4041dbfdd68d004",
+      "reason": "Elbow and upper-arm contour shift rightward from frozen current 02; grip has too little margin above, final extension is not convincingly near-straight.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/02_intermediaria/6",
+      "exerciseId": "triceps_maquina",
+      "phase": "02_intermediaria",
+      "attempt": 6,
+      "revisionId": "human-review-r2",
+      "revisionAttempt": 1,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "eec4ee67b6e397320514de66f92b25469dec3881dcac7f482eb2fbc1d13d4a3c",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/02_intermediaria-attempt-06.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-279dbc04-f00c-42dd-b690-e86c480e970e.png",
+      "promptSha256": "4057d1b0e7cb6d99b8ef21fa72d4df29a51b9b6771a7fbf519997087b41b4d6f",
+      "reason": "Compared with both endpoints, midpoint hand/lever rotation remains nearer 01; distance 01→02 is visibly smaller than 02→03.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_frances_unilateral_cabo/03_final/7",
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "phase": "03_final",
+      "attempt": 7,
+      "revisionId": "human-review-r2",
+      "revisionAttempt": 2,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "52e178a744878acd6440ba9433ebb942f822a131013a5568ce4ff5e71ae8a585",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/03_final-attempt-07.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-0004ca93-7f31-43e1-9104-abd3de4d225d.png",
+      "promptSha256": "a55b1aee8e983e3fb600d827f90306945fd21fe5bc881f0b3c393102eac25c1d",
+      "reason": "Segunda e última tentativa R2 rejeitada: mão/manopla sem margem superior confortável, extensão ainda semelhante à intermediária; não supera claramente a candidata existente.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    },
+    {
+      "id": "triceps_maquina/02_intermediaria/7",
+      "exerciseId": "triceps_maquina",
+      "phase": "02_intermediaria",
+      "attempt": 7,
+      "revisionId": "human-review-r2",
+      "revisionAttempt": 2,
+      "finalDisposition": "UNSELECTED_ATTEMPT",
+      "historicalAgentDisposition": "UNSELECTED_ATTEMPT",
+      "outputSha256": "ce5855e3cee0dbd1872ba67bbec64b69a4bdc5f2cbdb45f0f40d45d860501494",
+      "localArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/02_intermediaria-attempt-07.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a0fd56-3ad3-7110-ac30-fb32e16d9155\\exec-a8cf9197-1cf5-47c6-b6fa-eb27240b704a.png",
+      "promptSha256": "bb5a9969887ed631855f05f0d2fc730415721d402a168af1dfb88d9d81e03daf",
+      "reason": "Segunda e última tentativa R2 rejeitada após inspeção ampliada: ponto médio visual melhor, mas alavanca mais distante encurtada e geometria/comprimento aparente das barras variam frente aos extremos preservados. Não atende EQUIPMENT LOCK; seleção preliminar retirada antes da entrega.",
+      "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL"
+    }
+  ]
+}

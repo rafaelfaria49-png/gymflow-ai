@@ -1,0 +1,1119 @@
+{
+  "schemaVersion": "2.0.0",
+  "pilotId": "GYMFLOW-MEDIA-PILOT-TRICEPS-001",
+  "status": "HUMAN_APPROVED_PILOT_STANDARD",
+  "date": "2026-10-03",
+  "humanReview": "PASS_WITH_ONE_CAVEAT_AND_ONE_TWO_FRAME_EXCEPTION",
+  "humanApprovalScope": "PILOT_VISUAL_STANDARD_ONLY",
+  "humanDecisionEvidence": {
+    "goal": "GYMFLOW-MEDIA-PILOT-CLOSE-AND-SKILL-125",
+    "date": "2026-10-03",
+    "source": "Explicit human GOAL-125 request",
+    "scope": "PILOT_VISUAL_STANDARD_ONLY",
+    "french": "Accept current 03_final with small elbow/upper-arm drift; execution remains understandable and usable.",
+    "machine": "Explicitly authorize TWO_FRAME_EXCEPTION using only 01_inicial and 03_final. Preserve and exclude 02_intermediaria."
+  },
+  "finalUsableFrames": 29,
+  "threeFrameSequences": 9,
+  "twoFrameSequences": 1,
+  "retainedLocalCandidateFiles": 30,
+  "localGenerationAttempts": 64,
+  "activeRuntimeManifestUpdated": false,
+  "runtimeApproval": "NOT_GRANTED",
+  "cdnChanged": false,
+  "modelGeneratorEffective": "NOT_DISCLOSED_BY_TOOL",
+  "localHistory": {
+    "root": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001",
+    "branch": "codex/media-pilot-triceps-001",
+    "commits": [
+      "0cea2210062a738e04418b1b8e087bad2bd62727",
+      "5fea5f561e5a8b37f4726ae5adfcdf877386e842",
+      "81de00def98f4f884014a6e644874b5b463ef209"
+    ],
+    "publication": "LOCAL_ONLY_DO_NOT_PUSH_HEAVY_HISTORY"
+  },
+  "references": [
+    {
+      "role": "OFFICIAL_PERSONAL_IDENTITY",
+      "path": "references/personal-oficial-original.png",
+      "originalPath": "C:/Users/rafae/Downloads/GYMFLOW_REFERENCIAS_GROK/GYMFLOW_REFERENCIAS_GROK/PERSONAL_OFICIAL_GYMFLOW.png",
+      "format": "png",
+      "width": 1672,
+      "height": 941,
+      "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+      "versioned": true,
+      "originalLocalCopy": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+      "status": "READY"
+    },
+    {
+      "role": "ENVIRONMENT_STYLE_ONLY",
+      "path": "references/ambiente-original.png",
+      "originalPath": "C:/Users/rafae/Downloads/Imagem do ChatGPT 2 de out. de 2026, 12_48_45 (1).png",
+      "format": "png",
+      "width": 941,
+      "height": 1672,
+      "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+      "versioned": true,
+      "originalLocalCopy": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+      "status": "READY_VISUAL_STANDARD"
+    }
+  ],
+  "generalContactSheetPath": "contact-sheets/lote-triceps-final.jpg",
+  "provenancePath": "provenance-essential.json",
+  "exercises": [
+    {
+      "id": "triceps_polia_corda",
+      "canonicalName": "Tríceps Polia com Corda",
+      "equipment": "Polia Alta e Corda",
+      "executionSteps": [
+        "Prenda a corda na polia alta.",
+        "Segure as pontas da corda e dê um pequeno passo para trás, inclinando ligeiramente o tronco.",
+        "Mantenha os cotovelos fixos ao lado do tronco.",
+        "Empurre a corda para baixo, estendendo totalmente os braços e abrindo a corda no final.",
+        "Suba lentamente até os braços formarem pouco mais de 90 graus."
+      ],
+      "camera": "3/4 frontal, altura do tórax; corpo inteiro e polia alta.",
+      "phaseConvention": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "sequencePolicy": "THREE_FRAME_STANDARD",
+      "pilotHumanDecision": "HUMAN_APPROVED_PILOT_STANDARD",
+      "humanApprovalScope": "PILOT_VISUAL_STANDARD_ONLY",
+      "humanDecisionEvidence": {
+        "goal": "GYMFLOW-MEDIA-PILOT-CLOSE-AND-SKILL-125",
+        "date": "2026-10-03",
+        "source": "Explicit human GOAL-125 request",
+        "scope": "PILOT_VISUAL_STANDARD_ONLY",
+        "french": "Accept current 03_final with small elbow/upper-arm drift; execution remains understandable and usable.",
+        "machine": "Explicitly authorize TWO_FRAME_EXCEPTION using only 01_inicial and 03_final. Preserve and exclude 02_intermediaria."
+      },
+      "caveat": null,
+      "midpointState": "SELECTED",
+      "agentReviewBeforeHumanDecision": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "PASS",
+        "PHASE_DISTINCTION": "PASS",
+        "notes": "Sequência visualmente coerente; flexão, extensão parcial e extensão com abertura da corda. Personal, câmera e cadeia cabo–carabiner–corda consistentes.",
+        "OVERALL": "CANDIDATE_OK",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING"
+      },
+      "frames": [
+        {
+          "phase": "01_inicial",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "5b0c0c5867b3f348a11328187002f01f6eaebb2bf5cb4a9585d81367308454ab",
+          "bytes": 2290181,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_polia_corda/01_inicial/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_polia_corda/01_inicial.png",
+            "relativeToLocalArchive": "exercises/triceps_polia_corda/01_inicial.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_corda/01_inicial-attempt-01.png",
+            "sha256": "5b0c0c5867b3f348a11328187002f01f6eaebb2bf5cb4a9585d81367308454ab"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "02_intermediaria",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "0b97dff43583dce043463653e13e76ae5861cfaadfed2538cd1a4b7ee2612fd7",
+          "bytes": 2145341,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_polia_corda/02_intermediaria/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_polia_corda/02_intermediaria.png",
+            "relativeToLocalArchive": "exercises/triceps_polia_corda/02_intermediaria.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_corda/02_intermediaria-attempt-01.png",
+            "sha256": "0b97dff43583dce043463653e13e76ae5861cfaadfed2538cd1a4b7ee2612fd7"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "03_final",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "6916872dd2f2e0cbd07b7731b0f880732da147bfb3df8663efb8daa5e6965875",
+          "bytes": 2145180,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_polia_corda/03_final/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_polia_corda/03_final.png",
+            "relativeToLocalArchive": "exercises/triceps_polia_corda/03_final.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_corda/03_final-attempt-01.png",
+            "sha256": "6916872dd2f2e0cbd07b7731b0f880732da147bfb3df8663efb8daa5e6965875"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      ],
+      "excludedFrames": []
+    },
+    {
+      "id": "triceps_polia_barra",
+      "canonicalName": "Tríceps na Polia com Barra Reta",
+      "equipment": "Polia Alta e Barra Reta",
+      "executionSteps": [
+        "Segure a barra reta na polia alta com pegada pronada, mãos na largura dos ombros.",
+        "Cole os cotovelos nas laterais do tronco.",
+        "Empurre a barra para baixo até estender os cotovelos por completo.",
+        "Retorne controladamente até os antebraços passarem da linha horizontal."
+      ],
+      "camera": "3/4 frontal, altura do tórax; corpo inteiro e polia alta.",
+      "phaseConvention": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "sequencePolicy": "THREE_FRAME_STANDARD",
+      "pilotHumanDecision": "HUMAN_APPROVED_PILOT_STANDARD",
+      "humanApprovalScope": "PILOT_VISUAL_STANDARD_ONLY",
+      "humanDecisionEvidence": {
+        "goal": "GYMFLOW-MEDIA-PILOT-CLOSE-AND-SKILL-125",
+        "date": "2026-10-03",
+        "source": "Explicit human GOAL-125 request",
+        "scope": "PILOT_VISUAL_STANDARD_ONLY",
+        "french": "Accept current 03_final with small elbow/upper-arm drift; execution remains understandable and usable.",
+        "machine": "Explicitly authorize TWO_FRAME_EXCEPTION using only 01_inicial and 03_final. Preserve and exclude 02_intermediaria."
+      },
+      "caveat": null,
+      "midpointState": "SELECTED",
+      "agentReviewBeforeHumanDecision": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "PASS",
+        "PHASE_DISTINCTION": "PASS",
+        "notes": "Correção r1: 02 selecionada na segunda tentativa nova (cumulativa 5). Antebraços diagonais e barra entre cintura e coxas, visualmente distinta dos extremos 01/03 preservados; câmera, corpo e acessório mantidos. Meio de amplitude aproximado por inspeção, sem medição cinemática.",
+        "OVERALL": "CANDIDATE_OK",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING",
+        "revisionId": "human-review-r1",
+        "method": "Full-size generated outputs and side-by-side triptychs; visual judgments are not calibrated angle measurements or human approval."
+      },
+      "frames": [
+        {
+          "phase": "01_inicial",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "c4751d1657f76009ffc609adfef57aab89eb3c5e9a14fa73d53a8c5a761651fa",
+          "bytes": 2299572,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_polia_barra/01_inicial/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_polia_barra/01_inicial.png",
+            "relativeToLocalArchive": "exercises/triceps_polia_barra/01_inicial.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_barra/01_inicial-attempt-01.png",
+            "sha256": "c4751d1657f76009ffc609adfef57aab89eb3c5e9a14fa73d53a8c5a761651fa"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "02_intermediaria",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "581af9f661ed0799f8eedb29e7594988b7e395f6b9388a02ad70e76d060ad121",
+          "bytes": 2047211,
+          "selectedAttempt": 5,
+          "provenanceId": "triceps_polia_barra/02_intermediaria/5",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_polia_barra/02_intermediaria.png",
+            "relativeToLocalArchive": "exercises/triceps_polia_barra/02_intermediaria.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_barra/02_intermediaria-attempt-05.png",
+            "sha256": "581af9f661ed0799f8eedb29e7594988b7e395f6b9388a02ad70e76d060ad121"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "03_final",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "e8a478bcb1088ee9587084a32dadc31259ad3f32ea59ebbc70dd22a722ad18bb",
+          "bytes": 2166856,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_polia_barra/03_final/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_polia_barra/03_final.png",
+            "relativeToLocalArchive": "exercises/triceps_polia_barra/03_final.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_barra/03_final-attempt-01.png",
+            "sha256": "e8a478bcb1088ee9587084a32dadc31259ad3f32ea59ebbc70dd22a722ad18bb"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      ],
+      "excludedFrames": []
+    },
+    {
+      "id": "triceps_polia_v",
+      "canonicalName": "Tríceps na Polia com Barra V",
+      "equipment": "Polia Alta e Barra V",
+      "executionSteps": [
+        "Segure a barra V na polia alta com pegada neutra inclinada.",
+        "Cotovelos colados ao tronco e pés na largura do quadril.",
+        "Empurre a barra para baixo até a extensão total dos cotovelos.",
+        "Suba de forma controlada mantendo os cotovelos no lugar."
+      ],
+      "camera": "3/4 frontal, altura do tórax; corpo inteiro e polia alta.",
+      "phaseConvention": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "sequencePolicy": "THREE_FRAME_STANDARD",
+      "pilotHumanDecision": "HUMAN_APPROVED_PILOT_STANDARD",
+      "humanApprovalScope": "PILOT_VISUAL_STANDARD_ONLY",
+      "humanDecisionEvidence": {
+        "goal": "GYMFLOW-MEDIA-PILOT-CLOSE-AND-SKILL-125",
+        "date": "2026-10-03",
+        "source": "Explicit human GOAL-125 request",
+        "scope": "PILOT_VISUAL_STANDARD_ONLY",
+        "french": "Accept current 03_final with small elbow/upper-arm drift; execution remains understandable and usable.",
+        "machine": "Explicitly authorize TWO_FRAME_EXCEPTION using only 01_inicial and 03_final. Preserve and exclude 02_intermediaria."
+      },
+      "caveat": null,
+      "midpointState": "SELECTED",
+      "agentReviewBeforeHumanDecision": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "PASS",
+        "PHASE_DISTINCTION": "PASS",
+        "notes": "Correção r1: 02 selecionada na segunda tentativa nova (cumulativa 5). Extensão parcial distinta dos extremos preservados, acessório V rígido e bilateral mantido, câmera e apoios consistentes.",
+        "OVERALL": "CANDIDATE_OK",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING",
+        "revisionId": "human-review-r1",
+        "method": "Full-size generated outputs and side-by-side triptychs; visual judgments are not calibrated angle measurements or human approval."
+      },
+      "frames": [
+        {
+          "phase": "01_inicial",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "473494a8e4fe2944f427a4a84006cd7474b8384eeeb611062cd37f45ca24867d",
+          "bytes": 2313090,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_polia_v/01_inicial/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_polia_v/01_inicial.png",
+            "relativeToLocalArchive": "exercises/triceps_polia_v/01_inicial.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_v/01_inicial-attempt-01.png",
+            "sha256": "473494a8e4fe2944f427a4a84006cd7474b8384eeeb611062cd37f45ca24867d"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "02_intermediaria",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "fb98b9d242ac9caad28470cfc7840b0bbb03df1bb19f4cac4ef3805e6bbf0f25",
+          "bytes": 2058367,
+          "selectedAttempt": 5,
+          "provenanceId": "triceps_polia_v/02_intermediaria/5",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_polia_v/02_intermediaria.png",
+            "relativeToLocalArchive": "exercises/triceps_polia_v/02_intermediaria.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_v/02_intermediaria-attempt-05.png",
+            "sha256": "fb98b9d242ac9caad28470cfc7840b0bbb03df1bb19f4cac4ef3805e6bbf0f25"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "03_final",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "2e336dc9d25bae05037f54f7165ceeaf4a43675d7dce805e61574f0997a40d7c",
+          "bytes": 2169804,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_polia_v/03_final/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_polia_v/03_final.png",
+            "relativeToLocalArchive": "exercises/triceps_polia_v/03_final.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_polia_v/03_final-attempt-01.png",
+            "sha256": "2e336dc9d25bae05037f54f7165ceeaf4a43675d7dce805e61574f0997a40d7c"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      ],
+      "excludedFrames": []
+    },
+    {
+      "id": "triceps_frances_haltere",
+      "canonicalName": "Tríceps Francês Sentado com Haltere",
+      "equipment": "Haltere e Banco",
+      "executionSteps": [
+        "Sente no banco e segure um haltere com as duas mãos acima da cabeça.",
+        "Mantenha os cotovelos apontando para frente, próximos à cabeça.",
+        "Desça o haltere atrás da cabeça dobrando apenas os cotovelos.",
+        "Estenda os braços de volta ao topo contraindo o tríceps."
+      ],
+      "camera": "3/4 lateral ligeiramente frontal; cabeça, cotovelos, haltere, banco e pés visíveis.",
+      "phaseConvention": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "sequencePolicy": "THREE_FRAME_STANDARD",
+      "pilotHumanDecision": "HUMAN_APPROVED_PILOT_STANDARD",
+      "humanApprovalScope": "PILOT_VISUAL_STANDARD_ONLY",
+      "humanDecisionEvidence": {
+        "goal": "GYMFLOW-MEDIA-PILOT-CLOSE-AND-SKILL-125",
+        "date": "2026-10-03",
+        "source": "Explicit human GOAL-125 request",
+        "scope": "PILOT_VISUAL_STANDARD_ONLY",
+        "french": "Accept current 03_final with small elbow/upper-arm drift; execution remains understandable and usable.",
+        "machine": "Explicitly authorize TWO_FRAME_EXCEPTION using only 01_inicial and 03_final. Preserve and exclude 02_intermediaria."
+      },
+      "caveat": null,
+      "midpointState": "SELECTED",
+      "agentReviewBeforeHumanDecision": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "PASS",
+        "PHASE_DISTINCTION": "PASS",
+        "notes": "Personal, banco e câmera consistentes; um haltere segurado por duas mãos, com progressão visível da extensão. Pés e tronco visualmente estáveis.",
+        "OVERALL": "CANDIDATE_OK",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING"
+      },
+      "frames": [
+        {
+          "phase": "01_inicial",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "29289d178d0c2b138ab3fbe1d1fe9efabacb68674683e7448e626af7559d6de7",
+          "bytes": 2396199,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_frances_haltere/01_inicial/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_frances_haltere/01_inicial.png",
+            "relativeToLocalArchive": "exercises/triceps_frances_haltere/01_inicial.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_haltere/01_inicial-attempt-01.png",
+            "sha256": "29289d178d0c2b138ab3fbe1d1fe9efabacb68674683e7448e626af7559d6de7"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "02_intermediaria",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "02d6415b7c35fba0f9c339d1eb55f82e09f98c750668c10efc46105964a29113",
+          "bytes": 2275961,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_frances_haltere/02_intermediaria/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_frances_haltere/02_intermediaria.png",
+            "relativeToLocalArchive": "exercises/triceps_frances_haltere/02_intermediaria.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_haltere/02_intermediaria-attempt-01.png",
+            "sha256": "02d6415b7c35fba0f9c339d1eb55f82e09f98c750668c10efc46105964a29113"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "03_final",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "1dbe2d32cec236e88770427a9a92206de1285ee1b087529f422ad938cba6673c",
+          "bytes": 2249112,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_frances_haltere/03_final/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_frances_haltere/03_final.png",
+            "relativeToLocalArchive": "exercises/triceps_frances_haltere/03_final.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_haltere/03_final-attempt-01.png",
+            "sha256": "1dbe2d32cec236e88770427a9a92206de1285ee1b087529f422ad938cba6673c"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      ],
+      "excludedFrames": []
+    },
+    {
+      "id": "triceps_frances_unilateral_cabo",
+      "canonicalName": "Tríceps Francês Unilateral no Cabo",
+      "equipment": "Polia Baixa",
+      "executionSteps": [
+        "Fique de costas para a polia baixa segurando a manopla individual com uma mão atrás da cabeça.",
+        "Mantenha o cotovelo apontado verticalmente para cima próximo à orelha.",
+        "Estenda o braço para cima e para frente em direção ao teto contraindo o tríceps.",
+        "Retorne lentamente até o estiramento máximo da cabeça longa atrás da nuca."
+      ],
+      "camera": "3/4 lateral do braço direito, rosto em perfil; torre atrás e polia baixa visível.",
+      "phaseConvention": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "sequencePolicy": "THREE_FRAME_STANDARD",
+      "pilotHumanDecision": "ACCEPTED_WITH_CAVEAT",
+      "humanApprovalScope": "PILOT_VISUAL_STANDARD_ONLY",
+      "humanDecisionEvidence": {
+        "goal": "GYMFLOW-MEDIA-PILOT-CLOSE-AND-SKILL-125",
+        "date": "2026-10-03",
+        "source": "Explicit human GOAL-125 request",
+        "scope": "PILOT_VISUAL_STANDARD_ONLY",
+        "french": "Accept current 03_final with small elbow/upper-arm drift; execution remains understandable and usable.",
+        "machine": "Explicitly authorize TWO_FRAME_EXCEPTION using only 01_inicial and 03_final. Preserve and exclude 02_intermediaria."
+      },
+      "caveat": "Pequeno drift do cotovelo/braço superior em 03_final; execução continua compreensível e utilizável.",
+      "midpointState": "SELECTED",
+      "agentReviewBeforeHumanDecision": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "NEEDS_HUMAN_REVIEW",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+        "PHASE_DISTINCTION": "NEEDS_HUMAN_REVIEW",
+        "notes": "R2 encerrada com duas novas tentativas rejeitadas. Mantida byte-for-byte a candidata R1 (cumulativa 5), cuja mão/manopla têm margem superior, mas o cotovelo e a geometria do braço superior variam em relação a 02. Novas tentativas não resolveram simultaneamente elbow lock, extensão final e margem. ANATOMY, BIOMECHANICS e PHASE_DISTINCTION seguem NEEDS_HUMAN_REVIEW; nenhuma tentativa adicional.",
+        "OVERALL": "NEEDS_HUMAN_REVIEW",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING",
+        "revisionId": "human-review-r2",
+        "method": "Full-size generated outputs and side-by-side triptychs; visual judgments are not calibrated angle measurements or human approval."
+      },
+      "frames": [
+        {
+          "phase": "01_inicial",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "e6a392a7ef20de6f10314058127dc67d46c0158a5b9df91f080521d2477c66f2",
+          "bytes": 2126247,
+          "selectedAttempt": 2,
+          "provenanceId": "triceps_frances_unilateral_cabo/01_inicial/2",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_frances_unilateral_cabo/01_inicial.png",
+            "relativeToLocalArchive": "exercises/triceps_frances_unilateral_cabo/01_inicial.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/01_inicial-attempt-02.png",
+            "sha256": "e6a392a7ef20de6f10314058127dc67d46c0158a5b9df91f080521d2477c66f2"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "02_intermediaria",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "00b6fb319181006bab2b0505e2004198055a4cb55f3541d18621240b6c58de12",
+          "bytes": 2088426,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_frances_unilateral_cabo/02_intermediaria/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_frances_unilateral_cabo/02_intermediaria.png",
+            "relativeToLocalArchive": "exercises/triceps_frances_unilateral_cabo/02_intermediaria.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/02_intermediaria-attempt-01.png",
+            "sha256": "00b6fb319181006bab2b0505e2004198055a4cb55f3541d18621240b6c58de12"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "03_final",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "298f13f23caea409f9175e741a148e3513bf083190438f7e2dbb7182c352b2f4",
+          "bytes": 1990520,
+          "selectedAttempt": 5,
+          "provenanceId": "triceps_frances_unilateral_cabo/03_final/5",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_frances_unilateral_cabo/03_final.png",
+            "relativeToLocalArchive": "exercises/triceps_frances_unilateral_cabo/03_final.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/03_final-attempt-05.png",
+            "sha256": "298f13f23caea409f9175e741a148e3513bf083190438f7e2dbb7182c352b2f4"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      ],
+      "excludedFrames": []
+    },
+    {
+      "id": "triceps_testa",
+      "canonicalName": "Tríceps Testa com Barra W",
+      "equipment": "Banco e Barra W",
+      "executionSteps": [
+        "Deite-se no banco reto segurando a barra W na pegada média.",
+        "Estenda os braços verticalmente sobre o peito.",
+        "Mantendo os braços parados do cotovelo ao ombro, dobre os cotovelos descendo a barra em direção à testa.",
+        "Aproxime a barra da testa lentamente e empurre-a de volta para cima."
+      ],
+      "camera": "3/4 lateral elevada, eixo do banco em diagonal no retrato; testa, cotovelos, barra e pés visíveis.",
+      "phaseConvention": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "sequencePolicy": "THREE_FRAME_STANDARD",
+      "pilotHumanDecision": "HUMAN_APPROVED_PILOT_STANDARD",
+      "humanApprovalScope": "PILOT_VISUAL_STANDARD_ONLY",
+      "humanDecisionEvidence": {
+        "goal": "GYMFLOW-MEDIA-PILOT-CLOSE-AND-SKILL-125",
+        "date": "2026-10-03",
+        "source": "Explicit human GOAL-125 request",
+        "scope": "PILOT_VISUAL_STANDARD_ONLY",
+        "french": "Accept current 03_final with small elbow/upper-arm drift; execution remains understandable and usable.",
+        "machine": "Explicitly authorize TWO_FRAME_EXCEPTION using only 01_inicial and 03_final. Preserve and exclude 02_intermediaria."
+      },
+      "caveat": null,
+      "midpointState": "SELECTED",
+      "agentReviewBeforeHumanDecision": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "PASS",
+        "PHASE_DISTINCTION": "PASS",
+        "notes": "Barra W e pegada consistentes. Inicial refinada mais próxima da testa; fases distintas com apoios, banco, câmera e corpo preservados.",
+        "OVERALL": "CANDIDATE_OK",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING"
+      },
+      "frames": [
+        {
+          "phase": "01_inicial",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "a3cb0379f6fdb494c045e6de5ae8213863ed132a8d8cbb5e9d7fabe92cc0ea3d",
+          "bytes": 2327311,
+          "selectedAttempt": 2,
+          "provenanceId": "triceps_testa/01_inicial/2",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_testa/01_inicial.png",
+            "relativeToLocalArchive": "exercises/triceps_testa/01_inicial.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa/01_inicial-attempt-02.png",
+            "sha256": "a3cb0379f6fdb494c045e6de5ae8213863ed132a8d8cbb5e9d7fabe92cc0ea3d"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "02_intermediaria",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "9ffb54871c3a67813018931b76196a88da20a0ec397fefe9ba8f8f589b18a5b8",
+          "bytes": 2251167,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_testa/02_intermediaria/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_testa/02_intermediaria.png",
+            "relativeToLocalArchive": "exercises/triceps_testa/02_intermediaria.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa/02_intermediaria-attempt-01.png",
+            "sha256": "9ffb54871c3a67813018931b76196a88da20a0ec397fefe9ba8f8f589b18a5b8"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "03_final",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "1c1602599212875b057c0919b2fcf2374d8fadbb72bb0c15ae55fef35fc6d78b",
+          "bytes": 2290050,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_testa/03_final/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_testa/03_final.png",
+            "relativeToLocalArchive": "exercises/triceps_testa/03_final.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa/03_final-attempt-01.png",
+            "sha256": "1c1602599212875b057c0919b2fcf2374d8fadbb72bb0c15ae55fef35fc6d78b"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      ],
+      "excludedFrames": []
+    },
+    {
+      "id": "triceps_testa_cabo",
+      "canonicalName": "Tríceps Testa no Cabo com Corda",
+      "equipment": "Polia Baixa, Banco Reto e Corda",
+      "executionSteps": [
+        "Coloque um banco reto próximo à polia baixa conectada com a corda.",
+        "Deite-se no banco com a cabeça voltada para a torre e segure as extremidades da corda atrás da cabeça.",
+        "Mantenha os cotovelos fixos apontados para o teto.",
+        "Estenda os cotovelos puxando a corda para cima e abrindo as pontas no pico de contração.",
+        "Retorne de forma controlada flexionando os braços sem mover a posição dos cotovelos."
+      ],
+      "camera": "3/4 lateral elevada; cabeça voltada à torre, banco, cotovelos e cabo sem obstrução.",
+      "phaseConvention": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "sequencePolicy": "THREE_FRAME_STANDARD",
+      "pilotHumanDecision": "HUMAN_APPROVED_PILOT_STANDARD",
+      "humanApprovalScope": "PILOT_VISUAL_STANDARD_ONLY",
+      "humanDecisionEvidence": {
+        "goal": "GYMFLOW-MEDIA-PILOT-CLOSE-AND-SKILL-125",
+        "date": "2026-10-03",
+        "source": "Explicit human GOAL-125 request",
+        "scope": "PILOT_VISUAL_STANDARD_ONLY",
+        "french": "Accept current 03_final with small elbow/upper-arm drift; execution remains understandable and usable.",
+        "machine": "Explicitly authorize TWO_FRAME_EXCEPTION using only 01_inicial and 03_final. Preserve and exclude 02_intermediaria."
+      },
+      "caveat": null,
+      "midpointState": "SELECTED",
+      "agentReviewBeforeHumanDecision": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "PASS",
+        "PHASE_DISTINCTION": "PASS",
+        "notes": "Sequência com corda e polia baixa, passando visualmente ao lado da cabeça. Flexão, extensão parcial e extensão final distintas; banco e apoios consistentes.",
+        "OVERALL": "CANDIDATE_OK",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING"
+      },
+      "frames": [
+        {
+          "phase": "01_inicial",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "e2a7d4cb05e21f33798431fbfaa67e26f429efcddf0017766c85ad9602c98a0e",
+          "bytes": 2422654,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_testa_cabo/01_inicial/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_testa_cabo/01_inicial.png",
+            "relativeToLocalArchive": "exercises/triceps_testa_cabo/01_inicial.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa_cabo/01_inicial-attempt-01.png",
+            "sha256": "e2a7d4cb05e21f33798431fbfaa67e26f429efcddf0017766c85ad9602c98a0e"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "02_intermediaria",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "76d7a9a94c1ab9de5771069ea9421c03658959a3323e20e18e6a2464d23debb7",
+          "bytes": 2291676,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_testa_cabo/02_intermediaria/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_testa_cabo/02_intermediaria.png",
+            "relativeToLocalArchive": "exercises/triceps_testa_cabo/02_intermediaria.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa_cabo/02_intermediaria-attempt-01.png",
+            "sha256": "76d7a9a94c1ab9de5771069ea9421c03658959a3323e20e18e6a2464d23debb7"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "03_final",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "3be3f2834c9ad038e2d008ab1ebfb55c0e850106e7171fa3bfd047e18358562b",
+          "bytes": 2299641,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_testa_cabo/03_final/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_testa_cabo/03_final.png",
+            "relativeToLocalArchive": "exercises/triceps_testa_cabo/03_final.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa_cabo/03_final-attempt-01.png",
+            "sha256": "3be3f2834c9ad038e2d008ab1ebfb55c0e850106e7171fa3bfd047e18358562b"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      ],
+      "excludedFrames": []
+    },
+    {
+      "id": "triceps_coice",
+      "canonicalName": "Tríceps Coice com Haltere",
+      "equipment": "Haltere e Banco",
+      "executionSteps": [
+        "Apoie o joelho e a mão no banco, tronco paralelo ao chão.",
+        "Segure o haltere e cole o braço ao lado do tronco, cotovelo dobrado a 90 graus.",
+        "Estenda o cotovelo levando o haltere para trás até a extensão completa.",
+        "Segure a contração por 1 segundo e retorne controladamente."
+      ],
+      "camera": "3/4 lateral do braço direito; cotovelo, tronco, haltere e apoios inteiros.",
+      "phaseConvention": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "sequencePolicy": "THREE_FRAME_STANDARD",
+      "pilotHumanDecision": "HUMAN_APPROVED_PILOT_STANDARD",
+      "humanApprovalScope": "PILOT_VISUAL_STANDARD_ONLY",
+      "humanDecisionEvidence": {
+        "goal": "GYMFLOW-MEDIA-PILOT-CLOSE-AND-SKILL-125",
+        "date": "2026-10-03",
+        "source": "Explicit human GOAL-125 request",
+        "scope": "PILOT_VISUAL_STANDARD_ONLY",
+        "french": "Accept current 03_final with small elbow/upper-arm drift; execution remains understandable and usable.",
+        "machine": "Explicitly authorize TWO_FRAME_EXCEPTION using only 01_inicial and 03_final. Preserve and exclude 02_intermediaria."
+      },
+      "caveat": null,
+      "midpointState": "SELECTED",
+      "agentReviewBeforeHumanDecision": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "PASS",
+        "PHASE_DISTINCTION": "PASS",
+        "notes": "Inicial tentativa 2 mantém braço elevado junto ao tronco, mais consistente com fases seguintes. Antebraço passa da vertical à diagonal e à extensão; apoios e câmera preservados.",
+        "OVERALL": "CANDIDATE_OK",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING"
+      },
+      "frames": [
+        {
+          "phase": "01_inicial",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "5abba384eaa52a0558f2174e4e57755838d346eef503429eea711349e00afe45",
+          "bytes": 2140771,
+          "selectedAttempt": 2,
+          "provenanceId": "triceps_coice/01_inicial/2",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_coice/01_inicial.png",
+            "relativeToLocalArchive": "exercises/triceps_coice/01_inicial.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_coice/01_inicial-attempt-02.png",
+            "sha256": "5abba384eaa52a0558f2174e4e57755838d346eef503429eea711349e00afe45"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "02_intermediaria",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "7de8f1c42bf9ea5cd32dc4a540a3b2a231e2bb214e20739ba6b1678813839f61",
+          "bytes": 2263900,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_coice/02_intermediaria/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_coice/02_intermediaria.png",
+            "relativeToLocalArchive": "exercises/triceps_coice/02_intermediaria.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_coice/02_intermediaria-attempt-01.png",
+            "sha256": "7de8f1c42bf9ea5cd32dc4a540a3b2a231e2bb214e20739ba6b1678813839f61"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "03_final",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "434bef9589818faf20ba6d501945aaddca9d218998aaec3c9aa6b15592a670c4",
+          "bytes": 2240011,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_coice/03_final/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_coice/03_final.png",
+            "relativeToLocalArchive": "exercises/triceps_coice/03_final.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_coice/03_final-attempt-01.png",
+            "sha256": "434bef9589818faf20ba6d501945aaddca9d218998aaec3c9aa6b15592a670c4"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      ],
+      "excludedFrames": []
+    },
+    {
+      "id": "triceps_mergulho_banco",
+      "canonicalName": "Mergulho entre Bancos",
+      "equipment": "Banco (Peso Corporal)",
+      "executionSteps": [
+        "Apoie as mãos na borda do banco atrás de você, dedos apontando para frente.",
+        "Estenda as pernas à frente com os calcanhares no chão.",
+        "Desça o corpo dobrando os cotovelos até cerca de 90 graus.",
+        "Empurre o banco para subir de volta, estendendo os cotovelos."
+      ],
+      "camera": "3/4 lateral; mãos na borda, cotovelos, quadril e calcanhares claramente visíveis.",
+      "phaseConvention": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "sequencePolicy": "THREE_FRAME_STANDARD",
+      "pilotHumanDecision": "HUMAN_APPROVED_PILOT_STANDARD",
+      "humanApprovalScope": "PILOT_VISUAL_STANDARD_ONLY",
+      "humanDecisionEvidence": {
+        "goal": "GYMFLOW-MEDIA-PILOT-CLOSE-AND-SKILL-125",
+        "date": "2026-10-03",
+        "source": "Explicit human GOAL-125 request",
+        "scope": "PILOT_VISUAL_STANDARD_ONLY",
+        "french": "Accept current 03_final with small elbow/upper-arm drift; execution remains understandable and usable.",
+        "machine": "Explicitly authorize TWO_FRAME_EXCEPTION using only 01_inicial and 03_final. Preserve and exclude 02_intermediaria."
+      },
+      "caveat": null,
+      "midpointState": "SELECTED",
+      "agentReviewBeforeHumanDecision": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "PASS",
+        "PHASE_DISTINCTION": "PASS",
+        "notes": "Correção r1: um banco e calcanhares no chão, conforme executionSteps canônico apesar do nome Mergulho entre Bancos. 01/03 preservados; 02 na terceira tentativa nova (cumulativa 6), cotovelos parcialmente abertos e altura intermediária, quadril próximo ao banco. Ordem concêntrica histórica fundo→topo preservada; mesma posição também corresponde ao meio da descida inversa.",
+        "OVERALL": "CANDIDATE_OK",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING",
+        "revisionId": "human-review-r1",
+        "method": "Full-size generated outputs and side-by-side triptychs; visual judgments are not calibrated angle measurements or human approval."
+      },
+      "frames": [
+        {
+          "phase": "01_inicial",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "1896faba2b23796cd1af44fe9882c5c1b65e503e0e272a531bae15ee37cbab34",
+          "bytes": 2354174,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_mergulho_banco/01_inicial/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_mergulho_banco/01_inicial.png",
+            "relativeToLocalArchive": "exercises/triceps_mergulho_banco/01_inicial.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_mergulho_banco/01_inicial-attempt-01.png",
+            "sha256": "1896faba2b23796cd1af44fe9882c5c1b65e503e0e272a531bae15ee37cbab34"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "02_intermediaria",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "d4adb477fe8f95d6d5b575bac69517da44d4049a6519ce7604e8a7b7c33c0136",
+          "bytes": 2161228,
+          "selectedAttempt": 6,
+          "provenanceId": "triceps_mergulho_banco/02_intermediaria/6",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_mergulho_banco/02_intermediaria.png",
+            "relativeToLocalArchive": "exercises/triceps_mergulho_banco/02_intermediaria.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_mergulho_banco/02_intermediaria-attempt-06.png",
+            "sha256": "d4adb477fe8f95d6d5b575bac69517da44d4049a6519ce7604e8a7b7c33c0136"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "03_final",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "60473b233d4c994bb54b3a0e142fe9b32f0a6be051bc2ebde34361ecd065986f",
+          "bytes": 2336013,
+          "selectedAttempt": 1,
+          "provenanceId": "triceps_mergulho_banco/03_final/1",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_mergulho_banco/03_final.png",
+            "relativeToLocalArchive": "exercises/triceps_mergulho_banco/03_final.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_mergulho_banco/03_final-attempt-01.png",
+            "sha256": "60473b233d4c994bb54b3a0e142fe9b32f0a6be051bc2ebde34361ecd065986f"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      ],
+      "excludedFrames": []
+    },
+    {
+      "id": "triceps_maquina",
+      "canonicalName": "Extensão de Tríceps na Máquina",
+      "equipment": "Máquina de Tríceps",
+      "executionSteps": [
+        "Ajuste o assento para que os cotovelos fiquem alinhados ao eixo de rotação da máquina.",
+        "Apoie os antebraços (ou segure as pegadas) conforme o modelo do aparelho.",
+        "Mantenha o tronco encostado e os ombros estáveis contra o apoio.",
+        "Estenda os cotovelos empurrando a alavanca até quase a extensão total.",
+        "Retorne de forma controlada, sem deixar a pilha de peso bater no final."
+      ],
+      "camera": "3/4 lateral do braço direito; assento, costas, apoio de braços, pivô, alavanca e pés visíveis.",
+      "phaseConvention": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "sequencePolicy": "TWO_FRAME_EXCEPTION",
+      "pilotHumanDecision": "TWO_FRAME_EXCEPTION_01_03",
+      "humanApprovalScope": "PILOT_VISUAL_STANDARD_ONLY",
+      "humanDecisionEvidence": {
+        "goal": "GYMFLOW-MEDIA-PILOT-CLOSE-AND-SKILL-125",
+        "date": "2026-10-03",
+        "source": "Explicit human GOAL-125 request",
+        "scope": "PILOT_VISUAL_STANDARD_ONLY",
+        "french": "Accept current 03_final with small elbow/upper-arm drift; execution remains understandable and usable.",
+        "machine": "Explicitly authorize TWO_FRAME_EXCEPTION using only 01_inicial and 03_final. Preserve and exclude 02_intermediaria."
+      },
+      "caveat": null,
+      "midpointState": "MIDPOINT_FAILED_BOUNDED_ATTEMPTS",
+      "agentReviewBeforeHumanDecision": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+        "PHASE_DISTINCTION": "NEEDS_HUMAN_REVIEW",
+        "notes": "R2 encerrada com duas novas tentativas rejeitadas. A primeira permaneceu próxima de 01. A segunda trouxe um ponto médio melhor, mas a inspeção ampliada mostrou a alavanca mais distante encurtada frente a 01/03; seleção preliminar retirada por falha de EQUIPMENT LOCK. Mantida byte-for-byte a candidata R1 (cumulativa 5), cuja biomecânica e distinção de fases seguem NEEDS_HUMAN_REVIEW. Nenhuma terceira tentativa.",
+        "OVERALL": "NEEDS_HUMAN_REVIEW",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING",
+        "revisionId": "human-review-r2",
+        "method": "Full-size generated outputs and side-by-side triptychs; visual judgments are not calibrated angle measurements or human approval."
+      },
+      "frames": [
+        {
+          "phase": "01_inicial",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "eaa9dedb28b8714e2833540d4be29671cc24c76c58261d240d22f4cfc0c018a7",
+          "bytes": 2208213,
+          "selectedAttempt": 5,
+          "provenanceId": "triceps_maquina/01_inicial/5",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_maquina/01_inicial.png",
+            "relativeToLocalArchive": "exercises/triceps_maquina/01_inicial.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/01_inicial-attempt-05.png",
+            "sha256": "eaa9dedb28b8714e2833540d4be29671cc24c76c58261d240d22f4cfc0c018a7"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        },
+        {
+          "phase": "03_final",
+          "status": "PILOT_SELECTED",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "f37b85598abe0a7fb55089b2a773703223efef3c44b5a2661c00e7d71ea611e5",
+          "bytes": 2142143,
+          "selectedAttempt": 3,
+          "provenanceId": "triceps_maquina/03_final/3",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_maquina/03_final.png",
+            "relativeToLocalArchive": "exercises/triceps_maquina/03_final.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/03_final-attempt-03.png",
+            "sha256": "f37b85598abe0a7fb55089b2a773703223efef3c44b5a2661c00e7d71ea611e5"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      ],
+      "excludedFrames": [
+        {
+          "phase": "02_intermediaria",
+          "status": "EXCLUDED_FROM_FINAL_SEQUENCE",
+          "format": "png",
+          "width": 1024,
+          "height": 1536,
+          "sha256": "8723a5b1dcbe469d3011c5cb6ca365b76eb528688a1586145c0589a9696029cd",
+          "bytes": 2013851,
+          "selectedAttempt": 5,
+          "provenanceId": "triceps_maquina/02_intermediaria/5",
+          "artifact": {
+            "availability": "LOCAL_ONLY_NOT_VERSIONED",
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_maquina/02_intermediaria.png",
+            "relativeToLocalArchive": "exercises/triceps_maquina/02_intermediaria.png"
+          },
+          "attemptArchive": {
+            "localPath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/02_intermediaria-attempt-05.png",
+            "sha256": "8723a5b1dcbe469d3011c5cb6ca365b76eb528688a1586145c0589a9696029cd"
+          },
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      ]
+    }
+  ]
+}
