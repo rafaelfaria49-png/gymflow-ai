@@ -1,0 +1,54 @@
+{
+  "goal": "GYMFLOW-MEDIA-PILOT-CLOSE-AND-SKILL-125",
+  "date": "2026-10-03",
+  "base": "98003d9bf0547d8c750b0e66f590a7aa4f6a382e",
+  "checks": [
+    {
+      "command": "validate-final-pilot.mjs --local-archive <preserved pilot> --report validation-final.json",
+      "status": "PASS",
+      "evidence": "29 selected + 1 excluded PNGs decoded/hash-checked; 64 attempt archives; original references; source logs; 309 protected files."
+    },
+    {
+      "command": "validate-final-pilot.mjs (portable)",
+      "status": "PASS",
+      "evidence": "Metadata, two versioned original references, final contact sheet, binary allowlist and 309 protected files."
+    },
+    {
+      "command": "skill-creator/scripts/quick_validate.py (canonical contract copied as temporary SKILL.md)",
+      "status": "PASS",
+      "evidence": "Frontmatter/name/description/scaffold validated with temporary PyYAML dependency."
+    },
+    {
+      "command": "npm run media:inventory:check",
+      "status": "PASS",
+      "evidence": "184 runtime IDs; 125 directories; 59 without media; 2 approved videos; 10 sequences."
+    },
+    {
+      "command": "npm run media:validate",
+      "status": "PASS",
+      "evidence": "10 tests passed in one file."
+    },
+    {
+      "command": "npm run build",
+      "status": "PASS",
+      "evidence": "Next.js 16.2.6; compilation 13.3s; TypeScript 86s; seven static pages."
+    },
+    {
+      "command": "git diff --check",
+      "status": "PASS",
+      "evidence": "No whitespace errors."
+    }
+  ],
+  "independentReview": {
+    "status": "PASS",
+    "P0": 0,
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "scope": "Skill and pilot closure only; no runtime approval"
+  },
+  "runtimeMediaChanged": false,
+  "approvalStatusChanged": false,
+  "cdnChanged": false,
+  "mergeGate": "CI must pass and diff remain docs/contract only. Merge commit, no squash/rebase/force."
+}

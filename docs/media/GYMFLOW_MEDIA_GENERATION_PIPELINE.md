@@ -1,23 +1,32 @@
 # GymFlow — Especificação do pipeline futuro de mídia
 
-Status: especificação documental atualizada pelo GOAL-124. Nenhum modelo de imagem/vídeo foi chamado; nenhuma mídia foi gerada ou enviada; nenhuma aprovação foi alterada.
+Status: contrato atualizado pelo GOAL-125 (2026-10-03). Nesta entrega não houve geração nova nem integração de mídia no app/CDN. O histórico local do piloto permanece preservado.
+
+PILOT_TRICEPS_STANDARD=ACCEPTED
+PERSONAL_REFERENCE_STATUS=READY
+MEDIA_GENERATION_SKILL_STATUS=READY
+READY_FOR_NEXT_MEDIA_BATCH=YES_WITH_SEPARATE_GOAL
+
+Contrato canônico reutilizável: [GYMFLOW_MEDIA_GENERATION_SKILL.md](./GYMFLOW_MEDIA_GENERATION_SKILL.md). [Fechamento humano do piloto](./pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/HUMAN_REVIEW_FINAL.md): 9 sequências de 3 + 1 de 2 = 29 frames, aprovação somente PILOT_VISUAL_STANDARD_ONLY.
 
 ## Gate de prontidão
 
 O próximo GOAL somente poderá gerar mídia quando **todos** os critérios forem satisfeitos:
 
-| Critério | Estado após GOAL-124 | Exigência |
+| Critério | Estado após GOAL-125 | Exigência |
 |---|---|---|
 | CATALOG_RUNTIME_RECONCILED | YES | YES; 126 + 29 + 29 = 184 IDs únicos e válidos |
 | STRUCTURAL_MEDIA_P0_P1 | 0 | 0; nenhum path ou mapping quebrado ativo |
 | INVENTORY_RUNTIME_COMPLETE | YES | YES; os 184 IDs selecionáveis no inventário |
-| PERSONAL_REFERENCE_STATUS | MISSING_OFFICIAL_VISUAL_REFERENCE | READY |
+| PERSONAL_REFERENCE_STATUS | READY | READY |
+| MEDIA_GENERATION_SKILL_STATUS | READY | READY |
+| PILOT_TRICEPS_STANDARD | ACCEPTED | padrão humano documentado |
 
-READY_FOR_PERSONAL_REFERENCE_INTAKE=YES. READY_FOR_MEDIA_GENERATION_GOAL=NO. A referência visual oficial ainda falta. KAI_DNA_v1.md, KAI_MOODBOARD_v1.md e GYMFLOW_ART_BIBLE_V1.md registram intenção por texto, mas não fixam visualmente rosto, corpo ou roupa. As imagens existentes não comprovam a identidade oficial. Não inventar nem reconstruir o personal a partir de texto. O contrato de recebimento está em [GYMFLOW_PERSONAL_REFERENCE_INTAKE.md](./GYMFLOW_PERSONAL_REFERENCE_INTAKE.md).
+READY_FOR_PERSONAL_REFERENCE_INTAKE=YES. Referência oficial recebida, preservada e confirmada: [GYMFLOW_PERSONAL_REFERENCE_INTAKE.md](./GYMFLOW_PERSONAL_REFERENCE_INTAKE.md). READY_FOR_MEDIA_GENERATION_GOAL=YES somente quanto aos gates de referência/contrato; executar um próximo lote exige seu próprio GOAL autorizado. A aprovação do piloto não aprova futuros lotes ou mídia runtime.
 
 Antes de uma execução futura, o GOAL deverá:
 
-1. receber/adicionar a referência visual oficial aprovada sem alterar docs/avatar-design neste GOAL;
+1. verificar disponibilidade e hash da referência visual oficial já registrada, sem trocar a identidade nem alterar docs/avatar-design;
 2. confirmar MEDIA_CATALOG_SCOPE=RUNTIME_CATALOG e rodar media:inventory:check; os 58 IDs de LOTE_6/LOTE_7 já pertencem ao escopo operacional;
 3. revisar as flags objetivas, as capas e os achados do inventário;
 4. confirmar os IDs canônicos e os equipamentos de cada lote.
@@ -35,19 +44,11 @@ Antes de uma execução futura, o GOAL deverá:
 - Para exercício sem vídeo approved e sem sequência de cinco frames a preservar, o alvo padrão é uma sequência coerente de três imagens: posição inicial, meio e posição final. A posição inicial é a candidata de capa.
 - Tratar imagens legacy como disponibilidade técnica até revisão humana; não pressupor aprovação por haver dois arquivos.
 
-## Consistência visual por sequência
+## Contrato canônico por sequência
 
-Todas as imagens de uma sequência devem retratar o mesmo personal e manter:
+Aplicar [a skill de geração de mídia](./GYMFLOW_MEDIA_GENERATION_SKILL.md): IDENTITY_LOCK, CAMERA_LOCK, ENVIRONMENT_LOCK, EQUIPMENT_LOCK e MIDPOINT_50_PERCENT_RULE. Dentro do exercício câmera/lado/distância/crop e equipamento ficam fixos; entre exercícios o ângulo pode variar para mostrar a biomecânica.
 
-- a mesma roupa, escolhida e fixada a partir da referência oficial aprovada;
-- o mesmo cenário de academia, fundo, iluminação e paleta;
-- câmera em ângulo 3/4, com distância, altura, orientação e enquadramento consistentes;
-- o equipamento canônico do exercício, com montagem e acessórios corretos;
-- pessoa, articulações, pegada, apoio, trajetória e posições biomecanicamente coerentes entre os três frames;
-- proporção e resolução adequadas ao uso de galeria e leitura do movimento;
-- nenhuma palavra, número, marca, logo, marca d'água, interface ou elemento promocional.
-
-A mudança entre frames deve mostrar somente a progressão do movimento. Não mudar rosto, roupa, cenário, equipamento, lado de câmera ou escala da pessoa durante a sequência.
+Três frames são o padrão. No máximo três tentativas automáticas por frame, incluindo a primeira; depois HUMAN_REVIEW_GATE. Nova rodada exige autorização humana explícita e delimitada. Uma intermediária que falhe recebe MIDPOINT_FAILED_BOUNDED_ATTEMPTS; TWO_FRAME_EXCEPTION somente com decisão humana explícita, preservando 02 como EXCLUDED_FROM_FINAL_SEQUENCE. O caso da máquina no piloto não autoriza automaticamente outro exercício.
 
 ## Validação automática e aprovação
 
