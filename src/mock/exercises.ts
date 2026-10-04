@@ -1,5 +1,6 @@
 import { Exercise } from '../types';
 import { usableLocalMediaPaths } from '../domain/media/localMediaPolicy';
+import { getPublishedLocalMediaPaths } from '../domain/media/publishedLocalMedia';
 
 // GOAL-09: biblioteca real. BASE_EXERCISES = curadoria original preservada;
 // EXPANSION_EXERCISES (fim do arquivo) = exercícios reais adicionados.
@@ -3295,11 +3296,10 @@ const EXPANSION_EXERCISES: Exercise[] = [
   }
 ];
 
-// GOAL-09: toda a curadoria tem 2 imagens locais baixadas por scripts/import-exercises.mjs
-// (validado pela suíte src/mock/exercises.test.ts). Exercícios sem pasta local ficam sem images.
+// Published local sequences declare their exact count; preserve the legacy default.
 const withLocalImages = (exercise: Exercise): Exercise => ({
   ...exercise,
-  images: usableLocalMediaPaths(exercise.images ?? [
+  images: usableLocalMediaPaths(getPublishedLocalMediaPaths(exercise.id) ?? exercise.images ?? [
     `/assets/exercises/${exercise.id}/0.jpg`,
     `/assets/exercises/${exercise.id}/1.jpg`
   ])

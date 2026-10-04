@@ -1,0 +1,2098 @@
+{
+  "schemaVersion": 1,
+  "goal": "GYMFLOW-RUNTIME-MEDIA-PUBLISH-128",
+  "baseSha": "0a27bb89c2d53fc28f4864e42da8c9c1fff75e2d",
+  "publicationDate": "2026-10-04",
+  "timezone": "America/Sao_Paulo",
+  "RUNTIME_PUBLICATION_HUMAN_AUTHORIZED": "YES",
+  "authorization": {
+    "source": "Explicit human GOAL-128 request in this conversation",
+    "threadId": "01a106ea-0d0b-7483-856f-9c4e622feac0",
+    "requestSha256": "48097a2e5a796b2e41fe6cf3ba391c76b182470329e316e7dac1cf4e523fc2db",
+    "scope": "ONLY_12_IDS_35_FRAMES_LOCAL_APK_RUNTIME",
+    "priorVisualDecisionsRemainUnmodified": true
+  },
+  "exerciseIds": [
+    "triceps_frances_unilateral_cabo",
+    "triceps_testa_cabo",
+    "triceps_maquina",
+    "legs_leg_press_90",
+    "legs_agachamento_pendulo",
+    "legs_afundo_smith",
+    "legs_agachamento_bulgaro_smith",
+    "legs_flexora_em_pe_maquina",
+    "legs_flexora_articulada",
+    "legs_stiff_smith",
+    "legs_aducao_cabo",
+    "legs_agachamento_sumo_smith"
+  ],
+  "RUNTIME_EXERCISES_PUBLISHED": 12,
+  "RUNTIME_FRAMES_PUBLISHED": 35,
+  "TRICEPS_FRAMES": 8,
+  "LEGS_FRAMES": 27,
+  "THREE_FRAME_EXERCISES": 11,
+  "TWO_FRAME_EXERCISES": 1,
+  "excluded": {
+    "legs_agachamento_sissy": "NO_MEDIA / DEFERRED; no cover or sequence published",
+    "triceps_maquina_02_intermediaria": "EXCLUDED_FROM_FINAL_SEQUENCE / MIDPOINT_FAILED_BOUNDED_ATTEMPTS"
+  },
+  "SOURCE_TOTAL_BYTES": 74648957,
+  "RUNTIME_MEDIA_TOTAL_BYTES": 10049579,
+  "COMPRESSION_RATIO": 7.428068081259921,
+  "compressionRatioDefinition": "source bytes divided by runtime bytes",
+  "encoder": {
+    "name": "sharp",
+    "versions": {
+      "aom": "3.14.1",
+      "archive": "3.8.7",
+      "cairo": "1.18.4",
+      "cgif": "0.5.3",
+      "exif": "0.6.26",
+      "expat": "2.8.1",
+      "ffi": "3.5.2",
+      "fontconfig": "2.18.1",
+      "freetype": "2.14.3",
+      "fribidi": "1.0.16",
+      "glib": "2.89.0",
+      "harfbuzz": "14.2.1",
+      "heif": "1.23.0",
+      "highway": "1.4.0",
+      "imagequant": "2.4.1",
+      "lcms": "2.19.1",
+      "mozjpeg": "0826579",
+      "pango": "1.57.1",
+      "pixman": "0.46.4",
+      "png": "1.6.58",
+      "proxy-libintl": "0.5",
+      "rsvg": "2.62.3",
+      "tiff": "732665c",
+      "uhdr": "13a058f",
+      "vips": "8.18.3",
+      "webp": "1.6.0",
+      "xml2": "2.15.3",
+      "zlib-ng": "2.3.3",
+      "sharp": "0.35.3"
+    },
+    "options": {
+      "quality": 92,
+      "progressive": true,
+      "mozjpeg": true,
+      "chromaSubsampling": "4:4:4"
+    },
+    "deterministicReencodeVerified": true,
+    "runtimeDependencyAdded": false
+  },
+  "baselineApk": {
+    "SOURCE_COMMIT": "8408a29c2507ddd3e5440bd8d7bd7e53f55478fe",
+    "SOURCE_EQUIVALENT_TO_BASE": true,
+    "equivalenceEvidence": "git diff --name-only SOURCE_COMMIT BASE_SHA contains only docs/**; runtime/build configuration/dependency lockfiles are identical.",
+    "APK_BEFORE_BYTES": 28122019,
+    "SHA256": "ee41413f65f0cb2ecf2d729a57c246b7c6deaf50f315218f81ba85dbb22a5a4e"
+  },
+  "RUNTIME_MEDIA_CHANGED": "YES",
+  "APPROVAL_STATUS_CHANGED": "LOCAL_STILL_RUNTIME_PUBLICATION_ONLY",
+  "CDN_CHANGED": "NO",
+  "PLAY_STORE_CHANGED": "NO",
+  "NEW_SOURCE_IMAGES_GENERATED": 0,
+  "assets": [
+    {
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "phase": "01_inicial",
+      "sourceCandidatePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_frances_unilateral_cabo/01_inicial.png",
+      "sourceArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/01_inicial-attempt-02.png",
+      "SOURCE_SHA256": "e6a392a7ef20de6f10314058127dc67d46c0158a5b9df91f080521d2477c66f2",
+      "SOURCE_BYTES": 2126247,
+      "provenanceId": "triceps_frances_unilateral_cabo/01_inicial/2",
+      "selectedAttempt": 2,
+      "humanDecision": "ACCEPTED_WITH_CAVEAT",
+      "sourceHumanDecision": "ACCEPTED_WITH_CAVEAT",
+      "caveat": "Pequeno drift do cotovelo/braço superior em 03_final; execução continua compreensível e utilizável.",
+      "sourceLocalCommits": [
+        "0cea2210062a738e04418b1b8e087bad2bd62727",
+        "5fea5f561e5a8b37f4726ae5adfcdf877386e842",
+        "81de00def98f4f884014a6e644874b5b463ef209"
+      ],
+      "sourceHumanReview": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/pilot-manifest.json",
+      "direction": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "phaseDefinition": null,
+      "sourceAgentReview": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "NEEDS_HUMAN_REVIEW",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+        "PHASE_DISTINCTION": "NEEDS_HUMAN_REVIEW",
+        "notes": "R2 encerrada com duas novas tentativas rejeitadas. Mantida byte-for-byte a candidata R1 (cumulativa 5), cuja mão/manopla têm margem superior, mas o cotovelo e a geometria do braço superior variam em relação a 02. Novas tentativas não resolveram simultaneamente elbow lock, extensão final e margem. ANATOMY, BIOMECHANICS e PHASE_DISTINCTION seguem NEEDS_HUMAN_REVIEW; nenhuma tentativa adicional.",
+        "OVERALL": "NEEDS_HUMAN_REVIEW",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING",
+        "revisionId": "human-review-r2",
+        "method": "Full-size generated outputs and side-by-side triptychs; visual judgments are not calibrated angle measurements or human approval."
+      },
+      "runtimePath": "/assets/exercises/triceps_frances_unilateral_cabo/0.jpg",
+      "sourcePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_frances_unilateral_cabo/01_inicial.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "bc1b51544c9e264965194ff1f6913e2e19052ef20563fc2b198adaeeff3d382f",
+      "RUNTIME_BYTES": 284431,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "phase": "02_intermediaria",
+      "sourceCandidatePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_frances_unilateral_cabo/02_intermediaria.png",
+      "sourceArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/02_intermediaria-attempt-01.png",
+      "SOURCE_SHA256": "00b6fb319181006bab2b0505e2004198055a4cb55f3541d18621240b6c58de12",
+      "SOURCE_BYTES": 2088426,
+      "provenanceId": "triceps_frances_unilateral_cabo/02_intermediaria/1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED_WITH_CAVEAT",
+      "sourceHumanDecision": "ACCEPTED_WITH_CAVEAT",
+      "caveat": "Pequeno drift do cotovelo/braço superior em 03_final; execução continua compreensível e utilizável.",
+      "sourceLocalCommits": [
+        "0cea2210062a738e04418b1b8e087bad2bd62727",
+        "5fea5f561e5a8b37f4726ae5adfcdf877386e842",
+        "81de00def98f4f884014a6e644874b5b463ef209"
+      ],
+      "sourceHumanReview": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/pilot-manifest.json",
+      "direction": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "phaseDefinition": null,
+      "sourceAgentReview": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "NEEDS_HUMAN_REVIEW",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+        "PHASE_DISTINCTION": "NEEDS_HUMAN_REVIEW",
+        "notes": "R2 encerrada com duas novas tentativas rejeitadas. Mantida byte-for-byte a candidata R1 (cumulativa 5), cuja mão/manopla têm margem superior, mas o cotovelo e a geometria do braço superior variam em relação a 02. Novas tentativas não resolveram simultaneamente elbow lock, extensão final e margem. ANATOMY, BIOMECHANICS e PHASE_DISTINCTION seguem NEEDS_HUMAN_REVIEW; nenhuma tentativa adicional.",
+        "OVERALL": "NEEDS_HUMAN_REVIEW",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING",
+        "revisionId": "human-review-r2",
+        "method": "Full-size generated outputs and side-by-side triptychs; visual judgments are not calibrated angle measurements or human approval."
+      },
+      "runtimePath": "/assets/exercises/triceps_frances_unilateral_cabo/1.jpg",
+      "sourcePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_frances_unilateral_cabo/02_intermediaria.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "0e390eb7abc5d6591cb3d5a2a88f440a30946077b13c9a13a9a78eabd0fcb96a",
+      "RUNTIME_BYTES": 287271,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "phase": "03_final",
+      "sourceCandidatePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_frances_unilateral_cabo/03_final.png",
+      "sourceArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_frances_unilateral_cabo/03_final-attempt-05.png",
+      "SOURCE_SHA256": "298f13f23caea409f9175e741a148e3513bf083190438f7e2dbb7182c352b2f4",
+      "SOURCE_BYTES": 1990520,
+      "provenanceId": "triceps_frances_unilateral_cabo/03_final/5",
+      "selectedAttempt": 5,
+      "humanDecision": "ACCEPTED_WITH_CAVEAT",
+      "sourceHumanDecision": "ACCEPTED_WITH_CAVEAT",
+      "caveat": "Pequeno drift do cotovelo/braço superior em 03_final; execução continua compreensível e utilizável.",
+      "sourceLocalCommits": [
+        "0cea2210062a738e04418b1b8e087bad2bd62727",
+        "5fea5f561e5a8b37f4726ae5adfcdf877386e842",
+        "81de00def98f4f884014a6e644874b5b463ef209"
+      ],
+      "sourceHumanReview": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/pilot-manifest.json",
+      "direction": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "phaseDefinition": null,
+      "sourceAgentReview": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "NEEDS_HUMAN_REVIEW",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+        "PHASE_DISTINCTION": "NEEDS_HUMAN_REVIEW",
+        "notes": "R2 encerrada com duas novas tentativas rejeitadas. Mantida byte-for-byte a candidata R1 (cumulativa 5), cuja mão/manopla têm margem superior, mas o cotovelo e a geometria do braço superior variam em relação a 02. Novas tentativas não resolveram simultaneamente elbow lock, extensão final e margem. ANATOMY, BIOMECHANICS e PHASE_DISTINCTION seguem NEEDS_HUMAN_REVIEW; nenhuma tentativa adicional.",
+        "OVERALL": "NEEDS_HUMAN_REVIEW",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING",
+        "revisionId": "human-review-r2",
+        "method": "Full-size generated outputs and side-by-side triptychs; visual judgments are not calibrated angle measurements or human approval."
+      },
+      "runtimePath": "/assets/exercises/triceps_frances_unilateral_cabo/2.jpg",
+      "sourcePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_frances_unilateral_cabo/03_final.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "c082f66982aee7166dd2b5ada81a89b735dc08361a37b86f227341a2cfba039e",
+      "RUNTIME_BYTES": 267823,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "triceps_testa_cabo",
+      "phase": "01_inicial",
+      "sourceCandidatePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_testa_cabo/01_inicial.png",
+      "sourceArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa_cabo/01_inicial-attempt-01.png",
+      "SOURCE_SHA256": "e2a7d4cb05e21f33798431fbfaa67e26f429efcddf0017766c85ad9602c98a0e",
+      "SOURCE_BYTES": 2422654,
+      "provenanceId": "triceps_testa_cabo/01_inicial/1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": "HUMAN_APPROVED_PILOT_STANDARD",
+      "caveat": null,
+      "sourceLocalCommits": [
+        "0cea2210062a738e04418b1b8e087bad2bd62727",
+        "5fea5f561e5a8b37f4726ae5adfcdf877386e842",
+        "81de00def98f4f884014a6e644874b5b463ef209"
+      ],
+      "sourceHumanReview": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/pilot-manifest.json",
+      "direction": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "phaseDefinition": null,
+      "sourceAgentReview": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "PASS",
+        "PHASE_DISTINCTION": "PASS",
+        "notes": "Sequência com corda e polia baixa, passando visualmente ao lado da cabeça. Flexão, extensão parcial e extensão final distintas; banco e apoios consistentes.",
+        "OVERALL": "CANDIDATE_OK",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING"
+      },
+      "runtimePath": "/assets/exercises/triceps_testa_cabo/0.jpg",
+      "sourcePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_testa_cabo/01_inicial.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "c1485034bbbbea4738c520dce7bf055437b95c95bf3ea65416f1658ffe5e097e",
+      "RUNTIME_BYTES": 349197,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "triceps_testa_cabo",
+      "phase": "02_intermediaria",
+      "sourceCandidatePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_testa_cabo/02_intermediaria.png",
+      "sourceArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa_cabo/02_intermediaria-attempt-01.png",
+      "SOURCE_SHA256": "76d7a9a94c1ab9de5771069ea9421c03658959a3323e20e18e6a2464d23debb7",
+      "SOURCE_BYTES": 2291676,
+      "provenanceId": "triceps_testa_cabo/02_intermediaria/1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": "HUMAN_APPROVED_PILOT_STANDARD",
+      "caveat": null,
+      "sourceLocalCommits": [
+        "0cea2210062a738e04418b1b8e087bad2bd62727",
+        "5fea5f561e5a8b37f4726ae5adfcdf877386e842",
+        "81de00def98f4f884014a6e644874b5b463ef209"
+      ],
+      "sourceHumanReview": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/pilot-manifest.json",
+      "direction": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "phaseDefinition": null,
+      "sourceAgentReview": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "PASS",
+        "PHASE_DISTINCTION": "PASS",
+        "notes": "Sequência com corda e polia baixa, passando visualmente ao lado da cabeça. Flexão, extensão parcial e extensão final distintas; banco e apoios consistentes.",
+        "OVERALL": "CANDIDATE_OK",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING"
+      },
+      "runtimePath": "/assets/exercises/triceps_testa_cabo/1.jpg",
+      "sourcePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_testa_cabo/02_intermediaria.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "44fe9adf6db5648042e341e7a7a0784076c386214ccf05dc487a121775a333c0",
+      "RUNTIME_BYTES": 340285,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "triceps_testa_cabo",
+      "phase": "03_final",
+      "sourceCandidatePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_testa_cabo/03_final.png",
+      "sourceArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_testa_cabo/03_final-attempt-01.png",
+      "SOURCE_SHA256": "3be3f2834c9ad038e2d008ab1ebfb55c0e850106e7171fa3bfd047e18358562b",
+      "SOURCE_BYTES": 2299641,
+      "provenanceId": "triceps_testa_cabo/03_final/1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": "HUMAN_APPROVED_PILOT_STANDARD",
+      "caveat": null,
+      "sourceLocalCommits": [
+        "0cea2210062a738e04418b1b8e087bad2bd62727",
+        "5fea5f561e5a8b37f4726ae5adfcdf877386e842",
+        "81de00def98f4f884014a6e644874b5b463ef209"
+      ],
+      "sourceHumanReview": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/pilot-manifest.json",
+      "direction": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "phaseDefinition": null,
+      "sourceAgentReview": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "PASS",
+        "PHASE_DISTINCTION": "PASS",
+        "notes": "Sequência com corda e polia baixa, passando visualmente ao lado da cabeça. Flexão, extensão parcial e extensão final distintas; banco e apoios consistentes.",
+        "OVERALL": "CANDIDATE_OK",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING"
+      },
+      "runtimePath": "/assets/exercises/triceps_testa_cabo/2.jpg",
+      "sourcePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_testa_cabo/03_final.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "cc604160e6189d731ce5587ae9536542f0e4c96c69aa5cc42bbf59ba0f55f7c1",
+      "RUNTIME_BYTES": 343886,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "triceps_maquina",
+      "phase": "01_inicial",
+      "sourceCandidatePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_maquina/01_inicial.png",
+      "sourceArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/01_inicial-attempt-05.png",
+      "SOURCE_SHA256": "eaa9dedb28b8714e2833540d4be29671cc24c76c58261d240d22f4cfc0c018a7",
+      "SOURCE_BYTES": 2208213,
+      "provenanceId": "triceps_maquina/01_inicial/5",
+      "selectedAttempt": 5,
+      "humanDecision": "TWO_FRAME_EXCEPTION_01_03",
+      "sourceHumanDecision": "TWO_FRAME_EXCEPTION_01_03",
+      "caveat": null,
+      "sourceLocalCommits": [
+        "0cea2210062a738e04418b1b8e087bad2bd62727",
+        "5fea5f561e5a8b37f4726ae5adfcdf877386e842",
+        "81de00def98f4f884014a6e644874b5b463ef209"
+      ],
+      "sourceHumanReview": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/pilot-manifest.json",
+      "direction": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "phaseDefinition": null,
+      "sourceAgentReview": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+        "PHASE_DISTINCTION": "NEEDS_HUMAN_REVIEW",
+        "notes": "R2 encerrada com duas novas tentativas rejeitadas. A primeira permaneceu próxima de 01. A segunda trouxe um ponto médio melhor, mas a inspeção ampliada mostrou a alavanca mais distante encurtada frente a 01/03; seleção preliminar retirada por falha de EQUIPMENT LOCK. Mantida byte-for-byte a candidata R1 (cumulativa 5), cuja biomecânica e distinção de fases seguem NEEDS_HUMAN_REVIEW. Nenhuma terceira tentativa.",
+        "OVERALL": "NEEDS_HUMAN_REVIEW",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING",
+        "revisionId": "human-review-r2",
+        "method": "Full-size generated outputs and side-by-side triptychs; visual judgments are not calibrated angle measurements or human approval."
+      },
+      "runtimePath": "/assets/exercises/triceps_maquina/0.jpg",
+      "sourcePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_maquina/01_inicial.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "efe5d48325238c212cd3d339d04f88c4cae37f37f14abcc9b42f1ce9ded26e68",
+      "RUNTIME_BYTES": 314664,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "triceps_maquina",
+      "phase": "03_final",
+      "sourceCandidatePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_maquina/03_final.png",
+      "sourceArchivePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/attempts/triceps_maquina/03_final-attempt-03.png",
+      "SOURCE_SHA256": "f37b85598abe0a7fb55089b2a773703223efef3c44b5a2661c00e7d71ea611e5",
+      "SOURCE_BYTES": 2142143,
+      "provenanceId": "triceps_maquina/03_final/3",
+      "selectedAttempt": 3,
+      "humanDecision": "TWO_FRAME_EXCEPTION_01_03",
+      "sourceHumanDecision": "TWO_FRAME_EXCEPTION_01_03",
+      "caveat": null,
+      "sourceLocalCommits": [
+        "0cea2210062a738e04418b1b8e087bad2bd62727",
+        "5fea5f561e5a8b37f4726ae5adfcdf877386e842",
+        "81de00def98f4f884014a6e644874b5b463ef209"
+      ],
+      "sourceHumanReview": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/pilot-manifest.json",
+      "direction": "01_inicial = posição carregada/flexionada anterior à fase concêntrica; 02_intermediaria = meio da extensão; 03_final = contração com cotovelo quase estendido. No mergulho, a progressão é do fundo para o topo.",
+      "phaseDefinition": null,
+      "sourceAgentReview": {
+        "IDENTITY_CONSISTENCY": "PASS",
+        "CAMERA_CONSISTENCY": "PASS",
+        "ANATOMY": "PASS",
+        "EQUIPMENT": "PASS",
+        "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+        "PHASE_DISTINCTION": "NEEDS_HUMAN_REVIEW",
+        "notes": "R2 encerrada com duas novas tentativas rejeitadas. A primeira permaneceu próxima de 01. A segunda trouxe um ponto médio melhor, mas a inspeção ampliada mostrou a alavanca mais distante encurtada frente a 01/03; seleção preliminar retirada por falha de EQUIPMENT LOCK. Mantida byte-for-byte a candidata R1 (cumulativa 5), cuja biomecânica e distinção de fases seguem NEEDS_HUMAN_REVIEW. Nenhuma terceira tentativa.",
+        "OVERALL": "NEEDS_HUMAN_REVIEW",
+        "reviewAuthority": "AGENT_VISUAL_INSPECTION",
+        "humanApproval": "PENDING",
+        "revisionId": "human-review-r2",
+        "method": "Full-size generated outputs and side-by-side triptychs; visual judgments are not calibrated angle measurements or human approval."
+      },
+      "runtimePath": "/assets/exercises/triceps_maquina/1.jpg",
+      "sourcePath": "C:/Projetos/gymflow-ai/docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/exercises/triceps_maquina/03_final.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "5c90ec04c4e1ac330a86edfa3b7bfef19f5a84a69a3b5a0c595a534d207ecdcc",
+      "RUNTIME_BYTES": 304957,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_leg_press_90",
+      "phase": "01_inicial",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_leg_press_90\\01_inicial.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_leg_press_90\\01_inicial-attempt-04.png",
+      "SOURCE_SHA256": "077129a2702d0a113a3a0b729aa4566c5f4a8d58e08fa6f4750cfe2b8595286f",
+      "SOURCE_BYTES": 2208559,
+      "provenanceId": "legs_leg_press_90__01_inicial__4",
+      "selectedAttempt": 4,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida excêntrica por flexão de joelhos/quadris: plataforma horizontal longe do assento → meia aproximação → joelhos ~90°, lombar apoiada.",
+      "phaseDefinition": "Corpo reclinado no encosto fixo, sacro/lombar apoiados, mãos nas manoplas; pernas quase estendidas sem travar, pés na plataforma.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "NEEDS_HUMAN_REVIEW"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: 01/4 selecionada após uma nova tentativa; flexão discreta dos joelhos reduz aparência de lockout, mantendo pés e montagem horizontal visualmente estáveis. Sem medição clínica do ângulo.",
+          "02/3 e 03/1 byte-for-byte preservadas; ressalva da intermediária ~60–65% visual e do catálogo/montagem horizontal permanece. Câmera, identidade e anatomia PASS; equipamento/biomecânica/midpoint ainda exigem revisão humana."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_leg_press_90/0.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_leg_press_90\\01_inicial.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "4354930cb16110ddd8de3c55ee2c4b8c074de2e68e1aa0f397c48e3322e66c43",
+      "RUNTIME_BYTES": 341105,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_leg_press_90",
+      "phase": "02_intermediaria",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_leg_press_90\\02_intermediaria.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_leg_press_90\\02_intermediaria-attempt-03.png",
+      "SOURCE_SHA256": "c0d8184ac5359599822dffbc3f4dfd01c092bce31c3a59f89079ef98c751573b",
+      "SOURCE_BYTES": 2190681,
+      "provenanceId": "legs_leg_press_90__02_intermediaria__3",
+      "selectedAttempt": 3,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida excêntrica por flexão de joelhos/quadris: plataforma horizontal longe do assento → meia aproximação → joelhos ~90°, lombar apoiada.",
+      "phaseDefinition": "Plataforma no meio do deslocamento horizontal definido pelos trilhos da 01, flexão parcial mantendo apoios.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "NEEDS_HUMAN_REVIEW"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: 01/4 selecionada após uma nova tentativa; flexão discreta dos joelhos reduz aparência de lockout, mantendo pés e montagem horizontal visualmente estáveis. Sem medição clínica do ângulo.",
+          "02/3 e 03/1 byte-for-byte preservadas; ressalva da intermediária ~60–65% visual e do catálogo/montagem horizontal permanece. Câmera, identidade e anatomia PASS; equipamento/biomecânica/midpoint ainda exigem revisão humana."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_leg_press_90/1.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_leg_press_90\\02_intermediaria.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "9cc1f0b05d136fa8ad6695ad1dafe3d0e6eaef3c949061b243781402e4c84fe9",
+      "RUNTIME_BYTES": 325299,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_leg_press_90",
+      "phase": "03_final",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_leg_press_90\\03_final.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_leg_press_90\\03_final-attempt-01.png",
+      "SOURCE_SHA256": "70c64c30cfb07d3b06695cd69512e729bbeb969f090cefdaa279516b74f0980d",
+      "SOURCE_BYTES": 2221255,
+      "provenanceId": "legs_leg_press_90__03_final__1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida excêntrica por flexão de joelhos/quadris: plataforma horizontal longe do assento → meia aproximação → joelhos ~90°, lombar apoiada.",
+      "phaseDefinition": "Plataforma próxima, joelhos ~90° seguindo pés, quadril/lombar em contato com o mesmo encosto.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "NEEDS_HUMAN_REVIEW"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: 01/4 selecionada após uma nova tentativa; flexão discreta dos joelhos reduz aparência de lockout, mantendo pés e montagem horizontal visualmente estáveis. Sem medição clínica do ângulo.",
+          "02/3 e 03/1 byte-for-byte preservadas; ressalva da intermediária ~60–65% visual e do catálogo/montagem horizontal permanece. Câmera, identidade e anatomia PASS; equipamento/biomecânica/midpoint ainda exigem revisão humana."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_leg_press_90/2.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_leg_press_90\\03_final.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "230a867e23fa0320309ede5d77d0ad05729717f93090664e2bb303f79485ad32",
+      "RUNTIME_BYTES": 344912,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_agachamento_pendulo",
+      "phase": "01_inicial",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_pendulo\\01_inicial.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_pendulo\\01_inicial-attempt-01.png",
+      "SOURCE_SHA256": "78946eacaa27a195a34ec4e4d74b43e0841e8a78aa9ce68181a8cd1b11962b23",
+      "SOURCE_BYTES": 2235378,
+      "provenanceId": "legs_agachamento_pendulo__01_inicial__1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED_WITH_CAVEAT",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED_WITH_CAVEAT",
+        "classification": "HUMAN_ACCEPTED_WITH_CAVEAT",
+        "caveat": "Pequena deriva de geometria/apoios da máquina.",
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": "Pequena deriva de geometria/apoios da máquina.",
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida excêntrica: quase em pé sob as almofadas -> metade do arco -> agachamento profundo controlado.",
+      "phaseDefinition": "Joelhos quase estendidos, pés fixos no centro da plataforma, coluna e ombros apoiados.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada. Rosto/roupa/anatomia e câmera geral consistentes; alturas do corpo distinguem início/meio/fim.",
+          "Persiste deriva da plataforma e de geometria dos braços/apoios, incompatível com EQUIPMENT_LOCK absoluto e trajetória corporal segura confirmada.",
+          "03 chegou a 3/3; melhor existente selecionada, sem nova rodada. 02/2 substituiu midpoint quase no extremo."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_agachamento_pendulo/0.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_pendulo\\01_inicial.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "fa0269c85330c0a604e912e4236864225ec829e14e9cb8e467742c5583d995bc",
+      "RUNTIME_BYTES": 257372,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_agachamento_pendulo",
+      "phase": "02_intermediaria",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_pendulo\\02_intermediaria.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_pendulo\\02_intermediaria-attempt-02.png",
+      "SOURCE_SHA256": "0df2166db0ceb62ca7ccf7980192c38a0083ceefc51650aeb40ca65d40616ac1",
+      "SOURCE_BYTES": 2081955,
+      "provenanceId": "legs_agachamento_pendulo__02_intermediaria__2",
+      "selectedAttempt": 2,
+      "humanDecision": "ACCEPTED_WITH_CAVEAT",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED_WITH_CAVEAT",
+        "classification": "HUMAN_ACCEPTED_WITH_CAVEAT",
+        "caveat": "Pequena deriva de geometria/apoios da máquina.",
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": "Pequena deriva de geometria/apoios da máquina.",
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida excêntrica: quase em pé sob as almofadas -> metade do arco -> agachamento profundo controlado.",
+      "phaseDefinition": "Aproximadamente metade do arco de flexão dos joelhos e quadris.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada. Rosto/roupa/anatomia e câmera geral consistentes; alturas do corpo distinguem início/meio/fim.",
+          "Persiste deriva da plataforma e de geometria dos braços/apoios, incompatível com EQUIPMENT_LOCK absoluto e trajetória corporal segura confirmada.",
+          "03 chegou a 3/3; melhor existente selecionada, sem nova rodada. 02/2 substituiu midpoint quase no extremo."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_agachamento_pendulo/1.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_pendulo\\02_intermediaria.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "ee9759a22f997589eae0f9225612e9f1106ccf63c80682f4739890f181537ac5",
+      "RUNTIME_BYTES": 235386,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_agachamento_pendulo",
+      "phase": "03_final",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_pendulo\\03_final.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_pendulo\\03_final-attempt-03.png",
+      "SOURCE_SHA256": "0e108f9dae1be288063346856ef8a19c9b1d500466b0d8a5e1e2aa36e1af7d3a",
+      "SOURCE_BYTES": 2134381,
+      "provenanceId": "legs_agachamento_pendulo__03_final__3",
+      "selectedAttempt": 3,
+      "humanDecision": "ACCEPTED_WITH_CAVEAT",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED_WITH_CAVEAT",
+        "classification": "HUMAN_ACCEPTED_WITH_CAVEAT",
+        "caveat": "Pequena deriva de geometria/apoios da máquina.",
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": "Pequena deriva de geometria/apoios da máquina.",
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida excêntrica: quase em pé sob as almofadas -> metade do arco -> agachamento profundo controlado.",
+      "phaseDefinition": "Agachamento profundo sem desprender calcanhares nem pelve/coluna das almofadas.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada. Rosto/roupa/anatomia e câmera geral consistentes; alturas do corpo distinguem início/meio/fim.",
+          "Persiste deriva da plataforma e de geometria dos braços/apoios, incompatível com EQUIPMENT_LOCK absoluto e trajetória corporal segura confirmada.",
+          "03 chegou a 3/3; melhor existente selecionada, sem nova rodada. 02/2 substituiu midpoint quase no extremo."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_agachamento_pendulo/2.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_pendulo\\03_final.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "a23d08818e4fb23c7a5c93f77e6ac88e9d9cdcb8b1f741c24a9055733c557d1f",
+      "RUNTIME_BYTES": 247332,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_afundo_smith",
+      "phase": "01_inicial",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_afundo_smith\\01_inicial.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_afundo_smith\\01_inicial-attempt-01.png",
+      "SOURCE_SHA256": "865ffe72a830bc1b00c7b50e7e6000b9c3b1e36145f929280158981e7e007926",
+      "SOURCE_BYTES": 2263267,
+      "provenanceId": "legs_afundo_smith__01_inicial__1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida do afundo estático: posição alta -> metade da flexão -> joelhos próximos de 90° sem tocar o chão.",
+      "phaseDefinition": "Base afastada anteroposterior, pé dianteiro inteiro e traseiro na ponta, barra nos trapézios.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "PASS",
+          "BIOMECHANICS": "PASS",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "CANDIDATE_OK",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada: mesmo rosto/roupa, corpo e perspectiva, bases e trilhos permanecem; mangas seguem conectadas à Smith.",
+          "Pé frontal plantado e apoio posterior mantidos; joelhos/quadril descem com tronco controlado e barra atrás dos ombros.",
+          "02/1 mostra altura da barra e flexão aproximadamente no meio da amplitude, claramente diferente dos extremos. Seis critérios PASS por inspeção do agente; CANDIDATE_OK permanece DRAFT, sem aprovação humana/runtime."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_afundo_smith/0.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_afundo_smith\\01_inicial.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "9b6577226bafef1c6cba370e431953037b86c9e5895d2214c952fc3629af7232",
+      "RUNTIME_BYTES": 314399,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_afundo_smith",
+      "phase": "02_intermediaria",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_afundo_smith\\02_intermediaria.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_afundo_smith\\02_intermediaria-attempt-01.png",
+      "SOURCE_SHA256": "482944af872fbf5afe2cdca5accdacd27589f36d00bbabf52eac66de2cc5fea5",
+      "SOURCE_BYTES": 2089249,
+      "provenanceId": "legs_afundo_smith__02_intermediaria__1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida do afundo estático: posição alta -> metade da flexão -> joelhos próximos de 90° sem tocar o chão.",
+      "phaseDefinition": "Aproximadamente metade da flexão de ambos os joelhos; pés fixos.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "PASS",
+          "BIOMECHANICS": "PASS",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "CANDIDATE_OK",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada: mesmo rosto/roupa, corpo e perspectiva, bases e trilhos permanecem; mangas seguem conectadas à Smith.",
+          "Pé frontal plantado e apoio posterior mantidos; joelhos/quadril descem com tronco controlado e barra atrás dos ombros.",
+          "02/1 mostra altura da barra e flexão aproximadamente no meio da amplitude, claramente diferente dos extremos. Seis critérios PASS por inspeção do agente; CANDIDATE_OK permanece DRAFT, sem aprovação humana/runtime."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_afundo_smith/1.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_afundo_smith\\02_intermediaria.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "3fa6186715427179ebe1562a8c1940b331aad37d051f1a50ca9214e5684884f5",
+      "RUNTIME_BYTES": 290387,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_afundo_smith",
+      "phase": "03_final",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_afundo_smith\\03_final.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_afundo_smith\\03_final-attempt-01.png",
+      "SOURCE_SHA256": "ece2d908b95ddb5d309011a0486277306c0d3fb596270662eeed482a2986b2ea",
+      "SOURCE_BYTES": 2083050,
+      "provenanceId": "legs_afundo_smith__03_final__1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida do afundo estático: posição alta -> metade da flexão -> joelhos próximos de 90° sem tocar o chão.",
+      "phaseDefinition": "Ambos os joelhos próximos de 90°, joelho traseiro acima do chão, barra descida nos mesmos trilhos.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "PASS",
+          "BIOMECHANICS": "PASS",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "CANDIDATE_OK",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada: mesmo rosto/roupa, corpo e perspectiva, bases e trilhos permanecem; mangas seguem conectadas à Smith.",
+          "Pé frontal plantado e apoio posterior mantidos; joelhos/quadril descem com tronco controlado e barra atrás dos ombros.",
+          "02/1 mostra altura da barra e flexão aproximadamente no meio da amplitude, claramente diferente dos extremos. Seis critérios PASS por inspeção do agente; CANDIDATE_OK permanece DRAFT, sem aprovação humana/runtime."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_afundo_smith/2.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_afundo_smith\\03_final.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "38bdce826fe5b3d8e1c3707db98da93d15e390ce735f6d66a7e0f5c3e59b530f",
+      "RUNTIME_BYTES": 279775,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_agachamento_bulgaro_smith",
+      "phase": "01_inicial",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_bulgaro_smith\\01_inicial.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_bulgaro_smith\\01_inicial-attempt-02.png",
+      "SOURCE_SHA256": "5e4cfc1a4b0263ad90b02618caa9373085f9b114d82d79055dd0f1f61e488488",
+      "SOURCE_BYTES": 2047286,
+      "provenanceId": "legs_agachamento_bulgaro_smith__01_inicial__2",
+      "selectedAttempt": 2,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida do split squat com pé traseiro elevado: alto -> metade da flexão -> joelho dianteiro flexionado próximo de 90°.",
+      "phaseDefinition": "Barra nos trapézios, pé dianteiro firme; peito do pé traseiro no mesmo banco reto.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada; identidade, câmera geral, anatomia e fases distinguíveis. Barra permanece conectada aos dois trilhos verticais.",
+          "01/1 rejeitada por contato posterior ambíguo; 01/2 reparou o dorso do calçado no banco antes de usá-la como lock.",
+          "Pé da frente deriva na 03 e há diferença aparente de superfície/altura de contato posterior do banco, impedindo confirmar apoios absolutamente iguais."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_agachamento_bulgaro_smith/0.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_bulgaro_smith\\01_inicial.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "5e85e61d4972baefc42cdaa64f906fd48b68b9910a90d2ad1f979a7e11060a3e",
+      "RUNTIME_BYTES": 278423,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_agachamento_bulgaro_smith",
+      "phase": "02_intermediaria",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_bulgaro_smith\\02_intermediaria.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_bulgaro_smith\\02_intermediaria-attempt-03.png",
+      "SOURCE_SHA256": "4dae6f44462b5a8ade0aa6319c34445b34814750df3c5df68b3ca56b8381a7e4",
+      "SOURCE_BYTES": 2025313,
+      "provenanceId": "legs_agachamento_bulgaro_smith__02_intermediaria__3",
+      "selectedAttempt": 3,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida do split squat com pé traseiro elevado: alto -> metade da flexão -> joelho dianteiro flexionado próximo de 90°.",
+      "phaseDefinition": "Metade da flexão dianteira, pé traseiro no mesmo contato.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada; identidade, câmera geral, anatomia e fases distinguíveis. Barra permanece conectada aos dois trilhos verticais.",
+          "01/1 rejeitada por contato posterior ambíguo; 01/2 reparou o dorso do calçado no banco antes de usá-la como lock.",
+          "Pé da frente deriva na 03 e há diferença aparente de superfície/altura de contato posterior do banco, impedindo confirmar apoios absolutamente iguais."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_agachamento_bulgaro_smith/1.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_bulgaro_smith\\02_intermediaria.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "4b0a88da5a457ba0a0ed8b0df04fa8b76b125544d916c40fa89d930d2b06b7c0",
+      "RUNTIME_BYTES": 267410,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_agachamento_bulgaro_smith",
+      "phase": "03_final",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_bulgaro_smith\\03_final.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_bulgaro_smith\\03_final-attempt-03.png",
+      "SOURCE_SHA256": "8f1a4cc5a234fc4fe494789a339918e1c956361ab2b589c83770206dd3788cac",
+      "SOURCE_BYTES": 1958338,
+      "provenanceId": "legs_agachamento_bulgaro_smith__03_final__3",
+      "selectedAttempt": 3,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida do split squat com pé traseiro elevado: alto -> metade da flexão -> joelho dianteiro flexionado próximo de 90°.",
+      "phaseDefinition": "Flexão dianteira final controlada, quadril descido, leve inclinação do tronco; banco e ambos os pés estáveis.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada; identidade, câmera geral, anatomia e fases distinguíveis. Barra permanece conectada aos dois trilhos verticais.",
+          "01/1 rejeitada por contato posterior ambíguo; 01/2 reparou o dorso do calçado no banco antes de usá-la como lock.",
+          "Pé da frente deriva na 03 e há diferença aparente de superfície/altura de contato posterior do banco, impedindo confirmar apoios absolutamente iguais."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_agachamento_bulgaro_smith/2.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_bulgaro_smith\\03_final.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "04c4c50bf67091dd25d5c2f97aae70f7154d4a65e28d64a4221a3a8b5f210500",
+      "RUNTIME_BYTES": 266768,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_flexora_em_pe_maquina",
+      "phase": "01_inicial",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_flexora_em_pe_maquina\\01_inicial.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_em_pe_maquina\\01_inicial-attempt-01.png",
+      "SOURCE_SHA256": "2960331220667e75787a232f06bdd0d28d432a557c841557525e590a4e7b6af5",
+      "SOURCE_BYTES": 2184473,
+      "provenanceId": "legs_flexora_em_pe_maquina__01_inicial__1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Flexão concêntrica unilateral: joelho ativo quase estendido -> metade da flexão -> calcanhar elevado próximo ao glúteo.",
+      "phaseDefinition": "Tronco/quadril no apoio frontal, joelho direito junto ao eixo, rolo atrás do tornozelo; perna esquerda apoiada.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: 02/3 selecionada na segunda nova tentativa, usando 01+03 simultaneamente. Pivô mais alinhado aos extremos, alavanca inferior visível e rolo conectado; pé abaixo do joelho, flexão menor que 02 anterior e claramente diferente de 03.",
+          "01/1 e 03/3 congeladas byte-for-byte. Posição relativa joelho/eixo e constância de raio/conexões continuam exigindo inspeção humana; não há certificação clínica de 50%."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_flexora_em_pe_maquina/0.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_flexora_em_pe_maquina\\01_inicial.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "612b974a80c61def3e541f8375a6085d732ab6b155900c7549e5cd38abd129ff",
+      "RUNTIME_BYTES": 259441,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_flexora_em_pe_maquina",
+      "phase": "02_intermediaria",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_flexora_em_pe_maquina\\02_intermediaria.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_em_pe_maquina\\02_intermediaria-attempt-03.png",
+      "SOURCE_SHA256": "eedd9b01930eb2c06a4ff6516ca03e50dced91015208b9c611ed0b3a7fd66555",
+      "SOURCE_BYTES": 2019955,
+      "provenanceId": "legs_flexora_em_pe_maquina__02_intermediaria__3",
+      "selectedAttempt": 3,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Flexão concêntrica unilateral: joelho ativo quase estendido -> metade da flexão -> calcanhar elevado próximo ao glúteo.",
+      "phaseDefinition": "Joelho ativo flexionado à metade; quadril/coxa e perna de apoio fixos.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: 02/3 selecionada na segunda nova tentativa, usando 01+03 simultaneamente. Pivô mais alinhado aos extremos, alavanca inferior visível e rolo conectado; pé abaixo do joelho, flexão menor que 02 anterior e claramente diferente de 03.",
+          "01/1 e 03/3 congeladas byte-for-byte. Posição relativa joelho/eixo e constância de raio/conexões continuam exigindo inspeção humana; não há certificação clínica de 50%."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_flexora_em_pe_maquina/1.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_flexora_em_pe_maquina\\02_intermediaria.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "cd334fc52309994e896947ac3bffd1905d16d4c2705f57d6a95b7a3003d6d5bc",
+      "RUNTIME_BYTES": 240880,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_flexora_em_pe_maquina",
+      "phase": "03_final",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_flexora_em_pe_maquina\\03_final.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_em_pe_maquina\\03_final-attempt-03.png",
+      "SOURCE_SHA256": "9aae56be278ce021b49f3ff5dbe05366524187d3bd31726153b5c0ee56b57d70",
+      "SOURCE_BYTES": 1947067,
+      "provenanceId": "legs_flexora_em_pe_maquina__03_final__3",
+      "selectedAttempt": 3,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Flexão concêntrica unilateral: joelho ativo quase estendido -> metade da flexão -> calcanhar elevado próximo ao glúteo.",
+      "phaseDefinition": "Flexão final do joelho ativo, calcanhar aproxima glúteo e alavanca gira no mesmo eixo.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: 02/3 selecionada na segunda nova tentativa, usando 01+03 simultaneamente. Pivô mais alinhado aos extremos, alavanca inferior visível e rolo conectado; pé abaixo do joelho, flexão menor que 02 anterior e claramente diferente de 03.",
+          "01/1 e 03/3 congeladas byte-for-byte. Posição relativa joelho/eixo e constância de raio/conexões continuam exigindo inspeção humana; não há certificação clínica de 50%."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_flexora_em_pe_maquina/2.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_flexora_em_pe_maquina\\03_final.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "786518fadc0198308aa7854676d59e837848eba55f323d5e605942a2e9af16d1",
+      "RUNTIME_BYTES": 242374,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_flexora_articulada",
+      "phase": "01_inicial",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_flexora_articulada\\01_inicial.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_articulada\\01_inicial-attempt-02.png",
+      "SOURCE_SHA256": "640ab4ed1165a6de595dbfce8742344be097134df9f14b9d6ec6259b59c6ac11",
+      "SOURCE_BYTES": 2277027,
+      "provenanceId": "legs_flexora_articulada__01_inicial__2",
+      "selectedAttempt": 2,
+      "humanDecision": "ACCEPTED_WITH_CAVEAT",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED_WITH_CAVEAT",
+        "classification": "HUMAN_ACCEPTED_WITH_CAVEAT",
+        "caveat": "Pequenas diferenças de pivô/transmissão entre fases.",
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": "Pequenas diferenças de pivô/transmissão entre fases.",
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Flexão concêntrica bilateral deitada: pernas quase estendidas -> metade da flexão -> calcanhares aproximam glúteos.",
+      "phaseDefinition": "Prono no estofado angulado, pelve apoiada, rolos atrás dos calcanhares, joelhos no eixo.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada; corpo deitado apoiado, identidade/câmera e flexão progressiva reconhecíveis; 02 aproximadamente entre início/final.",
+          "01/1 tinha eixo abaixo/atrás do tornozelo e foi rejeitada; somente 01/2 com eixo no nível do joelho e braço conectado serviu de lock.",
+          "Na sequência, eixo altera altura na 02 e ramo de carga/porta-anilhas não conserva a mesma geometria rígida ao girar. Raio e transmissão não confirmados."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_flexora_articulada/0.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_flexora_articulada\\01_inicial.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "bd0bb661ef7979c967c8ec81a3f3fcfd628500ab86a46c5480aed8e435e34219",
+      "RUNTIME_BYTES": 290313,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_flexora_articulada",
+      "phase": "02_intermediaria",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_flexora_articulada\\02_intermediaria.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_articulada\\02_intermediaria-attempt-02.png",
+      "SOURCE_SHA256": "3ba8ebd5e131e92006eea3f392a1501b6718dfe3fd601b5bbfcd77bb4d5f3672",
+      "SOURCE_BYTES": 2190809,
+      "provenanceId": "legs_flexora_articulada__02_intermediaria__2",
+      "selectedAttempt": 2,
+      "humanDecision": "ACCEPTED_WITH_CAVEAT",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED_WITH_CAVEAT",
+        "classification": "HUMAN_ACCEPTED_WITH_CAVEAT",
+        "caveat": "Pequenas diferenças de pivô/transmissão entre fases.",
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": "Pequenas diferenças de pivô/transmissão entre fases.",
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Flexão concêntrica bilateral deitada: pernas quase estendidas -> metade da flexão -> calcanhares aproximam glúteos.",
+      "phaseDefinition": "Metade da flexão dos joelhos com coxas/quadril estáveis.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada; corpo deitado apoiado, identidade/câmera e flexão progressiva reconhecíveis; 02 aproximadamente entre início/final.",
+          "01/1 tinha eixo abaixo/atrás do tornozelo e foi rejeitada; somente 01/2 com eixo no nível do joelho e braço conectado serviu de lock.",
+          "Na sequência, eixo altera altura na 02 e ramo de carga/porta-anilhas não conserva a mesma geometria rígida ao girar. Raio e transmissão não confirmados."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_flexora_articulada/1.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_flexora_articulada\\02_intermediaria.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "fc0ee0f25d2baabcee7df493d46a0d998638b2abf114a15346e1e2b582167e5b",
+      "RUNTIME_BYTES": 288769,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_flexora_articulada",
+      "phase": "03_final",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_flexora_articulada\\03_final.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_articulada\\03_final-attempt-03.png",
+      "SOURCE_SHA256": "eafc49e9e720720371426d84ad7d692dfcfb127ba80c64d456ef8f00e1506405",
+      "SOURCE_BYTES": 2170240,
+      "provenanceId": "legs_flexora_articulada__03_final__3",
+      "selectedAttempt": 3,
+      "humanDecision": "ACCEPTED_WITH_CAVEAT",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED_WITH_CAVEAT",
+        "classification": "HUMAN_ACCEPTED_WITH_CAVEAT",
+        "caveat": "Pequenas diferenças de pivô/transmissão entre fases.",
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": "Pequenas diferenças de pivô/transmissão entre fases.",
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Flexão concêntrica bilateral deitada: pernas quase estendidas -> metade da flexão -> calcanhares aproximam glúteos.",
+      "phaseDefinition": "Flexão final de ambos os joelhos sem tirar a pelve do apoio, mesmo eixo e comprimento de alavanca.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada; corpo deitado apoiado, identidade/câmera e flexão progressiva reconhecíveis; 02 aproximadamente entre início/final.",
+          "01/1 tinha eixo abaixo/atrás do tornozelo e foi rejeitada; somente 01/2 com eixo no nível do joelho e braço conectado serviu de lock.",
+          "Na sequência, eixo altera altura na 02 e ramo de carga/porta-anilhas não conserva a mesma geometria rígida ao girar. Raio e transmissão não confirmados."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_flexora_articulada/2.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_flexora_articulada\\03_final.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "7cf086563ab18c2e80e08fa8c251d9ea58a48e21cf4c0d7e7044f50ffc620aa1",
+      "RUNTIME_BYTES": 289739,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_stiff_smith",
+      "phase": "01_inicial",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_stiff_smith\\01_inicial.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_stiff_smith\\01_inicial-attempt-01.png",
+      "SOURCE_SHA256": "63c98c97ef143c2fe25b1c5e5c1d17a9145bd459f1f3c5c2477981781deea021",
+      "SOURCE_BYTES": 2204312,
+      "provenanceId": "legs_stiff_smith__01_inicial__1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED_WITH_CAVEAT",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED_WITH_CAVEAT",
+        "classification": "HUMAN_ACCEPTED_WITH_CAVEAT",
+        "caveat": "Deriva residual de pés/base entre frames, mas hip hinge e progressão visual são suficientemente claros.",
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": "Deriva residual de pés/base entre frames, mas hip hinge e progressão visual são suficientemente claros.",
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida em hinge: corpo ereto/barra nas coxas -> metade da flexão do quadril -> barra próxima às canelas com lombar neutra.",
+      "phaseDefinition": "Em pé, barra junto às coxas, pegada pronada, pés largura dos ombros e joelhos levemente flexionados.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "NEEDS_HUMAN_REVIEW",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: 02/4 selecionada após três novas tentativas, melhoria moderada de recuo do quadril/barra; 03/4 selecionada após uma, com hinge mais profundo, barra próxima à canela alta, joelhos semiflexionados e pescoço neutro olhando ao piso.",
+          "01/1 congelada; nova 03 usa 01+nova02 como locks. Distância de guias preservada visualmente, barra conectada; deriva residual de pés/base (~30px) em relação à 01 permanece, similar à sequência anterior. Câmera/equipamento/biomecânica continuam NEEDS_HUMAN_REVIEW."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_stiff_smith/0.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_stiff_smith\\01_inicial.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "3b50860d75e463f74ac8d56f334032f8f6a97c4f412f87160edc447712ff1a7b",
+      "RUNTIME_BYTES": 295542,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_stiff_smith",
+      "phase": "02_intermediaria",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_stiff_smith\\02_intermediaria.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_stiff_smith\\02_intermediaria-attempt-04.png",
+      "SOURCE_SHA256": "e61f2b2feb3d848dbbcc63c07f1d0c5ce5569e93d9dc52987405b1ad9bc6988d",
+      "SOURCE_BYTES": 2078306,
+      "provenanceId": "legs_stiff_smith__02_intermediaria__4",
+      "selectedAttempt": 4,
+      "humanDecision": "ACCEPTED_WITH_CAVEAT",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED_WITH_CAVEAT",
+        "classification": "HUMAN_ACCEPTED_WITH_CAVEAT",
+        "caveat": "Deriva residual de pés/base entre frames, mas hip hinge e progressão visual são suficientemente claros.",
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": "Deriva residual de pés/base entre frames, mas hip hinge e progressão visual são suficientemente claros.",
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida em hinge: corpo ereto/barra nas coxas -> metade da flexão do quadril -> barra próxima às canelas com lombar neutra.",
+      "phaseDefinition": "Metade da inclinação do tronco por recuo do quadril; joelhos permanecem levemente flexionados.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "NEEDS_HUMAN_REVIEW",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: 02/4 selecionada após três novas tentativas, melhoria moderada de recuo do quadril/barra; 03/4 selecionada após uma, com hinge mais profundo, barra próxima à canela alta, joelhos semiflexionados e pescoço neutro olhando ao piso.",
+          "01/1 congelada; nova 03 usa 01+nova02 como locks. Distância de guias preservada visualmente, barra conectada; deriva residual de pés/base (~30px) em relação à 01 permanece, similar à sequência anterior. Câmera/equipamento/biomecânica continuam NEEDS_HUMAN_REVIEW."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_stiff_smith/1.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_stiff_smith\\02_intermediaria.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "a543a605972c35e75be2f3ac4650624d875e53b5fecf510452049987cae5f2b1",
+      "RUNTIME_BYTES": 288449,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_stiff_smith",
+      "phase": "03_final",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_stiff_smith\\03_final.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_stiff_smith\\03_final-attempt-04.png",
+      "SOURCE_SHA256": "2030c2ed8d09eeed87552f83a77bcf242b9c46a648e8a81f542da62c76516283",
+      "SOURCE_BYTES": 2031960,
+      "provenanceId": "legs_stiff_smith__03_final__4",
+      "selectedAttempt": 4,
+      "humanDecision": "ACCEPTED_WITH_CAVEAT",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED_WITH_CAVEAT",
+        "classification": "HUMAN_ACCEPTED_WITH_CAVEAT",
+        "caveat": "Deriva residual de pés/base entre frames, mas hip hinge e progressão visual são suficientemente claros.",
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": "Deriva residual de pés/base entre frames, mas hip hinge e progressão visual são suficientemente claros.",
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida em hinge: corpo ereto/barra nas coxas -> metade da flexão do quadril -> barra próxima às canelas com lombar neutra.",
+      "phaseDefinition": "Quadril recuado, tronco inclinado por hinge, barra rente às pernas e acima do chão; lombar neutra.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "NEEDS_HUMAN_REVIEW",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: 02/4 selecionada após três novas tentativas, melhoria moderada de recuo do quadril/barra; 03/4 selecionada após uma, com hinge mais profundo, barra próxima à canela alta, joelhos semiflexionados e pescoço neutro olhando ao piso.",
+          "01/1 congelada; nova 03 usa 01+nova02 como locks. Distância de guias preservada visualmente, barra conectada; deriva residual de pés/base (~30px) em relação à 01 permanece, similar à sequência anterior. Câmera/equipamento/biomecânica continuam NEEDS_HUMAN_REVIEW."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_stiff_smith/2.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_stiff_smith\\03_final.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "d1f18e6ff2655292e1537c9113506759bd1b448b0bbbfd6fbad451759147605f",
+      "RUNTIME_BYTES": 273985,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_aducao_cabo",
+      "phase": "01_inicial",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_aducao_cabo\\01_inicial.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_aducao_cabo\\01_inicial-attempt-01.png",
+      "SOURCE_SHA256": "38e6fdec01d50c7c0291d5e90d9c1f3813a24131e10d676fe9b5addb751548c4",
+      "SOURCE_BYTES": 2220475,
+      "provenanceId": "legs_aducao_cabo__01_inicial__1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Adução concêntrica da perna direita mais próxima da torre: aberta para a torre → neutra → pequeno cruzamento à frente da perna de apoio.",
+      "phaseDefinition": "Perna direita aberta ~20–25° em direção à torre, cabo tensionado e tornozeleira presa; perna esquerda sustenta o corpo.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "PASS",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação final 01 | 02 | 03 realizada após correção limitada da carga. Corpo/torso, apoio, mão e câmera mantidos; perna ativa aberta → quase neutra → aduzida à frente da de apoio.",
+          "Tornozeleira, conector e cabo permanecem contínuos; joelho quase estendido e torso vertical. Midpoint da perna claramente entre os extremos.",
+          "Revisão ampliada encontrou pilha estática nas primeiras versões. Tentativas de carga elevada corrigiram esse sinal, mas contagem/posição dos grupos e componente superior da torre não correspondem totalmente à 01."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_aducao_cabo/0.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_aducao_cabo\\01_inicial.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "2d472d97355ac7b56cbc27e0ad84d6c98a223325611716845de4d980aaefd2a2",
+      "RUNTIME_BYTES": 278746,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_aducao_cabo",
+      "phase": "02_intermediaria",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_aducao_cabo\\02_intermediaria.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_aducao_cabo\\02_intermediaria-attempt-02.png",
+      "SOURCE_SHA256": "728abd4ed7b296a66d14740a28e02d1ce3d55389256149e1b609bf5ac55142dc",
+      "SOURCE_BYTES": 2009958,
+      "provenanceId": "legs_aducao_cabo__02_intermediaria__2",
+      "selectedAttempt": 2,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Adução concêntrica da perna direita mais próxima da torre: aberta para a torre → neutra → pequeno cruzamento à frente da perna de apoio.",
+      "phaseDefinition": "Perna direita aproximadamente sob o quadril (~50% do arco entre abertura e cruzamento), sem inclinar o tronco.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "PASS",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação final 01 | 02 | 03 realizada após correção limitada da carga. Corpo/torso, apoio, mão e câmera mantidos; perna ativa aberta → quase neutra → aduzida à frente da de apoio.",
+          "Tornozeleira, conector e cabo permanecem contínuos; joelho quase estendido e torso vertical. Midpoint da perna claramente entre os extremos.",
+          "Revisão ampliada encontrou pilha estática nas primeiras versões. Tentativas de carga elevada corrigiram esse sinal, mas contagem/posição dos grupos e componente superior da torre não correspondem totalmente à 01."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_aducao_cabo/1.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_aducao_cabo\\02_intermediaria.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "6707af7db13220b94037de621c29adba006ee5eec4fb6b7fd283adf7199e8fff",
+      "RUNTIME_BYTES": 256569,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_aducao_cabo",
+      "phase": "03_final",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_aducao_cabo\\03_final.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_aducao_cabo\\03_final-attempt-03.png",
+      "SOURCE_SHA256": "3ec37d4abc0078bbc66cf635629662842b09facc643c087465fe320808764a1d",
+      "SOURCE_BYTES": 1937549,
+      "provenanceId": "legs_aducao_cabo__03_final__3",
+      "selectedAttempt": 3,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Adução concêntrica da perna direita mais próxima da torre: aberta para a torre → neutra → pequeno cruzamento à frente da perna de apoio.",
+      "phaseDefinition": "Perna direita cruza ligeiramente à frente da esquerda com joelho quase estendido; pé de apoio e torso mantidos.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "NEEDS_HUMAN_REVIEW",
+          "BIOMECHANICS": "PASS",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação final 01 | 02 | 03 realizada após correção limitada da carga. Corpo/torso, apoio, mão e câmera mantidos; perna ativa aberta → quase neutra → aduzida à frente da de apoio.",
+          "Tornozeleira, conector e cabo permanecem contínuos; joelho quase estendido e torso vertical. Midpoint da perna claramente entre os extremos.",
+          "Revisão ampliada encontrou pilha estática nas primeiras versões. Tentativas de carga elevada corrigiram esse sinal, mas contagem/posição dos grupos e componente superior da torre não correspondem totalmente à 01."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_aducao_cabo/2.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_aducao_cabo\\03_final.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "e657c685e9c5429e0989fc36137a311a552f2037ba7710ca2dcc3d3b5c19e79b",
+      "RUNTIME_BYTES": 252050,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_agachamento_sumo_smith",
+      "phase": "01_inicial",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_sumo_smith\\01_inicial.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sumo_smith\\01_inicial-attempt-01.png",
+      "SOURCE_SHA256": "6620016107f66010b1ba74e29c70cdfc48d5185a6592809d62ee29f0435d3f85",
+      "SOURCE_BYTES": 2174027,
+      "provenanceId": "legs_agachamento_sumo_smith__01_inicial__1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida excêntrica do agachamento sumô: topo com joelhos destravados → meia flexão → coxas próximas da horizontal.",
+      "phaseDefinition": "Em pé, base ampla, pés ~45° para fora, barra nos trapézios e mangas ligadas aos dois trilhos.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "PASS",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada. Identidade/câmera/anatomia gerais consistentes; estrutura/guia da Smith preservadas e barra conectada nos dois lados.",
+          "Base ampla, joelhos abertos acompanhando os pés, torso alto, alturas inicial/meia flexão/profunda distinguíveis; 02 aproximadamente metade da altura da barra.",
+          "03/3 melhorou bases e mantém coxas próximas da horizontal, mas pés ainda apresentam deslocamento residual (~15–25 px) em relação à 01. Não confirmar apoio biomecânico absolutamente fixo."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_agachamento_sumo_smith/0.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_sumo_smith\\01_inicial.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "67b0c96d32ca5806405d4bb3690f70480b4a56c8c4cf0233c7b5c9d02e52e03a",
+      "RUNTIME_BYTES": 292742,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_agachamento_sumo_smith",
+      "phase": "02_intermediaria",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_sumo_smith\\02_intermediaria.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sumo_smith\\02_intermediaria-attempt-01.png",
+      "SOURCE_SHA256": "1946b1b1a277f3ce1e392e5a1d4887b4f67602b03f3cea9289b10bf28db080d7",
+      "SOURCE_BYTES": 2029055,
+      "provenanceId": "legs_agachamento_sumo_smith__02_intermediaria__1",
+      "selectedAttempt": 1,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida excêntrica do agachamento sumô: topo com joelhos destravados → meia flexão → coxas próximas da horizontal.",
+      "phaseDefinition": "Quadril/barra aproximadamente na metade da descida, joelhos ~45°, pés e tronco estáveis.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "PASS",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada. Identidade/câmera/anatomia gerais consistentes; estrutura/guia da Smith preservadas e barra conectada nos dois lados.",
+          "Base ampla, joelhos abertos acompanhando os pés, torso alto, alturas inicial/meia flexão/profunda distinguíveis; 02 aproximadamente metade da altura da barra.",
+          "03/3 melhorou bases e mantém coxas próximas da horizontal, mas pés ainda apresentam deslocamento residual (~15–25 px) em relação à 01. Não confirmar apoio biomecânico absolutamente fixo."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_agachamento_sumo_smith/1.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_sumo_smith\\02_intermediaria.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "11b6abaf731b46c890dd5a8b122c4366344f5362f61bab40bcf3551a4213cb31",
+      "RUNTIME_BYTES": 280244,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    },
+    {
+      "exerciseId": "legs_agachamento_sumo_smith",
+      "phase": "03_final",
+      "sourceCandidatePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_sumo_smith\\03_final.png",
+      "sourceArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sumo_smith\\03_final-attempt-03.png",
+      "SOURCE_SHA256": "44299fc38785dc1ef5b1583ed4ed4957c42ae90a6ec54915e9b89f637ffec783",
+      "SOURCE_BYTES": 2065512,
+      "provenanceId": "legs_agachamento_sumo_smith__03_final__3",
+      "selectedAttempt": 3,
+      "humanDecision": "ACCEPTED",
+      "sourceHumanDecision": {
+        "decision": "ACCEPTED",
+        "classification": "HUMAN_ACCEPTED",
+        "caveat": null,
+        "evidence": {
+          "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+          "date": "2026-10-03",
+          "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+          "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+          "scope": "STAGING_VISUAL_SELECTION_ONLY",
+          "runtimeApproval": "NOT_GRANTED"
+        }
+      },
+      "caveat": null,
+      "sourceLocalCommits": [
+        "043e8e811d6cf6d301ff7aa94869b085928823e4",
+        "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+      ],
+      "sourceHumanReview": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/HUMAN_REVIEW_FINAL.md",
+      "sourceManifest": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/batch-manifest.json",
+      "direction": "Descida excêntrica do agachamento sumô: topo com joelhos destravados → meia flexão → coxas próximas da horizontal.",
+      "phaseDefinition": "Quadril baixo, joelhos ~90°, coxas próximas da horizontal, joelhos seguindo direção dos pés.",
+      "sourceAgentReview": {
+        "agentReview": {
+          "IDENTITY_CONSISTENCY": "PASS",
+          "CAMERA_CONSISTENCY": "PASS",
+          "ANATOMY": "PASS",
+          "EQUIPMENT": "PASS",
+          "BIOMECHANICS": "NEEDS_HUMAN_REVIEW",
+          "PHASE_DISTINCTION": "PASS"
+        },
+        "overall": "NEEDS_HUMAN_REVIEW",
+        "reviewNotes": [
+          "R1: reavaliada visualmente 01 | 02 | 03; os três frames e a folha individual permanecem byte-for-byte conforme decisão humana de preservação. Mesmos seis julgamentos após inspeção, sem regeneração nem promoção.",
+          "Comparação 01 | 02 | 03 realizada. Identidade/câmera/anatomia gerais consistentes; estrutura/guia da Smith preservadas e barra conectada nos dois lados.",
+          "Base ampla, joelhos abertos acompanhando os pés, torso alto, alturas inicial/meia flexão/profunda distinguíveis; 02 aproximadamente metade da altura da barra.",
+          "03/3 melhorou bases e mantém coxas próximas da horizontal, mas pés ainda apresentam deslocamento residual (~15–25 px) em relação à 01. Não confirmar apoio biomecânico absolutamente fixo."
+        ]
+      },
+      "runtimePath": "/assets/exercises/legs_agachamento_sumo_smith/2.jpg",
+      "sourcePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\exercises\\legs_agachamento_sumo_smith\\03_final.png",
+      "sourceAvailability": "IMMUTABLE_LOCAL_ARCHIVE_NOT_VERSIONED",
+      "RUNTIME_SHA256": "293a075d8c856f68efe52962d0a21ee374d1a8b93286b64572396653613b742c",
+      "RUNTIME_BYTES": 278654,
+      "codec": "jpeg",
+      "width": 1024,
+      "height": 1536,
+      "progressive": true,
+      "crop": false,
+      "resized": false
+    }
+  ]
+}

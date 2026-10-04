@@ -7,6 +7,9 @@ import { getTechniqueVideoIdForExerciseId } from '../lib/exerciseTechniqueMap';
 import type { Exercise, TechniqueFrame } from '../types';
 import type { ExerciseMedia } from '../domain/media/types';
 import manifest from '../domain/media/manifest.json';
+import { RUNTIME_CATALOG } from '../mock/exercises';
+import { PUBLISHED_LOCAL_MEDIA_EXERCISE_IDS, getPublishedLocalMedia } from '../domain/media/publishedLocalMedia';
+import { ExerciseMedia as GalleryMedia } from './ExerciseMedia';
 
 vi.mock('../domain/media/manifest', async () => ({
   ...await vi.importActual<typeof import('../domain/media/manifest')>('../domain/media/manifest'),
@@ -38,6 +41,37 @@ function mount(node: React.ReactElement) {
 }
 
 describe('players e mapa GOAL-119', () => {
+  it.each(PUBLISHED_LOCAL_MEDIA_EXERCISE_IDS)('GOAL-128 %s opens the initial cover and navigates only its own frames', id => {
+    const own = RUNTIME_CATALOG.find(e => e.id === id)!;
+    const count = id === 'triceps_maquina' ? 2 : 3;
+    const gallery = mount(<GalleryMedia images={own.images} name={own.name} fit="cover" />);
+    expect(gallery.root.findAllByType('img')[0].props.src).toBe(`/assets/exercises/${id}/0.jpg`);
+    expect(gallery.root.findAllByType('img')[0].props.className).toContain('opacity-100');
+    expect(gallery.root.findAllByType('img')[0].props.className).toContain('object-contain');
+    const renderer = mount(<ExerciseMediaUnifiedPlayer exercise={own} autoplay={false} fit="cover" />);
+    expect(text(renderer.root.findByProps({ 'aria-label': 'Status da sequência' }))).toContain('1/' + count);
+    expect(text(renderer.root.findByType('img').parent?.children)).not.toContain('SEQUÊNCIA VISUAL PROVISÓRIA');
+    const labels = count === 2 ? ['Posição inicial', 'Execução / posição final'] : ['Posição inicial', 'Meio da execução', 'Posição final'];
+    for (let index = 0; index < count; index++) {
+      expect(text(renderer.toJSON())).toContain(`${index + 1}/${count}`);
+      expect(text(renderer.toJSON())).toContain(labels[index]);
+      expect(renderer.root.findByType('img').props.src).toBe(`/assets/exercises/${id}/${index}.jpg`);
+      expect(renderer.root.findByType('img').props.className).toContain('object-contain');
+      act(() => renderer.root.findByProps({'aria-label': 'Próxima etapa'}).props.onClick());
+    }
+    expect(text(renderer.toJSON())).toContain(`1/${count}`);
+  });
+
+  it('shows the accepted French caveat in both technique players', () => {
+    const own = RUNTIME_CATALOG.find(e => e.id === 'triceps_frances_unilateral_cabo')!;
+    const caveat = getPublishedLocalMedia(own.id)!.displayCaveat!;
+    for (const Player of [ExerciseMediaUnifiedPlayer, TechniqueSequencePlayer]) {
+      const renderer = mount(<Player exercise={own} autoplay={false} fit="cover" />);
+      expect(text(renderer.toJSON())).toContain(caveat);
+      expect(renderer.root.findByType('img').props.className).toContain('object-contain');
+      expect(text(renderer.root.findByProps({ 'aria-label': 'Status da sequência' }))).toContain('1/3');
+    }
+  });
   it('exercício sem mapeamento não abre supino', () => {
     expect(getTechniqueVideoIdForExerciseId('back_remada_baixa')).toBeNull();
     expect(getTechniqueVideoIdForExerciseId('chest_supino_reto')).toBe('vid_supino_1');

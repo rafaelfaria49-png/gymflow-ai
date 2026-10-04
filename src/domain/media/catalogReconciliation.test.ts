@@ -26,9 +26,9 @@ describe('GOAL-124 functional runtime media reconciliation', () => {
   });
   it.each([
     ['chest_supino_haltere', 'frames'],
-    [LOTE_6_EXPANSION[0].id, 'placeholder'],
+    ['legs_agachamento_sissy', 'placeholder'],
     [LOTE_7_EXPANSION[0].id, 'placeholder'],
-    ['triceps_maquina', 'placeholder'],
+    ['triceps_maquina', 'frames'],
     ['back_puxada_pulley', 'video'],
     ['chest_supino_reto', 'frames'],
   ])('%s is selectable and resolves honestly to %s', (id, expectedTier) => {

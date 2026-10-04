@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
+import { validateRuntimePublication, PUBLICATION_FILE } from './publish-runtime-media-128.mjs';
 
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
@@ -14,8 +15,8 @@ const ROOT = path.resolve(path.dirname(scriptPath), '../..');
 const placeholderHost = 'assets.gymflow.ai';
 export const EXPECTED_SEQUENCE_IDS = ['back_puxada_pulley','back_remada_baixa','biceps_rosca_direta','chest_supino_inclinado_haltere','chest_supino_reto','legs_agachamento_barra','legs_legpress_45','shoulder_desenvolvimento_haltere','shoulder_elevecao_lateral','triceps_polia_corda'];
 export const APPROVED_VIDEO_IDS = ['back_puxada_pulley','back_remada_baixa'];
-export const COVERAGE_CLASSES = ['VIDEO_APPROVED','SEQUENCE_5_APPROVED','IMAGES_2_LEGACY','IMAGE_SINGLE','NO_MEDIA','MANIFEST_DRAFT_VIDEO','MANIFEST_RETIRED','MAPPING_INCONSISTENT'];
-export const GALLERY_COVER_CLASSES = ['COVER_EXISTING_CANDIDATE','COVER_NEEDS_REVIEW','COVER_MISSING','COVER_BLOCKED_WRONG_MEDIA'];
+export const COVERAGE_CLASSES = ['VIDEO_APPROVED','SEQUENCE_5_APPROVED','LOCAL_RUNTIME_SEQUENCE_3','LOCAL_RUNTIME_TWO_FRAME_EXCEPTION','IMAGES_2_LEGACY','IMAGE_SINGLE','NO_MEDIA','MANIFEST_DRAFT_VIDEO','MANIFEST_RETIRED','MAPPING_INCONSISTENT'];
+export const GALLERY_COVER_CLASSES = ['COVER_EXISTING_CANDIDATE','COVER_NEEDS_REVIEW','COVER_LOCAL_RUNTIME_AUTHORIZED','COVER_MISSING','COVER_BLOCKED_WRONG_MEDIA'];
 export const EXPECTED_CATALOG_COUNTS = { BASE_CATALOG_126:126, LOTE_6:29, LOTE_7:29, RUNTIME_CATALOG:184 };
 
 function installTs() {
@@ -32,7 +33,8 @@ function loadSources(root) {
     ...require(path.join(root,'src/mock/exercises.ts')),
     MOCK_VIDEOS:require(path.join(root,'src/mock/videos.ts')).MOCK_VIDEOS,
     techniqueFrames:require(path.join(root,'src/lib/techniqueFrames.ts')),
-    localMediaPolicy:require(path.join(root,'src/domain/media/localMediaPolicy.ts'))
+    localMediaPolicy:require(path.join(root,'src/domain/media/localMediaPolicy.ts')),
+    publishedLocalMedia:require(path.join(root,'src/domain/media/publishedLocalMedia.ts'))
   };
 }
 function json(root,file){return JSON.parse(fs.readFileSync(path.join(root,file),'utf8'));}
@@ -128,6 +130,10 @@ export async function buildInventory(root=ROOT){
   const mockIds=new Set(src.MOCK_VIDEOS.map(v=>v.id)),batchIds=new Set(src.techniqueFrames.TECHNIQUE_BATCH_001_EXERCISE_IDS);
   const expected=new Set(EXPECTED_SEQUENCE_IDS),review=readReview(root),anomalies=[],rows=[],imageRecords=[];
   const add=(type,details={})=>anomalies.push({type,severity:/CROSS_EXERCISE|APPROVAL|PROVENANCE/.test(type)?'P0':'P1',...details});
+  const publication=await validateRuntimePublication(root);
+  const publishedIds=src.publishedLocalMedia.PUBLISHED_LOCAL_MEDIA_EXERCISE_IDS;
+  if(!isDeepStrictEqual(publishedIds,publication.exerciseIds))add('RUNTIME_PUBLICATION_SCOPE_CHANGED');
+  const expectedDirectoryCount=baseline.counts.assetDirectories+publication.exerciseIds.length;
   const assetRoot=path.join(root,'public/assets/exercises');
   const dirs=fs.readdirSync(assetRoot,{withFileTypes:true}).filter(x=>x.isDirectory()).map(x=>x.name).sort();
   for(const [lot,expected]of Object.entries(EXPECTED_CATALOG_COUNTS))if(catalogAudit.counts[lot]!==expected)add('CATALOG_COUNT_MISMATCH',{lot,expected,actual:catalogAudit.counts[lot]});
@@ -141,7 +147,7 @@ export async function buildInventory(root=ROOT){
   if(!parity)add('MANIFEST_NOT_SYNCHRONIZED');
   const changedAssets=auditPreservedAssets(manifest,baseline);
   for(const item of changedAssets)add('MEDIA_APPROVAL_OR_PROVENANCE_CHANGED',item);
-  if(dirs.length!==125)add('ASSET_DIRECTORY_COUNT_MISMATCH',{expected:125,actual:dirs.length});
+  if(dirs.length!==expectedDirectoryCount)add('ASSET_DIRECTORY_COUNT_MISMATCH',{expected:expectedDirectoryCount,actual:dirs.length});
   const assetDirsWithoutExercise=dirs.filter(id=>!runtimeIds.has(id));
   for(const id of assetDirsWithoutExercise)add('ASSET_DIRECTORY_WITHOUT_CATALOG_EXERCISE',{exerciseId:id});
   const unmatched=[],brokenManifest=[];
@@ -203,13 +209,23 @@ export async function buildInventory(root=ROOT){
     if(video?.status==='approved'&&!realApproved)add('APPROVED_VIDEO_PROVENANCE_OR_URL_INVALID',{exerciseId:id,videoId:video.id,url:video.url});
     const tf=src.techniqueFrames.getTechniqueFrames(runtimeExercise??e),refs=tf.map(x=>x.image).filter(Boolean);
     const broken=refs.filter(p=>{const f=publicFile(root,p);return!f||!fs.existsSync(f);});
+    const published=src.publishedLocalMedia.getPublishedLocalMedia(id);
+    const publishedPaths=src.publishedLocalMedia.getPublishedLocalMediaPaths(id)??[];
+    const selectedAssets=publication.assets.filter(a=>a.exerciseId===id);
+    const runtimeSequenceValid=Boolean(published&&isDeepStrictEqual(refs,publishedPaths)&&isDeepStrictEqual(catalogPaths,publishedPaths)&&isDeepStrictEqual(publishedPaths,selectedAssets.map(a=>a.runtimePath))&&!broken.length);
+    if(published&&!runtimeSequenceValid)add('INVALID_LOCAL_RUNTIME_SEQUENCE',{exerciseId:id});
+    if(published&&(published.humanDecision!==selectedAssets[0]?.humanDecision||published.caveat!==selectedAssets[0]?.caveat))add('LOCAL_RUNTIME_HUMAN_DECISION_CHANGED',{exerciseId:id});
     for(const p of refs){if(!p.startsWith('/assets/exercises/'+id+'/'))add('CROSS_EXERCISE_MEDIA_PATH',{exerciseId:id,path:p,source:'getTechniqueFrames'});if(src.localMediaPolicy.isLocalMediaBlocked(p))add('BLOCKED_WRONG_MEDIA_ACTIVE',{exerciseId:id,path:p,source:'getTechniqueFrames'});}
     for(const p of broken)add('BROKEN_TECHNIQUE_FALLBACK_PATH',{exerciseId:id,path:p});
-    const risk=seqValid||realApproved?{level:'low',reason:'vídeo approved ou sequência local de cinco frames estruturalmente validada.'}:broken.length?{level:'high',reason:'fallback aponta para caminho inexistente.'}:localPaths.length?{level:'medium',reason:'fallback limitado a imagens estáticas legacy; sem aprovação biomecânica.'}:{level:'high',reason:'fallback vazio e honesto; nenhuma demonstração é fingida.'};
+    const risk=seqValid||realApproved?{level:'low',reason:'vídeo approved ou sequência local de cinco frames estruturalmente validada.'}:runtimeSequenceValid?{level:'medium',reason:'sequência local publicada por autorização humana; ressalvas e decisões de origem preservadas.'}:broken.length?{level:'high',reason:'fallback aponta para caminho inexistente.'}:localPaths.length?{level:'medium',reason:'fallback limitado a imagens estáticas legacy; sem aprovação biomecânica.'}:{level:'high',reason:'fallback vazio e honesto; nenhuma demonstração é fingida.'};
     rows.push({exerciseId:id,name:e.name,primaryMuscleGroup:e.muscleGroup,category:e.muscleGroup,equipment:e.equipment,catalogExists:true,
       catalogOrigin:catalogAudit.origins[id]?.[0]??'UNKNOWN',operationalStatus:'SELECTABLE_RUNTIME',
       assetDirectoryExists:exists,localImageCount:localPaths.length,localImagePaths:localPaths,catalogImagePaths:catalogPaths,
       sequenceFrameCount:seqNames.length,sequenceFramePaths:seqPaths,sequenceStatus,sequenceExpected:seqExpected,sequenceMappingFrameCount:mapped.length,
+      runtimePublished:runtimeSequenceValid,localRuntimeFrameCount:publishedPaths.length,localRuntimeFramePaths:publishedPaths,
+      localRuntimeSequenceStatus:runtimeSequenceValid?(publishedPaths.length===3?'PASS_3_PATHS_VALID':'PASS_TWO_FRAME_EXCEPTION_01_03'):'NOT_PUBLISHED',
+      localRuntimeSourcePhases:selectedAssets.map(a=>a.phase),runtimePublicationGoal:published?publication.goal:null,
+      runtimeHumanDecision:published?.humanDecision??null,runtimeCaveat:published?.caveat??null,
       manifestEntryExists:Boolean(entry),thumbnailStatus:entry?.thumbnail?.status??null,thumbnailPath:entry?.thumbnail?.url??null,
       thumbnailId:entry?.thumbnail?.id??null,videoStatus:video?.status??null,videoId:video?.id??null,videoUrl:video?.url??null,
       videoProvider:prov?.provider??null,videoVersion:video?.version??null,videoIsRealApproved:realApproved,videoIsDraftPlaceholder:draftPlaceholder,
@@ -222,16 +238,16 @@ export async function buildInventory(root=ROOT){
   for(const r of rows){
     const manual=review[r.exerciseId]??{},imageReview=[];
     for(const p of [...r.localImagePaths,...r.sequenceFramePaths]){
-      const flags=new Set([...(manual.imageFlags?.[p]??[]),'NEEDS_HUMAN_REVIEW','HUMAN_REVIEW_REQUIRED']);
+      const flags=new Set([...(manual.imageFlags?.[p]??[]),...(r.runtimePublished?['LOCAL_RUNTIME_PUBLICATION_ONLY',r.runtimeHumanDecision==='ACCEPTED_WITH_CAVEAT'?'HUMAN_ACCEPTED_WITH_CAVEAT':'HUMAN_ACCEPTED']:['NEEDS_HUMAN_REVIEW','HUMAN_REVIEW_REQUIRED'])]);
       if(duplicate.dupPaths.has(p)){flags.add('DUPLICATE_OR_NEAR_DUPLICATE');flags.add('DUPLICATE_EXACT');}
       if(src.localMediaPolicy.isLocalMediaBlocked(p))flags.add('WRONG_EXERCISE');
       imageReview.push({path:p,flags:[...flags].sort()});
     }
-    const cls=exerciseAnomalies.has(r.exerciseId)?'MAPPING_INCONSISTENT':r.videoIsRealApproved?'VIDEO_APPROVED':r.sequenceStatus==='PASS_5_PATHS_VALID'?'SEQUENCE_5_APPROVED':r.videoIsRetired?'MANIFEST_RETIRED':r.videoStatus==='draft'?'MANIFEST_DRAFT_VIDEO':r.localImageCount>=2?'IMAGES_2_LEGACY':r.localImageCount===1?'IMAGE_SINGLE':'NO_MEDIA';
+    const cls=exerciseAnomalies.has(r.exerciseId)?'MAPPING_INCONSISTENT':r.videoIsRealApproved?'VIDEO_APPROVED':r.sequenceStatus==='PASS_5_PATHS_VALID'?'SEQUENCE_5_APPROVED':r.runtimePublished?(r.localRuntimeFrameCount===3?'LOCAL_RUNTIME_SEQUENCE_3':'LOCAL_RUNTIME_TWO_FRAME_EXCEPTION'):r.videoIsRetired?'MANIFEST_RETIRED':r.videoStatus==='draft'?'MANIFEST_DRAFT_VIDEO':r.localImageCount>=2?'IMAGES_2_LEGACY':r.localImageCount===1?'IMAGE_SINGLE':'NO_MEDIA';
     const candidates=[];if(r.videoIsRealApproved&&r.thumbnailPath)candidates.push('VIDEO_THUMBNAIL');if(r.sequenceStatus==='PASS_5_PATHS_VALID')candidates.push('SEQUENCE_STEP_01');
     const names=new Set(r.localImagePaths.filter(p=>!src.localMediaPolicy.isLocalMediaBlocked(p)).map(p=>path.posix.basename(p)));if(names.has('0.jpg'))candidates.push('EXISTING_0');if(names.has('1.jpg'))candidates.push('EXISTING_1');
     if(r.thumbnailPath&&r.thumbnailStatus==='approved')candidates.push('VIDEO_THUMBNAIL');
-    let cover=manual.galleryCoverCandidate||candidates[0]||'NONE',coverPath=null;
+    let cover=r.runtimePublished?'EXISTING_0':manual.galleryCoverCandidate||candidates[0]||'NONE',coverPath=null;
     if(cover==='VIDEO_THUMBNAIL')coverPath=r.thumbnailPath;
     if(cover==='SEQUENCE_STEP_01')coverPath=r.sequenceFramePaths[0]??null;
     if(cover==='EXISTING_0'||cover==='EXISTING_1')coverPath=r.localImagePaths.find(p=>path.posix.basename(p)===(cover==='EXISTING_0'?'0.jpg':'1.jpg'))??null;
@@ -242,10 +258,10 @@ export async function buildInventory(root=ROOT){
     const visual=[...flags].sort();
     const blockedImages=imageReview.filter(x=>x.flags.some(f=>['WRONG_EXERCISE','WRONG_EQUIPMENT'].includes(f))).map(x=>x.path);
     const coverNeedsReview=visual.some(f=>['WRONG_EXERCISE','WRONG_EQUIPMENT','DUPLICATE_EXACT','BAD_CROP','LOW_CLARITY','ANATOMY_SUSPECT'].includes(f));
-    const coverStatus=coverPath?(coverNeedsReview?'COVER_NEEDS_REVIEW':'COVER_EXISTING_CANDIDATE'):blockedImages.length?'COVER_BLOCKED_WRONG_MEDIA':'COVER_MISSING';
-    const priority=r.videoIsRealApproved||r.sequenceStatus==='PASS_5_PATHS_VALID'?'P4':cls==='NO_MEDIA'||visual.some(x=>['WRONG_EXERCISE','WRONG_EQUIPMENT'].includes(x))?'P1':cls==='MAPPING_INCONSISTENT'||cover==='NONE'||visual.some(x=>['BAD_CROP','LOW_CLARITY','ANATOMY_SUSPECT','DUPLICATE_OR_NEAR_DUPLICATE'].includes(x))?'P2':r.localImageCount>=2?'P3':'P2';
-    const action=cls==='VIDEO_APPROVED'?'PRESERVE_APPROVED_VIDEO':r.sequenceStatus==='PASS_5_PATHS_VALID'?(cls==='MAPPING_INCONSISTENT'?'PRESERVE_SEQUENCE_AND_REVIEW_TECHNIQUE_MAPPING':'PRESERVE_SEQUENCE_5'):cls==='NO_MEDIA'?'GENERATE_REFERENCE_IMAGES':cls==='MAPPING_INCONSISTENT'?'REVIEW_MAPPING_BEFORE_PRODUCTION':visual.some(x=>['WRONG_EXERCISE','WRONG_EQUIPMENT'].includes(x))?'REVIEW_WRONG_MEDIA_BEFORE_PRODUCTION':visual.some(x=>['BAD_CROP','LOW_CLARITY','ANATOMY_SUSPECT'].includes(x))?'REVIEW_VISUAL_FLAGS_BEFORE_PRODUCTION':r.localImageCount>=2?'GENERATE_3_FRAMES_AFTER_HUMAN_REVIEW':'GENERATE_REFERENCE_IMAGES';
-    Object.assign(r,{imageVisualReview:imageReview,visualFlags:visual,galleryCoverCandidate:cover,galleryCoverPath:coverPath,galleryCoverStatus:coverStatus,galleryCoverBlockedImagePaths:blockedImages,galleryCoverNeedsHumanApproval:cover!=='NONE',mediaCoverageClass:cls,priority,recommendedNextAction:action});
+    const coverStatus=coverPath?(r.runtimePublished?'COVER_LOCAL_RUNTIME_AUTHORIZED':coverNeedsReview?'COVER_NEEDS_REVIEW':'COVER_EXISTING_CANDIDATE'):blockedImages.length?'COVER_BLOCKED_WRONG_MEDIA':'COVER_MISSING';
+    const priority=r.videoIsRealApproved||r.sequenceStatus==='PASS_5_PATHS_VALID'||r.runtimePublished?'P4':cls==='NO_MEDIA'||visual.some(x=>['WRONG_EXERCISE','WRONG_EQUIPMENT'].includes(x))?'P1':cls==='MAPPING_INCONSISTENT'||cover==='NONE'||visual.some(x=>['BAD_CROP','LOW_CLARITY','ANATOMY_SUSPECT','DUPLICATE_OR_NEAR_DUPLICATE'].includes(x))?'P2':r.localImageCount>=2?'P3':'P2';
+    const action=cls==='VIDEO_APPROVED'?'PRESERVE_APPROVED_VIDEO':r.runtimePublished?'PRESERVE_PUBLISHED_LOCAL_SEQUENCE':r.sequenceStatus==='PASS_5_PATHS_VALID'?(cls==='MAPPING_INCONSISTENT'?'PRESERVE_SEQUENCE_AND_REVIEW_TECHNIQUE_MAPPING':'PRESERVE_SEQUENCE_5'):cls==='NO_MEDIA'?'GENERATE_REFERENCE_IMAGES':cls==='MAPPING_INCONSISTENT'?'REVIEW_MAPPING_BEFORE_PRODUCTION':visual.some(x=>['WRONG_EXERCISE','WRONG_EQUIPMENT'].includes(x))?'REVIEW_WRONG_MEDIA_BEFORE_PRODUCTION':visual.some(x=>['BAD_CROP','LOW_CLARITY','ANATOMY_SUSPECT'].includes(x))?'REVIEW_VISUAL_FLAGS_BEFORE_PRODUCTION':r.localImageCount>=2?'GENERATE_3_FRAMES_AFTER_HUMAN_REVIEW':'GENERATE_REFERENCE_IMAGES';
+    Object.assign(r,{imageVisualReview:imageReview,visualFlags:visual,galleryCoverCandidate:cover,galleryCoverPath:coverPath,galleryCoverStatus:coverStatus,galleryCoverBlockedImagePaths:blockedImages,galleryCoverNeedsHumanApproval:cover!=='NONE'&&!r.runtimePublished,mediaCoverageClass:cls,priority,recommendedNextAction:action});
     for(const f of visual)visualCounts[f]=(visualCounts[f]??0)+1;
   }
   const classCounts=Object.fromEntries(COVERAGE_CLASSES.map(x=>[x,0])),priorityCounts={P1:0,P2:0,P3:0,P4:0},byGroup={};
@@ -268,18 +284,21 @@ export async function buildInventory(root=ROOT){
   }));
   const baseRows=rows.filter(x=>x.catalogOrigin==='BASE_CATALOG_126');
   return{
-    schemaVersion:2,auditStatus:{exerciseMediaGenerated:false,mediaApprovalChanged:changedAssets.length>0,catalogRuntimeReconciled:catalogReconciled,inventoryRuntimeComplete:inventoryComplete,structuralMediaP0:structuralCounts.P0,structuralMediaP1:structuralCounts.P1,readyForPersonalReferenceIntake:catalogReconciled&&inventoryComplete&&!sorted.length,readyForMediaGenerationGoal:false},
+    schemaVersion:2,auditStatus:{exerciseMediaGenerated:false,mediaApprovalChanged:changedAssets.length>0,runtimePublicationHumanAuthorized:true,approvalStatusChanged:'LOCAL_STILL_RUNTIME_PUBLICATION_ONLY',catalogRuntimeReconciled:catalogReconciled,inventoryRuntimeComplete:inventoryComplete,structuralMediaP0:structuralCounts.P0,structuralMediaP1:structuralCounts.P1,readyForPersonalReferenceIntake:catalogReconciled&&inventoryComplete&&!sorted.length,readyForMediaGenerationGoal:false},
+    runtimePublication:{goal:publication.goal,source:PUBLICATION_FILE,exerciseIds:publication.exerciseIds,exerciseCount:publication.exerciseIds.length,frameCount:publication.assets.length,threeFrameExercises:publication.THREE_FRAME_EXERCISES,twoFrameExercises:publication.TWO_FRAME_EXERCISES,sourceTotalBytes:publication.SOURCE_TOTAL_BYTES,runtimeTotalBytes:publication.RUNTIME_MEDIA_TOTAL_BYTES,scope:publication.authorization.scope,sissyStatus:'NO_MEDIA / DEFERRED'},
     scope:{mediaCatalogScope:src.MEDIA_CATALOG_SCOPE,canonicalSource:'src/mock/exercises.ts#RUNTIME_CATALOG',canonicalCatalogCount:catalog.length,baseCatalogSource:'src/mock/exercises.ts#BASE_CATALOG_126',baseCatalogCount:base.length,lote6Count:src.LOTE_6_EXPANSION.length,lote7Count:src.LOTE_7_EXPANSION.length,runtimeMockExercisesCount:runtime.length,runtimeSupplementalExerciseCount:extras.length,runtimeSupplementalIds:extras,scopeNote:'Todos os 184 IDs são selecionáveis pelo usuário. RUNTIME_CATALOG e MOCK_EXERCISES compartilham a mesma lista; BASE_CATALOG_126 permanece como baseline histórico.'},
     historicalBaseline:{source:'scripts/media/goal-123-baseline.json',baseSha:baseline.baseSha,scope:baseline.scope,counts:baseline.counts,findings:baseline.findings},
     baseCatalogCurrent:{exerciseCount:baseRows.length,assetDirectories:baseRows.filter(x=>x.assetDirectoryExists).length,missingAssetDirectories:baseRows.filter(x=>!x.assetDirectoryExists).map(x=>x.exerciseId),noMediaCount:baseRows.filter(x=>x.mediaCoverageClass==='NO_MEDIA').length,sequence5Count:baseRows.filter(x=>x.sequenceStatus==='PASS_5_PATHS_VALID').length,videoApprovedCount:baseRows.filter(x=>x.videoIsRealApproved).length},
     counts:{runtimeExercises:runtime.length,mediaInventoryEntries:rows.length,assetDirectories:dirs.length,missingAssetDirectories:missingDirs.length,manifestEntries:Object.keys(manifest.assets).length,historicalManifestEntries:Object.keys(manifest.historicalAssets??{}).length,totalManifestRecords:Object.keys(manifest.assets).length+Object.keys(manifest.historicalAssets??{}).length,manifestInternalEqualsPublic:parity,
       videoApprovedCount:statuses.approved,validVideoApprovedCount:approved.length,videoApprovedIds:approved,videoDraftCount:statuses.draft,videoRetiredCount:statuses.retired,
       sequence5Count:seqIds.length,sequence5Ids:seqIds,localImages2Count:rows.filter(x=>x.localImageCount===2).length,images2LegacyPrimaryClassCount:classCounts.IMAGES_2_LEGACY,
+      localRuntimeSequence3Count:rows.filter(x=>x.runtimePublished&&x.localRuntimeFrameCount===3).length,localRuntimeTwoFrameExceptionCount:rows.filter(x=>x.runtimePublished&&x.localRuntimeFrameCount===2).length,
       noMediaCount:classCounts.NO_MEDIA,noMediaRuntimeCount:rows.filter(x=>!x.localImageCount&&!x.sequenceFrameCount&&!x.videoIsRealApproved&&!x.thumbnailPath).length,coverageClassCounts:classCounts,priorityCounts,priorityByMuscleGroup:byGroup,
       galleryCoverReadyCount:rows.filter(x=>x.galleryCoverCandidate!=='NONE'&&!x.galleryCoverNeedsHumanApproval).length,
       galleryCoverCandidateCount:coverCounts.COVER_EXISTING_CANDIDATE,galleryCoverReviewCount:coverCounts.COVER_NEEDS_REVIEW,galleryCoverMissingCount:coverCounts.COVER_MISSING,galleryCoverBlockedWrongMediaCount:coverCounts.COVER_BLOCKED_WRONG_MEDIA,
+      galleryCoverLocalRuntimeAuthorizedCount:coverCounts.COVER_LOCAL_RUNTIME_AUTHORIZED,
       galleryCoverAvailableCandidateCount:rows.filter(x=>x.galleryCoverPath).length,galleryCoverHumanApprovalPendingCount:rows.filter(x=>x.galleryCoverNeedsHumanApproval).length,galleryCoverClassCounts:coverCounts,visualFlagCounts:visualCounts},
-    validation:{expectedCanonicalCatalogCount:184,expectedBaseCatalogCount:126,expectedAssetDirectoryCount:125,expectedSequenceIds:EXPECTED_SEQUENCE_IDS,expectedApprovedVideoIds:APPROVED_VIDEO_IDS,catalogAudit,
+    validation:{expectedCanonicalCatalogCount:184,expectedBaseCatalogCount:126,expectedAssetDirectoryCount:expectedDirectoryCount,expectedSequenceIds:EXPECTED_SEQUENCE_IDS,expectedApprovedVideoIds:APPROVED_VIDEO_IDS,catalogAudit,
       mockVideoRecordsAreAvailabilitySource:false,mockVideoRecordCountUsedForLinkAuditOnly:src.MOCK_VIDEOS.length,manifestParity:parity,manifestStatusCounts:statuses,activeManifestStatusCounts:activeStatuses,historicalManifestStatusCounts:historicalStatuses,preservedAssetChanges:changedAssets,
       assetDirectoriesWithoutExercise:assetDirsWithoutExercise,missingAssetDirectories:missingDirs,manifestEntryWithoutCatalog:unmatched,
       brokenManifestAssetPaths:brokenManifest,mappedVideoIdOrphans:orphanMapIds,
@@ -289,12 +308,13 @@ export async function buildInventory(root=ROOT){
     personalReference:{status:'MISSING_OFFICIAL_VISUAL_REFERENCE',flag:'PERSONAL_REFERENCE_MISSING_FROM_REPO=YES',
       existingTextualReferences:['docs/avatar-design/KAI_DNA_v1.md','docs/avatar-design/KAI_MOODBOARD_v1.md','docs/GYMFLOW_ART_BIBLE_V1.md'],
       visualReferenceAssetsFound:[],sufficientForSamePersonalGeneration:false,note:'Há documentos oficiais textuais de Kai, mas nenhuma imagem oficial de referência suficiente para manter o mesmo rosto; não inventar identidade.'},
-    sources:['src/mock/exercises.ts#RUNTIME_CATALOG','scripts/library/curation-data/lote6.ts','scripts/library/curation-data/lote7.ts','scripts/media/goal-123-baseline.json','src/domain/media/localMediaPolicy.ts','src/domain/media/manifest.json','public/media-manifest.json','public/assets/exercises/**','src/lib/techniqueFrames.ts','src/lib/exerciseTechniqueMap.ts',
+    sources:['src/mock/exercises.ts#RUNTIME_CATALOG','scripts/library/curation-data/lote6.ts','scripts/library/curation-data/lote7.ts','scripts/media/goal-123-baseline.json','src/domain/media/localMediaPolicy.ts','src/domain/media/publishedLocalMedia.ts',PUBLICATION_FILE,'src/domain/media/manifest.json','public/media-manifest.json','public/assets/exercises/**','src/lib/techniqueFrames.ts','src/lib/exerciseTechniqueMap.ts',
       'src/components/ExerciseMedia.tsx','src/components/ExerciseMediaUnifiedPlayer.tsx','src/components/GlobalVideoPlayer.tsx','src/domain/media/fallbackChain.ts',
       'src/mock/videos.ts (referência de IDs somente; não é disponibilidade/proveniência de mídia)','docs/GYMFLOW_VIDEO_INGEST_053.md','docs/GYMFLOW_VIDEO_INGEST_059.md','docs/TECHNIQUE_IMAGE_BATCH_001.md'],
     fieldSemantics:{techniqueMappingExists:'EXERCISE_TO_VIDEO_ID entry in exerciseTechniqueMap.ts.',techniqueFramesAvailable:'getTechniqueFrames returns non-empty paths that exist locally; includes honest legacy/sequence fallbacks.'},
     coverageClassDefinitions:{VIDEO_APPROVED:'Manifest approved, URL não-placeholder e proveniência/aprovação comprovadas; MOCK_VIDEOS não participa.',
       SEQUENCE_5_APPROVED:'Cinco frames mapeados e existentes; status estrutural, não aprovação biomecânica.',IMAGES_2_LEGACY:'Duas imagens locais em disco; sem aprovação visual.',
+      LOCAL_RUNTIME_SEQUENCE_3:'Três frames selecionados por decisão humana, derivados e publicados somente no runtime local; ressalvas preservadas.',LOCAL_RUNTIME_TWO_FRAME_EXCEPTION:'Somente 01/03 da máquina de tríceps; exceção humana explícita, sem midpoint.',
       IMAGE_SINGLE:'Uma imagem local em disco.',NO_MEDIA:'Sem vídeo approved, sequência válida, thumbnail ou imagem local.',
       MANIFEST_DRAFT_VIDEO:'Vídeo no manifest com status draft, não disponível/aprovado.',MANIFEST_RETIRED:'Vídeo retired, não disponível.',
       MAPPING_INCONSISTENT:'Mapeamento, exercício ou path divergente/quebrado; ver findings.'},
@@ -312,13 +332,14 @@ function rowTable(x){
   const asset=markdownCell('catalog='+x.catalogExists+'; lot='+x.catalogOrigin+'; directory='+x.assetDirectoryExists);
   const images=markdownCell('count='+x.localImageCount)+'<br>'+pathCell(x.localImagePaths);
   const sequence=markdownCell('count='+x.sequenceFrameCount+'; mapped='+x.sequenceMappingFrameCount+'; status='+x.sequenceStatus)+'<br>'+pathCell(x.sequenceFramePaths);
+  const publishedSequence=x.runtimePublished?'<br>'+markdownCell('localRuntime='+x.localRuntimeFrameCount+'; '+x.localRuntimeSequenceStatus+'; '+x.runtimeHumanDecision)+'<br>'+pathCell(x.localRuntimeFramePaths):'';
   const thumbnail=markdownCell('manifest='+x.manifestEntryExists+'; status='+x.thumbnailStatus)+'<br>'+markdownCell(x.thumbnailPath);
   const video=['status='+x.videoStatus,'url='+x.videoUrl,'provider='+x.videoProvider,'version='+x.videoVersion].map(markdownCell).join('<br>');
   const videoFlags=markdownCell('realApproved='+x.videoIsRealApproved+'; draftPlaceholder='+x.videoIsDraftPlaceholder+'; retired='+x.videoIsRetired);
   const mapping=markdownCell('exerciseTechniqueMap='+x.techniqueMappingExists+' ('+x.techniqueVideoId+'); framesAvailable='+x.techniqueFramesAvailable+'; fallbackRisk='+x.techniqueFallbackRisk.level+' — '+x.techniqueFallbackRisk.reason);
   const cover=markdownCell(x.galleryCoverStatus+'; '+x.galleryCoverCandidate+'; needsHumanApproval='+x.galleryCoverNeedsHumanApproval)+'<br>'+markdownCell(x.galleryCoverPath);
   const imageFlags=x.imageVisualReview.map(v=>markdownCell(v.path+' ['+v.flags.join(', ')+']')).join('<br>')||'—';
-  return'| '+markdownCell(x.exerciseId)+' | '+markdownCell(x.name)+' | '+markdownCell(x.primaryMuscleGroup+' / '+x.category)+' | '+markdownCell(x.equipment)+' | '+asset+' | '+images+' | '+sequence+' | '+thumbnail+' | '+video+' | '+videoFlags+' | '+mapping+' | '+markdownCell(x.mediaCoverageClass+' / '+x.priority)+' | '+cover+' | '+imageFlags+' | '+markdownCell(x.recommendedNextAction)+' |';
+  return'| '+markdownCell(x.exerciseId)+' | '+markdownCell(x.name)+' | '+markdownCell(x.primaryMuscleGroup+' / '+x.category)+' | '+markdownCell(x.equipment)+' | '+asset+' | '+images+' | '+sequence+publishedSequence+' | '+thumbnail+' | '+video+' | '+videoFlags+' | '+mapping+' | '+markdownCell(x.mediaCoverageClass+' / '+x.priority)+' | '+cover+' | '+imageFlags+' | '+markdownCell(x.recommendedNextAction)+' |';
 }
 export function renderMarkdown(inv){
   const c=inv.counts,rows=inv.exercises.map(rowTable);
@@ -335,7 +356,8 @@ export function renderMarkdown(inv){
     '- Diretórios: **'+c.assetDirectories+'**; missing: **'+inv.missingAssetDirectories.join(', ')+'**. Exercícios com 2 imagens locais: **'+c.localImages2Count+'**; classe primária IMAGES_2_LEGACY: **'+c.coverageClassCounts.IMAGES_2_LEGACY+'**; NO_MEDIA: **'+c.noMediaCount+'**.',
     '- Manifest: **'+c.manifestEntries+'** entradas operacionais + **'+c.historicalManifestEntries+'** históricas = **'+c.totalManifestRecords+'** registros preservados; interno = público: **'+(c.manifestInternalEqualsPublic?'YES':'NO')+'**. historicalAssets nunca é servido.',
     '- Vídeos: **'+c.videoApprovedCount+' approved**, **'+c.videoDraftCount+' draft**, **'+c.videoRetiredCount+' retired**. Approved reais: '+c.videoApprovedIds.join(', ')+'.',
-    '- Sequências de cinco: **'+c.sequence5Count+'**. Capas (classes disjuntas): **'+c.galleryCoverCandidateCount+' candidatas**, **'+c.galleryCoverReviewCount+' com achados para revisão**, **'+c.galleryCoverMissingCount+' ausentes**, **'+c.galleryCoverBlockedWrongMediaCount+' bloqueadas sem alternativa**. As **'+c.galleryCoverAvailableCandidateCount+'** capas disponíveis continuam aguardando aprovação humana; ready=**'+c.galleryCoverReadyCount+'**.',
+    '- Sequências de cinco: **'+c.sequence5Count+'**. GOAL-128: **'+c.localRuntimeSequence3Count+' sequências de três** e **'+c.localRuntimeTwoFrameExceptionCount+' exceção de dois frames**. Capas (classes disjuntas): **'+c.galleryCoverCandidateCount+' candidatas**, **'+c.galleryCoverReviewCount+' com achados para revisão**, **'+c.galleryCoverLocalRuntimeAuthorizedCount+' autorizadas somente no runtime local**, **'+c.galleryCoverMissingCount+' ausentes**, **'+c.galleryCoverBlockedWrongMediaCount+' bloqueadas sem alternativa**. **'+c.galleryCoverHumanApprovalPendingCount+'** capas legadas aguardam aprovação humana; ready local=**'+c.galleryCoverReadyCount+'**.',
+    '- RUNTIME_PUBLICATION_HUMAN_AUTHORIZED=YES; somente os 12 IDs / 35 derivados de [GYMFLOW-RUNTIME-MEDIA-PUBLISH-128](./runtime/GYMFLOW-RUNTIME-MEDIA-PUBLISH-128/publication.json). Decisões anteriores, caveats e vídeos permanecem preservados; APPROVAL_STATUS_CHANGED=LOCAL_STILL_RUNTIME_PUBLICATION_ONLY. Sissy continua NO_MEDIA / DEFERRED.',
     '- Prioridades: P1 **'+c.priorityCounts.P1+'**, P2 **'+c.priorityCounts.P2+'**, P3 **'+c.priorityCounts.P3+'**, P4 **'+c.priorityCounts.P4+'**.',
     '- Personal: **'+inv.personalReference.status+'**.', '- Exercício mediaGenerated=NO; mediaApprovalChanged=NO; READY_FOR_MEDIA_GENERATION_GOAL=NO (referência visual oficial ausente).','',
     '## Baseline histórico e reconciliação','',
@@ -354,7 +376,7 @@ export function renderMarkdown(inv){
     '## Prioridade por grupo muscular','',tablePriority(inv),'','## Classes principais','',
     ...Object.entries(c.coverageClassCounts).map(([k,v])=>'- '+k+': **'+v+'**'),
     '',
-    'Precedência: MAPPING_INCONSISTENT, VIDEO_APPROVED, SEQUENCE_5_APPROVED, MANIFEST_RETIRED, MANIFEST_DRAFT_VIDEO, IMAGES_2_LEGACY, IMAGE_SINGLE, NO_MEDIA. Draft nunca conta como vídeo disponível.','',
+    'Precedência: MAPPING_INCONSISTENT, VIDEO_APPROVED, SEQUENCE_5_APPROVED, LOCAL_RUNTIME_SEQUENCE_3 / LOCAL_RUNTIME_TWO_FRAME_EXCEPTION, MANIFEST_RETIRED, MANIFEST_DRAFT_VIDEO, IMAGES_2_LEGACY, IMAGE_SINGLE, NO_MEDIA. Draft nunca conta como vídeo disponível.','',
     '## Validação estrutural','',
     '- Manifest sincronizado: **'+(inv.validation.manifestParity?'PASS':'FAIL')+'**; vídeo approved com proveniência: **'+c.validVideoApprovedCount+'**.',
     '- Sequências verificadas: '+c.sequence5Ids.join(', ')+'. Duplicatas de frame entre sequências: '+inv.validation.duplicateSequenceFramePairs.length+'.',
@@ -377,7 +399,7 @@ export function renderMarkdown(inv){
     '|---|---|---|---|---|---:|---|---|---|---|---|---|---|---|---|',...rows,'',
     '## Fila priorizada','','| Prioridade | Grupo | exerciseId | Nome | Ação |','|---|---|---|---|---|',...backlog,'',
     '## Revisão visual','',
-    'Candidatas mantêm galleryCoverNeedsHumanApproval=true e NEEDS_HUMAN_REVIEW. USABLE_AS_GALLERY_COVER indica somente candidata visual, não aprovação biomecânica.', '- Revisão manual por imagem e achados: scripts/media/exercise-media-visual-review.json. Não houve substituição de asset nem mudança de aprovação.', '- Pipeline futuro: [GYMFLOW_MEDIA_GENERATION_PIPELINE.md](./GYMFLOW_MEDIA_GENERATION_PIPELINE.md).',''
+    'As 125 candidatas legadas mantêm galleryCoverNeedsHumanApproval=true e NEEDS_HUMAN_REVIEW. As 12 capas do GOAL-128 usam o primeiro frame da seleção humana, com autorização restrita ao runtime local. USABLE_AS_GALLERY_COVER indica somente candidata visual, não aprovação biomecânica.', '- Revisão manual legada: scripts/media/exercise-media-visual-review.json. Proveniência de publicação: runtime/GYMFLOW-RUNTIME-MEDIA-PUBLISH-128/publication.json; nenhum asset anterior substituído, nenhuma aprovação de vídeo alterada.', '- Pipeline futuro: [GYMFLOW_MEDIA_GENERATION_PIPELINE.md](./GYMFLOW_MEDIA_GENERATION_PIPELINE.md).',''
   ].join('\n');
 }
 export async function generateArtifacts(root=ROOT,checkOnly=false){

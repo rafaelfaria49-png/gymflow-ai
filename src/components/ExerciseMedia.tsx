@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { AvatarDemoPlaceholder } from './AvatarDemoPlaceholder';
+import { isPublishedLocalMediaPath } from '../domain/media/publishedLocalMedia';
 
 interface ExerciseMediaProps {
   /** Caminhos locais das imagens do exercício (GOAL-09: /assets/exercises/<id>/N.jpg). */
@@ -73,6 +74,8 @@ export const ExerciseMedia: React.FC<ExerciseMediaProps> = ({
   }
 
   const activeIndex = current % usable.length;
+  // GOAL-128 portrait technique photos keep the full body/equipment on cards too.
+  const preserveFullFrame = usable.some(isPublishedLocalMediaPath);
   // Skeleton simples (GOAL-11): pulso discreto até a primeira foto carregar.
   const anyLoaded = usable.some((src) => loadedSrcs.includes(src));
 
@@ -87,7 +90,7 @@ export const ExerciseMedia: React.FC<ExerciseMediaProps> = ({
           loading="lazy"
           onLoad={() => setLoadedSrcs((prev) => (prev.includes(src) ? prev : [...prev, src]))}
           onError={() => setFailedSrcs((prev) => (prev.includes(src) ? prev : [...prev, src]))}
-          className={`absolute inset-0 w-full h-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} transition-opacity duration-700 ${
+          className={`absolute inset-0 w-full h-full ${fit === 'cover' && !preserveFullFrame ? 'object-cover' : 'object-contain'} transition-opacity duration-700 ${
             idx === activeIndex ? 'opacity-100' : 'opacity-0'
           }`}
         />

@@ -1,4 +1,5 @@
 import { Exercise, TechniqueFrame } from '../types';
+import { getPublishedLocalMedia } from '../domain/media/publishedLocalMedia';
 
 type TechniqueFrameSource = Partial<
   Pick<
@@ -28,6 +29,8 @@ const EMPTY_IMAGE_CUE =
   'Sequência visual provisória indisponível para este exercício. Demonstração 3D em breve; use as instruções como referência técnica.';
 
 const TWO_FRAME_LABELS = ['Posição inicial', 'Execução / posição final'];
+
+const THREE_FRAME_LABELS = ['Posição inicial', 'Meio da execução', 'Posição final'];
 
 const DEFAULT_FRAME_LABELS = [
   'Posição inicial',
@@ -139,7 +142,7 @@ const getProvidedFrames = (frames?: TechniqueFrame[]): TechniqueFrame[] | null =
   const normalized = (frames ?? [])
     .map((frame, index) => ({
       image: frame.image?.trim() ?? '',
-      label: firstText(frame.label) ?? DEFAULT_FRAME_LABELS[index] ?? `Etapa ${index + 1}`,
+      label: firstText(frame.label) ?? labelForImageFrame(index, frames?.length ?? 0),
       cue: safeCue(frame.cue),
       order: Number.isFinite(frame.order) ? frame.order : index + 1
     }))
@@ -150,6 +153,9 @@ const getProvidedFrames = (frames?: TechniqueFrame[]): TechniqueFrame[] | null =
 };
 
 const cueFromTechnique = (exercise: TechniqueFrameSource, frameIndex: number, totalFrames: number) => {
+  const published = getPublishedLocalMedia(exercise.id);
+  if (published?.cues.length === totalFrames) return safeCue(published.cues[frameIndex]);
+
   const instructions = [
     ...sanitizeList(exercise.instruction),
     ...sanitizeList(exercise.instructions),
@@ -158,6 +164,15 @@ const cueFromTechnique = (exercise: TechniqueFrameSource, frameIndex: number, to
   const tips = [...sanitizeList(exercise.tips), ...sanitizeList(exercise.postureTips)];
   const corrections = [...sanitizeList(exercise.corrections), ...sanitizeList(exercise.errorCorrections)];
   const mistakes = [...sanitizeList(exercise.commonMistakes), ...sanitizeList(exercise.commonErrors)];
+
+  if (totalFrames === 3) {
+    const middleIndex = Math.floor(instructions.length / 2);
+    return safeCue([
+      firstText(instructions[0], tips[0]),
+      firstText(instructions[middleIndex], tips[1], exercise.breathing),
+      firstText(instructions[instructions.length - 1], corrections[0], exercise.breathing, tips[0]),
+    ][frameIndex]);
+  }
 
   if (totalFrames === 2) {
     return safeCue(
@@ -186,6 +201,7 @@ const cueFromTechnique = (exercise: TechniqueFrameSource, frameIndex: number, to
 
 const labelForImageFrame = (index: number, totalFrames: number) => {
   if (totalFrames === 2) return TWO_FRAME_LABELS[index];
+  if (totalFrames === 3) return THREE_FRAME_LABELS[index];
   return DEFAULT_FRAME_LABELS[index] ?? `Etapa ${index + 1}`;
 };
 
