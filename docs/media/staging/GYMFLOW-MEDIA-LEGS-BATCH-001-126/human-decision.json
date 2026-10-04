@@ -1,0 +1,47 @@
+{
+  "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+  "date": "2026-10-03",
+  "source": "Explicit user GOAL-127 execution authorizes these exact human decisions",
+  "requestSha256": "c57c0c3214a78acba09f1f6e4ccd1679fcfb1b76d5d425545fcc1c34dd07196f",
+  "scope": "STAGING_VISUAL_SELECTION_ONLY",
+  "runtimeApproval": "NOT_GRANTED",
+  "BATCH_HUMAN_REVIEW": "PASS_9_SEQUENCES_ONE_DEFERRED",
+  "EXERCISES_TOTAL": 10,
+  "TECHNIQUE_SEQUENCES_ACCEPTED": 9,
+  "TECHNIQUE_SEQUENCES_DEFERRED": 1,
+  "FINAL_SELECTED_SEQUENCE_FRAMES": 27,
+  "GALLERY_ONLY_CANDIDATES": 1,
+  "ACCEPTED_IDS": [
+    "legs_leg_press_90",
+    "legs_afundo_smith",
+    "legs_agachamento_bulgaro_smith",
+    "legs_flexora_em_pe_maquina",
+    "legs_aducao_cabo",
+    "legs_agachamento_sumo_smith"
+  ],
+  "ACCEPTED_WITH_CAVEAT_IDS": [
+    "legs_agachamento_pendulo",
+    "legs_flexora_articulada",
+    "legs_stiff_smith"
+  ],
+  "DEFERRED_IDS": [
+    "legs_agachamento_sissy"
+  ],
+  "caveats": {
+    "legs_agachamento_pendulo": "Pequena deriva de geometria/apoios da máquina.",
+    "legs_flexora_articulada": "Pequenas diferenças de pivô/transmissão entre fases.",
+    "legs_stiff_smith": "Deriva residual de pés/base entre frames, mas hip hinge e progressão visual são suficientemente claros."
+  },
+  "sissy": {
+    "humanDecision": "DEFERRED_TECHNICAL_SEQUENCE",
+    "TECHNIQUE_SEQUENCE_STATUS": "DEFERRED",
+    "DEFER_REASON": "ENDPOINT_OR_BIOMECHANICS_NOT_RELIABLE",
+    "REGENERATION_REQUIRED_FUTURE": "YES",
+    "coverStatus": "GALLERY_COVER_CANDIDATE_ONLY",
+    "twoFrameException": false,
+    "reason": "As tentativas delimitadas não produziram 02/03 com flexão/progressão confiáveis sem alterar apoio/calcanhar/câmera."
+  },
+  "RUNTIME_MEDIA_CHANGED": "NO",
+  "APPROVAL_STATUS_CHANGED": "NO",
+  "CDN_CHANGED": "NO"
+}

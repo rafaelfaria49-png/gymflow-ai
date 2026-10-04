@@ -40,6 +40,13 @@ Se a intermediária continuar biomecanicamente ruim, deformar anatomia/equipamen
 
 Somente com aprovação humana explícita para aquele exercício/lote, TWO_FRAME_EXCEPTION permite [01_inicial, 03_final]. Registre evidência, escopo, motivo e decisão no manifest. Marque 02 como EXCLUDED_FROM_FINAL_SEQUENCE, retire-a da lista final selecionada e preserve seu arquivo/hash/proveniência no histórico. Nunca apague a tentativa nem autoative a exceção. Falhas de 01 ou 03 não são resolvidas por esta exceção.
 
+
+## DEFERRED_SEQUENCE_POLICY
+
+Se 01 ou 03 continuarem inadequadas após bounded attempts, TWO_FRAME_EXCEPTION não resolve o problema. Preserve todas as tentativas e a proveniência; marque TECHNIQUE_SEQUENCE_STATUS=DEFERRED, DEFER_REASON=ENDPOINT_OR_BIOMECHANICS_NOT_RELIABLE e REGENERATION_REQUIRED_FUTURE=YES, sem selecionar uma técnica incompleta como sequência final.
+
+Um frame correto pode permanecer somente COVER_CANDIDATE_ONLY (GALLERY_COVER_CANDIDATE_ONLY no manifest), sem aprovação runtime. Retire as fases inadequadas de FINAL_SELECTED; nunca invente uma sequência completa para preencher o catálogo. Novo round exige GOAL/autorização humana futura. Mantenha agentReview original e registre humanDecision separadamente.
+
 ## Inspeção e aprovação
 
 Avalie IDENTITY_CONSISTENCY, CAMERA_CONSISTENCY, ANATOMY, EQUIPMENT, BIOMECHANICS e PHASE_DISTINCTION. Cada critério: PASS ou NEEDS_HUMAN_REVIEW; resultado CANDIDATE_OK somente com os seis PASS, caso contrário NEEDS_HUMAN_REVIEW. A validação estrutural e a inspeção do agente não concedem aprovação humana.

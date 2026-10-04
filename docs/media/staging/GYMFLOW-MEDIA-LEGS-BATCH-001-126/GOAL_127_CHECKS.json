@@ -1,0 +1,43 @@
+{
+  "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+  "baseSha": "d8887ef31cf4d013f9318280feda7cd0189552f4",
+  "checkedAt": "2026-10-04T00:55:25.827Z",
+  "commands": {
+    "inventory": {
+      "command": "npm run media:inventory:check",
+      "status": "PASS",
+      "exitCode": 0,
+      "localLog": ".local/inventory.log"
+    },
+    "media": {
+      "command": "npm run media:validate",
+      "status": "PASS",
+      "exitCode": 0,
+      "localLog": ".local/media.log"
+    },
+    "build": {
+      "command": "npm run build",
+      "status": "PASS",
+      "exitCode": 0,
+      "localLog": ".local/build.log"
+    },
+    "closure": {
+      "command": "LOCAL_CLOSURE_AUDIT",
+      "status": "PASS",
+      "exitCode": 0,
+      "localLog": ".local/closure.log"
+    }
+  },
+  "inventory": {
+    "runtimeExercises": 184,
+    "withoutMedia": 59,
+    "approvedVideos": 2,
+    "existingRuntimeSequences": 10
+  },
+  "mediaValidateTestsPassed": 10,
+  "DIFF_CHECK": "PASS",
+  "INDEPENDENT_REVIEW": "SEPARATE_REPORT_BEFORE_PUSH",
+  "CI_STATUS": "REQUIRED_BEFORE_MERGE",
+  "checksDoNotGrantRuntimeApproval": true,
+  "diffCommand": "git diff --check / git diff --cached --check"
+}

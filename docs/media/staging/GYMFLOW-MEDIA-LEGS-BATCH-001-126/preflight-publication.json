@@ -1,0 +1,47 @@
+{
+  "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+  "sourceLocalCommits": [
+    "043e8e811d6cf6d301ff7aa94869b085928823e4",
+    "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+  ],
+  "SELECTED_FRAME_BYTES": 57079437,
+  "GALLERY_ONLY_FRAME_BYTES": 2069030,
+  "RETAINED_LOCAL_CANDIDATE_BYTES": 63054782,
+  "ATTEMPT_HISTORY_BYTES": 148326199,
+  "HEAVY_HISTORY_BYTES": 211380981,
+  "REFERENCES_BYTES": 4899989,
+  "CONTACT_SHEET_BYTES": 1431730,
+  "VERSIONED_BINARY_BYTES": 1431730,
+  "byteDefinition": "HEAVY_HISTORY_BYTES = all 71 attempt PNG copies + all 30 retained local candidate PNG copies; source generated_images duplicates, prior sheets, inspection derivatives and refs are not included.",
+  "publicationPolicy": "COMPACT_ONLY",
+  "localOnly": [
+    "selected sequence PNGs",
+    "Sissy cover PNG",
+    "all attempt PNGs",
+    "full prompts/invocations/archive snapshots"
+  ],
+  "versionedBatchAllowlist": [
+    ".gitignore",
+    "HUMAN_REVIEW_FINAL.md",
+    "batch-manifest.json",
+    "human-decision.json",
+    "provenance-essential.json",
+    "preservation-baseline.json",
+    "preflight-publication.json",
+    "validation-final.json",
+    "GOAL_127_CHECKS.json",
+    "INDEPENDENT_REVIEW.md",
+    "contact-sheets/lote-pernas-final.jpg"
+  ],
+  "additionalVersionedPaths": [
+    "docs/media/GYMFLOW_MEDIA_GENERATION_SKILL.md",
+    "docs/DECISOES.md",
+    "docs/PENDENCIAS.md",
+    "docs/GOALS_LOG.md"
+  ],
+  "pushHeavyLocalCommits": false,
+  "selectedPngsVersioned": false,
+  "officialReferencesAlreadyOnBase": true,
+  "worktreeArchiveMustRemainAvailable": true,
+  "contactSheetSha256": "de5a444474a4b4a5e6318c330fdee4065fdafde1079742b69869e0df09920606"
+}
