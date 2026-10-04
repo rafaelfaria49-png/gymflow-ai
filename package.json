@@ -30,7 +30,10 @@
     "android:release:audit": "node scripts/android-release-audit.mjs",
     "ios:sync": "node scripts/build-mobile.mjs && cap sync ios",
     "ios:open": "cap open ios",
-    "ios:validate": "vitest run scripts/ios/ios-readiness.test.ts"
+    "ios:validate": "vitest run scripts/ios/ios-readiness.test.ts",
+    "ios:ipa:test": "vitest run scripts/ios/sideload-ipa.test.mjs --maxWorkers=1",
+    "ios:ipa:package": "node scripts/ios/package-sideload-ipa.mjs",
+    "ios:ipa:cloud": "node scripts/ios/cloud-sideload-ipa.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.7",
