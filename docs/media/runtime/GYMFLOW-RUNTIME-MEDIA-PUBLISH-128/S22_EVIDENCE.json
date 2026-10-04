@@ -1,0 +1,1584 @@
+{
+  "schemaVersion": 1,
+  "goal": "GYMFLOW-RUNTIME-MEDIA-PUBLISH-128",
+  "status": "PASS_ALL_PHYSICAL_GATES",
+  "recordedAt": "2026-10-04T19:57:04.968Z",
+  "device": {
+    "model": "SM-S901E",
+    "androidVersion": "16",
+    "apiLevel": 36,
+    "screenshotSize": "1080x2340",
+    "densityOverrideDpi": 420,
+    "webViewBounds": "[0,81][1080,2214]"
+  },
+  "install": {
+    "result": "PASS_ADB_INSTALL_R",
+    "package": "com.gymflowai.app",
+    "apk": {
+      "file": "s22-final-installed.apk",
+      "bytes": 38183370,
+      "sha256": "b20f73c524602bb9a6ed6524f4be1b279cf85f259c97ed41fca3559daec7300d"
+    },
+    "certificateSha256": "a3273a11a7c932f1397911ad02d62a8789522564f3ac6f7ff8d918dc1ade547c",
+    "signatureCompatibility": "PASS",
+    "firstInstallTimeBefore": "2026-09-22 11:17:58",
+    "firstInstallTimeAfter": "2026-09-22 11:17:58",
+    "lastUpdateTime": "2026-10-04 15:59:24",
+    "evidence": [
+      {
+        "file": "s22-resume-install-r.log",
+        "bytes": 38,
+        "sha256": "c4aa470acafcf8576c15b0f0b5ae7e852d1ec5413372d0e6a9272e788e1306d3"
+      },
+      {
+        "file": "s22-final-installed-signature.txt",
+        "bytes": 9083,
+        "sha256": "6bb9c61085e3105a809ff0189ae39a8f1b626f756bff35fbd7f501c424ba23be"
+      },
+      {
+        "file": "s22-final-package.txt",
+        "bytes": 19104,
+        "sha256": "fbed0031611dc1191306285935c36ecf39e971f15177aac732ff3bf31c4d59e9"
+      },
+      {
+        "file": "s22-resume-package-before.txt",
+        "bytes": 16341,
+        "sha256": "b97e5fb50344eca3530bdac4f27876cf8a2b0ad769ebc5b6d4b34fcfe79b8cab"
+      }
+    ]
+  },
+  "exerciseChecks": [
+    {
+      "exerciseId": "triceps_frances_unilateral_cabo",
+      "exerciseName": "Tríceps Francês Unilateral no Cabo",
+      "frameCount": 3,
+      "observedAt": "2026-10-04T19:08:22.248Z",
+      "cover": "PASS_OWN_INITIAL_FRAME",
+      "guide": "PASS",
+      "counterAndLabels": "PASS",
+      "fullScreenQuality": "PASS_NO_BROKEN_IMAGE_CROP_OR_MATERIAL_COMPRESSION_ARTIFACT",
+      "ownMediaOnly": "PASS",
+      "coverEvidence": [
+        {
+          "file": "s22-frances-cover.png",
+          "bytes": 449767,
+          "sha256": "18e32c83229b760778364726c94df4a1176a6f572687151c86228b90a27d6168"
+        },
+        {
+          "file": "s22-frances-cover.xml",
+          "bytes": 23827,
+          "sha256": "32cfa4776bcf2c9b8aa166ecf2493ef394d52eb5d50a7fce76e20b2bf79b2b77"
+        }
+      ],
+      "frames": [
+        {
+          "stage": 1,
+          "counter": "1/3",
+          "label": "Posição inicial",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-frances-stage-1.png",
+              "bytes": 1259724,
+              "sha256": "0c453e2714eab7d33f986f2da1482778b7edf091450e4b99d2f0c130dff67fa6"
+            },
+            {
+              "file": "s22-frances-stage-1.xml",
+              "bytes": 21084,
+              "sha256": "541650bc8a5d7690f20f2f751ff981cf09befd7fce75a7e1f2b5759b99a94ae2"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "counter": "2/3",
+          "label": "Meio da execução",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-frances-stage-2.png",
+              "bytes": 1287099,
+              "sha256": "26fa9eb9260be7208c86e409c0faaaa52cf393cdefd9b11d578cc8d5cdc2e9a4"
+            },
+            {
+              "file": "s22-frances-stage-2.xml",
+              "bytes": 21060,
+              "sha256": "26c82467ba6926649e24c89d03c4e8557429a9ba58bd71df85c2c71c7bc4bb59"
+            }
+          ]
+        },
+        {
+          "stage": 3,
+          "counter": "3/3",
+          "label": "Posição final",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-frances-stage-3.png",
+              "bytes": 1244511,
+              "sha256": "96887f88f8e14b02aa6f1bf9464f075299ef24b7f5c6ffc161d1248ddc07fd5a"
+            },
+            {
+              "file": "s22-frances-stage-3.xml",
+              "bytes": 21077,
+              "sha256": "aa602c5fc0d63ba88003b366a20920a06042df27753ea482bca2b24089f57aac"
+            }
+          ]
+        }
+      ],
+      "automationReceipt": {
+        "file": "s22-frances-frames-result.json",
+        "bytes": 682,
+        "sha256": "d3c4a8f949bd9a72c119b365d1e3d8ccc1501bef5f2e8e5f7b53382948a48af7"
+      },
+      "visualReviewMethod": "Physical screenshots inspected against the selected runtime frames; cover and every stage reviewed in four contact mosaics, with enlarged French/stiff final frames."
+    },
+    {
+      "exerciseId": "triceps_testa_cabo",
+      "exerciseName": "Tríceps Testa no Cabo com Corda",
+      "frameCount": 3,
+      "observedAt": "2026-10-04T19:10:34.829Z",
+      "cover": "PASS_OWN_INITIAL_FRAME",
+      "guide": "PASS",
+      "counterAndLabels": "PASS",
+      "fullScreenQuality": "PASS_NO_BROKEN_IMAGE_CROP_OR_MATERIAL_COMPRESSION_ARTIFACT",
+      "ownMediaOnly": "PASS",
+      "coverEvidence": [
+        {
+          "file": "s22-testa-cover.png",
+          "bytes": 451664,
+          "sha256": "4e05e0cb1c8622c99a4f89d45b42c299f1074d9baf9ba9f79c7a86a13957063c"
+        },
+        {
+          "file": "s22-testa-cover.xml",
+          "bytes": 23803,
+          "sha256": "ea25ec976e89088bb65262efe48f8382fbde2c0027b53b52d07f0d7b6aa12fda"
+        }
+      ],
+      "frames": [
+        {
+          "stage": 1,
+          "counter": "1/3",
+          "label": "Posição inicial",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-testa-stage-1.png",
+              "bytes": 1385573,
+              "sha256": "dea43dbd7937b43cdda5e65275cfd9bca55adec26e87a16c851af79655da816b"
+            },
+            {
+              "file": "s22-testa-stage-1.xml",
+              "bytes": 21040,
+              "sha256": "8efac4f8ea88019a6af43c56e180f07a87416b9546bf6858b1c5040e81d6bb25"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "counter": "2/3",
+          "label": "Meio da execução",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-testa-stage-2.png",
+              "bytes": 1439315,
+              "sha256": "195e0b998ddcdcacafed11ba13c2d28326241af5fd95104fece6ea7ebc621e39"
+            },
+            {
+              "file": "s22-testa-stage-2.xml",
+              "bytes": 21015,
+              "sha256": "5bb3d5c16bbee2fb8d0702a2001b3e6da97c8484578f3c322f3db3933ffad12b"
+            }
+          ]
+        },
+        {
+          "stage": 3,
+          "counter": "3/3",
+          "label": "Posição final",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-testa-stage-3.png",
+              "bytes": 1545472,
+              "sha256": "02c62d52f5854b85a87fcebd4ba1050688dc2d33fdc3a399f8f5a2561427a15d"
+            },
+            {
+              "file": "s22-testa-stage-3.xml",
+              "bytes": 21023,
+              "sha256": "a71dee730dcb5b618a3f6eb6e5110f7fedc6408789c80c056209232fbb3ce837"
+            }
+          ]
+        }
+      ],
+      "automationReceipt": {
+        "file": "s22-testa-frames-result.json",
+        "bytes": 672,
+        "sha256": "6f803e836504823d1f190fc9205a6e782734084dcc0a31f4aa55e71b906dab9b"
+      },
+      "visualReviewMethod": "Physical screenshots inspected against the selected runtime frames; cover and every stage reviewed in four contact mosaics, with enlarged French/stiff final frames."
+    },
+    {
+      "exerciseId": "triceps_maquina",
+      "exerciseName": "Extensão de Tríceps na Máquina",
+      "frameCount": 2,
+      "observedAt": "2026-10-04T19:11:38.460Z",
+      "cover": "PASS_OWN_INITIAL_FRAME",
+      "guide": "PASS",
+      "counterAndLabels": "PASS",
+      "fullScreenQuality": "PASS_NO_BROKEN_IMAGE_CROP_OR_MATERIAL_COMPRESSION_ARTIFACT",
+      "ownMediaOnly": "PASS",
+      "coverEvidence": [
+        {
+          "file": "s22-maquina-cover.png",
+          "bytes": 442650,
+          "sha256": "6988f2f043347132c5dcb4b91e4ff38ffd5fb7a111db7bd69a0fb426ed694b0c"
+        },
+        {
+          "file": "s22-maquina-cover.xml",
+          "bytes": 23396,
+          "sha256": "fea7f4b34c409ae944dc258392ef6e63f9b2504e1664487fac0f4e7f65b673fd"
+        }
+      ],
+      "frames": [
+        {
+          "stage": 1,
+          "counter": "1/2",
+          "label": "Posição inicial",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-maquina-stage-1.png",
+              "bytes": 1335062,
+              "sha256": "fda1590542eb22af5eefaf6026d4a970821aeae09e263bb596c81555f50c4969"
+            },
+            {
+              "file": "s22-maquina-stage-1.xml",
+              "bytes": 20499,
+              "sha256": "b627f231fdcbf6856cd0e8e7a77bf75e832275a4165c32d2e355e8e1d1e39cbf"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "counter": "2/2",
+          "label": "Execução / posição final",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-maquina-stage-2.png",
+              "bytes": 1304727,
+              "sha256": "83ad81fe3630f3a5e986cf302282c67f10c2ee6041bd791ace4685f17b7ba68d"
+            },
+            {
+              "file": "s22-maquina-stage-2.xml",
+              "bytes": 20520,
+              "sha256": "975d36a6f187228b8b78c344f4eaad767b3660e2e4de1bf9ccd50970f33d561e"
+            }
+          ]
+        }
+      ],
+      "automationReceipt": {
+        "file": "s22-maquina-frames-result.json",
+        "bytes": 531,
+        "sha256": "060b49ed3d684a1968ce99fa59abdee587efb7b06fe109f69f121071d6624842"
+      },
+      "visualReviewMethod": "Physical screenshots inspected against the selected runtime frames; cover and every stage reviewed in four contact mosaics, with enlarged French/stiff final frames."
+    },
+    {
+      "exerciseId": "legs_leg_press_90",
+      "exerciseName": "Leg Press 90° (Horizontal)",
+      "frameCount": 3,
+      "observedAt": "2026-10-04T19:13:37.007Z",
+      "cover": "PASS_OWN_INITIAL_FRAME",
+      "guide": "PASS",
+      "counterAndLabels": "PASS",
+      "fullScreenQuality": "PASS_NO_BROKEN_IMAGE_CROP_OR_MATERIAL_COMPRESSION_ARTIFACT",
+      "ownMediaOnly": "PASS",
+      "coverEvidence": [
+        {
+          "file": "s22-legpress-cover.png",
+          "bytes": 448160,
+          "sha256": "63824fdab6deeec8512b57136aebee49ac4f014f801eff7f8fa2d0956734963e"
+        },
+        {
+          "file": "s22-legpress-cover.xml",
+          "bytes": 23772,
+          "sha256": "48024dafb0e9de0eee763dc5cca30b66b1e817a610148ad230dd1177b4bee5fb"
+        }
+      ],
+      "frames": [
+        {
+          "stage": 1,
+          "counter": "1/3",
+          "label": "Posição inicial",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-legpress-stage-1.png",
+              "bytes": 1337170,
+              "sha256": "4df9dc32a3a9ad437c401588cfd154909977cbf70ea701142dd6c11d65ac4a70"
+            },
+            {
+              "file": "s22-legpress-stage-1.xml",
+              "bytes": 20695,
+              "sha256": "0688d496436df0c2f43a7162dfbafc913a0e18431188f9686a15fb7365ec6eb8"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "counter": "2/3",
+          "label": "Meio da execução",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-legpress-stage-2.png",
+              "bytes": 1305171,
+              "sha256": "c0d7d002f48be35abb79965ca54b6fa0040c8bf35c8db9704bf7c5f35eb277cd"
+            },
+            {
+              "file": "s22-legpress-stage-2.xml",
+              "bytes": 20663,
+              "sha256": "af8d4bd544feae38133754eb145cf6919e5d9a5c2ad880869e269628662af65b"
+            }
+          ]
+        },
+        {
+          "stage": 3,
+          "counter": "3/3",
+          "label": "Posição final",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-legpress-stage-3.png",
+              "bytes": 1340670,
+              "sha256": "33b36fee7d5b0e31840f2439c63ca79763f162041093e425e39192826db5c4e4"
+            },
+            {
+              "file": "s22-legpress-stage-3.xml",
+              "bytes": 20689,
+              "sha256": "ab1db2b70c3f96abd45e005191c8fa496b75d866cc4bd7adf154ac0ceb23f3e4"
+            }
+          ]
+        }
+      ],
+      "automationReceipt": {
+        "file": "s22-legpress-frames-result.json",
+        "bytes": 676,
+        "sha256": "4e29a9f1008e84b7b0ef99cc9e1b2634775f45706a9545fb9237f44948e87e97"
+      },
+      "visualReviewMethod": "Physical screenshots inspected against the selected runtime frames; cover and every stage reviewed in four contact mosaics, with enlarged French/stiff final frames."
+    },
+    {
+      "exerciseId": "legs_agachamento_pendulo",
+      "exerciseName": "Agachamento Pêndulo",
+      "frameCount": 3,
+      "observedAt": "2026-10-04T19:15:26.646Z",
+      "cover": "PASS_OWN_INITIAL_FRAME",
+      "guide": "PASS",
+      "counterAndLabels": "PASS",
+      "fullScreenQuality": "PASS_NO_BROKEN_IMAGE_CROP_OR_MATERIAL_COMPRESSION_ARTIFACT",
+      "ownMediaOnly": "PASS",
+      "coverEvidence": [
+        {
+          "file": "s22-pendulo-cover.png",
+          "bytes": 426740,
+          "sha256": "ca9b1442b4366487c1f49b0d1d94e37d12d45a17e7f0fc58d9a6cc05ef1ec951"
+        },
+        {
+          "file": "s22-pendulo-cover.xml",
+          "bytes": 23741,
+          "sha256": "fe338b26b9512cfac1ff2cbf29ed850d708f9f12fc819d2fee006b865cbf3e62"
+        }
+      ],
+      "frames": [
+        {
+          "stage": 1,
+          "counter": "1/3",
+          "label": "Posição inicial",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-pendulo-stage-1.png",
+              "bytes": 1233538,
+              "sha256": "ff8a50958fa0610b5149034ee4ab3ee7835aba552e76394bc407477b4a2f8563"
+            },
+            {
+              "file": "s22-pendulo-stage-1.xml",
+              "bytes": 21007,
+              "sha256": "271c711bcf6cae58cd32573e50b3f1551286f3b8263758d59297365d10482493"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "counter": "2/3",
+          "label": "Meio da execução",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-pendulo-stage-2.png",
+              "bytes": 1145295,
+              "sha256": "e7b24d14a7f77dde4fa0d50c09f0d3f49b04ae5e75b0c1f34f99f0b26eccb36b"
+            },
+            {
+              "file": "s22-pendulo-stage-2.xml",
+              "bytes": 21001,
+              "sha256": "b614cfaeef5aec1a76206b92760237d1312fc353c55d4f3aff27c9d77588c069"
+            }
+          ]
+        },
+        {
+          "stage": 3,
+          "counter": "3/3",
+          "label": "Posição final",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-pendulo-stage-3.png",
+              "bytes": 1172714,
+              "sha256": "3c849a922d2992731e6b76bd935198dd7a6b17454c766f63defe5e7a0df70c40"
+            },
+            {
+              "file": "s22-pendulo-stage-3.xml",
+              "bytes": 21028,
+              "sha256": "960d50353cb0443b620448e5012f8d5d51604ecc85c2196c4f4dcfac28871dea"
+            }
+          ]
+        }
+      ],
+      "automationReceipt": {
+        "file": "s22-pendulo-frames-result.json",
+        "bytes": 666,
+        "sha256": "67e93c265e7694fc79d7d371bea14577c27a0dfac03edecceb8f8b69e42b5a1b"
+      },
+      "visualReviewMethod": "Physical screenshots inspected against the selected runtime frames; cover and every stage reviewed in four contact mosaics, with enlarged French/stiff final frames."
+    },
+    {
+      "exerciseId": "legs_afundo_smith",
+      "exerciseName": "Afundo no Smith",
+      "frameCount": 3,
+      "observedAt": "2026-10-04T19:16:55.959Z",
+      "cover": "PASS_OWN_INITIAL_FRAME",
+      "guide": "PASS",
+      "counterAndLabels": "PASS",
+      "fullScreenQuality": "PASS_NO_BROKEN_IMAGE_CROP_OR_MATERIAL_COMPRESSION_ARTIFACT",
+      "ownMediaOnly": "PASS",
+      "coverEvidence": [
+        {
+          "file": "s22-afundo-cover.png",
+          "bytes": 427977,
+          "sha256": "533f9953d43588e00de08cdb316ca9f11b52daf746507adfd058db9ed56ca256"
+        },
+        {
+          "file": "s22-afundo-cover.xml",
+          "bytes": 23706,
+          "sha256": "e1204325d6205d0cf24ddb360dac1b6cca5c0fa4a14716ae3a149427af78a4f6"
+        }
+      ],
+      "frames": [
+        {
+          "stage": 1,
+          "counter": "1/3",
+          "label": "Posição inicial",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-afundo-stage-1.png",
+              "bytes": 1270531,
+              "sha256": "f9b4bcfe9ec5862fea2392e518a124faeed55e4462c144b526a514a274ee72d5"
+            },
+            {
+              "file": "s22-afundo-stage-1.xml",
+              "bytes": 20526,
+              "sha256": "9bfc06ef0123c579cc99b640df2a313207d96f7708c6aaa38a6bb260c66285b4"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "counter": "2/3",
+          "label": "Meio da execução",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-afundo-stage-2.png",
+              "bytes": 1215312,
+              "sha256": "a49bcf4457c7df0bbbeecdd5af5896c76f5c0d2c4394be5a0ed5e0627d52bac4"
+            },
+            {
+              "file": "s22-afundo-stage-2.xml",
+              "bytes": 20515,
+              "sha256": "e3a4e8a37ac812e874dd812ecc70e5443104aceb7a1fb3253331ee10408db654"
+            }
+          ]
+        },
+        {
+          "stage": 3,
+          "counter": "3/3",
+          "label": "Posição final",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-afundo-stage-3.png",
+              "bytes": 1194148,
+              "sha256": "a31c27e84d258d4dbfa9a52a65dc385f27a68028ad3b9470be204a20a6b7777b"
+            },
+            {
+              "file": "s22-afundo-stage-3.xml",
+              "bytes": 20531,
+              "sha256": "afa3452b64f84599d5538825a9d4c32a4b124d44e91a16e51c9518d787c56eac"
+            }
+          ]
+        }
+      ],
+      "automationReceipt": {
+        "file": "s22-afundo-frames-result.json",
+        "bytes": 658,
+        "sha256": "4726a8fc5444d5f2c6271a38fca3ce5c6f7313fd23036cf52b03fa6371c92f8d"
+      },
+      "visualReviewMethod": "Physical screenshots inspected against the selected runtime frames; cover and every stage reviewed in four contact mosaics, with enlarged French/stiff final frames."
+    },
+    {
+      "exerciseId": "legs_agachamento_bulgaro_smith",
+      "exerciseName": "Agachamento Búlgaro no Smith",
+      "frameCount": 3,
+      "observedAt": "2026-10-04T19:18:16.640Z",
+      "cover": "PASS_OWN_INITIAL_FRAME",
+      "guide": "PASS",
+      "counterAndLabels": "PASS",
+      "fullScreenQuality": "PASS_NO_BROKEN_IMAGE_CROP_OR_MATERIAL_COMPRESSION_ARTIFACT",
+      "ownMediaOnly": "PASS",
+      "coverEvidence": [
+        {
+          "file": "s22-bulgaro-cover.png",
+          "bytes": 423833,
+          "sha256": "f0778b96a537d756a02b13044b1a5eb78aefe7d04fbe14d351541e2fcaeb23a3"
+        },
+        {
+          "file": "s22-bulgaro-cover.xml",
+          "bytes": 23782,
+          "sha256": "7926be0556ca2315204cf59360a34a4274ed26a554202c29a77f00d1f5f5208e"
+        }
+      ],
+      "frames": [
+        {
+          "stage": 1,
+          "counter": "1/3",
+          "label": "Posição inicial",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-bulgaro-stage-1.png",
+              "bytes": 1198316,
+              "sha256": "1a06ba9c267e1ea09b99515d5eb4ca239826401d8587493f0fcc3d8cb82e0dee"
+            },
+            {
+              "file": "s22-bulgaro-stage-1.xml",
+              "bytes": 20682,
+              "sha256": "4b2012b168fda3cb1a69ed407d48719746b867e6fb20584e1f55b7a6f8f08cfb"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "counter": "2/3",
+          "label": "Meio da execução",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-bulgaro-stage-2.png",
+              "bytes": 1185809,
+              "sha256": "5579060e1067de5a040249b13a2f5de43f4afec3c4d1aaa0fa69ca52cbf2107d"
+            },
+            {
+              "file": "s22-bulgaro-stage-2.xml",
+              "bytes": 20672,
+              "sha256": "ca425473f01459196f1e5d77d7385dd9ec4366d38a2be4d926f06992dc2882bb"
+            }
+          ]
+        },
+        {
+          "stage": 3,
+          "counter": "3/3",
+          "label": "Posição final",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-bulgaro-stage-3.png",
+              "bytes": 1151435,
+              "sha256": "e459af0f9fbf242ad4bea0b948d613b45365c10eeaf6fdb9d3ae9d19e55a54e7"
+            },
+            {
+              "file": "s22-bulgaro-stage-3.xml",
+              "bytes": 20689,
+              "sha256": "19d40ef5cf3570baddc4d54f106f172279ff432898e7b14f40ca6a2133a99629"
+            }
+          ]
+        }
+      ],
+      "automationReceipt": {
+        "file": "s22-bulgaro-frames-result.json",
+        "bytes": 675,
+        "sha256": "051a7415d2b4e3afe83ae0bfaf877273bdbc17bc2daa3b5fb1f3f310c76ce3a3"
+      },
+      "visualReviewMethod": "Physical screenshots inspected against the selected runtime frames; cover and every stage reviewed in four contact mosaics, with enlarged French/stiff final frames."
+    },
+    {
+      "exerciseId": "legs_flexora_em_pe_maquina",
+      "exerciseName": "Cadeira Flexora em Pé Unilateral",
+      "frameCount": 3,
+      "observedAt": "2026-10-04T19:21:26.235Z",
+      "cover": "PASS_OWN_INITIAL_FRAME",
+      "guide": "PASS",
+      "counterAndLabels": "PASS",
+      "fullScreenQuality": "PASS_NO_BROKEN_IMAGE_CROP_OR_MATERIAL_COMPRESSION_ARTIFACT",
+      "ownMediaOnly": "PASS",
+      "coverEvidence": [
+        {
+          "file": "s22-flexoraempe-cover.png",
+          "bytes": 392054,
+          "sha256": "4a7e7ce05d70083016dbfe7c0def64f762c0d6ab5672203c382cd060206d46da"
+        },
+        {
+          "file": "s22-flexoraempe-cover.xml",
+          "bytes": 23814,
+          "sha256": "1d4ccceb9bef146d654ffeab06ca898704c05e6024256b0c855b6670db633d9f"
+        }
+      ],
+      "frames": [
+        {
+          "stage": 1,
+          "counter": "1/3",
+          "label": "Posição inicial",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-flexoraempe-stage-1.png",
+              "bytes": 1057242,
+              "sha256": "dd6e2c6ed873fce61d43c9fa5809260feed6a91337727206ecf8ce198d6447e2"
+            },
+            {
+              "file": "s22-flexoraempe-stage-1.xml",
+              "bytes": 20565,
+              "sha256": "5f69963e11408ae11e8b0a49789c0f18e4cfd10347d238035805caff6e1bf3e0"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "counter": "2/3",
+          "label": "Meio da execução",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-flexoraempe-stage-2.png",
+              "bytes": 1016592,
+              "sha256": "d2228d04e25467bae557797b4424c7e3edfabcfb1d4923307d71e59ecac04d32"
+            },
+            {
+              "file": "s22-flexoraempe-stage-2.xml",
+              "bytes": 20561,
+              "sha256": "b66075b58c98ceeeedd36cc54d685fbff6e31e3826b942f97a9bf3aa12a07b54"
+            }
+          ]
+        },
+        {
+          "stage": 3,
+          "counter": "3/3",
+          "label": "Posição final",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-flexoraempe-stage-3.png",
+              "bytes": 1015906,
+              "sha256": "cf1bb184176ea30c52132a34fb4cfec68d3a607014fdbc7bcef13fee90347b6f"
+            },
+            {
+              "file": "s22-flexoraempe-stage-3.xml",
+              "bytes": 20557,
+              "sha256": "8131033f87c6104319f302c959499f0db985d39a6c51d26866628afdaed9e675"
+            }
+          ]
+        }
+      ],
+      "automationReceipt": {
+        "file": "s22-flexoraempe-frames-result.json",
+        "bytes": 691,
+        "sha256": "e3afc3d5f0bab099c4b8fb54f87beeed3c83b465143335b6ed24303203cc08a3"
+      },
+      "visualReviewMethod": "Physical screenshots inspected against the selected runtime frames; cover and every stage reviewed in four contact mosaics, with enlarged French/stiff final frames."
+    },
+    {
+      "exerciseId": "legs_flexora_articulada",
+      "exerciseName": "Flexora Articulada",
+      "frameCount": 3,
+      "observedAt": "2026-10-04T19:23:39.517Z",
+      "cover": "PASS_OWN_INITIAL_FRAME",
+      "guide": "PASS",
+      "counterAndLabels": "PASS",
+      "fullScreenQuality": "PASS_NO_BROKEN_IMAGE_CROP_OR_MATERIAL_COMPRESSION_ARTIFACT",
+      "ownMediaOnly": "PASS",
+      "coverEvidence": [
+        {
+          "file": "s22-articulada-cover.png",
+          "bytes": 437067,
+          "sha256": "7ae0a51f1798154bd8c7cc81210602bf1631057f7b876937cc6fd1f3dfe47481"
+        },
+        {
+          "file": "s22-articulada-cover.xml",
+          "bytes": 23758,
+          "sha256": "69d33e46a34ffeeb0bc2869a958a3d5887a2404a20777346bf50d1337868b9bd"
+        }
+      ],
+      "frames": [
+        {
+          "stage": 1,
+          "counter": "1/3",
+          "label": "Posição inicial",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-articulada-stage-1.png",
+              "bytes": 1267468,
+              "sha256": "e76fc519a3eb0e2b1592f1d8a7005c307353dcb4864d883d1dd97c3b6cbaa6c8"
+            },
+            {
+              "file": "s22-articulada-stage-1.xml",
+              "bytes": 20996,
+              "sha256": "d078bef49a68295c1ce25e4dba5cac182e9d4df44edd53015b8ce42a8a04a26d"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "counter": "2/3",
+          "label": "Meio da execução",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-articulada-stage-2.png",
+              "bytes": 1257694,
+              "sha256": "a0ea018e986b15e63ac4e5ec65463c1d2fb146a04955f2771c8af394f4c222c6"
+            },
+            {
+              "file": "s22-articulada-stage-2.xml",
+              "bytes": 20958,
+              "sha256": "45fdf553e75a05be63530b5cd622bc10081d3129910cd83b00666c64401e176d"
+            }
+          ]
+        },
+        {
+          "stage": 3,
+          "counter": "3/3",
+          "label": "Posição final",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-articulada-stage-3.png",
+              "bytes": 1272682,
+              "sha256": "3de9956bbfaa20ef0b10bdbbd9c12fc0e3b0dd0b0e39c6c2e5612b568e3bec40"
+            },
+            {
+              "file": "s22-articulada-stage-3.xml",
+              "bytes": 20988,
+              "sha256": "108bb78282c7753997e463d167ebd7f9b234b00a184ff64760fc95db00fc2c23"
+            }
+          ]
+        }
+      ],
+      "automationReceipt": {
+        "file": "s22-articulada-frames-result.json",
+        "bytes": 673,
+        "sha256": "2eaadb1ae73a92aad7f57a47a80e8f5faf75be007c81fccfecc74fa1086b0812"
+      },
+      "visualReviewMethod": "Physical screenshots inspected against the selected runtime frames; cover and every stage reviewed in four contact mosaics, with enlarged French/stiff final frames."
+    },
+    {
+      "exerciseId": "legs_stiff_smith",
+      "exerciseName": "Stiff no Smith",
+      "frameCount": 3,
+      "observedAt": "2026-10-04T19:25:05.193Z",
+      "cover": "PASS_OWN_INITIAL_FRAME",
+      "guide": "PASS",
+      "counterAndLabels": "PASS",
+      "fullScreenQuality": "PASS_NO_BROKEN_IMAGE_CROP_OR_MATERIAL_COMPRESSION_ARTIFACT",
+      "ownMediaOnly": "PASS",
+      "coverEvidence": [
+        {
+          "file": "s22-stiff-cover.png",
+          "bytes": 416079,
+          "sha256": "c18a5f81c736f499a8d263f07da1f0ad4a98b6889b40d2ff6ad135cec8238058"
+        },
+        {
+          "file": "s22-stiff-cover.xml",
+          "bytes": 23703,
+          "sha256": "7e66ab17b622a684878eea508c1f555e8d845bd0a1b6bac06b6fb89c22f3b387"
+        }
+      ],
+      "frames": [
+        {
+          "stage": 1,
+          "counter": "1/3",
+          "label": "Posição inicial",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-stiff-stage-1.png",
+              "bytes": 1215253,
+              "sha256": "24a0b34a9917bada7e9d9a171fa0c68e1794d78050a6d9795c493ccf02830493"
+            },
+            {
+              "file": "s22-stiff-stage-1.xml",
+              "bytes": 21500,
+              "sha256": "3869755fdded356ee7a87ebfa50044414324254538c9da672e43c1d3328ddf3c"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "counter": "2/3",
+          "label": "Meio da execução",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-stiff-stage-2.png",
+              "bytes": 1102603,
+              "sha256": "61743c6d82915c9cadec935fb662ce8f872ccc1791a0907388ffd0b29e22c1ba"
+            },
+            {
+              "file": "s22-stiff-stage-2.xml",
+              "bytes": 21513,
+              "sha256": "17b9103ed2ee125e200c4a900a319c276be20425266467f4efbc82778257b791"
+            }
+          ]
+        },
+        {
+          "stage": 3,
+          "counter": "3/3",
+          "label": "Posição final",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-stiff-stage-3.png",
+              "bytes": 1054881,
+              "sha256": "debb56ced75ca5b958b104ade5863e63cedded794abb60a2fef6023d56caf15c"
+            },
+            {
+              "file": "s22-stiff-stage-3.xml",
+              "bytes": 21506,
+              "sha256": "96ab49289e801fb64f88210a110de4e861c80c000f1b95f1e2ce916a711ee813"
+            }
+          ]
+        }
+      ],
+      "automationReceipt": {
+        "file": "s22-stiff-frames-result.json",
+        "bytes": 654,
+        "sha256": "99c13f96dc32ef3eb2378a2dcc074092b14bda0172dfce7cf15a250071d3ce23"
+      },
+      "visualReviewMethod": "Physical screenshots inspected against the selected runtime frames; cover and every stage reviewed in four contact mosaics, with enlarged French/stiff final frames."
+    },
+    {
+      "exerciseId": "legs_aducao_cabo",
+      "exerciseName": "Adução de Quadril no Cabo",
+      "frameCount": 3,
+      "observedAt": "2026-10-04T19:26:32.316Z",
+      "cover": "PASS_OWN_INITIAL_FRAME",
+      "guide": "PASS",
+      "counterAndLabels": "PASS",
+      "fullScreenQuality": "PASS_NO_BROKEN_IMAGE_CROP_OR_MATERIAL_COMPRESSION_ARTIFACT",
+      "ownMediaOnly": "PASS",
+      "coverEvidence": [
+        {
+          "file": "s22-aducao-cover.png",
+          "bytes": 421982,
+          "sha256": "23050ab4b5a1fb86fd8bf633dda21280f6004798cdcbbd1c257e1cc391522262"
+        },
+        {
+          "file": "s22-aducao-cover.xml",
+          "bytes": 23771,
+          "sha256": "527226eb356f62c2917727f2d57170b465931f05e8d04d1eb80b7d0598111e7f"
+        }
+      ],
+      "frames": [
+        {
+          "stage": 1,
+          "counter": "1/3",
+          "label": "Posição inicial",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-aducao-stage-1.png",
+              "bytes": 1234347,
+              "sha256": "662f28285482b01610395a5464d4002a07ba9080747d9d8efc86d4ce1212c16e"
+            },
+            {
+              "file": "s22-aducao-stage-1.xml",
+              "bytes": 20565,
+              "sha256": "8a45b0b33cd540e2825f8da4505f1ad015f9047dfccb9d216520047134dc3834"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "counter": "2/3",
+          "label": "Meio da execução",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-aducao-stage-2.png",
+              "bytes": 1188156,
+              "sha256": "fbb37e3f1d99c5cb17148413b15de6af8e29e38bab817dddac882f6290ed7f62"
+            },
+            {
+              "file": "s22-aducao-stage-2.xml",
+              "bytes": 20556,
+              "sha256": "239c20151c3a6a18f5902e842f6a09b05324b637276fa2e0c59041d18570104d"
+            }
+          ]
+        },
+        {
+          "stage": 3,
+          "counter": "3/3",
+          "label": "Posição final",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-aducao-stage-3.png",
+              "bytes": 1181388,
+              "sha256": "7d3e61cad12f1453fefdef76cc0c5cf3cf883f82c24253577748cbbf02988eeb"
+            },
+            {
+              "file": "s22-aducao-stage-3.xml",
+              "bytes": 20573,
+              "sha256": "9ad5a739fd7a2bc762181ca4997eb088f6708e4dc646fe1eca8836e5a734ebd2"
+            }
+          ]
+        }
+      ],
+      "automationReceipt": {
+        "file": "s22-aducao-frames-result.json",
+        "bytes": 670,
+        "sha256": "ca346538ce3aeeaff2f74caff2ad081422570c9649264d9a459108cd7ad8ae63"
+      },
+      "visualReviewMethod": "Physical screenshots inspected against the selected runtime frames; cover and every stage reviewed in four contact mosaics, with enlarged French/stiff final frames."
+    },
+    {
+      "exerciseId": "legs_agachamento_sumo_smith",
+      "exerciseName": "Agachamento Sumô no Smith",
+      "frameCount": 3,
+      "observedAt": "2026-10-04T19:27:56.180Z",
+      "cover": "PASS_OWN_INITIAL_FRAME",
+      "guide": "PASS",
+      "counterAndLabels": "PASS",
+      "fullScreenQuality": "PASS_NO_BROKEN_IMAGE_CROP_OR_MATERIAL_COMPRESSION_ARTIFACT",
+      "ownMediaOnly": "PASS",
+      "coverEvidence": [
+        {
+          "file": "s22-sumo-cover.png",
+          "bytes": 415599,
+          "sha256": "64e23272e2bd9a64c596913adbd7567ae6af67188828d75c599fc843c3ca26aa"
+        },
+        {
+          "file": "s22-sumo-cover.xml",
+          "bytes": 23753,
+          "sha256": "b09fc622704727dd710a8c1e87b6501b50f731112c31a0889c36d66f0a4fb1ca"
+        }
+      ],
+      "frames": [
+        {
+          "stage": 1,
+          "counter": "1/3",
+          "label": "Posição inicial",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-sumo-stage-1.png",
+              "bytes": 1206512,
+              "sha256": "1f7dd9f569239a5c04d7183a35c07bf748167daf85d4a3063567b16bc3574ca7"
+            },
+            {
+              "file": "s22-sumo-stage-1.xml",
+              "bytes": 20518,
+              "sha256": "b431f4a99b471f5dbd77d80af564e7aa6ca6d1201ca898873faf3c6d25ffe9c2"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "counter": "2/3",
+          "label": "Meio da execução",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-sumo-stage-2.png",
+              "bytes": 1181932,
+              "sha256": "d9892bba0fa958353a3e0a8ad45ae99d47a2266551c9102c7e68472403d5492a"
+            },
+            {
+              "file": "s22-sumo-stage-2.xml",
+              "bytes": 20524,
+              "sha256": "1b9f4f761508b345943687d7f8ef4bd8a307c7278ae44dd8a95cc8254265915c"
+            }
+          ]
+        },
+        {
+          "stage": 3,
+          "counter": "3/3",
+          "label": "Posição final",
+          "ownImageAlt": "PASS",
+          "visualReview": "PASS",
+          "evidence": [
+            {
+              "file": "s22-sumo-stage-3.png",
+              "bytes": 1185788,
+              "sha256": "0976db7e226e4146cb8e6229fd4c7febbb279b61f4aaa2b7d9baff0058b0e882"
+            },
+            {
+              "file": "s22-sumo-stage-3.xml",
+              "bytes": 20527,
+              "sha256": "622579e79f7aed73a7409ab6d1df97f819679b4f1ed4c177dd2a8a0c55b39f8b"
+            }
+          ]
+        }
+      ],
+      "automationReceipt": {
+        "file": "s22-sumo-frames-result.json",
+        "bytes": 663,
+        "sha256": "64416945910d63e09edabca3ee52188db2d29d5294988ab12b107f4f0eaa941e"
+      },
+      "visualReviewMethod": "Physical screenshots inspected against the selected runtime frames; cover and every stage reviewed in four contact mosaics, with enlarged French/stiff final frames."
+    }
+  ],
+  "totalExercises": 12,
+  "totalStages": 35,
+  "visualReview": {
+    "result": "PASS",
+    "method": "Observed on-device during interaction, then manually reviewed all twelve initial covers and all thirty-five stages against the accepted runtime frames. Four physical contact mosaics were inspected at original resolution; French/stiff final stages and the French caveat were also inspected separately.",
+    "evidence": [
+      {
+        "file": "s22-triceps-physical-contact.jpg",
+        "bytes": 892241,
+        "sha256": "e350e9b3cc4cc0dbd3735293da1e3bfacfbfa2a79c49d6441d8784e8b541e7d2"
+      },
+      {
+        "file": "s22-legs-first-physical-contact.jpg",
+        "bytes": 925261,
+        "sha256": "f73777a2525d9ef70de109b0ad98ec988e5110162fe987683a476267516eced8"
+      },
+      {
+        "file": "s22-legs-second-physical-contact.jpg",
+        "bytes": 914493,
+        "sha256": "a38da2802225eb28263a6acc27110a4b1f06081d4bcc112bb1cef0c4f0f51c61"
+      },
+      {
+        "file": "s22-legs-third-physical-contact.jpg",
+        "bytes": 917534,
+        "sha256": "cc0f3ca453561be407e09a4d74f28c5fca29f383e889dc437071c70148f43575"
+      }
+    ]
+  },
+  "french": {
+    "caveatVisible": "PASS",
+    "finalHandUnobscured": "PASS",
+    "fullPortraitWithoutCrop": "PASS",
+    "statusAndCounterAbovePhoto": "PASS",
+    "evidence": [
+      {
+        "file": "s22-frances-caveat.png",
+        "bytes": 1167330,
+        "sha256": "d33045310d48dfb29e9d1ea6f41db861493af72063124fab94a52121d4dc7ff3"
+      },
+      {
+        "file": "s22-frances-caveat.xml",
+        "bytes": 21063,
+        "sha256": "a2ccb254af6fb1135f41c05fe11ce487df875f16cc352658d773435e72999316"
+      },
+      {
+        "file": "s22-frances-stage-3.png",
+        "bytes": 1244511,
+        "sha256": "96887f88f8e14b02aa6f1bf9464f075299ef24b7f5c6ffc161d1248ddc07fd5a"
+      },
+      {
+        "file": "s22-frances-stage-3.xml",
+        "bytes": 21077,
+        "sha256": "aa602c5fc0d63ba88003b366a20920a06042df27753ea482bca2b24089f57aac"
+      }
+    ]
+  },
+  "tricepsMachine": {
+    "result": "PASS_ONLY_INITIAL_FINAL",
+    "frameCount": 2,
+    "counters": [
+      "1/2",
+      "2/2"
+    ],
+    "midpointSynthesized": false,
+    "thirdRuntimeFilePresent": false
+  },
+  "oldFiveFrameRegression": {
+    "exerciseId": "chest_supino_reto",
+    "result": "PASS_1_OF_5_THROUGH_5_OF_5",
+    "frames": [
+      {
+        "stage": 1,
+        "counter": "1/5",
+        "label": "Posição inicial",
+        "evidence": [
+          {
+            "file": "s22-oldfive-stage-1.png",
+            "bytes": 692581,
+            "sha256": "bea92638f6232545739ffd09e27bcb3478690c57727fdbbbb80adda4754fd812"
+          },
+          {
+            "file": "s22-oldfive-stage-1.xml",
+            "bytes": 15642,
+            "sha256": "357dcbf7ceb63c869711312195bb913993365d15a54a9cd857baf8f284043d01"
+          }
+        ]
+      },
+      {
+        "stage": 2,
+        "counter": "2/5",
+        "label": "Início do movimento",
+        "evidence": [
+          {
+            "file": "s22-oldfive-stage-2.png",
+            "bytes": 788130,
+            "sha256": "9358857133ac435e6f0939b8a8688bfa51cc881228b949cef3b23f6f2f82d1aa"
+          },
+          {
+            "file": "s22-oldfive-stage-2.xml",
+            "bytes": 15645,
+            "sha256": "07271f0fdcf06ac519f14a2c755910975b1d1471813e35f3b93a5afc1b8e132e"
+          }
+        ]
+      },
+      {
+        "stage": 3,
+        "counter": "3/5",
+        "label": "Meio da execução",
+        "evidence": [
+          {
+            "file": "s22-oldfive-stage-3.png",
+            "bytes": 707580,
+            "sha256": "7e261d2fa7d43d2b78b6294c6f68c65ee98f7c2b02a395f04c62efd476971519"
+          },
+          {
+            "file": "s22-oldfive-stage-3.xml",
+            "bytes": 15643,
+            "sha256": "4f0d6d9cefb2418ea0d5833476004dd1656cc044ea97c002b947d7cac8067a0e"
+          }
+        ]
+      },
+      {
+        "stage": 4,
+        "counter": "4/5",
+        "label": "Contração / posição final",
+        "evidence": [
+          {
+            "file": "s22-oldfive-stage-4.png",
+            "bytes": 685679,
+            "sha256": "653e05fa1ec51e4b94405862dfbd260752959f3e17f37955bdf053da61eae607"
+          },
+          {
+            "file": "s22-oldfive-stage-4.xml",
+            "bytes": 15654,
+            "sha256": "9b6439cbe463d672b2062dbc09dca2dfbb0007b8450dcb28843c09d77d72cc2a"
+          }
+        ]
+      },
+      {
+        "stage": 5,
+        "counter": "5/5",
+        "label": "Retorno controlado",
+        "evidence": [
+          {
+            "file": "s22-oldfive-stage-5.png",
+            "bytes": 622550,
+            "sha256": "aaf25b3062f6245b6fa3270d61224474948786bbf753a0cfed5c97ed0a15970c"
+          },
+          {
+            "file": "s22-oldfive-stage-5.xml",
+            "bytes": 15643,
+            "sha256": "04d996525d14d560499210e496bc311b3bc342d09d6e02894b0284da7a0407ea"
+          }
+        ]
+      }
+    ]
+  },
+  "approvedVideoRegression": [
+    {
+      "exerciseId": "back_puxada_pulley",
+      "result": "PASS",
+      "pauseResumeControls": "PASS",
+      "movingVideoContent": "PASS_MANUALLY_OBSERVED_DIFFERENT_MOVEMENT_POSITIONS",
+      "evidence": [
+        {
+          "file": "s22-pulley-paused.png",
+          "bytes": 1032803,
+          "sha256": "3f44d8f59325b9eefcefd878abe22aa0d1db7097fceec85d4394c39c27745cbc"
+        },
+        {
+          "file": "s22-pulley-paused.xml",
+          "bytes": 18955,
+          "sha256": "ae61183dc4b767a4eace1506465211380753a198d4328305bc4891ab56d5161a"
+        },
+        {
+          "file": "s22-pulley-resumed.png",
+          "bytes": 1033101,
+          "sha256": "bfbf59775a58915ac13024020c04e4b5a58933745bc1110b0b5219d5ac5697db"
+        },
+        {
+          "file": "s22-pulley-resumed.xml",
+          "bytes": 18951,
+          "sha256": "e856d246c692d8e3229df64d7e2167226e0126f7eabd8efaec7ffc0c142020ed"
+        },
+        {
+          "file": "s22-pulley-playing-later.png",
+          "bytes": 1037138,
+          "sha256": "81f3b9983e605a84415f24eb444a571afc757bc24fea74e59c45c1cebc8e9acf"
+        },
+        {
+          "file": "s22-pulley-playing-later.xml",
+          "bytes": 18951,
+          "sha256": "e856d246c692d8e3229df64d7e2167226e0126f7eabd8efaec7ffc0c142020ed"
+        }
+      ]
+    },
+    {
+      "exerciseId": "back_remada_baixa",
+      "result": "PASS",
+      "pauseResumeControls": "PASS",
+      "movingVideoContent": "PASS_MANUALLY_OBSERVED_DIFFERENT_MOVEMENT_POSITIONS",
+      "evidence": [
+        {
+          "file": "s22-remada-paused.png",
+          "bytes": 1000878,
+          "sha256": "29461f1e30ffc318ccb685ad3fb7c5511cacff924707d0e645d1c2a786188960"
+        },
+        {
+          "file": "s22-remada-paused.xml",
+          "bytes": 19067,
+          "sha256": "a5e38ae1e9aa6cd9dca7f801c25075be6cf18f5126ec74a370a0effcb0825a8e"
+        },
+        {
+          "file": "s22-remada-resumed.png",
+          "bytes": 979071,
+          "sha256": "5c0a31f681f06b117e5440ae84ce6d9846dfe46471242f4daa9c09a97437dce7"
+        },
+        {
+          "file": "s22-remada-resumed.xml",
+          "bytes": 19063,
+          "sha256": "67df0fda824934b19e2790a50a9346cafd41519a6b18a246a5a21ea1ef248691"
+        },
+        {
+          "file": "s22-remada-playing-later.png",
+          "bytes": 1014748,
+          "sha256": "9e53ca682c009b87af3c0951849ebb211ce9b10a9b6952f08933106dec5a5acf"
+        },
+        {
+          "file": "s22-remada-playing-later.xml",
+          "bytes": 19063,
+          "sha256": "67df0fda824934b19e2790a50a9346cafd41519a6b18a246a5a21ea1ef248691"
+        }
+      ]
+    }
+  ],
+  "noMediaFallbackRegression": [
+    {
+      "exerciseId": "legs_agachamento_sissy",
+      "result": "PASS_NO_PUBLISHED_COVER_OR_SEQUENCE_HONEST_FALLBACK",
+      "evidence": [
+        {
+          "file": "s22-sissy-cover.png",
+          "bytes": 336635,
+          "sha256": "c99bebfd486be03dfb9b6dc639d599c614ed70e572a50d026d3664f41682b763"
+        },
+        {
+          "file": "s22-sissy-cover.xml",
+          "bytes": 24405,
+          "sha256": "5a9d29066842e9e8b8d9082c65ba1a5b01a7ea787b371f65ebc556251c45deca"
+        },
+        {
+          "file": "s22-sissy-opened.png",
+          "bytes": 474945,
+          "sha256": "12524d7e5bc915a4a0963a70b875c5ab6d261c50b061fc0abf2325d00ee40b09"
+        },
+        {
+          "file": "s22-sissy-opened.xml",
+          "bytes": 20484,
+          "sha256": "69a94f553cca0bf4df6760393b1f0f456065b1dfafd693912f25974c7057290d"
+        }
+      ]
+    },
+    {
+      "exerciseId": "chest_supino_smith_reto",
+      "result": "PASS_NO_PUBLISHED_COVER_OR_SEQUENCE_HONEST_FALLBACK",
+      "evidence": [
+        {
+          "file": "s22-nomedia-cover.png",
+          "bytes": 331954,
+          "sha256": "bba43012410aaeb9747e92abcc578f1fa79330ed3f5de6e39abb24b52df6581f"
+        },
+        {
+          "file": "s22-nomedia-cover.xml",
+          "bytes": 24379,
+          "sha256": "ef76332c6d5ce50e5086c069c3dc3600d7a8aa4da2f6e3968cd6a769c3c32cc3"
+        },
+        {
+          "file": "s22-nomedia-opened.png",
+          "bytes": 465550,
+          "sha256": "8181145ab261b5d1f8b6bfd022d5c50b8ccaf21edbe7d32961d7d4ddcbd2d390"
+        },
+        {
+          "file": "s22-nomedia-opened.xml",
+          "bytes": 20452,
+          "sha256": "d63c84f11150b1ffc78c01fa359562f6a6b6688cde5fe0f5c4e7c9569b1390f9"
+        }
+      ]
+    }
+  ],
+  "androidBack": {
+    "result": "PASS_DETAIL_TO_DASHBOARD_NO_CRASH_OR_STUCK_SCREEN",
+    "evidence": [
+      {
+        "file": "s22-sissy-android-back.png",
+        "bytes": 306486,
+        "sha256": "8894d109b91376bc7b535c24192836ece039513f11f6db234e07ba12d7e60acd"
+      },
+      {
+        "file": "s22-sissy-android-back.xml",
+        "bytes": 27093,
+        "sha256": "27f965cbea55cc577b8603b6f2f5db3ab72a062615318b6af80c479f61447edc"
+      },
+      {
+        "file": "s22-nomedia-android-back.png",
+        "bytes": 307012,
+        "sha256": "af8fa8b4c27390c5cf92fe83856ca5baa45c898dcdf3a142907775e59c1187ec"
+      },
+      {
+        "file": "s22-nomedia-android-back.xml",
+        "bytes": 27093,
+        "sha256": "27f965cbea55cc577b8603b6f2f5db3ab72a062615318b6af80c479f61447edc"
+      }
+    ]
+  },
+  "safeArea": {
+    "result": "PASS_CONTROLS_VISIBLE_ABOVE_SYSTEM_NAVIGATION_AND_HEADER_BELOW_STATUS_BAR",
+    "minimumTarget": "44 CSS px; physical guide controls observed at least 118 px at density 2.625",
+    "evidence": [
+      {
+        "file": "s22-frances-stage-3.png",
+        "bytes": 1244511,
+        "sha256": "96887f88f8e14b02aa6f1bf9464f075299ef24b7f5c6ffc161d1248ddc07fd5a"
+      },
+      {
+        "file": "s22-frances-stage-3.xml",
+        "bytes": 21077,
+        "sha256": "aa602c5fc0d63ba88003b366a20920a06042df27753ea482bca2b24089f57aac"
+      },
+      {
+        "file": "s22-maquina-stage-2.png",
+        "bytes": 1304727,
+        "sha256": "83ad81fe3630f3a5e986cf302282c67f10c2ee6041bd791ace4685f17b7ba68d"
+      },
+      {
+        "file": "s22-maquina-stage-2.xml",
+        "bytes": 20520,
+        "sha256": "975d36a6f187228b8b78c344f4eaad767b3660e2e4de1bf9ccd50970f33d561e"
+      }
+    ]
+  },
+  "recentsColdReopen": {
+    "result": "PASS",
+    "actions": [
+      "Open Samsung Recents",
+      "Focus GymFlow card",
+      "Dismiss only GymFlow card",
+      "Force-stop GymFlow without clearing data",
+      "Cold launch com.gymflowai.app/.MainActivity",
+      "Verify saved profile, planner and evolution"
+    ],
+    "observations": [
+      "GymFlow card present before and absent after dismissal",
+      "Process absent after force-stop and fresh process after launch",
+      "Existing profile remained signed in; 3150 XP and six-day streak unchanged"
+    ],
+    "evidence": [
+      {
+        "file": "s22-recents-before.png",
+        "bytes": 1577151,
+        "sha256": "8fec857089447babc5f7b37b8d99266cc5aea5cb8f52f55dc32ae56cbb059f4b"
+      },
+      {
+        "file": "s22-recents-before.xml",
+        "bytes": 12940,
+        "sha256": "bcb6e0c6763e2586c26c0171be0fbf9ad21730d19c690396f239e591dd5020fb"
+      },
+      {
+        "file": "s22-recents-gymflow-focus.png",
+        "bytes": 1839741,
+        "sha256": "8f30f0a2fd24c660aadc6f229d2752fe85718ffd0958ae35a05536dc2641b55b"
+      },
+      {
+        "file": "s22-recents-gymflow-focus.xml",
+        "bytes": 12128,
+        "sha256": "31719d5e203504f1341aad941d926567b5907424946ca940dae2717e79c51efa"
+      },
+      {
+        "file": "s22-recents-dismissed.png",
+        "bytes": 1715881,
+        "sha256": "c629fbcdd0befb566136bd438f1af4117eeda5e2fe0f49688f20b62760c8fea1"
+      },
+      {
+        "file": "s22-recents-dismissed.xml",
+        "bytes": 12130,
+        "sha256": "9ff27e03ee71148b1d346fae402ef2538f2219ea8d307365685d2155faf23732"
+      },
+      {
+        "file": "s22-cold-reopen-home-ready.png",
+        "bytes": 368330,
+        "sha256": "d8906cd38cd95d5673bb4c29c7a984e6a5d460e324ff04a3f830d80fbe420318"
+      },
+      {
+        "file": "s22-cold-reopen-home-ready.xml",
+        "bytes": 27104,
+        "sha256": "06efb10a3055606e906e5903495537e544c7859522bc9209d9b83450277fe72a"
+      },
+      {
+        "file": "s22-final-home.png",
+        "bytes": 368880,
+        "sha256": "af026f2ad2006664b0234494a8b696b2ea4b21f453007059190086cf70d17565"
+      },
+      {
+        "file": "s22-final-home.xml",
+        "bytes": 27104,
+        "sha256": "a9c1491d74924a4663f74cd171a4da9e5c8464db387ca52351478e42063a921c"
+      }
+    ]
+  },
+  "persistence": {
+    "result": "PASS",
+    "comparisons": [
+      {
+        "section": "planner",
+        "beforeTextCount": 69,
+        "afterTextCount": 69,
+        "beforeNormalizedSha256": "dbc175ed47b02df5c89e9b7eba2e251d038a5291d415507c6fcec634c0f55a20",
+        "afterNormalizedSha256": "dbc175ed47b02df5c89e9b7eba2e251d038a5291d415507c6fcec634c0f55a20",
+        "result": "PASS_SAME_VISIBLE_SAVED_DATA",
+        "method": "Compare sorted unique nonempty text/content-desc from app-package UI nodes before install and after Recents dismissal plus force-stop and cold launch.",
+        "evidence": [
+          {
+            "file": "s22-before-planner.xml",
+            "bytes": 42906,
+            "sha256": "ee6a4580f5b975594288afe302670e1e678596d74c6d983d2fe326d1f3f96ef0"
+          },
+          {
+            "file": "s22-cold-reopen-planner.xml",
+            "bytes": 42906,
+            "sha256": "ee6a4580f5b975594288afe302670e1e678596d74c6d983d2fe326d1f3f96ef0"
+          }
+        ]
+      },
+      {
+        "section": "evolution",
+        "beforeTextCount": 144,
+        "afterTextCount": 144,
+        "beforeNormalizedSha256": "717f29c7cf70ccf3e5b97e75d78f8961731359038bdf34ff90aa7694e6618581",
+        "afterNormalizedSha256": "717f29c7cf70ccf3e5b97e75d78f8961731359038bdf34ff90aa7694e6618581",
+        "result": "PASS_SAME_VISIBLE_SAVED_DATA",
+        "method": "Compare sorted unique nonempty text/content-desc from app-package UI nodes before install and after Recents dismissal plus force-stop and cold launch.",
+        "evidence": [
+          {
+            "file": "s22-before-evolution.xml",
+            "bytes": 94000,
+            "sha256": "ad1d891ead27c18ae57c3db84561add80f3d9a87025cada2ecb40bd7ec8fa071"
+          },
+          {
+            "file": "s22-cold-reopen-evolution.xml",
+            "bytes": 94000,
+            "sha256": "ad1d891ead27c18ae57c3db84561add80f3d9a87025cada2ecb40bd7ec8fa071"
+          }
+        ]
+      }
+    ],
+    "firstInstallTimePreserved": true,
+    "uninstallUsed": false,
+    "dataClearUsed": false,
+    "wipeUsed": false
+  },
+  "logcat": {
+    "result": "PASS",
+    "hostStartIso": "2026-10-04T18:58:05.505Z",
+    "hostEndIso": "2026-10-04T19:41:01.295Z",
+    "buffers": "all",
+    "format": "epoch",
+    "tail": 1,
+    "captureStatus": "STOPPED",
+    "FATAL_EXCEPTION": 0,
+    "ANR": 0,
+    "scannedLines": 521172,
+    "firstEpoch": "1791140285.455",
+    "lastEpoch": "1791142861.141",
+    "matchingRules": [
+      "FATAL EXCEPTION:",
+      "ANR in ",
+      "am_anr"
+    ],
+    "evidence": {
+      "file": "s22-resumed-final-logcat.txt",
+      "bytes": 105650466,
+      "sha256": "0c8f78eb68d4b1cf334c350829ca5fe0b34e4c4cc347f8deb821cbbf6b7a7181"
+    },
+    "sessionEvidence": {
+      "file": "s22-resumed-final-logcat-session.json",
+      "bytes": 240,
+      "sha256": "0fa09decd5b770317fc6a5d6ee956d3ea2c2df0103e18f9145b1393e92802363"
+    },
+    "scope": "All captured buffers throughout the final reinstall, twelve-exercise smoke, regressions and cold reopen; informational ANRManager messages are not ANR events."
+  },
+  "priorOutOfScopeFinding": {
+    "id": "P128-001",
+    "result": "DOCUMENTED_PREEXISTING_NONBLOCKING",
+    "description": "The existing floating Iniciar treino action can cover Ver técnica on the first library card at the initial scroll position. Scrolling the card upward exposes Ver técnica; all media smoke checks completed without starting a workout. Library layout is unchanged from base."
+  },
+  "evidencePolicy": "Physical screenshots, XML dumps, APK and raw logcat remain private local evidence outside Git. This canonical JSON publishes file names, sizes, hashes and results only; the exercise-only runtime contact sheet remains versioned."
+}

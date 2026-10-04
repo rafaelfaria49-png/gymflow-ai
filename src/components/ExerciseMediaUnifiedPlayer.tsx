@@ -21,6 +21,7 @@ import { isMediaCached, getMediaPlayableUrl } from '../domain/media/mediaCache';
 import { recordMediaTelemetryEvent } from '../domain/media/telemetry';
 import { AvatarDemoPlaceholder } from './AvatarDemoPlaceholder';
 import { getTechniqueFrames } from '../lib/techniqueFrames';
+import { getPublishedLocalMedia } from '../domain/media/publishedLocalMedia';
 
 interface ExerciseMediaUnifiedPlayerProps {
   exercise?: Exercise | null;
@@ -50,6 +51,7 @@ const ExerciseMediaPlayer: React.FC<ExerciseMediaUnifiedPlayerProps> = ({
 }) => {
   const exerciseName = name || exercise?.name || 'Exercício';
   const exerciseId = exercise?.id || media?.exerciseId || '';
+  const publishedMedia = getPublishedLocalMedia(exerciseId);
 
   // Resolução da mídia via prop direta ou manifest
   const resolvedMedia = useMemo(() => {
@@ -140,6 +142,7 @@ const ExerciseMediaPlayer: React.FC<ExerciseMediaUnifiedPlayerProps> = ({
   // Ciclo automático do player de frames (Tier 2)
   const framesCount = tierResult.frames.length;
   const frameIndex = Math.min(activeFrameIndex, Math.max(0, framesCount - 1));
+  const protectedFrames = tierResult.tier === 'frames' && !!publishedMedia;
   useEffect(() => {
     if (tierResult.tier !== 'frames' || !isFramesPlaying || framesCount < 2) return;
     const interval = setInterval(() => {
@@ -181,6 +184,16 @@ const ExerciseMediaPlayer: React.FC<ExerciseMediaUnifiedPlayerProps> = ({
       ref={containerRef}
       className={`relative w-full overflow-hidden bg-gym-dark text-white ${className}`}
     >
+      {protectedFrames && (
+        <div role="group" aria-label="Status da sequência" className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 bg-gym-card/40 px-3 py-2">
+          <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-amber-400">
+            <Sparkles className="h-3 w-3" />
+            {tierResult.badgeLabel}
+          </span>
+          {isOffline && <span className="text-[9px] font-bold text-gym-text-muted">Offline</span>}
+          <span className="text-[10px] font-black text-white">{frameIndex + 1}/{framesCount}</span>
+        </div>
+      )}
       {/* ÁREA DE VISUALIZAÇÃO PRINCIPAL */}
       <div
         className={`relative w-full overflow-hidden bg-black flex items-center justify-center ${
@@ -188,7 +201,7 @@ const ExerciseMediaPlayer: React.FC<ExerciseMediaUnifiedPlayerProps> = ({
         }`}
       >
         {/* BADGES NO TOPO */}
-        <div className="absolute left-2.5 top-2.5 z-20 flex flex-wrap items-center gap-1.5">
+        {!protectedFrames && <div className="absolute left-2.5 top-2.5 z-20 flex flex-wrap items-center gap-1.5">
           {tierResult.tier === 'video' ? (
             <span className="inline-flex items-center gap-1 rounded-full border border-gym-accent/30 bg-black/75 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-gym-accent backdrop-blur-md">
               <Sparkles className="h-3 w-3 text-gym-accent" />
@@ -211,7 +224,7 @@ const ExerciseMediaPlayer: React.FC<ExerciseMediaUnifiedPlayerProps> = ({
               Offline
             </span>
           )}
-        </div>
+        </div>}
 
         {/* TIER 1: VÍDEO TÉCNICO V2 */}
         {tierResult.tier === 'video' && tierResult.videoAsset && (
@@ -276,7 +289,7 @@ const ExerciseMediaPlayer: React.FC<ExerciseMediaUnifiedPlayerProps> = ({
                 alt={`${exerciseName} - Etapa ${frameIndex + 1}`}
                 loading="lazy"
                 onError={() => handleVideoError(tierResult.frames[frameIndex].url)}
-                className={`h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
+                className={`h-full w-full ${fit === 'cover' && !publishedMedia ? 'object-cover' : 'object-contain'}`}
               />
             ) : (
               <AvatarDemoPlaceholder
@@ -288,9 +301,9 @@ const ExerciseMediaPlayer: React.FC<ExerciseMediaUnifiedPlayerProps> = ({
             )}
 
             {/* CONTADOR DE ETAPAS */}
-            <span className="absolute right-2.5 top-2.5 z-20 rounded-full border border-white/10 bg-black/75 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur-md">
+            {!protectedFrames && <span className="absolute right-2.5 top-2.5 z-20 rounded-full border border-white/10 bg-black/75 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur-md">
               {frameIndex + 1}/{framesCount}
-            </span>
+            </span>}
           </div>
         )}
 
@@ -326,10 +339,10 @@ const ExerciseMediaPlayer: React.FC<ExerciseMediaUnifiedPlayerProps> = ({
       {/* CONTROLES INFERIORES QUANDO EM TIER DE FRAMES */}
       {tierResult.tier === 'frames' && framesCount > 1 && (
         <div className="flex items-center justify-between border-t border-white/5 bg-gym-card/40 p-2.5 px-3">
-          <span className="text-[11px] font-bold text-gym-text-muted truncate max-w-[200px]">
+          <span className="min-w-0 flex-1 text-[11px] font-bold leading-relaxed text-gym-text-muted">
             {tierResult.frames[frameIndex]?.label || `Etapa ${frameIndex + 1}`}
           </span>
-          <div className="flex items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
               onClick={() => setActiveFrameIndex((prev) => (prev - 1 + framesCount) % framesCount)}
@@ -355,6 +368,12 @@ const ExerciseMediaPlayer: React.FC<ExerciseMediaUnifiedPlayerProps> = ({
               <SkipForward className="h-3.5 w-3.5" />
             </button>
           </div>
+        </div>
+      )}
+      {tierResult.tier === 'frames' && publishedMedia && (
+        <div className="space-y-2 border-t border-white/5 px-3 py-2 text-xs leading-relaxed text-gym-text-muted">
+          <p>{tierResult.frames[frameIndex]?.cue}</p>
+          {publishedMedia.caveat && <p>Ressalva da sequência: {publishedMedia.displayCaveat ?? publishedMedia.caveat}</p>}
         </div>
       )}
     </div>

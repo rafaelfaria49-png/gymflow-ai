@@ -47,6 +47,21 @@ describe('getTechniqueFrames', () => {
     ]);
   });
 
+  it('mapeia três imagens para início, meio e final com cues distribuídos pelas instruções', () => {
+    const frames = getTechniqueFrames({
+      images: ['/0.jpg', '/1.jpg', '/2.jpg'],
+      executionSteps: ['Ajuste a base.', 'Inicie o movimento.', 'Passe pelo meio.', 'Contraia.', 'Retorne controlando.'],
+    });
+    expect(frames.map(frame => frame.label)).toEqual(['Posição inicial', 'Meio da execução', 'Posição final']);
+    expect(frames.map(frame => frame.cue)).toEqual(['Ajuste a base.', 'Passe pelo meio.', 'Retorne controlando.']);
+  });
+
+  it('também aplica o contrato de três fases a frames fornecidos sem labels', () => {
+    const frames = getTechniqueFrames({techniqueFrames: [1, 2, 3].map(order => ({image: `/${order}.jpg`, label: '', cue: '', order}))});
+    expect(frames.map(frame => frame.label)).toEqual(['Posição inicial', 'Meio da execução', 'Posição final']);
+    expect(frames.every(frame => frame.cue.length > 0)).toBe(true);
+  });
+
   it('retorna fallback seguro quando não há imagens', () => {
     const frames = getTechniqueFrames({ name: 'Exercício criado no Admin' });
 

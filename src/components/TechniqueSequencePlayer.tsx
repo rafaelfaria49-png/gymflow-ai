@@ -5,6 +5,7 @@ import { Pause, Play, RotateCcw, SkipBack, SkipForward, Sparkles } from 'lucide-
 import { Exercise, TechniqueFrame } from '../types';
 import { getTechniqueFrames } from '../lib/techniqueFrames';
 import { AvatarDemoPlaceholder } from './AvatarDemoPlaceholder';
+import { getPublishedLocalMedia } from '../domain/media/publishedLocalMedia';
 
 interface TechniqueSequencePlayerProps {
   exercise?: Exercise | null;
@@ -61,8 +62,10 @@ const TechniqueSequenceContent: React.FC<TechniqueSequencePlayerProps> = ({
   const frameIndex = Math.min(activeIndex, Math.max(0, validFrames.length - 1));
   const activeFrame = validFrames[frameIndex];
   const exerciseName = name || exercise?.name || 'Exercício';
+  const publishedMedia = getPublishedLocalMedia(exercise?.id);
   const hasImage = !!activeFrame?.image && !failedSrcs.includes(activeFrame.image);
   const canNavigate = validFrames.length > 1;
+  const protectedFrames = hasImage && !!publishedMedia;
 
   useEffect(() => {
     if (!isPlaying || validFrames.length < 2) return;
@@ -84,6 +87,15 @@ const TechniqueSequenceContent: React.FC<TechniqueSequencePlayerProps> = ({
 
   return (
     <div className={`relative w-full overflow-hidden bg-gym-dark text-white ${className}`}>
+      {protectedFrames && (
+        <div role="group" aria-label="Status da sequência" className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 bg-gym-card/40 px-3 py-2">
+          <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-gym-accent">
+            <Sparkles className="h-3 w-3" />
+            Sequência visual provisória
+          </span>
+          <span className="text-[10px] font-black text-white">{frameIndex + 1}/{validFrames.length}</span>
+        </div>
+      )}
       <div className={`relative w-full overflow-hidden bg-black ${compact ? 'aspect-video' : 'aspect-[3/2]'}`}>
         {hasImage ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -93,7 +105,7 @@ const TechniqueSequenceContent: React.FC<TechniqueSequencePlayerProps> = ({
             alt={`${exerciseName} - ${activeFrame.label}`}
             loading="lazy"
             onError={() => { setActiveIndex(0); setFailedSrcs((prev) => (prev.includes(activeFrame.image) ? prev : [...prev, activeFrame.image])); }}
-            className={`absolute inset-0 h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'} transition-opacity duration-300`}
+            className={`absolute inset-0 h-full w-full ${fit === 'cover' && !publishedMedia ? 'object-cover' : 'object-contain'} transition-opacity duration-300`}
           />
         ) : (
           <AvatarDemoPlaceholder
@@ -104,14 +116,14 @@ const TechniqueSequenceContent: React.FC<TechniqueSequencePlayerProps> = ({
           />
         )}
 
-        <div className="absolute left-2 top-2 z-10 flex flex-wrap items-center gap-1.5">
+        {!protectedFrames && <div className="absolute left-2 top-2 z-10 flex flex-wrap items-center gap-1.5">
           <span className="inline-flex items-center gap-1 rounded-full border border-gym-accent/25 bg-black/65 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-gym-accent backdrop-blur-sm">
             <Sparkles className="h-3 w-3" />
             Sequência visual provisória
           </span>
-        </div>
+        </div>}
 
-        {validFrames.length > 0 && <span className="absolute right-2 top-2 z-10 rounded-full border border-white/10 bg-black/65 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur-sm">
+        {!protectedFrames && validFrames.length > 0 && <span className="absolute right-2 top-2 z-10 rounded-full border border-white/10 bg-black/65 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur-sm">
           {frameIndex + 1}/{validFrames.length}
         </span>}
       </div>
@@ -124,6 +136,11 @@ const TechniqueSequenceContent: React.FC<TechniqueSequencePlayerProps> = ({
               <p className="mt-1 text-[11px] font-medium leading-relaxed text-gym-text-muted">
                 {activeFrame?.cue ?? 'Imagens técnicas ainda não disponíveis.'}
               </p>
+              {hasImage && publishedMedia?.caveat && (
+                <p className="mt-2 text-[11px] leading-relaxed text-gym-text-muted">
+                  Ressalva da sequência: {publishedMedia.displayCaveat ?? publishedMedia.caveat}
+                </p>
+              )}
               <span className="mt-2 inline-flex rounded-full border border-gym-accent/20 bg-gym-accent/10 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-gym-accent">
                 Referência de execução
               </span>

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import crypto from 'node:crypto';
 import { buildInventory, generateArtifacts, auditRuntimeCatalog, EXPECTED_SEQUENCE_IDS, APPROVED_VIDEO_IDS } from './exercise-media-inventory.mjs';
 import { BASE_CATALOG_126, LOTE_6_EXPANSION, LOTE_7_EXPANSION, RUNTIME_CATALOG, MOCK_EXERCISES, MEDIA_CATALOG_SCOPE } from '../../src/mock/exercises';
+import { PUBLISHED_LOCAL_MEDIA_EXERCISE_IDS } from '../../src/domain/media/publishedLocalMedia';
 
 let cached;
 const inventory = () => cached ??= buildInventory(process.cwd());
@@ -33,14 +34,14 @@ describe('GOAL-124 runtime exercise media inventory', () => {
     expect(data.auditStatus.inventoryRuntimeComplete).toBe(true);
   });
 
-  it('matches disk image paths and finds the triceps_maquina directory gap', async () => {
+  it('matches disk paths after exactly 12 authorized local sequences close their gaps', async () => {
     const data = await inventory();
-    expect(data.counts.assetDirectories).toBe(125);
-    expect(data.missingAssetDirectories.slice().sort()).toEqual(['triceps_maquina', ...LOTE_6_EXPANSION.map(x => x.id), ...LOTE_7_EXPANSION.map(x => x.id)].sort());
-    expect(data.counts.missingAssetDirectories).toBe(59);
-    expect(data.counts.noMediaRuntimeCount).toBe(59);
+    expect(data.counts.assetDirectories).toBe(137);
+    expect(data.missingAssetDirectories.slice().sort()).toEqual(['triceps_maquina', ...LOTE_6_EXPANSION.map(x => x.id), ...LOTE_7_EXPANSION.map(x => x.id)].filter(id => !PUBLISHED_LOCAL_MEDIA_EXERCISE_IDS.includes(id)).sort());
+    expect(data.counts.missingAssetDirectories).toBe(47);
+    expect(data.counts.noMediaRuntimeCount).toBe(47);
     expect(data.historicalBaseline.counts.missingAssetDirectories).toBe(1);
-    expect(data.baseCatalogCurrent.missingAssetDirectories).toEqual(['triceps_maquina']);
+    expect(data.baseCatalogCurrent.missingAssetDirectories).toEqual([]);
     for (const exercise of data.exercises) {
       expect(exercise.localImagePaths).toHaveLength(exercise.localImageCount);
       expect(exercise.localImagePaths.every(p => fs.existsSync(path.join(process.cwd(), 'public', p.slice(1).replaceAll('/', path.sep))))).toBe(true);
@@ -74,12 +75,13 @@ describe('GOAL-124 runtime exercise media inventory', () => {
     }
   });
 
-  it('preserves draft and retired status and detects triceps_maquina as NO_MEDIA', async () => {
+  it('preserves draft/retired videos and records the authorized two-frame exception', async () => {
     const data = await inventory();
     expect(data.counts.videoDraftCount).toBe(25);
     expect(data.counts.videoRetiredCount).toBe(1);
     expect(data.exercises.filter(x => x.videoStatus === 'draft' && x.videoIsRealApproved)).toEqual([]);
-    expect(data.exercises.find(x => x.exerciseId === 'triceps_maquina').mediaCoverageClass).toBe('NO_MEDIA');
+    expect(data.exercises.find(x => x.exerciseId === 'triceps_maquina').mediaCoverageClass).toBe('LOCAL_RUNTIME_TWO_FRAME_EXCEPTION');
+    expect(data.exercises.find(x => x.exerciseId === 'legs_agachamento_sissy').mediaCoverageClass).toBe('NO_MEDIA');
   });
 
   it('resolves each of the 11 structural findings with historical records retained', async () => {
@@ -126,7 +128,7 @@ describe('GOAL-124 runtime exercise media inventory', () => {
   });
   it('distinguishes the exercise-to-video map from honest local frame fallback', async () => {
     const data = await inventory();
-    const missing = data.exercises.find(x => x.exerciseId === 'triceps_maquina');
+    const missing = data.exercises.find(x => x.exerciseId === 'legs_agachamento_sissy');
     expect(missing.techniqueMappingExists).toBe(false);
     expect(missing.techniqueFramesAvailable).toBe(false);
     expect(missing.techniqueFallbackRisk.level).toBe('high');
@@ -163,7 +165,7 @@ describe('GOAL-124 runtime exercise media inventory', () => {
     expect(audit.lotOverlaps).toEqual([{ exerciseId: LOTE_6_EXPANSION[0].id, lots: ['LOTE_6', 'LOTE_7'] }]);
   });
   it('does not assume media exists for either expansion lot', async () => {
-    for (const row of (await inventory()).exercises.filter(x => x.catalogOrigin !== 'BASE_CATALOG_126')) {
+    for (const row of (await inventory()).exercises.filter(x => x.catalogOrigin !== 'BASE_CATALOG_126' && !PUBLISHED_LOCAL_MEDIA_EXERCISE_IDS.includes(x.exerciseId))) {
       expect(row).toMatchObject({ assetDirectoryExists: false, localImageCount: 0, sequenceFrameCount: 0, manifestEntryExists: false, videoStatus: null, galleryCoverCandidate: 'NONE', mediaCoverageClass: 'NO_MEDIA', priority: 'P1', recommendedNextAction: 'GENERATE_REFERENCE_IMAGES' });
     }
   });
@@ -182,13 +184,21 @@ describe('GOAL-124 runtime exercise media inventory', () => {
     for (const [id, entry] of Object.entries(manifest.historicalAssets)) expect(hash(entry), id).toBe(baseline.manifestEntryFingerprints[id]);
     expect((await inventory()).validation.preservedAssetChanges).toEqual([]);
   });
-  it('separates cover classes over all 184 exercises and keeps all candidates unapproved', async () => {
+  it('separates local authorization for 12 covers from the 125 legacy candidates', async () => {
     const data = await inventory();
-    expect(data.counts.galleryCoverClassCounts).toEqual({ COVER_EXISTING_CANDIDATE: 122, COVER_NEEDS_REVIEW: 3, COVER_MISSING: 59, COVER_BLOCKED_WRONG_MEDIA: 0 });
+    expect(data.counts.galleryCoverClassCounts).toEqual({ COVER_EXISTING_CANDIDATE: 122, COVER_NEEDS_REVIEW: 3, COVER_LOCAL_RUNTIME_AUTHORIZED: 12, COVER_MISSING: 47, COVER_BLOCKED_WRONG_MEDIA: 0 });
     expect(Object.values(data.counts.galleryCoverClassCounts).reduce((a, b) => a + b, 0)).toBe(184);
-    expect(data.counts.galleryCoverAvailableCandidateCount).toBe(125);
+    expect(data.counts.galleryCoverAvailableCandidateCount).toBe(137);
     expect(data.counts.galleryCoverHumanApprovalPendingCount).toBe(125);
-    expect(data.counts.galleryCoverReadyCount).toBe(0);
+    expect(data.counts.galleryCoverReadyCount).toBe(12);
+    expect(data.runtimePublication).toMatchObject({exerciseCount: 12, frameCount: 35, threeFrameExercises: 11, twoFrameExercises: 1});
+    expect(data.exercises.filter(x => x.runtimePublished).map(x => x.exerciseId).sort()).toEqual([...PUBLISHED_LOCAL_MEDIA_EXERCISE_IDS].sort());
+    for (const row of data.exercises.filter(x => x.runtimePublished)) {
+      expect(row.galleryCoverPath).toBe(`/assets/exercises/${row.exerciseId}/0.jpg`);
+      expect(row.galleryCoverNeedsHumanApproval).toBe(false);
+      expect(row.priority).toBe('P4');
+      expect(row.recommendedNextAction).toBe('PRESERVE_PUBLISHED_LOCAL_SEQUENCE');
+    }
   });
   it('allows reference intake but keeps generation blocked by the missing official reference', async () => {
     const data = await inventory();

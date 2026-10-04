@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { MOCK_EXERCISES, BASE_CATALOG_126, RUNTIME_CATALOG } from './exercises';
 import { MOCK_PROGRAMS } from './programs';
+import { PUBLISHED_LOCAL_MEDIA_EXERCISE_IDS } from '../domain/media/publishedLocalMedia';
 
 // GOAL-09: validação da biblioteca real de exercícios.
 // Garante que nenhum programa aponta para exercício inexistente e que a
@@ -57,7 +58,7 @@ describe('biblioteca de exercícios (GOAL-09 & GOAL-33)', () => {
       'triceps_maquina',
       ...LOTE_6_EXPANSION.map((e) => e.id),
       ...LOTE_7_EXPANSION.map((e) => e.id),
-    ].sort();
+    ].filter(id => !PUBLISHED_LOCAL_MEDIA_EXERCISE_IDS.includes(id)).sort();
     expect(pending).toEqual(expectedPending);
 
     for (const ex of MOCK_EXERCISES) {
