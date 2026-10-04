@@ -1,0 +1,3394 @@
+{
+  "capturedAt": "2026-10-03T14:45:46.493Z",
+  "baseSha": "d8887ef31cf4d013f9318280feda7cd0189552f4",
+  "files": [
+    {
+      "path": "docs/avatar-design/KAI_DNA_v1.md",
+      "sha256": "c2c0f51ba113f3735cc43edb6a6f2d0c178a2886ad25b906558cac46abe014ad"
+    },
+    {
+      "path": "docs/avatar-design/KAI_MOODBOARD_v1.md",
+      "sha256": "fde66c43ad7f940f7442963160c4c178fbccc8ce50adabb66065a9d8016d838a"
+    },
+    {
+      "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/GOAL_125_CHECKS.json",
+      "sha256": "fe3203a251a1692018650e2c31cb41e75db4b99c5985e769049d8c757c676a88"
+    },
+    {
+      "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/HUMAN_REVIEW_FINAL.md",
+      "sha256": "4a271617da60f4efa963c746eba61f9b7bf5b1155faa767b356857cad5dd2111"
+    },
+    {
+      "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/INDEPENDENT_REVIEW.md",
+      "sha256": "a172565dacf9cfeaf411150084f54215035204029dd380f1c25ee44f7c1fe979"
+    },
+    {
+      "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/contact-sheets/lote-triceps-final.jpg",
+      "sha256": "7d7f932dbf98f3430bcbe678156a7e2a6340f21beb8acd6c4878e0022fd1880e"
+    },
+    {
+      "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/human-decision.json",
+      "sha256": "53380a5e19b5d1008fa1fa6ef692ad7553eac5c4154a5a26ecf04bb1eee2693f"
+    },
+    {
+      "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/pilot-manifest.json",
+      "sha256": "649e9f8cdc860716599b397cef328d4f3597ca48c47a309fa10f112a73e3b57c"
+    },
+    {
+      "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/preflight-publication.json",
+      "sha256": "d0f1f03b033d997d563e7b6120f30d23c508f8def8d75a493f7b49d4198a1969"
+    },
+    {
+      "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/provenance-essential.json",
+      "sha256": "12ff585ce39e302620116e4fbfc5a7c85fefda4887e41785fc6bfbf68dd2f8f4"
+    },
+    {
+      "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+      "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c"
+    },
+    {
+      "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+      "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12"
+    },
+    {
+      "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/runtime-preservation-baseline.json",
+      "sha256": "4411b7a3a2d66c6eea379c24a14f9b7567e88d8fa0699cc7001f14da394c95a2"
+    },
+    {
+      "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/validate-final-pilot.mjs",
+      "sha256": "6ea84b1a53e7201bbcb229d7b6b27b8e014833e0cce54207b2b17e89398c0753"
+    },
+    {
+      "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/validation-final.json",
+      "sha256": "42110da7dc9393a38015a94f311034574aeff1505442a9b3ccc14d78e53612b0"
+    },
+    {
+      "path": "labs/avatar-lab/GENERATION_WORKFLOW.md",
+      "sha256": "040a8c13e7b4bdd544c8ffe40f7ffe80c9169893b1b361d5bbab5d4f255745a8"
+    },
+    {
+      "path": "labs/avatar-lab/GYMFLOW_AVATAR_LAB_001.md",
+      "sha256": "75ba5f2af51561f23281469bbc62df35a094d12c27fa50463ae968d01291a87d"
+    },
+    {
+      "path": "labs/avatar-lab/PRODUCTION_CHECKLIST.md",
+      "sha256": "62f9df24271434dd435d65757d040460121161e76853f844348c4243cef754b7"
+    },
+    {
+      "path": "labs/avatar-lab/PRODUCTION_QUEUE.md",
+      "sha256": "983041818e83e9f5605d18ea9dd6572df40759c184cac2a47f3bca855e23c087"
+    },
+    {
+      "path": "labs/avatar-lab/README.md",
+      "sha256": "ba1a1ab380633e6ed91f7d9a825f54edb93483c110adfb2b37e5fac88430259d"
+    },
+    {
+      "path": "labs/avatar-lab/benchmarks/BENCHMARK_ANIMATIONS.md",
+      "sha256": "c4b863392f7d100acddeb87f3218a3d4f53b35fc6821d87f1ced1c4b2f9886b0"
+    },
+    {
+      "path": "labs/avatar-lab/benchmarks/BENCHMARK_AVATARS.md",
+      "sha256": "7d7738310b328d13a7394ceaf8947e37f7dad51e3ad6789f1eef59ca73cc4eac"
+    },
+    {
+      "path": "labs/avatar-lab/benchmarks/BENCHMARK_FORMATS.md",
+      "sha256": "930df37f2f234a94e6dc9d3acb6e722f1ef77b4ef9303da475fd02f00634498a"
+    },
+    {
+      "path": "labs/avatar-lab/benchmarks/BENCHMARK_LICENSES.md",
+      "sha256": "90481654514170ba9d132ca17038d6448c431a491f3777be6ade4ed446ccee33"
+    },
+    {
+      "path": "labs/avatar-lab/benchmarks/BENCHMARK_PERFORMANCE.md",
+      "sha256": "6491a32ecff6e8f1ff3ac5a954260e88da54f9e0b7cf60f79449174246e63066"
+    },
+    {
+      "path": "labs/avatar-lab/benchmarks/BENCHMARK_PIPELINES.md",
+      "sha256": "cdd1adf044c275e826635be274a0014353b347e791609cd2cc13e467c22ad93f"
+    },
+    {
+      "path": "labs/avatar-lab/benchmarks/BENCHMARK_R3F.md",
+      "sha256": "9521d7370cbc229fab282fc40024a757a59cd7aceb3ffe47bd5b78fc6aac62ef"
+    },
+    {
+      "path": "labs/avatar-lab/benchmarks/BENCHMARK_RIGS.md",
+      "sha256": "0d631244136c9d4e54a3b2ab077087ae8df88deb95e24da6fbd529e8b25e5017"
+    },
+    {
+      "path": "labs/avatar-lab/benchmarks/BENCHMARK_THREEJS.md",
+      "sha256": "fcce0f408dafdb9f9ad398d7aae9dacaf0295bf072254b8a38649aa7bf252b8d"
+    },
+    {
+      "path": "labs/avatar-lab/benchmarks/BENCHMARK_TOOLS.md",
+      "sha256": "1689a5544b040e62e3dea96eb906c9624bf5a535619528000a24b7aa31eb5d2a"
+    },
+    {
+      "path": "labs/avatar-lab/benchmarks/BENCHMARK_VISUAL.md",
+      "sha256": "73e1b39f8f033a4511b8b05cd88bbb754895500eae251c159700ea170c30bc4c"
+    },
+    {
+      "path": "labs/avatar-lab/benchmarks/README.md",
+      "sha256": "679d304a192db9d21a795866d471c76402ea313cf34b53014c91cbaf2123a8e4"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/CHECKLIST_REVIEW.md",
+      "sha256": "8641ee1000b50343b4f23892fee6b0eb2e74e220548d7d5734c4f2a30fcab26e"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/MASTER_RANKING.md",
+      "sha256": "38b5fa76c06ba7218357cffeb1554726085d932555874f83d298a3377a22dd4a"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/README.md",
+      "sha256": "fc6737dd8a1883dc97e3bab13ff5bdfcead011d9131cdbd4cca4c0fb0e0543a0"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/REVIEW_TEMPLATE.md",
+      "sha256": "9775ff0060d6317ddf1537ffbc93b26387d4f13cf96b3017d9288b68985caff6"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/SCORE_GUIDE.md",
+      "sha256": "8f162d1673a5923120808ca47f1e1a8a884a7738655f2574ee51e6bc73080fc2"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/_TEMPLATE/candidate_XXX/meta.json",
+      "sha256": "45e15918b846354373aca91c069c6c7abd61e7dd433f39a9353144cc2d3fc420"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/_TEMPLATE/candidate_XXX/review.md",
+      "sha256": "2023eff838ff3636e9c0bd0490288f16c6ebefa06549c38d8268bd7ce0a874ff"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/cc5/README.md",
+      "sha256": "af61e4cbe77acd36b7c7d30c3856f373d2b4540df46369b2800a4170b3b61e15"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/cc5/candidate_001/meta.json",
+      "sha256": "ad80208890c58a41094e97374639774b74d1b7816babd3e7b678ef94ae545f21"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/cc5/candidate_001/review.md",
+      "sha256": "c89036a48ae27fe06c7a9c2d624413b03d13ea5ad2c0c872d34e4c69b091c0db"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/chatavatar/README.md",
+      "sha256": "ea1d8bc7f1abeec9568a1197deb8604effb7aeff96c69131e67d5469b52f289b"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/chatavatar/candidate_001/meta.json",
+      "sha256": "d6af41288f271cc15ec0824126745b6eebe0db33923c5427b720660f3c084f8d"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/chatavatar/candidate_001/review.md",
+      "sha256": "c72add3583b5e6b702a86175322727a44f6f3f2d5f0787ee38d5c98a353b212e"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/meshy/README.md",
+      "sha256": "ad527062208b785502b5d91cae8eeb23038376d0f283fd46985068ae6614fb0c"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/meshy/candidate_001/meta.json",
+      "sha256": "eb163a95703558e3bb3d1395c9f5242809d76ed5c976836da9f5d12cec49629c"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/meshy/candidate_001/review.md",
+      "sha256": "82b38250befead7756d5f1c572e3d1d004b889acf6d04bb23f251065548fd6c6"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/rodin/README.md",
+      "sha256": "b2be97704fb88fd850d23ac1704035a2756a57d06b5950a8553c6146a458d4a6"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/rodin/candidate_001/meta.json",
+      "sha256": "b098d862a643b6d46d37e76c6b15a5bba657aaff2b9b4db9d13dab9200f0ab8d"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/rodin/candidate_001/review.md",
+      "sha256": "86bf5e8d064318f8da8567d0e257621b7db34d911c4f7ce1946acd289931bbd6"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/rodin/candidate_002/meta.json",
+      "sha256": "b8b13539aee10d1bef11d1c91f32d755fdc46ad92672a3b737489b92e73ec4d4"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/rodin/candidate_002/review.md",
+      "sha256": "05e6c6df717adcf153d7916fa0c8766059a0dafc4619edfc58bb56192be52b99"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/rodin/candidate_003/meta.json",
+      "sha256": "046e86620f5657938bd76829f3f0054df331426eaf641bff2c3292c7fbcdfffb"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/rodin/candidate_003/review.md",
+      "sha256": "89d68d09f30606305ad40279dc240c9e164b116a6f6853d72e0f706de0f19b3c"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/rodin/candidate_004/meta.json",
+      "sha256": "5413f9cd214189c73896e6b8abda87a6bce97f9a9458c0f108d59b188ea9a527"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/rodin/candidate_004/review.md",
+      "sha256": "277580acb2abf67c67d5b3ff84f4dcb4ffea12e92bdddc60784899e2d05d44ef"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/rodin/candidate_005/meta.json",
+      "sha256": "3b2aca2699db1fc5c7fad53bdd2abd20042608d0bc0053be353cd904ac579e6f"
+    },
+    {
+      "path": "labs/avatar-lab/candidates/rodin/candidate_005/review.md",
+      "sha256": "1b96d6e07236e712b9ecd1b86e6aef6047c6bc061ef554cca556da79c484aa19"
+    },
+    {
+      "path": "labs/avatar-lab/checklists/APPROVAL_CRITERIA.md",
+      "sha256": "3ab452072d71d71f788fe3fe2c826a898050bb735251beac26e8d20adde5b291"
+    },
+    {
+      "path": "labs/avatar-lab/checklists/EVALUATION_CHECKLIST.md",
+      "sha256": "3776c2e20aba8e1016f1c8eb239dee2a5d6b58b43127432793b95a5287ad1198"
+    },
+    {
+      "path": "labs/avatar-lab/checklists/EXPORT_CHECKLIST.md",
+      "sha256": "8e9ebea5fa54584176feda874a04a4d05e31e0e746da5158c2173d87c969f019"
+    },
+    {
+      "path": "labs/avatar-lab/checklists/GENERATION_CHECKLIST.md",
+      "sha256": "2ccdcbcd8d114e53fc11049c70b27c612e469b9bbb9068fc97441df88e68a2cf"
+    },
+    {
+      "path": "labs/avatar-lab/drop/README.md",
+      "sha256": "c44a3dfd9ff9ac9707358264d8d9fcd5dbdf550bd776adc93e208566cd54fa71"
+    },
+    {
+      "path": "labs/avatar-lab/drop/_TEMPLATE.meta.json",
+      "sha256": "76b1b32deab2a5594e7363af525755372ed1e3dd0abd8fe10da82debaa9a0194"
+    },
+    {
+      "path": "labs/avatar-lab/experiments/TEST_CARD_TEMPLATE.md",
+      "sha256": "4536397a811d611d68b62d76333c9da0ec9cc2d5c89493a1bb0221a4cedced9a"
+    },
+    {
+      "path": "labs/avatar-lab/face-lab/FACE_RANKING.md",
+      "sha256": "3435d9b7d3e7b3af37892afed8d3da48d541a3a2aa0c1a9af58c1c414e634f44"
+    },
+    {
+      "path": "labs/avatar-lab/face-lab/FACE_REVIEW_TEMPLATE.md",
+      "sha256": "5db49ea6da064290281e4020b4b6864bac12a0ac9aa6631921e4ceb37bde96b7"
+    },
+    {
+      "path": "labs/avatar-lab/face-lab/FACE_SCORE_GUIDE.md",
+      "sha256": "1f3cc76cbc2417f75b2cc3273f119074ec0de3ea7252af1a3b3bc965104a6cf9"
+    },
+    {
+      "path": "labs/avatar-lab/face-lab/PROMPTS_FACE.md",
+      "sha256": "8161d75964cc7c51afd4d4ad258e095ad91ba5861a71d1569220b1d23aed72ac"
+    },
+    {
+      "path": "labs/avatar-lab/face-lab/README.md",
+      "sha256": "6390ec955c6f8ccc797aa11bccfa38c207a19be530598163fb530e8212b47226"
+    },
+    {
+      "path": "labs/avatar-lab/face-lab/_TEMPLATE/face_XXX/meta.json",
+      "sha256": "1a38ad5db736e31008ba5262a59ac590f78a7abe23176d6c1a19f8736007e5f4"
+    },
+    {
+      "path": "labs/avatar-lab/face-lab/_TEMPLATE/face_XXX/review.md",
+      "sha256": "ffcf6eca33441c1508c61c34f0c27b513b927fc790ec1d489863e48918633f6f"
+    },
+    {
+      "path": "labs/avatar-lab/face-lab/approved/README.md",
+      "sha256": "898eae88b7c205eb4f1099628cd095dae04e8fd683809e35ad47bc2ea4bff627"
+    },
+    {
+      "path": "labs/avatar-lab/face-lab/batch-001/README.md",
+      "sha256": "0388fdeebf0fda182dd656bb632e1364b77f51480e74ed02991de64536b25208"
+    },
+    {
+      "path": "labs/avatar-lab/face-lab/batch-002/README.md",
+      "sha256": "a3910d129142cb942b51d18f84574450cfef622bc69020842ca66bbbf2b58446"
+    },
+    {
+      "path": "labs/avatar-lab/face-lab/reference/README.md",
+      "sha256": "8194a8ea2d9a5d08b613ed19f8ed7e72d8e91a4acb6f3883bdacd53b18d68e81"
+    },
+    {
+      "path": "labs/avatar-lab/face-lab/rejected/README.md",
+      "sha256": "5ee683339c5419a6d06733470fded8100e8928e9a611329a664bd67576e300e9"
+    },
+    {
+      "path": "labs/avatar-lab/face-lab/review/README.md",
+      "sha256": "34861d748fcb0d060dd23b920877246f597aba00acbfd45a79c81e14c2927545"
+    },
+    {
+      "path": "labs/avatar-lab/results/EXECUTION_AND_ALTERNATIVES.md",
+      "sha256": "8f9c8f6d2f2278bb7ae6bb95afcdfc6b22954328f9e80e9972896198ba7e70bb"
+    },
+    {
+      "path": "labs/avatar-lab/results/GYMFLOW_AVATAR_LAB_RESULTS_v01.md",
+      "sha256": "917a77aa4e118db0cc6ee58e3fc72ce7804e2e977054297ba4f3064e40e720f8"
+    },
+    {
+      "path": "labs/avatar-lab/results/PROMPTS_PER_TOOL.md",
+      "sha256": "c70f2e604b8799850897d3f80489919edf335512a4cfbfee1da565b9105aa41c"
+    },
+    {
+      "path": "labs/avatar-lab/results/STANDARD_PROMPT.md",
+      "sha256": "e80029ed6d9fcd5cc961ae6b96e5365d3e68b0a3f7098b7cb3e081e2187ced56"
+    },
+    {
+      "path": "labs/avatar-lab/tools/README.md",
+      "sha256": "9bb2cfebf92332063f0e03563789633f48f9c83f7428cf73809d627ce28f16e4"
+    },
+    {
+      "path": "labs/avatar-lab/tools/_selftest.mjs",
+      "sha256": "170856ae0a10f84e07f7924f0986fcb30ef27b31f9246cca8da0acf648690111"
+    },
+    {
+      "path": "labs/avatar-lab/tools/analyze-glb.mjs",
+      "sha256": "3e230c5ef43fbb1c34e3c7182fbbc53469ef10f95f551c9fb1e9c0fc7ef184c8"
+    },
+    {
+      "path": "labs/avatar-lab/tools/rubric.json",
+      "sha256": "a712a66661a864fa09ca08fa5829c8694ed4449f13e0522384f186aaa4190882"
+    },
+    {
+      "path": "public/assets/animations/README.md",
+      "sha256": "5a89de14a76d0d6e971dca339bc15a649104d242eccef94d1e6f67c84d33c84f"
+    },
+    {
+      "path": "public/assets/avatars/README.md",
+      "sha256": "663ced68c1371996c1bcf14adab75c71a4b57c2a48062205a627dd7fb28113f0"
+    },
+    {
+      "path": "public/assets/exercises/abs_abdominal_declinado/0.jpg",
+      "sha256": "d3c4eb45a9cdedba91f1566d405df118157a81448fe5c5e7aed1e426e2790056"
+    },
+    {
+      "path": "public/assets/exercises/abs_abdominal_declinado/1.jpg",
+      "sha256": "9c1563b656936bbaf7a130bd0ce24b294fa645dd302e865b5acd42658bdbc7cc"
+    },
+    {
+      "path": "public/assets/exercises/abs_abdominal_infra/0.jpg",
+      "sha256": "87691104bd0accc790d4928d0cd7e5fb06d131c20918b2dcb7aa0e64244870f0"
+    },
+    {
+      "path": "public/assets/exercises/abs_abdominal_infra/1.jpg",
+      "sha256": "9bebcd1c5d9095a66b173a135b93bba266f0a18b939b44a30b9fb514ae7c6a29"
+    },
+    {
+      "path": "public/assets/exercises/abs_abdominal_maquina/0.jpg",
+      "sha256": "5072e495268201939f171a0ea2a038f7bae5f3a75f9972397a99f9c8696c6b84"
+    },
+    {
+      "path": "public/assets/exercises/abs_abdominal_maquina/1.jpg",
+      "sha256": "fb435de8360740438f7097e29afe5329e2f5b2d3a8b73d14cea259583013fd58"
+    },
+    {
+      "path": "public/assets/exercises/abs_abdominal_obliquo/0.jpg",
+      "sha256": "bcb7516c234154e442f99aa378bd1539a80cf7cd5baa781541edc8e9acb356f0"
+    },
+    {
+      "path": "public/assets/exercises/abs_abdominal_obliquo/1.jpg",
+      "sha256": "836d2c570414ada3aeca1b321fbb8252758088039c241868f76a9a583bd23e94"
+    },
+    {
+      "path": "public/assets/exercises/abs_abdominal_polia/0.jpg",
+      "sha256": "196cc4cb510ecafec24c1648c851aa160d4652917d7c0137b4cf7fb1eeb9c668"
+    },
+    {
+      "path": "public/assets/exercises/abs_abdominal_polia/1.jpg",
+      "sha256": "e65fc1effc632eb78d8cda09ef95bf89c4bb235b15757e9a33306ca61a78f606"
+    },
+    {
+      "path": "public/assets/exercises/abs_abdominal_supra/0.jpg",
+      "sha256": "8b424d42b3196b9b6fdd70c86db60ba6fdae7a337710e8c01c278a6ea5c4220a"
+    },
+    {
+      "path": "public/assets/exercises/abs_abdominal_supra/1.jpg",
+      "sha256": "84df8957fcc20c051475a2d28fedb0c1a3b3e63b00913ae4acec1ed0dc150d22"
+    },
+    {
+      "path": "public/assets/exercises/abs_elevacao_pernas_barra/0.jpg",
+      "sha256": "c166cd61aec9cd4cd3881a17602f7a6afd80df51329ea6a143e6ffcf9bebb2af"
+    },
+    {
+      "path": "public/assets/exercises/abs_elevacao_pernas_barra/1.jpg",
+      "sha256": "c623bd4bb6848367407ddbc7c39d1611acf9c5001fe9a61360a580b78d86fa60"
+    },
+    {
+      "path": "public/assets/exercises/abs_prancha_abdominal/0.jpg",
+      "sha256": "7a6545152b4c918a84b7e0fd2c3c7d10d571f8fbda8e4459354eb24059ff245d"
+    },
+    {
+      "path": "public/assets/exercises/abs_prancha_abdominal/1.jpg",
+      "sha256": "7f6b690f7594dfab002fb27d36f8247957171b08d19020f24208afd4d5186043"
+    },
+    {
+      "path": "public/assets/exercises/abs_prancha_lateral/0.jpg",
+      "sha256": "fcbf157799efdce6c7d5a9aff22e7f73aec23e016d504abe5b4161a55844a48f"
+    },
+    {
+      "path": "public/assets/exercises/abs_prancha_lateral/1.jpg",
+      "sha256": "ba9eb40f70d37af9830676643b36ddff7aeeb2ba88d76be272b4a0e697927f15"
+    },
+    {
+      "path": "public/assets/exercises/abs_russian_twist/0.jpg",
+      "sha256": "e82f47fe7f7f9ba5c75e56b751d357f6e78eb3a5adba4da3aef8df44dfa7234f"
+    },
+    {
+      "path": "public/assets/exercises/abs_russian_twist/1.jpg",
+      "sha256": "7942e01c08ff47f71deea024bd6ed8d4766818d58229547770f22988b03c8da6"
+    },
+    {
+      "path": "public/assets/exercises/back_barra_fixa/0.jpg",
+      "sha256": "e56c8c43a41cfe2489dcfffc2c8195fd9e8897ba25165dbc34a4154ed6df5c7a"
+    },
+    {
+      "path": "public/assets/exercises/back_barra_fixa/1.jpg",
+      "sha256": "40549a52b064e5084a85e2c36afb51438df6ac1097169379a05f21565f8b4f3f"
+    },
+    {
+      "path": "public/assets/exercises/back_barra_fixa_supinada/0.jpg",
+      "sha256": "efab20da5a0916eeef22e6fbc58040c688d1e63120681455f4c72c3a20faf6a0"
+    },
+    {
+      "path": "public/assets/exercises/back_barra_fixa_supinada/1.jpg",
+      "sha256": "b31bd59a44e6c7dfceca64e4232871327b9249d6fda9143149f1d35782fc97a3"
+    },
+    {
+      "path": "public/assets/exercises/back_encolhimento_barra/0.jpg",
+      "sha256": "3ab3561fcb372ee7c92be8974c6fc2f9488a15bcfe2b40f261ff4531a9fe4e83"
+    },
+    {
+      "path": "public/assets/exercises/back_encolhimento_barra/1.jpg",
+      "sha256": "0ada57b816f6994399fce6a6b80d194bcafd0976b4006b255383432b99fe7ee7"
+    },
+    {
+      "path": "public/assets/exercises/back_encolhimento_halteres/0.jpg",
+      "sha256": "c3ab8024bdb710e8d4798f03ce15b5eba02e2e670797d61a09dc9b3e2f7c817b"
+    },
+    {
+      "path": "public/assets/exercises/back_encolhimento_halteres/1.jpg",
+      "sha256": "5ca8b29dd52214250c26ebfddab5bf25b5d0af3c0eede92d46e02e32684dc824"
+    },
+    {
+      "path": "public/assets/exercises/back_hiperextensao_lombar/0.jpg",
+      "sha256": "48f077fe32d2b839a2cff82450d36f50141559a8008d562495df2e6a21f8aa37"
+    },
+    {
+      "path": "public/assets/exercises/back_hiperextensao_lombar/1.jpg",
+      "sha256": "1e1d6c7131444657b0c53ca9ef05449fc7a10600af9b73a18b67d0379d97c867"
+    },
+    {
+      "path": "public/assets/exercises/back_pulldown_braco_reto/0.jpg",
+      "sha256": "be0021aa99d1a00fa4536b027f9ade42f08acd3b59b384acab270bfbe6e9c294"
+    },
+    {
+      "path": "public/assets/exercises/back_pulldown_braco_reto/1.jpg",
+      "sha256": "4ef6a19848a25f91f2089d168057e4c84b285d48d14758d16b3d8e131fbbc88c"
+    },
+    {
+      "path": "public/assets/exercises/back_puxada_fechada/0.jpg",
+      "sha256": "fb9296bc0adba543a709d6f85930bcb0735776a3bd19ef4cdc7caf9fe5e9768c"
+    },
+    {
+      "path": "public/assets/exercises/back_puxada_fechada/1.jpg",
+      "sha256": "9ba65cff05532f616996c077d8936578376ebab3f27fbea5511cec33aa1d6301"
+    },
+    {
+      "path": "public/assets/exercises/back_puxada_pulley/0.jpg",
+      "sha256": "929bc29751c35d0a624840b24501e74dc59438d351e66cc017e7ee8682fb3346"
+    },
+    {
+      "path": "public/assets/exercises/back_puxada_pulley/1.jpg",
+      "sha256": "781952e629e8a4cff549df94ee6b1da7e32c7cd507382d47e8566718c07807dd"
+    },
+    {
+      "path": "public/assets/exercises/back_puxada_pulley/sequence/step-01.jpg",
+      "sha256": "01c338f8b57ec7a8074e600b2991f88545de5fe2028057600af1660090b7e1e6"
+    },
+    {
+      "path": "public/assets/exercises/back_puxada_pulley/sequence/step-02.jpg",
+      "sha256": "0100d9722d2ab0feca4783b38e5795d9b0119c75e9a29aa418d2f7b30b5b39b8"
+    },
+    {
+      "path": "public/assets/exercises/back_puxada_pulley/sequence/step-03.jpg",
+      "sha256": "51fb857cd26165a4082122f3d6b52cf86288f06c80f6eea8bafc59d1e5fed24a"
+    },
+    {
+      "path": "public/assets/exercises/back_puxada_pulley/sequence/step-04.jpg",
+      "sha256": "5d9f49a322509758fc05f6cceb9acadef1ac086e659900e0976026718bfb6910"
+    },
+    {
+      "path": "public/assets/exercises/back_puxada_pulley/sequence/step-05.jpg",
+      "sha256": "8aefe4805937e9c84b2016d3315e66775fa4533aa010021ae4e5def6d9d60dc5"
+    },
+    {
+      "path": "public/assets/exercises/back_puxada_supinada/0.jpg",
+      "sha256": "9cf650a2a4bbe33dfdb82c6928a6d50d2c033987dd639e001d89c6f2c00a832b"
+    },
+    {
+      "path": "public/assets/exercises/back_puxada_supinada/1.jpg",
+      "sha256": "9e4ce83781e80d48986fe03e7012b6b21ba8c8c189288d63d370e298d11e4b26"
+    },
+    {
+      "path": "public/assets/exercises/back_puxada_triangulo/0.jpg",
+      "sha256": "34ca5813b3eefa0dad24c9c62c8bb2e384c11a186958ff31041ef5691a6d8d7a"
+    },
+    {
+      "path": "public/assets/exercises/back_puxada_triangulo/1.jpg",
+      "sha256": "c6884f3595ec437ff2331d8c42886f4e2f1cbd004a4c1ae35f2e58b94b343b8b"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_baixa/0.jpg",
+      "sha256": "f5a4adf972f93a6c7b09e003f23005a1163653a7e36b71f1e374acab0243ddf7"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_baixa/1.jpg",
+      "sha256": "0b8e1a0b0fff86cafff45d851ea631a20d469713e9fd735031d3fffb0299fde6"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_baixa/sequence/step-01.jpg",
+      "sha256": "d64ee175b6a46b420752050e56af7ad72f82eb9f13f000aa1de8d5d019c73279"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_baixa/sequence/step-02.jpg",
+      "sha256": "98b0f94d42395b585fca8447ca75a894ec1c04e7afc314251a99dbba944eb478"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_baixa/sequence/step-03.jpg",
+      "sha256": "f1888ddae594f3852c5bb1ffbf4270d01a6285c90523454bf3401b6f84c759c0"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_baixa/sequence/step-04.jpg",
+      "sha256": "2b0f93defe721ab98b3181ab3f7335db9b875e624b9fdc4325c5a3f4246aeb5b"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_baixa/sequence/step-05.jpg",
+      "sha256": "fb65176a42946138ae2c4b0a45302e726ba7c5cd670b5cbbf8acb264fe186d85"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_cavalinho/0.jpg",
+      "sha256": "ad58082378c6c6380164635f06de1e2dddeaa0fa03195bcc74c12faf43f30392"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_cavalinho/1.jpg",
+      "sha256": "e03a03b8458c672184250d9b2e426e7914f7b33a99398d43f0514fe5b5ffe689"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_curvada/0.jpg",
+      "sha256": "09abbeb2fca7006d0e072bdc802158b34acf7923bd3069bb835951e49a95de41"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_curvada/1.jpg",
+      "sha256": "3c323601573df29cc9c6343765e0d21e7cd99a2dc830105099ac95ecba2cea72"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_curvada_supinada/0.jpg",
+      "sha256": "1884f51bc37f5a8059e70b613a9715faf1cf4ad6b6f4687a8101994da82eba9e"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_curvada_supinada/1.jpg",
+      "sha256": "1884f51bc37f5a8059e70b613a9715faf1cf4ad6b6f4687a8101994da82eba9e"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_invertida/0.jpg",
+      "sha256": "cab05c22ab07eb560c05cfe0e56029b25d4222092201fb00557ac190c64a1657"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_invertida/1.jpg",
+      "sha256": "c4c44d1ceeee8ae86a0c14fe82e4d9990f245054d9915f92cbcc94492053ef0b"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_maquina/0.jpg",
+      "sha256": "f68e7169d4d0ffcceb8f2a6f1197411806b1e4de8ba731eac43f04b816f80b6f"
+    },
+    {
+      "path": "public/assets/exercises/back_remada_maquina/1.jpg",
+      "sha256": "60b3b1ec65afade81734113ead86c887948f15ad20ed9bf38aaf61071e4b1a78"
+    },
+    {
+      "path": "public/assets/exercises/back_serrote/0.jpg",
+      "sha256": "04b2f49e6ba0c2fce5f566fe53d03571715fa58350a2b8558b3dfa9110093a53"
+    },
+    {
+      "path": "public/assets/exercises/back_serrote/1.jpg",
+      "sha256": "83d5ceaa6d9ec6732f0afedaaa9a842c34cfdedce89e6fed75681c0bf971174a"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_alternada/0.jpg",
+      "sha256": "c5ba13ac557289b65f31ce8508b498c4455ab7b8d34f034de469c8c6e02a2838"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_alternada/1.jpg",
+      "sha256": "c66302e68c51b5c9d3f8a8c198b58697c590ad61b0fa14c1153e7ecd6e79eb53"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_concentrada/0.jpg",
+      "sha256": "4df9977b0e85a1ecbe07cca6846d3a2049e3e65a3e899eddccfd562f56eceadc"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_concentrada/1.jpg",
+      "sha256": "6100592cce16715066143efdf0ebaeb93b8a57e0141910700b924d1abde71774"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_direta/0.jpg",
+      "sha256": "eb409ec1cced4d85c91c41920e66d8b2f0e4736dee43c01eab953fdcbeace673"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_direta/1.jpg",
+      "sha256": "27474187c68680520d3c6dbd3a452bb11f1e77b5474d9143517f43d02f5d8c0e"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_direta/sequence/step-01.jpg",
+      "sha256": "7e4655c033b0156f0e019bb37704c700d5be377b86c283cc51caf15563c2d75a"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_direta/sequence/step-02.jpg",
+      "sha256": "8c497d4419cc779b560e90cfa03f04b24d14e7e2a5d2e5993ce22c1516924bc7"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_direta/sequence/step-03.jpg",
+      "sha256": "21ca9c53ed77b50295be92632593ae033d320de5209627cda558dd0083404544"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_direta/sequence/step-04.jpg",
+      "sha256": "f51310c6c467f2e95ec4247e18971407781f9b8c0b7fb8bf1fc0e40a921c8abf"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_direta/sequence/step-05.jpg",
+      "sha256": "07bb6ead1173e7fe0f2ff6416d6a2f2ecce4e1c71c7324aafb060d1859875162"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_inclinada/0.jpg",
+      "sha256": "49f16679de110156cda5caf7b68f277374102100bb9f09341bb8a802cbd6d8f7"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_inclinada/1.jpg",
+      "sha256": "b4580e1c4716ccf44d20ea183656ce7372d7a07e8aee24666ed63b7f733a9fc2"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_inversa/0.jpg",
+      "sha256": "6ffb82c647f8792d5bf53610c8810018768bf8502a40d0c7f38078e9e10e9423"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_inversa/1.jpg",
+      "sha256": "964522e8c943e0a248afccf9792dc16df581847e82583c5436733effde2e3469"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_martelo/0.jpg",
+      "sha256": "f3c330d75545bed1cc325a4abf84940109db64fa5ab967b1963ecccccd3b2fe8"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_martelo/1.jpg",
+      "sha256": "42adf0d1577528fdfab45b360918320394a5017b082d2502ab3a00600622907e"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_martelo_cabo/0.jpg",
+      "sha256": "109ca8df56a461172bd57dcfd1816bad744efdc624bfc567d2de83de9c9aff29"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_martelo_cabo/1.jpg",
+      "sha256": "314dceefe8a5a37d8824b069a1340a215ee5248fee3c9db11a3bb3a93dfaaa0c"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_polia/0.jpg",
+      "sha256": "ccfe9ea6c72996c905bc82c032facf110246442ef6ccf28babee775277f0bc29"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_polia/1.jpg",
+      "sha256": "5aa3493077fbf138f40bd71a476880395275599ff72ca30f04ce0a15313c201b"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_scott/0.jpg",
+      "sha256": "b727674d48727a3bbba6a682fdaa228284ecc1875a2cd8b262bde2ac38cef0f4"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_scott/1.jpg",
+      "sha256": "487fa4636df3e55b50161b391cfb683211f3d7a278bfe16d272f395daf2faa37"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_scott_maquina/0.jpg",
+      "sha256": "120054967ea0c1f06f431fea55288cb512799b1b1a6dd3c387c850253e9a2acd"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_scott_maquina/1.jpg",
+      "sha256": "3292cf4856ecacab48a1b2c2b00b0c9267a3506e0d6a246f3b8fe6677f0b6216"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_w/0.jpg",
+      "sha256": "b4c9b00a033014b6095bb37047d0c735ad95a8753a2d8df6729bb51a106d57e4"
+    },
+    {
+      "path": "public/assets/exercises/biceps_rosca_w/1.jpg",
+      "sha256": "68010ec67ee0f9f6d2ec6c8ff6ae85790390988629691dd82217c3f42693c1e5"
+    },
+    {
+      "path": "public/assets/exercises/calves_panturrilha_burro/0.jpg",
+      "sha256": "171ceb7f01c95c8953c5b1fc82efbd8cc7600fe51b23b9c330dadff2af4c76e1"
+    },
+    {
+      "path": "public/assets/exercises/calves_panturrilha_burro/1.jpg",
+      "sha256": "d47d7ab19e96f378a91f745d153f0e0e5e8364bf9c0d8b2f14fd096b32b94941"
+    },
+    {
+      "path": "public/assets/exercises/calves_panturrilha_em_pe/0.jpg",
+      "sha256": "44922f411d204bb00dc86015981413e0ca503f0b9ba2346af25f345a91cf4848"
+    },
+    {
+      "path": "public/assets/exercises/calves_panturrilha_em_pe/1.jpg",
+      "sha256": "f0990fed5d984fdf31c7b6a8420adb59ed6a3f286af6f228d53b68445caa1c51"
+    },
+    {
+      "path": "public/assets/exercises/calves_panturrilha_halter/0.jpg",
+      "sha256": "5e120471e335e58248af0202c3720a6f7c7f822566c785d0e43122d17da94aa7"
+    },
+    {
+      "path": "public/assets/exercises/calves_panturrilha_halter/1.jpg",
+      "sha256": "9102c567e60b12ce944e4ce3177caad918a13ca0fe1c1be15f099f89369aa100"
+    },
+    {
+      "path": "public/assets/exercises/calves_panturrilha_leg_press/0.jpg",
+      "sha256": "c4cdfd6876c2346b8185c0781a91efa7e22bf9427358244bf894de0b32f47249"
+    },
+    {
+      "path": "public/assets/exercises/calves_panturrilha_leg_press/1.jpg",
+      "sha256": "31f5eae2d3af103967a15fa5aa619fdfe52a892f5efd66c805e0493e1643794a"
+    },
+    {
+      "path": "public/assets/exercises/calves_panturrilha_sentado/0.jpg",
+      "sha256": "6f1e5d06681b9d7050531622e065391fd3adb8d18e41a23fb80c62cf99c88d63"
+    },
+    {
+      "path": "public/assets/exercises/calves_panturrilha_sentado/1.jpg",
+      "sha256": "c397665d9d93377db1a579a6c7a3ab4b2b92428706df545fffcc7cb35e7ec738"
+    },
+    {
+      "path": "public/assets/exercises/cardio_bicicleta/0.jpg",
+      "sha256": "dc37a609b3e8de862f5e4b83c9d05488c9c5cd825073210dd6e46f2a5b436cfb"
+    },
+    {
+      "path": "public/assets/exercises/cardio_bicicleta/1.jpg",
+      "sha256": "390a6508a8ffd71998cf184f0b9d6a218630069f343b5678781608ddfe304faa"
+    },
+    {
+      "path": "public/assets/exercises/cardio_caminhada_esteira/0.jpg",
+      "sha256": "e13cd5838b04f617026dd097778d0ce298356992e7f972e1d71c7bf1fe1bb4c6"
+    },
+    {
+      "path": "public/assets/exercises/cardio_caminhada_esteira/1.jpg",
+      "sha256": "5b811c65e89b0eec47ae5006ad711b84c11e61fdbaac98334574cebe5855b025"
+    },
+    {
+      "path": "public/assets/exercises/cardio_corrida_esteira/0.jpg",
+      "sha256": "78ed92c9f2eea25c1675288343d1a1ba145f447b02e5d5c1dfc80ab052419fc1"
+    },
+    {
+      "path": "public/assets/exercises/cardio_corrida_esteira/1.jpg",
+      "sha256": "483ff85287fa9b591a5367b1bc1067ff8563105be88bd5a23bb0b4ed9d5de832"
+    },
+    {
+      "path": "public/assets/exercises/cardio_eliptico/0.jpg",
+      "sha256": "c155ce19bd5dfe22484a47d99ee7cf1918d9ca4d8bc7d962d3ceaa70fa39fdd5"
+    },
+    {
+      "path": "public/assets/exercises/cardio_eliptico/1.jpg",
+      "sha256": "f40b3f77d7f0f0d0af7ff49cbbb006ef3cd362664bdde2c7bb24dd57d822b003"
+    },
+    {
+      "path": "public/assets/exercises/cardio_escada/0.jpg",
+      "sha256": "211f1d25ea80c0986b8cfd95503686de245c0e1fbb043678a71929c5d113adbb"
+    },
+    {
+      "path": "public/assets/exercises/cardio_escada/1.jpg",
+      "sha256": "0ca44d0a447d6b5045c0ea4c468c354dc02fe17c8b8f3ec4b3534217203465bc"
+    },
+    {
+      "path": "public/assets/exercises/cardio_pular_corda/0.jpg",
+      "sha256": "c6c5e72a8c6ee5e43352194cfb263a3b4b06bacb29d4e0843fb6ed44a7caa109"
+    },
+    {
+      "path": "public/assets/exercises/cardio_pular_corda/1.jpg",
+      "sha256": "3a3295028ca56775ef47faeb4cabf92fd5a2d1b849a81fb462dbd45e833c7ffb"
+    },
+    {
+      "path": "public/assets/exercises/cardio_remo_ergometro/0.jpg",
+      "sha256": "fa14f0afb16b2c2dcc0054ac6b28446f3b228d966c3a1e42dee531e7e8994333"
+    },
+    {
+      "path": "public/assets/exercises/cardio_remo_ergometro/1.jpg",
+      "sha256": "4a3bf232deab27c85bea616b249643a580b142a21e262bf6c12260ca7c01aeda"
+    },
+    {
+      "path": "public/assets/exercises/chest_crossover_baixo/0.jpg",
+      "sha256": "275181283b0ae4ce334326c9485a98b3e381170e5478b2c6dc67e70466a59a1e"
+    },
+    {
+      "path": "public/assets/exercises/chest_crossover_baixo/1.jpg",
+      "sha256": "64b4848cc2f8b4d66b90774a3ad22623b515a94497d0dca6a4c1e1f16895038b"
+    },
+    {
+      "path": "public/assets/exercises/chest_crossover_polia/0.jpg",
+      "sha256": "a0d37cf03da0a31acb010620ed4203498fbe83b82e4af298cd28b7fe4435144b"
+    },
+    {
+      "path": "public/assets/exercises/chest_crossover_polia/1.jpg",
+      "sha256": "ebaf5aa26a4c7502364fcd5c64d8af8d9ba368f190914eee14ec445f9adef2ca"
+    },
+    {
+      "path": "public/assets/exercises/chest_crucifixo_haltere/0.jpg",
+      "sha256": "215bef04ad13e1629033f6d7333aeb6c66e9174b8fd13ece559e22aa351448f4"
+    },
+    {
+      "path": "public/assets/exercises/chest_crucifixo_haltere/1.jpg",
+      "sha256": "009abc57d77c47eb29fb8f92aeb170d4005d1e9ded5f619dd6ba8fb912d1af8b"
+    },
+    {
+      "path": "public/assets/exercises/chest_crucifixo_inclinado_haltere/0.jpg",
+      "sha256": "4e5380dee95375c4873ae2f50e94633d48c32db4d83a99001a55dd602a1c9b1d"
+    },
+    {
+      "path": "public/assets/exercises/chest_crucifixo_inclinado_haltere/1.jpg",
+      "sha256": "2f4d476d9b1d00732eef2c4abc3797bd8da3b47f187a3cc848526e208a4b3259"
+    },
+    {
+      "path": "public/assets/exercises/chest_crucifixo_polia/0.jpg",
+      "sha256": "574cd57e3eaecad970c52560647bd0220ff41cbca4657841ad16e8d9967d6ea9"
+    },
+    {
+      "path": "public/assets/exercises/chest_crucifixo_polia/1.jpg",
+      "sha256": "bd06ce7fed3f4cfa5e972452a68158d6edd09ebab67834d9c5b0117af0267fec"
+    },
+    {
+      "path": "public/assets/exercises/chest_flexao_bracos/0.jpg",
+      "sha256": "8e6757ae0dc1d50a30f0ea67cdb330994947716a106451860cf7362bcd15f9f4"
+    },
+    {
+      "path": "public/assets/exercises/chest_flexao_bracos/1.jpg",
+      "sha256": "e835d50facea325828d7a3700185a0d8ba9f908db3f033334f81a6f85f774f27"
+    },
+    {
+      "path": "public/assets/exercises/chest_paralelas/0.jpg",
+      "sha256": "4140a8932a82e7437e10894369a0205d6f35ba333715fffd5a64de77c2c92e34"
+    },
+    {
+      "path": "public/assets/exercises/chest_paralelas/1.jpg",
+      "sha256": "3d537e22cb97304c0c2068c5209e8db5fec69be86e0465799e1a1b502f6e992f"
+    },
+    {
+      "path": "public/assets/exercises/chest_peck_deck/0.jpg",
+      "sha256": "8819cc3e699ff1d0b5d18c21a411a0e380fc0f316e83d9dcaa1207617f78ea23"
+    },
+    {
+      "path": "public/assets/exercises/chest_peck_deck/1.jpg",
+      "sha256": "7f471857324312b07e14f3fe73dd783d2ecd3a3ff15f9f52e9813390cda314db"
+    },
+    {
+      "path": "public/assets/exercises/chest_pullover_haltere/0.jpg",
+      "sha256": "1b08d7edc8c5da8566e910f83b193d6e43726f7745683929c391d1c541fa8d62"
+    },
+    {
+      "path": "public/assets/exercises/chest_pullover_haltere/1.jpg",
+      "sha256": "6154605ca5bf44729d886f396c962efddcccc9ddc045a05476db17845e822086"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_declinado_barra/0.jpg",
+      "sha256": "3ab81fce71c90d2f7787eebe198a667816ecd791ac7982c6729359c2fe61db19"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_declinado_barra/1.jpg",
+      "sha256": "b6fcac67f252e3e360d9b3dec9d7ebdde3f05c3e1e0316de4a1b959722738d2c"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_haltere/0.jpg",
+      "sha256": "06494fc5d679283ad7de10fd60149e543396bbd9ba65b0821937de317ce9e001"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_haltere/1.jpg",
+      "sha256": "29ce1d1335b10ae5e92b208c512f4f562493379a9c49bafb249f945c5b702299"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_inclinado_barra/0.jpg",
+      "sha256": "4a306bb94d93afc0356252001b24e9f7defc13ab85e3c55fc3dbcb678247ffb9"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_inclinado_barra/1.jpg",
+      "sha256": "f803aa1a085cbeea3ab1d11865ab239c243f6f2ccb3e90aad91cce50f349909d"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_inclinado_haltere/0.jpg",
+      "sha256": "5128af58efedb66e5d3e2454c7a1e3c7f9353b573e97c8430e37cb638da8882e"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_inclinado_haltere/1.jpg",
+      "sha256": "7e4cd389cd0c537911da937657333f33118102e69f050c36906a6d49ae3f921f"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_inclinado_haltere/sequence/step-01.jpg",
+      "sha256": "f1aca690e1f807e2e4b369c2433133645100991f2210168232345d3a24505437"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_inclinado_haltere/sequence/step-02.jpg",
+      "sha256": "81fba149f1c9cd32716ab4ddb57ee2a5e6021583b6e9a58ded47608ed6e2d325"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_inclinado_haltere/sequence/step-03.jpg",
+      "sha256": "3c86fc35e279e0134ee66b665b9e5250caaa2e0f8b02c4d34abf73ea2b67ceb1"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_inclinado_haltere/sequence/step-04.jpg",
+      "sha256": "7f31efdf7e492dc6866c4332452d58dc6c1b663512ca9dbd798135b553e3c9ea"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_inclinado_haltere/sequence/step-05.jpg",
+      "sha256": "e27df51b26fbe687a1f7a0fa675e9528c0824368fb41b8c2ff691ffb87e569c2"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_maquina/0.jpg",
+      "sha256": "d3d8399ff8da08865f0ec97495b3001731a8170ac44a63663dfe382c7d092d41"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_maquina/1.jpg",
+      "sha256": "b916ff565039208b3baec76e141b4963f4e90aac17dff25c99098d6fc2131251"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_reto/0.jpg",
+      "sha256": "44ba81b3ea124f625c555ae812b37263f82ae460749bbc9ebbeb55a6309f6663"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_reto/1.jpg",
+      "sha256": "5056475ae5def865dbe52882d30d2730142de2b03231bda304f82fd0b088f608"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_reto/sequence/step-01.jpg",
+      "sha256": "236a284daed134a52b51b3e691a4f8c681dc01e7ca5b537add9844dc03abf251"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_reto/sequence/step-02.jpg",
+      "sha256": "35c0eb7df94e86e5a6f4593013eb1e2a4d8420f729f43c436914308140b90f0a"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_reto/sequence/step-03.jpg",
+      "sha256": "42865a1b630ae2c74685b23d57e432de859f6427e3a5f15d23950f1ba3783338"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_reto/sequence/step-04.jpg",
+      "sha256": "8a3195e9024be9e7df54e6fdd2d710d99afa02a68a9317db5ef1af5ac85861d1"
+    },
+    {
+      "path": "public/assets/exercises/chest_supino_reto/sequence/step-05.jpg",
+      "sha256": "fc258de5ac193d085c5d467ad7e439402473568b7c3e64ff6211c8c387246ce8"
+    },
+    {
+      "path": "public/assets/exercises/functional_battle_rope/0.jpg",
+      "sha256": "718354fb29eba0f932251a6c6aae8c895bf79d16966bb20e596d6934d0a4c0ac"
+    },
+    {
+      "path": "public/assets/exercises/functional_battle_rope/1.jpg",
+      "sha256": "41799a37413ebb2d9213f54ae5398e543705ea9c6ff169583b134b33dda94d35"
+    },
+    {
+      "path": "public/assets/exercises/functional_escalador/0.jpg",
+      "sha256": "6e718481714ab64cd04d1ce7b00e3bb37e428370aaa6cea4820a605f1ff0c3c0"
+    },
+    {
+      "path": "public/assets/exercises/functional_escalador/1.jpg",
+      "sha256": "c1b5473de6d58555b58f3b10f7593231f9ad4c82696bff87e467eb767b24b5f8"
+    },
+    {
+      "path": "public/assets/exercises/functional_farmer_walk/0.jpg",
+      "sha256": "e07a10c235963ea155d9504b91736f4dc1e8865b5aa3b7c744765a56bf3e2b05"
+    },
+    {
+      "path": "public/assets/exercises/functional_farmer_walk/1.jpg",
+      "sha256": "5a55e8adf33bea01078ad420e8b43d2b844bb64679a3029eab165b485096fd70"
+    },
+    {
+      "path": "public/assets/exercises/functional_kettlebell_swing/0.jpg",
+      "sha256": "afe7f20cef83fa4ab96d8ec0d02315a3a00bf025d15ac31880a4658689ba350f"
+    },
+    {
+      "path": "public/assets/exercises/functional_kettlebell_swing/1.jpg",
+      "sha256": "f98e0aa9e30ea22073f3448802bba29159b0654d1def07d899f8f2b090731caa"
+    },
+    {
+      "path": "public/assets/exercises/glutes_bom_dia_barra/0.jpg",
+      "sha256": "e85711c454e0cc433ba1628386e886da621f07e698bd58a421d867e44e3b5807"
+    },
+    {
+      "path": "public/assets/exercises/glutes_bom_dia_barra/1.jpg",
+      "sha256": "d58742f191821aa45cc3162a07b449805bc990b6c282c7943aae32ae3bf75bff"
+    },
+    {
+      "path": "public/assets/exercises/glutes_coice_quatro_apoios/0.jpg",
+      "sha256": "e0a72e4dbcc763adba600044ae94060c92798684ac51924ab485398664ce5a1e"
+    },
+    {
+      "path": "public/assets/exercises/glutes_coice_quatro_apoios/1.jpg",
+      "sha256": "daae648a3c6f51d1d1c497694cb7280d6b2b7ed8c1b34287c6663362873659cb"
+    },
+    {
+      "path": "public/assets/exercises/glutes_elevacao_pelvica/0.jpg",
+      "sha256": "b2c82d4647df0621e2b0568f383d14e9577f2baa458668233c86d2f738efd4c1"
+    },
+    {
+      "path": "public/assets/exercises/glutes_elevacao_pelvica/1.jpg",
+      "sha256": "de1a6390ff4b2720750ed3380c3c9b0c4c1fb5ae811810291b62d8a1fd726ad6"
+    },
+    {
+      "path": "public/assets/exercises/glutes_gluteo_cabo/0.jpg",
+      "sha256": "a1f283eeba62ba6775d47f807a7fa2b9a1e2ba59eae1086f6e9b977815ac0874"
+    },
+    {
+      "path": "public/assets/exercises/glutes_gluteo_cabo/1.jpg",
+      "sha256": "0baa168e9e558cdb4867d2819d5e7a6787423a857a6e0db7f07bb1fcea27e6ac"
+    },
+    {
+      "path": "public/assets/exercises/glutes_ponte_solo/0.jpg",
+      "sha256": "f74f6813fc43cd5f60e6779ec182049a2ddb3ed9dc5777389dd4ab1880392d5c"
+    },
+    {
+      "path": "public/assets/exercises/glutes_ponte_solo/1.jpg",
+      "sha256": "3eacd0851b56e3e1ea29a0a73c596b0d10e4bc746dd64afaed50d7255eae0819"
+    },
+    {
+      "path": "public/assets/exercises/glutes_ponte_unilateral/0.jpg",
+      "sha256": "12c9bb37081512ce5c013f02e986a00153411681ca36a9f1dbeab720c6eea667"
+    },
+    {
+      "path": "public/assets/exercises/glutes_ponte_unilateral/1.jpg",
+      "sha256": "bc3a789ff17aa09758e6f6e9594d369b83989cf145dbbce0734b772dfde81ee3"
+    },
+    {
+      "path": "public/assets/exercises/legs_afundo_halteres/0.jpg",
+      "sha256": "ab3d56b0b44e82d189dfd88de2838220445cb245fae8a0f1586daa67355604d4"
+    },
+    {
+      "path": "public/assets/exercises/legs_afundo_halteres/1.jpg",
+      "sha256": "138a08303cb955b1f4867cf6eaeab1664c32079dcbd7fac871eccf7d9597d671"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_barra/0.jpg",
+      "sha256": "469a3c5a6eb35b88c45cda9fa7f9086032976fa3d45f5d844a0cc09a95574db5"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_barra/1.jpg",
+      "sha256": "8663a34f2d0a0a33d3d39b505cf3cdd38e282c1c9020d39d5587976e8d8a3020"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_barra/sequence/step-01.jpg",
+      "sha256": "36b303558863e2f3e0abba4e00b687c811d7a72018f0484bc892b0dc1747c07f"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_barra/sequence/step-02.jpg",
+      "sha256": "9d286a85c225140924550b8e9087ad5686ce5e1363a332e3633ed664095cd344"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_barra/sequence/step-03.jpg",
+      "sha256": "f724b1989c6377aca43c4fef630c81fc432bc01c44df19f8d19f82285f2eb224"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_barra/sequence/step-04.jpg",
+      "sha256": "8cdfb6d772046d0cdad3e6b9a753e6b7b64de960d850dd52b5b16c36b8400ae7"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_barra/sequence/step-05.jpg",
+      "sha256": "91d3a47e58bae3a6e7b78ce962fdf467c36de65f7dc7d7bea6f2f735fa3ef678"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_bulgaro/0.jpg",
+      "sha256": "3c5813f67aed71721eda63b2c102bd4d3e841bf6a7357c07967470bdda2d8fc8"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_bulgaro/1.jpg",
+      "sha256": "376ed996e650ce4d796ca75a4c0de1ec2133ecc9a3e9b7a285bdd718309e4c08"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_corporal/0.jpg",
+      "sha256": "85715b9b75afe568ef7cb1863005be532a2457bf7e340802da0cd5cc06914b62"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_corporal/1.jpg",
+      "sha256": "3fa6886632674f02308cdee53ce32649fd648774701fbd20ee280d63be40e5a4"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_frontal/0.jpg",
+      "sha256": "f8a366b6913bd5af3072080720ba3ab7a74a7ef5754d1a39c200800cd6461f92"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_frontal/1.jpg",
+      "sha256": "6bb5c5eee794bd13d411271f0ad1cdeabdfecf5cdeb471727996555d07ff43fb"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_goblet/0.jpg",
+      "sha256": "342ea87afb9fa03d9b1ac9c28c269f9ad2536d40b5a73b0bfb1ea25c9d605d02"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_goblet/1.jpg",
+      "sha256": "49d5facb019c3be9302134edf1e4b786cc88fbe25413ee7ba3e8d278952ded85"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_hack/0.jpg",
+      "sha256": "f8721b7d75025f29d6a733a6f5571577f541e38891b2da4f152ac88d3f6e957a"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_hack/1.jpg",
+      "sha256": "ecd48b616f38fefe802b7adc12a9f0c5520fe579a59152ebc96c7e39ce4bcd35"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_smith/0.jpg",
+      "sha256": "7afbe478c1715744a7790708d7291a5375ec038e39e5d3cc349b0bd8edfb529d"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_smith/1.jpg",
+      "sha256": "d910313e6348559bc07814978c4088a956b980c7e9bc8bffb884c89807d6a7fb"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_sumo_halter/0.jpg",
+      "sha256": "f72c3df6c5948892f4c5243ed85c947169a17b51e6aefc41635a4c265320b2bf"
+    },
+    {
+      "path": "public/assets/exercises/legs_agachamento_sumo_halter/1.jpg",
+      "sha256": "55bc6d4f0b3b2121a2f3c00244471faf32a538db910610f2f7886332fc5562f3"
+    },
+    {
+      "path": "public/assets/exercises/legs_cadeira_abdutora/0.jpg",
+      "sha256": "572cef392f2a10c377153c5fe0acd5e0b4d0e881024ff6a7fdd4a6320dc7ed51"
+    },
+    {
+      "path": "public/assets/exercises/legs_cadeira_abdutora/1.jpg",
+      "sha256": "c438500671ec2dc6fa726086ec4a56903635ee65e37b3449174f18aaed1409c9"
+    },
+    {
+      "path": "public/assets/exercises/legs_cadeira_adutora/0.jpg",
+      "sha256": "3b363f261901744a6e833a19fcd835db95495d0beda0eb6695e583ea2dfcf3ab"
+    },
+    {
+      "path": "public/assets/exercises/legs_cadeira_adutora/1.jpg",
+      "sha256": "40be513dd0d6fad0fbd734431e4e83f924b7385b90b53d9ec7eab8809d96df7a"
+    },
+    {
+      "path": "public/assets/exercises/legs_cadeira_extensora/0.jpg",
+      "sha256": "54fd46441d63459e3cdd26f26b826ad049e835fb7f1984b42398fdfbdefb5bfa"
+    },
+    {
+      "path": "public/assets/exercises/legs_cadeira_extensora/1.jpg",
+      "sha256": "9e04d0e306d8fee608305766b14a56df1d1312956d374152f58dcbf267d591a9"
+    },
+    {
+      "path": "public/assets/exercises/legs_flexora_sentado/0.jpg",
+      "sha256": "c84ece2e8b52314c8605e9fc3ef1930a59fec475ff1b5a7f98687a4b8fc580a7"
+    },
+    {
+      "path": "public/assets/exercises/legs_flexora_sentado/1.jpg",
+      "sha256": "2cbd4aa6c22162a209a7ced5d1a68274d44e88780c8c3936c7fab57d6e9918fd"
+    },
+    {
+      "path": "public/assets/exercises/legs_leg_press/0.jpg",
+      "sha256": "55079d514ae8d4dbc526731bb5120748e74a084ebcd546eaa890fa273427f0dc"
+    },
+    {
+      "path": "public/assets/exercises/legs_leg_press/1.jpg",
+      "sha256": "f4e08d4ad4e6542f5dd923bbfabe9a28bf6c960bed02b1b9d65f6bafd6ceb051"
+    },
+    {
+      "path": "public/assets/exercises/legs_legpress_45/0.jpg",
+      "sha256": "4b16b62e674be211a2e448cdde311f81996ef2e7bb84d3c7186cc4072cd2b90b"
+    },
+    {
+      "path": "public/assets/exercises/legs_legpress_45/1.jpg",
+      "sha256": "8dd544fd46bd6f685f2eecad4937b8600781b5d889626410a839cfda888aec67"
+    },
+    {
+      "path": "public/assets/exercises/legs_legpress_45/sequence/step-01.jpg",
+      "sha256": "8f65b6590398246ce98528867da9cfa8e3ec4fce75f08464b3188b513222d7b1"
+    },
+    {
+      "path": "public/assets/exercises/legs_legpress_45/sequence/step-02.jpg",
+      "sha256": "2e7ed887687662849bc9d327a0d983cdc8819db9030926f35798906cf37340e4"
+    },
+    {
+      "path": "public/assets/exercises/legs_legpress_45/sequence/step-03.jpg",
+      "sha256": "47588497abb12fc93a2a6a83e7301ece27b17631cec5856c65e5a8266739c82b"
+    },
+    {
+      "path": "public/assets/exercises/legs_legpress_45/sequence/step-04.jpg",
+      "sha256": "1287de66981f37a510eaf79997271416c37d53b3faf56b143cb6f861df8086e1"
+    },
+    {
+      "path": "public/assets/exercises/legs_legpress_45/sequence/step-05.jpg",
+      "sha256": "783c6ee67a310b0dda9ff4948dd3d9d6e94cb1a2f2188a214d3eea29c90e1a80"
+    },
+    {
+      "path": "public/assets/exercises/legs_levantamento_terra/0.jpg",
+      "sha256": "f032a7e4566eb3e73258580add64bf2756cb465bfcee22fdfffbed0f43f1eae6"
+    },
+    {
+      "path": "public/assets/exercises/legs_levantamento_terra/1.jpg",
+      "sha256": "cf206d0738830af831872cfb054c7cf91a43b435f4cc20f4fdb00a2664654e90"
+    },
+    {
+      "path": "public/assets/exercises/legs_mesa_flexora/0.jpg",
+      "sha256": "0875bf50a6615d4dc33df63110d3c6ee55b41606ed79a9fe705e17fcb4626095"
+    },
+    {
+      "path": "public/assets/exercises/legs_mesa_flexora/1.jpg",
+      "sha256": "4ccf6f4a26dc97dcf8241cc55e08e22579b5a02bdebafe56d74f951ceab2bd06"
+    },
+    {
+      "path": "public/assets/exercises/legs_passada_barra/0.jpg",
+      "sha256": "4320e3392c98ef3e1c536294a5bf2651c20c7838d1dc2b4b15c5e9ad181a5c94"
+    },
+    {
+      "path": "public/assets/exercises/legs_passada_barra/1.jpg",
+      "sha256": "2bc0b2eddc6d9855c46fa4f0a8453e3d9a25f53d9ab9ba6ad50e53c753d320bc"
+    },
+    {
+      "path": "public/assets/exercises/legs_stiff/0.jpg",
+      "sha256": "8eb5a2b4c19ebe60ee0cf1c84f8af729ee886cb052e14192fe857881f8709cb8"
+    },
+    {
+      "path": "public/assets/exercises/legs_stiff/1.jpg",
+      "sha256": "faca4cc4a88f2abbb4520fabc4769ca7a37739139e8b899e954d54a34b8383f7"
+    },
+    {
+      "path": "public/assets/exercises/legs_stiff_halteres/0.jpg",
+      "sha256": "02659ec9c245a9b44be7da73d19b9ea6bfc819fcdf4de3ec6fab705e45abb7ca"
+    },
+    {
+      "path": "public/assets/exercises/legs_stiff_halteres/1.jpg",
+      "sha256": "4d56648788e857b4675ef398907a12a4d99c1a43240acac1d8fda1554cf119dc"
+    },
+    {
+      "path": "public/assets/exercises/legs_subida_banco/0.jpg",
+      "sha256": "581f4f8eb98680a738ec97c1b9666fd2dac04d6a68a456632aaf1accbaa88118"
+    },
+    {
+      "path": "public/assets/exercises/legs_subida_banco/1.jpg",
+      "sha256": "8fd899686805d4165937628846ebf2a6499ea1636623579d8e88234b4a1aa64c"
+    },
+    {
+      "path": "public/assets/exercises/legs_terra_romeno/0.jpg",
+      "sha256": "cd62a031d395afa1f63f660370e79d812ca0f9cf52718a33ee24d9fec2a9709f"
+    },
+    {
+      "path": "public/assets/exercises/legs_terra_romeno/1.jpg",
+      "sha256": "156406c703e8d4a172034e413b317b93907be82deaad5ea2f3cc0a9f181c7b9b"
+    },
+    {
+      "path": "public/assets/exercises/legs_terra_sumo/0.jpg",
+      "sha256": "40350f7e6ab32f208c04e84e175989a9fe9c33ce41057bf1585a67b1402f3baa"
+    },
+    {
+      "path": "public/assets/exercises/legs_terra_sumo/1.jpg",
+      "sha256": "ece39dbd0f736ffd2071a252b8f6a9cad6341c629257509aa44c0a425a47a432"
+    },
+    {
+      "path": "public/assets/exercises/mobility_alongamento_peitoral/0.jpg",
+      "sha256": "fbd39102af7b9f81240afea66a59f77103c2fc70e4f92e3bb884748b175617ed"
+    },
+    {
+      "path": "public/assets/exercises/mobility_alongamento_peitoral/1.jpg",
+      "sha256": "5ebdd0defd9aa6539ba053356871747fe2358e2d487e66426b1948ca1e948560"
+    },
+    {
+      "path": "public/assets/exercises/mobility_alongamento_posterior/0.jpg",
+      "sha256": "68876e3448c899b71477b9e1d2b4f52be4a91b070549311a292b3ca4e90adbca"
+    },
+    {
+      "path": "public/assets/exercises/mobility_alongamento_posterior/1.jpg",
+      "sha256": "d6f786515eb4fb97844a0d27e8199ad80438e6d795a0b049da19b1c3c0f31f48"
+    },
+    {
+      "path": "public/assets/exercises/mobility_alongamento_quadriceps/0.jpg",
+      "sha256": "68876e3448c899b71477b9e1d2b4f52be4a91b070549311a292b3ca4e90adbca"
+    },
+    {
+      "path": "public/assets/exercises/mobility_alongamento_quadriceps/1.jpg",
+      "sha256": "66aaf5ead1d5d4aafe2a24b5587a4bc8927dd7de4522ea55a5bfcb85220b176f"
+    },
+    {
+      "path": "public/assets/exercises/mobility_flexores_quadril/0.jpg",
+      "sha256": "ea902fdc7bb48b5cfe00fba4f6465eee6b891c451c1e3e6c1f2cfba031ed8867"
+    },
+    {
+      "path": "public/assets/exercises/mobility_flexores_quadril/1.jpg",
+      "sha256": "58c36b60da75666a45e4b27fd321c7cb298d430b2a1fdf6c8f5657cee3598f15"
+    },
+    {
+      "path": "public/assets/exercises/mobility_gato_coluna/0.jpg",
+      "sha256": "29ae8af3f71c422b5bf0491404bd80c33fd57aa0efe6f559e7ff3f51f6f5038b"
+    },
+    {
+      "path": "public/assets/exercises/mobility_gato_coluna/1.jpg",
+      "sha256": "d54074a718c16ef774b8725877d3a0b09f92a16a573a2a3eac5490f9ef14a946"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_crucifixo_inverso_maquina/0.jpg",
+      "sha256": "732cac68ea0780bab823ac3593f4d5f5fda1eb7c14c01620b6a2a12c2f838161"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_crucifixo_inverso_maquina/1.jpg",
+      "sha256": "c12b21e34fb7c46c14c0b61e29920637cd8c678474fd97a0c4ef61e86d4cf023"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_arnold/0.jpg",
+      "sha256": "44d9a18abcc9f21038e82b574e9ef600b302c80806e284ea16642410670ad568"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_arnold/1.jpg",
+      "sha256": "9a59d4eb25dbaf14ff5c5a193a890ff9c976c386cc5605dcabd5b9243da35ff4"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_barra_sentado/0.jpg",
+      "sha256": "53f3ed946d059741670f634ad9028af3e925e13868d7d66c64e603fcb95d6177"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_barra_sentado/1.jpg",
+      "sha256": "3aa292e814cfe068b60ce92bae3abece0ee75a436b6c963c19273c430b985d32"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_haltere/0.jpg",
+      "sha256": "e0a775bfa0b32b63c84f19fba2b1a05db535bde849feb3e54a3479a943b3bed6"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_haltere/1.jpg",
+      "sha256": "940d5aad6b85960e833f88e218de8ce4f806d84cf2764741f1cbff9cce365d84"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_haltere/sequence/step-01.jpg",
+      "sha256": "af9925956affbd67ae95dcf5e904f0974ce65b49be82bdcebc7cbca4ea2a0919"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_haltere/sequence/step-02.jpg",
+      "sha256": "484b6113c9d13c5f1ecee810d185ca6104f90ff2af0fbca4ba7e1d2513b6d522"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_haltere/sequence/step-03.jpg",
+      "sha256": "37cb0fcdcf6a54fd317155cb620f424e4784590a1e12634d5e785177bdfbabab"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_haltere/sequence/step-04.jpg",
+      "sha256": "da6d84be9a3c580a3fb4f308c18769320089885131020ead6e62c7e99967a059"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_haltere/sequence/step-05.jpg",
+      "sha256": "43edde0a192f0482641dafd6eb4a3b2ee64d3179cb219c188026b80368e8c704"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_maquina/0.jpg",
+      "sha256": "5c93a4ede9b98bbdcf804559b81fa475ba08da92240badccd671e095755dfaa1"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_maquina/1.jpg",
+      "sha256": "e1864fee339bff5a3af525adbda87ca70c71e6a58055c5e8299743b6d014ed1d"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_militar_barra/0.jpg",
+      "sha256": "fb258efda95067b243b1c5033b1ff7b72a0f8cef8607477b71b969d3f72a8471"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_desenvolvimento_militar_barra/1.jpg",
+      "sha256": "b9419884fa57bd7de1dff2d0f811aa61d4cd5547b3c6ebafaca01c7017d8be1a"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_elevacao_frontal_halteres/0.jpg",
+      "sha256": "0b12ff0413688bed00bc39c2e7af118c6cf13877f1eb49983a961a64ae487a6b"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_elevacao_frontal_halteres/1.jpg",
+      "sha256": "17e600ed721cc2a6c20c5d5e43a00b2959661574ab84afa4db655891d36736dc"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_elevacao_lateral_polia/0.jpg",
+      "sha256": "11357e31f4536329cc0c38e77b4360426ce730a659bbf2c81607865701d51be2"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_elevacao_lateral_polia/1.jpg",
+      "sha256": "d162b1f2d78c2613e6f7a129a27e48e0c336132215e8d6776cada54f628dcb8e"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_elevecao_lateral/0.jpg",
+      "sha256": "aa1982c367ea9151ee7769ac1f9f8795209db94a6eb85f7d51a7033886fb7ebc"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_elevecao_lateral/1.jpg",
+      "sha256": "9210e0fb0202c306026d45a55703aaec89b3bef7aafeb7791aa1d06adcf58ab3"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_elevecao_lateral/sequence/step-01.jpg",
+      "sha256": "354413853ee1e836d8ba6c7fb7b06ce802df68fec0358096474147102d133c73"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_elevecao_lateral/sequence/step-02.jpg",
+      "sha256": "98c2e75b95dd8f156fe2b921113fc52b9ee15221a6ff6971325d056df0868129"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_elevecao_lateral/sequence/step-03.jpg",
+      "sha256": "c2f270161c7d17868d05a0335e3b5554394824f4b50fea104a42327b08069b15"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_elevecao_lateral/sequence/step-04.jpg",
+      "sha256": "08052b521d30379e713ce4ceeb80689eac2cb94039f762e3395cedc759ffcd00"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_elevecao_lateral/sequence/step-05.jpg",
+      "sha256": "6d9aca6bb385cd39808185a445948225c0cd872a0fe381e5ee2d203c78bc93c8"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_elevecao_posterior/0.jpg",
+      "sha256": "6edcdf92b77376a714f7d3a552b0e148e2f0f409bcc1c5ec3e63610255638333"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_elevecao_posterior/1.jpg",
+      "sha256": "ae4b412ff3a666d74189215b95712d7fafd1b5feaa1dc2e4a93cc0f855230240"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_face_pull/0.jpg",
+      "sha256": "a184e981e8cc261a5cc1856b92d897894691d83e27929aae7e89bc9d8aa1d444"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_face_pull/1.jpg",
+      "sha256": "1aeee744a027983d58328e68a258ee17ba2db85c1d16ba1bad00b4f2511dde2b"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_remada_alta_barra/0.jpg",
+      "sha256": "7fcef07cc8cc51e8788a26b69e8ad9c17524c0149207485d664116034710751b"
+    },
+    {
+      "path": "public/assets/exercises/shoulder_remada_alta_barra/1.jpg",
+      "sha256": "357c45246057e372b55a381b5e2ddc882df53aa1d3215c479362e8ac6903ccad"
+    },
+    {
+      "path": "public/assets/exercises/triceps_coice/0.jpg",
+      "sha256": "1af9b3ac2f7a97e5c9d9fe81d8993969d41bb198c828ec58f752e14f278e4310"
+    },
+    {
+      "path": "public/assets/exercises/triceps_coice/1.jpg",
+      "sha256": "fd3cabcb145d7e6f7cae7da1a8863390d8f10f92342939ae05bcecc7b1150e3c"
+    },
+    {
+      "path": "public/assets/exercises/triceps_frances_corda_polia/0.jpg",
+      "sha256": "206683ce757bedf841689cb8382e0576c81934ca736d3866a034155b518f3e9b"
+    },
+    {
+      "path": "public/assets/exercises/triceps_frances_corda_polia/1.jpg",
+      "sha256": "7f2b439eff6d30be27e06e87b14733ee345bf1ec33ebf8c316e1552f341a06a1"
+    },
+    {
+      "path": "public/assets/exercises/triceps_frances_haltere/0.jpg",
+      "sha256": "1e9c8760bdaf3a8d7a69485b436e1df6e7444a02ad10d3d5c89f9ab0b1ddbcb8"
+    },
+    {
+      "path": "public/assets/exercises/triceps_frances_haltere/1.jpg",
+      "sha256": "566e9eae79da144a54df952012f508b05ce385f144b56753b821dbbee88b6052"
+    },
+    {
+      "path": "public/assets/exercises/triceps_mergulho_banco/0.jpg",
+      "sha256": "82b17762ad761df959b69cb6d46239ee82f24d666de4719dfd2bc9ba0ca1d528"
+    },
+    {
+      "path": "public/assets/exercises/triceps_mergulho_banco/1.jpg",
+      "sha256": "d34b8ba2e2c45eca8ab77b514bc156b436b220e8c3fc414ae0ea48ccb1cf6fa0"
+    },
+    {
+      "path": "public/assets/exercises/triceps_paralelas/0.jpg",
+      "sha256": "e724b6def4bc6299c937ddfdc92081fc260a7ac4680340705de16fdd0c00c8e3"
+    },
+    {
+      "path": "public/assets/exercises/triceps_paralelas/1.jpg",
+      "sha256": "5de1f351e7dff44ca13d00c19bff082e6613725141cbe7ab38d9248e3c476f52"
+    },
+    {
+      "path": "public/assets/exercises/triceps_polia_barra/0.jpg",
+      "sha256": "5f52b0f699fcd01bcf07053d9abe26e428f227816d62bc61a3232435715b5e7e"
+    },
+    {
+      "path": "public/assets/exercises/triceps_polia_barra/1.jpg",
+      "sha256": "76f7793452cebb4f00846f9fd5ce3306d90d4b1912b192125cd428c2d8b76a3c"
+    },
+    {
+      "path": "public/assets/exercises/triceps_polia_corda/0.jpg",
+      "sha256": "5761442a548a2dba5fbfa1290cab7e9c58f31439b883c94627cf66d309ed2b4b"
+    },
+    {
+      "path": "public/assets/exercises/triceps_polia_corda/1.jpg",
+      "sha256": "5f40623d6913781d34216ee9d0625a6808a21c0de8cbe25de0928c84a2699ece"
+    },
+    {
+      "path": "public/assets/exercises/triceps_polia_corda/sequence/step-01.jpg",
+      "sha256": "b1c1c44590663865b65f5b0696b9deffceb0fa443c05c374643004fd6f839cd4"
+    },
+    {
+      "path": "public/assets/exercises/triceps_polia_corda/sequence/step-02.jpg",
+      "sha256": "0ff4a613934a8744fd61b64df1ddf4d474b125bce67eb38501065341ea7e8d4e"
+    },
+    {
+      "path": "public/assets/exercises/triceps_polia_corda/sequence/step-03.jpg",
+      "sha256": "6fd27b5b7ddbb800d623280077ce1b69dc6c87c12b25b966d0294f67b2cd6f8e"
+    },
+    {
+      "path": "public/assets/exercises/triceps_polia_corda/sequence/step-04.jpg",
+      "sha256": "d8c55264b475a19673743ad036c5c4bd0793dcbe0b8472b7c7041257ceb260ba"
+    },
+    {
+      "path": "public/assets/exercises/triceps_polia_corda/sequence/step-05.jpg",
+      "sha256": "7405db26eadd99a4a43d22411c50a1348be2ace65352722fe060235466e5092c"
+    },
+    {
+      "path": "public/assets/exercises/triceps_polia_v/0.jpg",
+      "sha256": "c461989452d9f0ebaa0f88bf452a8cee66235e7d901b48aceb3b414fd20692f8"
+    },
+    {
+      "path": "public/assets/exercises/triceps_polia_v/1.jpg",
+      "sha256": "d9896b2d9be8ed7f042831ca7acf3d282dde16facfef1280cd97b087a1023025"
+    },
+    {
+      "path": "public/assets/exercises/triceps_supino_fechado/0.jpg",
+      "sha256": "3a428440c0f95ee87234a260ca80cc1dfa205e3db8f8fa6098b7eeb2afb2cde8"
+    },
+    {
+      "path": "public/assets/exercises/triceps_supino_fechado/1.jpg",
+      "sha256": "108a66dc2dcb09d184157eb81b7fafba5f898b00654c39cb2f0c7f8bdfec5ceb"
+    },
+    {
+      "path": "public/assets/exercises/triceps_testa/0.jpg",
+      "sha256": "5ea3eb7db1b5f1e2f8af80d6dbfcc68831d4dea78f2ebf62e5950d80a27bcf56"
+    },
+    {
+      "path": "public/assets/exercises/triceps_testa/1.jpg",
+      "sha256": "af4a3c804320429b94c646daea6a11c5681674cc553dde3027fd8d6b89595621"
+    },
+    {
+      "path": "public/file.svg",
+      "sha256": "2b67812c325c199a02536cdbeea0c593a72f707d323b72ee3e08dbab06753bd4"
+    },
+    {
+      "path": "public/globe.svg",
+      "sha256": "b614b9bf183925957661ac851498fe1d8029fd43a62fbfed86f9e2624a57e7cf"
+    },
+    {
+      "path": "public/icon.svg",
+      "sha256": "7870eecab72d45f80fdc36bbc1201b93c51f261db47039c8c462a2fa07441475"
+    },
+    {
+      "path": "public/icons/apple-touch-icon.png",
+      "sha256": "3979a590c848310866ece5e0ed5d168fe33538c34e07c84944a0906a5a1f027c"
+    },
+    {
+      "path": "public/icons/icon-192.png",
+      "sha256": "72fd0cdd6ac02f9f8e614da8feec40fe4c8f969c66f92cc6670e5ceb39592c76"
+    },
+    {
+      "path": "public/icons/icon-512.png",
+      "sha256": "505c40db42348b8df7adcd7b6ccfc2def0765be75636772323b00ab585973eab"
+    },
+    {
+      "path": "public/icons/maskable-192.png",
+      "sha256": "4add3d7fcefd97e73516eba07da82e438e1bb3918761a44f2ef5e0749371c91c"
+    },
+    {
+      "path": "public/icons/maskable-512.png",
+      "sha256": "3b82d536f693f051773fb4400362909b186777c6dc499106adac1cb8dbf3dd9f"
+    },
+    {
+      "path": "public/icons/master-icon-1024.png",
+      "sha256": "232ace528abfedf8f26814e6064199d5fab243f2c85676e272f684c821b42aff"
+    },
+    {
+      "path": "public/media-manifest.json",
+      "sha256": "a3e88699717bb3125ccced0ff7e4ede701200c0eff9f4a826059c2281c943a31"
+    },
+    {
+      "path": "public/next.svg",
+      "sha256": "55995dfad6ecb4945a1e856ddca03c5e16aa5bf13fd21b4df6a74ae79357bcfc"
+    },
+    {
+      "path": "public/sw.js",
+      "sha256": "cff37b589a80efcca7b5b513b221f9ed126a5253a2bfbbcb0eb7466fe61091d6"
+    },
+    {
+      "path": "public/vercel.svg",
+      "sha256": "f081337b2fee635b455b63275406a3e7f39d6a014e25ad90dab5a67e62a12ac4"
+    },
+    {
+      "path": "public/window.svg",
+      "sha256": "644768c4aaeb4767bce293344eeb0c125fb804a94d801440424072202d85e3a1"
+    },
+    {
+      "path": "scripts/android-apk-release.mjs",
+      "sha256": "d5b7e26d71b636aa1bf7fab1ba3a8fb2ad11f5c60faabddfb297fa479394e2f5"
+    },
+    {
+      "path": "scripts/android-build.mjs",
+      "sha256": "6cda2bde2b5858aaf68c889d7b34b209ed92645e136b37ad15c62a5d0063795b"
+    },
+    {
+      "path": "scripts/android-bundle-release.mjs",
+      "sha256": "1128fdef9d42f6ef6d4a890964bc2615aa9b5e7844b17876888128c6897b47e3"
+    },
+    {
+      "path": "scripts/android-generate-release-key.mjs",
+      "sha256": "dd287ff98901cc9b542fb2b3150e460a9ee4ce06d81236a3e98df9ff3a18a3d6"
+    },
+    {
+      "path": "scripts/android-generate-upload-key.mjs",
+      "sha256": "2696f078caaf503ab778a6eaf91a15e38624c648580e5dc498a34d39c28dca31"
+    },
+    {
+      "path": "scripts/android-play-release.mjs",
+      "sha256": "0c015a5c34d62d4bb0af1dc430ccb789cd67fcf97aa1919adb352746f2b0ead5"
+    },
+    {
+      "path": "scripts/android-release-audit.mjs",
+      "sha256": "b400ee07218bb82c8974c57be0b9f8c6015134ebe3c57953d91250fc3a28f4b8"
+    },
+    {
+      "path": "scripts/android/android-tools.mjs",
+      "sha256": "6d45493563c40977f5829277273c39d3bfe81725ffe0f1c25157198904123a6d"
+    },
+    {
+      "path": "scripts/android/android-tools.test.ts",
+      "sha256": "982132d3d8a87e2789e25d04ee484c416c918c2d08a1e5c1b758145f746e9d31"
+    },
+    {
+      "path": "scripts/android/play-release-lib.mjs",
+      "sha256": "20bc294e7e6d235acedca2dca691031f00417d6141c012fd35423f5c4906a30d"
+    },
+    {
+      "path": "scripts/android/play-release-lib.test.ts",
+      "sha256": "1cd688f99711c808f4e8f41afabf9496cd05edf1c8abfe466181b0c195d0150c"
+    },
+    {
+      "path": "scripts/android/prompt-secret.mjs",
+      "sha256": "611a6638e58bfc784e430dfaf3a48381b072b13468e2c9ade9dd4fb9a8aaaf69"
+    },
+    {
+      "path": "scripts/benchmark-gymflow-storage.mjs",
+      "sha256": "654e10869bca2b0578faf645d25914ea7480986d1f5119cd9eb7e1d75be29a98"
+    },
+    {
+      "path": "scripts/build-mobile.mjs",
+      "sha256": "7a157a41a45fd26ed82f0669d123b7266bbda2954d7c22f9e92803e6e9ce5ab1"
+    },
+    {
+      "path": "scripts/generate-icons.mjs",
+      "sha256": "841edadc2d42ff50880822c5f7b37c567e4d353ceb0e374ab6c091e4842c53aa"
+    },
+    {
+      "path": "scripts/generate-native-assets.mjs",
+      "sha256": "c2d74a90f247ddbe2856d13ba70ca4a89f92fe8aed7cf570114b2b11bfba8410"
+    },
+    {
+      "path": "scripts/import-exercises.mjs",
+      "sha256": "e5a007ef4ae19eaf0a3fa11a13359405215b0018e1d12beb7cd7d626003b0b79"
+    },
+    {
+      "path": "scripts/ios/ios-readiness.test.ts",
+      "sha256": "5b3316e260fa55762bd0d4c5d33534f43518e40dd4209ea7963193d037b708fc"
+    },
+    {
+      "path": "scripts/library/csv-pipeline.ts",
+      "sha256": "0e423acd78611c21f10cffce0a87df79f4a58561e07a376922a445b8ecef14de"
+    },
+    {
+      "path": "scripts/library/curation-data/lote1.ts",
+      "sha256": "9ca57ef915f0138a041af7f4e72c79225564f4201974b5971551f37376ba574e"
+    },
+    {
+      "path": "scripts/library/curation-data/lote2.ts",
+      "sha256": "a3ba95bb76bb46d878771fba06b77a0b2171afffbd5f3c1ad1a830e1b094030b"
+    },
+    {
+      "path": "scripts/library/curation-data/lote3.ts",
+      "sha256": "09363622636ffead801e1483beb659519534b1158729bac7deb2fc5138c5161a"
+    },
+    {
+      "path": "scripts/library/curation-data/lote4.ts",
+      "sha256": "82678050ea1f55a7e6ade391d413a8438f64156d9f9ebb96aaaa7e1939867985"
+    },
+    {
+      "path": "scripts/library/curation-data/lote5.ts",
+      "sha256": "cbda7dbb1834a7cb9c9b01ab3140a73e8ff14d6fb5a65f97f5a563c2ebe72253"
+    },
+    {
+      "path": "scripts/library/curation-data/lote6.ts",
+      "sha256": "0feab609c3590240e9a68685ea8c7ed147694fc4fd64a5e1ebfd9789b566d340"
+    },
+    {
+      "path": "scripts/library/curation-data/lote7.ts",
+      "sha256": "e0b35248128fcf3fadab800dec0efad5a9b4146cc063f0ed9668d2bd130ac1ea"
+    },
+    {
+      "path": "scripts/library/validator.test.ts",
+      "sha256": "a7ef04d241a8d96960992e7cbc3114eb288ab01fbb4b820437ba7db1b2fe962d"
+    },
+    {
+      "path": "scripts/library/validator.ts",
+      "sha256": "5e5aba5b271541d40bf0a2f1e1b4729b165d8e4fd90c6fcc31ba5de0c0696420"
+    },
+    {
+      "path": "scripts/media/exercise-media-inventory.mjs",
+      "sha256": "25a20184657894017ed4a0008faf25ad8e67866ff5ed2b73ec793a72171a4872"
+    },
+    {
+      "path": "scripts/media/exercise-media-inventory.test.mjs",
+      "sha256": "5a21fd34cc9b82437176817b929cd17b6d672e10fe864ab8a91378b85b059b3c"
+    },
+    {
+      "path": "scripts/media/exercise-media-visual-review.json",
+      "sha256": "0e4de3218a439e7b52231c71a25eda7838bbc017b2726b11177a2161a170c30b"
+    },
+    {
+      "path": "scripts/media/generate-exercise-media-contact-sheets.mjs",
+      "sha256": "e314e345813ec00d429e2e1e85e20ee914c7d8318dcc4cabc65d6063bd71afcb"
+    },
+    {
+      "path": "scripts/media/goal-123-baseline.json",
+      "sha256": "cec7139d7813e36b0bf4043b115efbef246319c0a59f193ce5d314cd7aa2eda9"
+    },
+    {
+      "path": "scripts/media/manifest-validator.test.ts",
+      "sha256": "118ef32c8b118c88dfb973d9568766e6ba3ba13089c26cf054766833c64bc338"
+    },
+    {
+      "path": "scripts/media/manifest-validator.ts",
+      "sha256": "238744ae22e7f73be6f50118c1a63396f6587b51b62bc9da0668c00763842bc6"
+    },
+    {
+      "path": "scripts/nutrition/nut008-production-ai-smoke.mjs",
+      "sha256": "78d501844aa86d63821c7f69a4525692341ff1824b7861279f06410c774b5adf"
+    },
+    {
+      "path": "scripts/qa/training-mobile-119.mjs",
+      "sha256": "c88228bcfa06209c2b7e6a06e9a91d93bc1204dd76ed4d004cdaaa8775c99c85"
+    },
+    {
+      "path": "src/app/api/nutrition/assistant/route.ts",
+      "sha256": "455cdb725da65cc04ca1b35fb57074c4b39c18750b3d6bc47ef606331d8cddfb"
+    },
+    {
+      "path": "src/app/favicon.ico",
+      "sha256": "2b8ad2d33455a8f736fc3a8ebf8f0bdea8848ad4c0db48a2833bd0f9cd775932"
+    },
+    {
+      "path": "src/app/globals.css",
+      "sha256": "b18300e11ebdc3c9c5c653362bff17e44c2b1c62167f910d108d614afc209476"
+    },
+    {
+      "path": "src/app/layout.tsx",
+      "sha256": "0c5e962599722399b79bfe84bcb7dc5f0b1447a01c41bfd46df77bf26b71c528"
+    },
+    {
+      "path": "src/app/manifest.ts",
+      "sha256": "9b41b505a8f62826d8d538d82a2dea2ea744f4d03f5de01271de2056e93ccf27"
+    },
+    {
+      "path": "src/app/page.tsx",
+      "sha256": "4b8f313043bb496353b3b68f6e791b61a03c173099bcd685637dbe1e3f198b41"
+    },
+    {
+      "path": "src/app/poc-3d/page.tsx",
+      "sha256": "c9aff25305844ad189c441a52d2a872d7e9d5f2af7f5cedd2e3a86cb88761a8f"
+    },
+    {
+      "path": "src/components/ActiveWorkoutSetRow.tsx",
+      "sha256": "ac1330bffea82ce67b99d9ab86912dd6ca305d1f1cdbc515f1ddeb029acbd8a5"
+    },
+    {
+      "path": "src/components/AvatarDemoPlaceholder.tsx",
+      "sha256": "6bef9b966bcd14bf1b87a475880b9271dd197d66b19982537b9f37d0e471e949"
+    },
+    {
+      "path": "src/components/ErrorBoundary.tsx",
+      "sha256": "24f4ad3837625aa52d94719879966482bfa3f3cf1deb0418554286559b38a81f"
+    },
+    {
+      "path": "src/components/ExerciseCatalogPicker.test.tsx",
+      "sha256": "e7be21b04704a9e95f3edaf3ff924528eee72b180390da73e812f1bb1a405d19"
+    },
+    {
+      "path": "src/components/ExerciseCatalogPicker.tsx",
+      "sha256": "6141269a6de5fa252ef2baac56589b596291593b669967e177d765c7fc9bf8fa"
+    },
+    {
+      "path": "src/components/ExerciseMedia.tsx",
+      "sha256": "7cac07b21ff30f220010cca355a3eaf0db948442ffa9a3a9b26588dc09f31ac9"
+    },
+    {
+      "path": "src/components/ExerciseMediaUnifiedPlayer.tsx",
+      "sha256": "e7e69dd9e7b02e0b3ed48f880392a2228dcd76d884ba12903c002058bffe4b31"
+    },
+    {
+      "path": "src/components/GlobalVideoPlayer.tsx",
+      "sha256": "9c65311796aad325012d34a90e88bd546d78d905fe1c60915cddae46731951a0"
+    },
+    {
+      "path": "src/components/IaCoachHologram.tsx",
+      "sha256": "b707f1730b9a93c64f199f4b23e4bb51e223cb7b986ef8a268e7d42ed3813436"
+    },
+    {
+      "path": "src/components/NativeAppBridge.tsx",
+      "sha256": "372ccb0da509afeb937db0f9f46a5008a68e3106737476e2a1cb0370f7691010"
+    },
+    {
+      "path": "src/components/Navigation.test.tsx",
+      "sha256": "a18cfa7d285bd3afab89cfa0a401bd8129e8e602c5d5d11943456fcaeac8db4e"
+    },
+    {
+      "path": "src/components/Navigation.tsx",
+      "sha256": "6bce63944f8adf0b99e8df4020e6a1184b81ef266671de3357674950a59ce115"
+    },
+    {
+      "path": "src/components/OfflineMediaModal.tsx",
+      "sha256": "24a886a21dd52ea7909e35524fdff7bbd0cd04e89c3e7953aafefa1116188039"
+    },
+    {
+      "path": "src/components/PreWorkoutReadinessModal.test.tsx",
+      "sha256": "d156bc2a857500ef04168094df62e52d417d164579cc9db73173ce4fa71c33bd"
+    },
+    {
+      "path": "src/components/PreWorkoutReadinessModal.tsx",
+      "sha256": "300b2b6cb0252b87c76cf407913c231e2f9e09378fd9ea9e15f417dfbff91825"
+    },
+    {
+      "path": "src/components/RirEducationCard.tsx",
+      "sha256": "3d5f37eb5966d5e38b63822e62479e1e5cbe66013c0c6c85d06192f7617bfacf"
+    },
+    {
+      "path": "src/components/ServiceWorkerRegister.tsx",
+      "sha256": "773deb80323468539629a40fb55c45cdaa7f737cc7ec9f8d6269747a53f68353"
+    },
+    {
+      "path": "src/components/SessionDetailModal.tsx",
+      "sha256": "07c315ab6a0b69af40dd725715ae033ebd600cb6e1ea611ecded1b9e1cbf7dc2"
+    },
+    {
+      "path": "src/components/SocialShareModal.tsx",
+      "sha256": "60d1b5f360d6df12d2ab2f2a985f1710ef6865c7a580f447102ed6bdcd505436"
+    },
+    {
+      "path": "src/components/TechniqueSequencePlayer.tsx",
+      "sha256": "5e6e8219165ad84f6e813cbe61c2d239b5e2fd5332c80f6a1240414b1fbda8c9"
+    },
+    {
+      "path": "src/components/TrainingMediaPlayers.test.tsx",
+      "sha256": "1be5387e8e8d55d498d1e22478109e42028381f2b89ffdcb5a44a2f82bbde132"
+    },
+    {
+      "path": "src/components/TrainingProfileSelector.tsx",
+      "sha256": "3f7f255674fda042754a499b86678773e7b1060c6921e9cc31ec16b848494efb"
+    },
+    {
+      "path": "src/components/TrainingProfileSummary.tsx",
+      "sha256": "665778d4c32bef1840d1d33b57286e47ee9196485e259e5caeeecdad36b2a941"
+    },
+    {
+      "path": "src/components/WhyThisWeightModal.test.tsx",
+      "sha256": "e6405f77bbe45aaba099d3a00083f6ea863225fdf0c13a036d329cbbb85de288"
+    },
+    {
+      "path": "src/components/WhyThisWeightModal.tsx",
+      "sha256": "683887ac15f64f1bcd8162d76102401fb2c17d864e171b328eea9ea7153dd81d"
+    },
+    {
+      "path": "src/components/WorkoutSheetNotification.tsx",
+      "sha256": "e41e258b06095dae1574847e5a329fdf656ef6e1e1eb2c1dad5eb7e953bf3d70"
+    },
+    {
+      "path": "src/components/XPBadgeNotification.tsx",
+      "sha256": "a6f9c04ebf6860260770c55d35cd9ebd0a66648ee3a0e971e7a885d118641d09"
+    },
+    {
+      "path": "src/components/analytics/SessionComparisonCard.tsx",
+      "sha256": "1a9d70df949d5c9d8484388ccf55d3d57fee271686957dfe9cc459723a90f7f5"
+    },
+    {
+      "path": "src/components/analytics/SvgCharts.tsx",
+      "sha256": "4e2cf4c9ef0900ec1a5293e862fbe393f3ceef84ffe10ce0a93b2ecae8e3f62a"
+    },
+    {
+      "path": "src/components/analytics/UsabilityThreeQuestionsCard.tsx",
+      "sha256": "c96b8901622f4f54e7c16facdff594c470faac18836852beefddf7a2909c1de1"
+    },
+    {
+      "path": "src/components/nutrition/AiMealAssistantModal.test.tsx",
+      "sha256": "8f4e68fa063cda72dfbef8944149e22c05049157330a302b46d6c051213d315a"
+    },
+    {
+      "path": "src/components/nutrition/AiMealAssistantModal.tsx",
+      "sha256": "2469886b96875b7f3c58c7ab6637e379c37d9b027b1a68aaa083dc74f73e6c7c"
+    },
+    {
+      "path": "src/components/nutrition/RegisterSection.tsx",
+      "sha256": "9e6c1c12250f9d323c8f2dd7ef766b757961a4178fa140658126f44ec92f4e49"
+    },
+    {
+      "path": "src/components/nutrition/SuggestionsSection.tsx",
+      "sha256": "a0144fa5b00710beff0d05e829ba61ef7ce16d69b92e6315b26ff4cc4a6ffd64"
+    },
+    {
+      "path": "src/components/nutrition/TargetsSection.tsx",
+      "sha256": "9cd7c88c58cabbd4421acaaa6f2f42920b480b5fd32a5e3cda18567873ecf774"
+    },
+    {
+      "path": "src/components/nutrition/TodaySection.tsx",
+      "sha256": "6036f3e8a338811d451ded8d29fe568d0d090b763926e4eda0e3b6d9f3566171"
+    },
+    {
+      "path": "src/components/nutrition/TrendSection.tsx",
+      "sha256": "8f35097600dea3a8d3036c26f3b7d0f901f479c35eda69b004ae98404b95eff8"
+    },
+    {
+      "path": "src/components/nutrition/shared.tsx",
+      "sha256": "5b687b08ff0a52750d4e0145d76226fcd76171e1a40f683eb5fb285d0594672e"
+    },
+    {
+      "path": "src/components/three/GymFlowAvatarStage.tsx",
+      "sha256": "7dc1306d59224a48914a2b281178e4cc7bb0667f9e851b0070b467a6f4fdfd48"
+    },
+    {
+      "path": "src/components/three/GymFlowAvatarViewer.tsx",
+      "sha256": "530544de50677db308856a2ec086b5147a8f86a628d82041423bedb1f173fc33"
+    },
+    {
+      "path": "src/components/three/avatar-config.ts",
+      "sha256": "872e09a9b7ae31da0401793670791adcb6e73957652113c046816de576d49397"
+    },
+    {
+      "path": "src/components/training-assistant/TrainingPlanAssistantModal.test.tsx",
+      "sha256": "36354b464214ef9410ef8a5061b62f46b8473916ad2fffffa312ee51d40c3525"
+    },
+    {
+      "path": "src/components/training-assistant/TrainingPlanAssistantModal.tsx",
+      "sha256": "39cb03926041f3134a924defc59e5b129df7c0666070b9fb6eb843f3be3c373b"
+    },
+    {
+      "path": "src/components/ui/ConfirmDialog.test.tsx",
+      "sha256": "17daf97fe2406e23ee12bf89d46af9b42b5666a9af96a39073d9d596e3cfc551"
+    },
+    {
+      "path": "src/components/ui/ConfirmDialog.tsx",
+      "sha256": "299ea62371cdad760663b7f2695c20683b280d987f41405858d5b94971045264"
+    },
+    {
+      "path": "src/components/ui/NumericInput.test.tsx",
+      "sha256": "28bddff8a4c11ff7a8f1832b16a790b12729965e6c27001f5a62e3616cb24e88"
+    },
+    {
+      "path": "src/components/ui/NumericInput.tsx",
+      "sha256": "97ed16588a91d531a83d49c3eb4c7d7ea39603bf504b19718a92d0b6ac7bada5"
+    },
+    {
+      "path": "src/components/ui/SessionBadges.tsx",
+      "sha256": "0c58f6c2774464206f218d566287efcdfc9139608f35c9a74d5e941810a98ec8"
+    },
+    {
+      "path": "src/components/ui/StorageAdminHealthPanel.test.tsx",
+      "sha256": "6830d6074615b73836e31836b225383903b6e0f9d98bd8236c9d715beb0433e0"
+    },
+    {
+      "path": "src/components/ui/StorageAdminHealthPanel.tsx",
+      "sha256": "72491623a6f7893bd980ff52a07b88c5e87706daaaf756d77d70bab40ee81e7b"
+    },
+    {
+      "path": "src/components/ui/StorageBackupVerifier.guard.test.ts",
+      "sha256": "ba0434f25fdda7c9a80ee43294c330b43b9f3423b79610570feaab340e1f4cd6"
+    },
+    {
+      "path": "src/components/ui/StorageBackupVerifier.import-guard.test.ts",
+      "sha256": "d66dbbe8443e5f8ede7b3414ed34d91eef21310130b4ced62bf465c24af88eb7"
+    },
+    {
+      "path": "src/components/ui/StorageBackupVerifier.test.tsx",
+      "sha256": "ba11789ccf6949c2a1fcaa6f7d9fd622e33add23b2586e5269f30f2003a3f131"
+    },
+    {
+      "path": "src/components/ui/StorageBackupVerifier.tsx",
+      "sha256": "5c9b0bebac7b9516aafc56d33208f8fc42d1068696e01807095cf1f354dc8dfb"
+    },
+    {
+      "path": "src/components/ui/StorageExportControls.guard.test.ts",
+      "sha256": "792792d3daa979c0f92a68eae0f8ba749c787ebb31a0dff04fc5eb96cedb6a96"
+    },
+    {
+      "path": "src/components/ui/StorageExportControls.test.tsx",
+      "sha256": "729fb3107c906434279156c3c1ad13476ddb23b47684fecadbb80b85fe683fda"
+    },
+    {
+      "path": "src/components/ui/StorageExportControls.tsx",
+      "sha256": "573b7f56a11c26c74ee9c6a59da43748b7c211002759ac71bf43803482496442"
+    },
+    {
+      "path": "src/components/ui/StorageRecoveryNotice.test.tsx",
+      "sha256": "4a77ee3468ec355e3a193e547a8b1ad2ffbb72c7ee5965de3f363c6bbf7cc3b9"
+    },
+    {
+      "path": "src/components/ui/StorageRecoveryNotice.tsx",
+      "sha256": "44c5f8ab1ac6b1e5464b2dd62f2c376c07bcacdc0ec94a5394b614ffabcf4f46"
+    },
+    {
+      "path": "src/components/ui/StorageResetControls.guard.test.ts",
+      "sha256": "c84382f64325648aac728a68e684b5318ed2c8c779b987e40c37edee3093a69f"
+    },
+    {
+      "path": "src/components/ui/StorageResetControls.test.tsx",
+      "sha256": "6e0bf5c2aef20c13f60eda6de44476ca99de979dd38e33dce4fce8b081ee325e"
+    },
+    {
+      "path": "src/components/ui/StorageResetControls.tsx",
+      "sha256": "816f3a3052f18c7247d33cc930076ad2e7f593127ba8a27e9bb719aed0919de4"
+    },
+    {
+      "path": "src/components/ui/StorageRestoreControls.guard.test.ts",
+      "sha256": "642d4512dabdaa686d7a33d1465eec16544e47b05ab546e3c86dc6543edfa896"
+    },
+    {
+      "path": "src/components/ui/StorageRestoreControls.test.tsx",
+      "sha256": "874588ae30632b13bf66d917f9d9f941d0ecf90c797dc911517ef0e271240918"
+    },
+    {
+      "path": "src/components/ui/StorageRestoreControls.tsx",
+      "sha256": "0e8d80f05a5ce68ce12aabf81628fed9f341990bad16c10c4cb54828288c6604"
+    },
+    {
+      "path": "src/components/ui/Toast.tsx",
+      "sha256": "72b6da7ac4a980fbdf70a9cc36e768a47ad1a9d92d5ab0611a9cca1028d9458b"
+    },
+    {
+      "path": "src/components/ui/keyboard-intent-barrier.test.ts",
+      "sha256": "3943dfe4f33eaf69290f834811cb4a0d8caa116b8e42c37fb69b8f28a23b1a1d"
+    },
+    {
+      "path": "src/components/ui/keyboard-intent-barrier.ts",
+      "sha256": "07d12003d48d6ca313a6111b53e3f8633e5838806ba091f104fc76ce8e18008c"
+    },
+    {
+      "path": "src/components/workout-builder/ExercisePickerItem.tsx",
+      "sha256": "b59f8bdf9b303c78553854e68020c3e0683a4e1d6f2ac6545884a0bbd3a429ee"
+    },
+    {
+      "path": "src/components/workout-builder/ExercisePickerModal.tsx",
+      "sha256": "c13f71deea81a00b54322dbbefc0216797e6b0c8885cd7eb2db33125f5ff2885"
+    },
+    {
+      "path": "src/components/workout-builder/StartDayPicker.tsx",
+      "sha256": "b744828fdafb783d200f437e21b0b442b653e19f419c7ba797ff47d61a2e3952"
+    },
+    {
+      "path": "src/components/workout-builder/WorkoutCreationMode.tsx",
+      "sha256": "823e840182903af9d6e8ca870ce11a84c3e7b815b2948d33a98264604befbde2"
+    },
+    {
+      "path": "src/components/workout-builder/WorkoutDayActions.tsx",
+      "sha256": "6ed7893b41a01fbc80947b2b0d540f3eaa1bb030aebfcfb4793a5a713cd0b6d3"
+    },
+    {
+      "path": "src/components/workout-builder/WorkoutDayFocusSelector.tsx",
+      "sha256": "1da7e3410ea29115f3e9cc63b99469f9a3e59bb6e6e9a4f85b0964cd9ce7f980"
+    },
+    {
+      "path": "src/components/workout-builder/WorkoutDaySummary.tsx",
+      "sha256": "9b27562bf8cd7077016f450a53934572c9f61319e2a2a46bb128ebd3843a5dca"
+    },
+    {
+      "path": "src/components/workout-builder/WorkoutDayTabs.tsx",
+      "sha256": "0bcb6562bf4517daf72f70281bbdbfb1b355ea2ac6be8b0080d57a9f187efbb0"
+    },
+    {
+      "path": "src/components/workout-builder/WorkoutDaysEditor.tsx",
+      "sha256": "383b849eaff5e35f77aec71b982ae84a2e0497a70433229c0c9cff797930a114"
+    },
+    {
+      "path": "src/components/workout-builder/WorkoutProgramDeleteDialog.tsx",
+      "sha256": "207b39fdf9369b10bcb08a157c573dd78bda6ea29de12b145078f65649ca6479"
+    },
+    {
+      "path": "src/components/workout-builder/WorkoutProgramDetails.tsx",
+      "sha256": "0940dec4eeceeef59c23ef8e3696394c2f2675b0fe16b6455984fac9796e2b54"
+    },
+    {
+      "path": "src/components/workout-builder/WorkoutProgramMenu.tsx",
+      "sha256": "2131197b076a7d09245c1084bf0df8bbc817d6d0addd45ff1af57207a9f9e685"
+    },
+    {
+      "path": "src/components/workout-builder/WorkoutProgramSummary.tsx",
+      "sha256": "7aead7261f29ce00798f4ea500f29660d4a0d938750721494a07ee28f183f921"
+    },
+    {
+      "path": "src/components/workout-builder/WorkoutSuggestionPreview.tsx",
+      "sha256": "a84db805fd142155bad50fde5df79cd7e5fbfe837d8ed701f7cc9c45cea4d8f6"
+    },
+    {
+      "path": "src/components/workout-builder/WorkoutTemplatePicker.tsx",
+      "sha256": "98d9200dbdda98b94da5171bce043bd51b1ae8034522b646944d358bc0a65c2c"
+    },
+    {
+      "path": "src/components/workout-builder/WorkoutTemplatePreview.tsx",
+      "sha256": "d6e85328b727f30d35e9d8e96c2d573d3d322d1eef4584647ad341b6550638fc"
+    },
+    {
+      "path": "src/data/canonical-br-foods.json",
+      "sha256": "0a9f6327c87149d182582afeec7d104ab4e92829e094e98c56187f525b9fe539"
+    },
+    {
+      "path": "src/data/constants.ts",
+      "sha256": "a79e86d9eef6863683ca46e334791953272b632afd7cc51feaf8f815a722cb6c"
+    },
+    {
+      "path": "src/domain/analytics/aggregators.test.ts",
+      "sha256": "bd209a2200fbfc015c26d940fa534a3416a606bff878ecab74066292a0deebd5"
+    },
+    {
+      "path": "src/domain/analytics/aggregators.ts",
+      "sha256": "d426a358a0ae78aa450a4df520af348d71e10a6acfa385783c48790339b43d76"
+    },
+    {
+      "path": "src/domain/analytics/types.ts",
+      "sha256": "38b43a88d4935cb6d0a5775698a0f199767ab0e2eb6c82ff73a526ccd118e319"
+    },
+    {
+      "path": "src/domain/compactEngine.test.ts",
+      "sha256": "8f75a3cf19a0222e8a6709e565bcd8973db0db5c4fe62f769f459f128ea2de13"
+    },
+    {
+      "path": "src/domain/compactEngine.ts",
+      "sha256": "4d49cd4ba4f417bc5c8814de94879c3b5733eb79f2848c572b20074189f0e8df"
+    },
+    {
+      "path": "src/domain/gymProfile/GymProfileSettings.tsx",
+      "sha256": "13bff1466302d5fc69f4967dd0baa212a333e24d3d6511b3ee42ad33accbceb1"
+    },
+    {
+      "path": "src/domain/gymProfile/index.ts",
+      "sha256": "ad3f4bd1275ff7e355eed520bd71caeb80214c3ed0916477702a30e302be597d"
+    },
+    {
+      "path": "src/domain/gymProfile/model.test.ts",
+      "sha256": "fef6f71edb54ca8bdc0e6ab2656419628f2026faf120ec9a058cc6ee4be8c1e6"
+    },
+    {
+      "path": "src/domain/gymProfile/model.ts",
+      "sha256": "de52fd068bae650420403cf94ee0e1d97321ce58fc27c83edc960aa33fd16c9b"
+    },
+    {
+      "path": "src/domain/gymProfile/persistence.ts",
+      "sha256": "101bd1802751a3d1a7d9e94c01c900073e41a5366ddd5bbed155ef428e07a274"
+    },
+    {
+      "path": "src/domain/media/bundleSizeVerification.test.ts",
+      "sha256": "82c08e7c35ce62fb7fcccba33c575e661da4fa1cb3f4eb13c65498e509147025"
+    },
+    {
+      "path": "src/domain/media/catalogReconciliation.test.ts",
+      "sha256": "ba08fad18d3d0c65b8ea6265ab531b5fe6e60118353bc7420a9f60405d35ca60"
+    },
+    {
+      "path": "src/domain/media/fallbackChain.test.ts",
+      "sha256": "b6489c36e49892b6c730f7810392ddde1b2c5c8f187514ffdb7c755e58228da9"
+    },
+    {
+      "path": "src/domain/media/fallbackChain.ts",
+      "sha256": "d0033571b08af0a295af05ef7a8a25bad90a3368931b3b12b7f7629826bf4fc3"
+    },
+    {
+      "path": "src/domain/media/localMediaPolicy.ts",
+      "sha256": "2c81321f2a7836cc3407de84b3e1eb18749d9a52f88cbf7f793e65791af1bf66"
+    },
+    {
+      "path": "src/domain/media/manifest.json",
+      "sha256": "a3e88699717bb3125ccced0ff7e4ede701200c0eff9f4a826059c2281c943a31"
+    },
+    {
+      "path": "src/domain/media/manifest.test.ts",
+      "sha256": "bac4340fc7216d5f91bdc954b192d53bc37cfb90577603e63a30d3cdfbda9855"
+    },
+    {
+      "path": "src/domain/media/manifest.ts",
+      "sha256": "22e12bddad85a29dc5bc6e4ca8e66a51c42aa5f961654c850be31a77488f8c76"
+    },
+    {
+      "path": "src/domain/media/mediaCache.crossplatform.test.ts",
+      "sha256": "1792ae8a07a638a66ba9c7941a434e7c121ab7426b08925d142b2c952b74fae3"
+    },
+    {
+      "path": "src/domain/media/mediaCache.test.ts",
+      "sha256": "47139620703b20a22c00f251da595863820b2c9dab616991c6e87e9ae8c226a4"
+    },
+    {
+      "path": "src/domain/media/mediaCache.ts",
+      "sha256": "7841973c5bc6bd0c059c6945898f1c9b11941e27dfe68e44faee51efea3cb868"
+    },
+    {
+      "path": "src/domain/media/preload.test.ts",
+      "sha256": "9a550f9d8e922c4d680f9d8c9f9a63c0712ac6152dfcf7c3477fcc235f47f4c0"
+    },
+    {
+      "path": "src/domain/media/preload.ts",
+      "sha256": "3da5f2bb3fb1a06bccc5ef9b0580e4e672667816ade72e92dc0f2e06901306b3"
+    },
+    {
+      "path": "src/domain/media/storage/index.ts",
+      "sha256": "293e09fa40be437527c6256ff6e38a4dee2e98376a0f92c4fe2c63482b6c6d38"
+    },
+    {
+      "path": "src/domain/media/storage/nativeStorage.ts",
+      "sha256": "7f2b916c985b2def69a809f4d39a9aac013c794d57928630eca9e4f60d670aa8"
+    },
+    {
+      "path": "src/domain/media/storage/types.ts",
+      "sha256": "21c0126008cd526e92095f4ae44ecfd943b3c971f6997aad6cde7b291047cfdc"
+    },
+    {
+      "path": "src/domain/media/storage/webStorage.ts",
+      "sha256": "3c79b48c1215825fe2f6855094d678ad8a210c90b4b30b1be5e25eed922c7a1c"
+    },
+    {
+      "path": "src/domain/media/telemetry.test.ts",
+      "sha256": "3f95843048b51eb37ad72dbf9f4fdb5aa1b90fd4bca1c58205ec7a3a4d3a3ec4"
+    },
+    {
+      "path": "src/domain/media/telemetry.ts",
+      "sha256": "3f408b8fe862af9f3a1e6f979134c26c19d799438410f1dc5c37aea1ef8bf3cd"
+    },
+    {
+      "path": "src/domain/media/types.ts",
+      "sha256": "854485dbf7ec689294ef18b116ccce368ff4a6cef4e496aa888d43aa34d915d4"
+    },
+    {
+      "path": "src/domain/plateCalculator.test.ts",
+      "sha256": "dd61416171123e17c362ca505cb38ab0317c0d8c1e35174ef0b246b6a80fb2d7"
+    },
+    {
+      "path": "src/domain/plateCalculator.ts",
+      "sha256": "e260c73465bf194fbcaefd08bfee3027ca9cec955d29171519c4d7ba35b4bc10"
+    },
+    {
+      "path": "src/domain/progressionEngine.test.ts",
+      "sha256": "f6258e5ae670c153e3dcd97913bd00b6efce7b34ba1ce5e5dc3217f4615a6f6b"
+    },
+    {
+      "path": "src/domain/progressionEngine.ts",
+      "sha256": "d4d22dcbf6e72c225a040308f36adf9ab17f4a5b319a502c90f2049dd3ba37c4"
+    },
+    {
+      "path": "src/domain/readinessEngine.test.ts",
+      "sha256": "a40237510f78633aba1dd7fb70cd53a840511b2c1b292179ac19d0d664aa8a9b"
+    },
+    {
+      "path": "src/domain/readinessEngine.ts",
+      "sha256": "757823c44ab593835ff582bbe67eb7535bbebd6cfceeb5559e09109c893386f6"
+    },
+    {
+      "path": "src/domain/techniques/TechniquePanel.test.tsx",
+      "sha256": "67c80c64c10ed98bf86edeabef2029fd4fe15bd09aee4bed6d3580a5af7b2a2d"
+    },
+    {
+      "path": "src/domain/techniques/TechniquePanel.tsx",
+      "sha256": "9658c88c2dea0d97e48d89fe284a50ea587bc93c7d503b227aca0eb42734806f"
+    },
+    {
+      "path": "src/domain/techniques/TechniquePicker.tsx",
+      "sha256": "9fd5ff3014a9da9a012b737c82b1b3b34357698c55ecee597dcc96e36b40f7a0"
+    },
+    {
+      "path": "src/domain/techniques/aggregator.test.ts",
+      "sha256": "6d63a3f0b847dd70e5c3a3c4ec15afdb6244aee0714e6f61c5ceba075da4e41a"
+    },
+    {
+      "path": "src/domain/techniques/aggregator.ts",
+      "sha256": "6876d72ca04ebfd499429b62f4fec8dd239f7b9e8b5bc6eedbfb402ecde16b47"
+    },
+    {
+      "path": "src/domain/techniques/grouping.test.ts",
+      "sha256": "f2d09d9f9216becfc537afa15f2137d44004ad2f27ac4880099c8ffd952a193c"
+    },
+    {
+      "path": "src/domain/techniques/grouping.ts",
+      "sha256": "86b48ffc9bcb4b7c012fd8a05edeb0263baa75ea6ca3a18560db1225f49dc003"
+    },
+    {
+      "path": "src/domain/techniques/index.ts",
+      "sha256": "949be8396b0125f39d3a378eb3b6788241200d78d81ae5f5b0d5049fb9ace23f"
+    },
+    {
+      "path": "src/domain/techniques/migration.test.ts",
+      "sha256": "68864230ba7f387623f0f3168357e67079cd08b65193b200489e45102053b3b2"
+    },
+    {
+      "path": "src/domain/techniques/migration.ts",
+      "sha256": "a9e67eb52c07ac63641ec24e7068c192d5d157ffd4ca1294a6a61f4cb93a865d"
+    },
+    {
+      "path": "src/domain/techniques/model.test.ts",
+      "sha256": "7d3fb04768e816a02be537747a0452965fbabc92df645ad6c84b8db4afa8c504"
+    },
+    {
+      "path": "src/domain/techniques/model.ts",
+      "sha256": "47086111314516698d82a91aa721c3a970eb204edd9cf22f007b340fd2aa7d22"
+    },
+    {
+      "path": "src/domain/techniques/profileRules.test.ts",
+      "sha256": "db2c839a80911e373c891d469e117c20010d5d8420c7d19f5717efdb6e069bdc"
+    },
+    {
+      "path": "src/domain/techniques/profileRules.ts",
+      "sha256": "f21b93ee4c91d4f090df2729d9649f96005c3e7d8f86ebb451f99f51cb5f897a"
+    },
+    {
+      "path": "src/domain/techniques/types.ts",
+      "sha256": "ac427e365532686df0b1ee783e2f2d62f8cb1f6db0e12d07051d3d9302212f37"
+    },
+    {
+      "path": "src/domain/warmupEngine.test.ts",
+      "sha256": "dda10e7f88df18a415ad87849cdf5ee822f792a905c18b0d36395fb2b2450ebc"
+    },
+    {
+      "path": "src/domain/warmupEngine.ts",
+      "sha256": "b4cd24d880f6dd5ab01c2aa247a89348852633643626051d87159f6fa96b3fe1"
+    },
+    {
+      "path": "src/hooks/useGymProfileAvailability.ts",
+      "sha256": "e08a9b98e5b9ab674e8e0ed486ac4bcbb9148e70b8cef39a946c3ce0187c1043"
+    },
+    {
+      "path": "src/lib/back-navigation.test.ts",
+      "sha256": "8aa4a7b15769f98c3d6b311a5781bc0a322f60896a6c9b77f1f2d7d32fe77168"
+    },
+    {
+      "path": "src/lib/back-navigation.ts",
+      "sha256": "df04efaf2f4c32e585da87f9e2bb276fc7f1369eda4eceedc32edbe82eb30ee2"
+    },
+    {
+      "path": "src/lib/equipment-legacy-map.ts",
+      "sha256": "7980e6b0b0958c93bd3f3ef29d3232687db63d95087e07c04f74f7c6ecab90c2"
+    },
+    {
+      "path": "src/lib/equipment-registry.test.ts",
+      "sha256": "8e93b70dd53ad3c645fd3146e65741b96223d5a366c5926cdd45db4037ce723e"
+    },
+    {
+      "path": "src/lib/equipment-registry.ts",
+      "sha256": "7d151823b46197a195724637607224884d675a9edef10c2662c5a0f970c0565a"
+    },
+    {
+      "path": "src/lib/exerciseSearch.test.ts",
+      "sha256": "011680d4f3ed4d3494cec3de546126551c831fc27c98a74e877645581e6e0aed"
+    },
+    {
+      "path": "src/lib/exerciseSearch.ts",
+      "sha256": "59506d573d04b52a66bfe1cdcf7fd7662c1f21279274e99b56a8b653f0809087"
+    },
+    {
+      "path": "src/lib/exerciseTechniqueMap.ts",
+      "sha256": "dac06dd81aeb23adf953e772a1ad808f15316d333828ce064803157dfa3fbda0"
+    },
+    {
+      "path": "src/lib/mobile-training-ux.ts",
+      "sha256": "a6c9a7690c60f460c027dd8330fd31f87d22843fd9b2b0bb9140c3ddbb88bcc0"
+    },
+    {
+      "path": "src/lib/mobileTrainingUx.test.ts",
+      "sha256": "ebcfff70d7b136e04f1d3fe1d1efb15df12acc925a76be9ab76ffc08661002a9"
+    },
+    {
+      "path": "src/lib/native-training-keyboard.test.ts",
+      "sha256": "bd2e3be194427a489a0672acdb287a4c7ebef4b5df85f256b124d7be5e003d16"
+    },
+    {
+      "path": "src/lib/native-training-keyboard.ts",
+      "sha256": "26445a88c6c4ceaad1244bd3344e71d18cbac20b4c354ac33c0ab770daa17fca"
+    },
+    {
+      "path": "src/lib/numericInput.test.ts",
+      "sha256": "51e59b3b6ec0973269b087426a5deecf84accc4c465caebe6bdd93b594697f57"
+    },
+    {
+      "path": "src/lib/numericInput.ts",
+      "sha256": "e308a1cc66a38fba50dd0d0882854998da646a2cc6303a13475473276d2e7006"
+    },
+    {
+      "path": "src/lib/nutrition-civil-date.test.ts",
+      "sha256": "aedc4a8c8209e1325f4e364b2fe0de146f1438c74e088f42bd6b1d5659a1927e"
+    },
+    {
+      "path": "src/lib/nutrition-civil-date.ts",
+      "sha256": "d252b24ef6cd25e48be99b92dfb983a63a9dc28f01e0d0f3da7b19192b9f5f29"
+    },
+    {
+      "path": "src/lib/nutrition-validation.test.ts",
+      "sha256": "81cc4153e377807763f69562fa3c68fb243ce05e241ebc90b8002d62fdb9ac2b"
+    },
+    {
+      "path": "src/lib/nutrition-validation.ts",
+      "sha256": "55eb0c9c6774fe519ece2290d7a3be4f8311a9463c3c9fe2d8dd03d616acaa0b"
+    },
+    {
+      "path": "src/lib/nutrition/admin-fence.ts",
+      "sha256": "9214a49d2ad148b854ffcd6682e8fb380285bbfe582cbe765c83c4086b08eaf9"
+    },
+    {
+      "path": "src/lib/nutrition/admin-gate.ts",
+      "sha256": "a8d9d1bfa4cd3ce5f7c5c03020ead82d5cf94786366cdd327ef30f46104af06b"
+    },
+    {
+      "path": "src/lib/nutrition/admin-lock-fake.ts",
+      "sha256": "3ac2eb02c271004a939126c5dc14ea2232dccbce06ee29e331fe62d7a071d19f"
+    },
+    {
+      "path": "src/lib/nutrition/admin-lock.ts",
+      "sha256": "6fd2947c588379042ddc9e0990dbb217111ff260db448dc03eb8d9f79f6bedb5"
+    },
+    {
+      "path": "src/lib/nutrition/ai-assistant-client.test.ts",
+      "sha256": "5f5c268727982921050d1cf1225c781debcd8b44ef12d96a39ddd7feddac8dbb"
+    },
+    {
+      "path": "src/lib/nutrition/ai-assistant-client.ts",
+      "sha256": "be898d4abf4bdd34db66395489e1248b3d33bf0218da10d0b48993a6bd9e03b5"
+    },
+    {
+      "path": "src/lib/nutrition/ai-assistant-gateway.test.ts",
+      "sha256": "f13e5f4d993f72cd553cbb3b69f9c6eadd5032d33b95d028303f3e7914d7c036"
+    },
+    {
+      "path": "src/lib/nutrition/ai-assistant-gateway.ts",
+      "sha256": "8f254f77f49fcde6929baf18509733de8537e0fac107df35105ca676b8167bbc"
+    },
+    {
+      "path": "src/lib/nutrition/ai-assistant-provider.ts",
+      "sha256": "c9c2d0ea3224a0e7fccdf6959aa6b673c9c53e60ff4ee06ca434790f80640e4a"
+    },
+    {
+      "path": "src/lib/nutrition/ai-assistant-route.test.ts",
+      "sha256": "99471fbffce9a4cf523c0944b3215f7c90b8ba703ec5e5975b394092e9ea11ad"
+    },
+    {
+      "path": "src/lib/nutrition/ai-assistant-route.ts",
+      "sha256": "146a861e90a997c45e4460de6548d10274dea8f58239e4baa31d61389a855f0c"
+    },
+    {
+      "path": "src/lib/nutrition/ai-assistant-types.ts",
+      "sha256": "c7260763f11562fbafcaa859912eade3164a83f74603b9131e7d27fb439cb13e"
+    },
+    {
+      "path": "src/lib/nutrition/ai-assistant.test.ts",
+      "sha256": "d3b130222315d707ba385d7a24d82708309a130fbb604f3af66b284823e8c78d"
+    },
+    {
+      "path": "src/lib/nutrition/ai-assistant.ts",
+      "sha256": "960611ddc4fa543a065fda404e99188693b98600e3a84c5372884f50715a9b09"
+    },
+    {
+      "path": "src/lib/nutrition/bounded-text.test.ts",
+      "sha256": "78c4d7aacf8ab36e5d4927b14b3128925fdbfff27eba55b6586be88f9b33e7a8"
+    },
+    {
+      "path": "src/lib/nutrition/bounded-text.ts",
+      "sha256": "f79488c953d4bc349add3dcd3fadbd5c3e8b4faa470546150d1a1eb7994dfb69"
+    },
+    {
+      "path": "src/lib/nutrition/effective-timezone.ts",
+      "sha256": "e511a0ecea086213c9e7793d59ddd383e32a73383d8622e6132fd2a0afc8fab0"
+    },
+    {
+      "path": "src/lib/nutrition/engine-types.ts",
+      "sha256": "bb032ede873b02b2202fed4b41771a0d3150c1b29a6474873b149a419c483095"
+    },
+    {
+      "path": "src/lib/nutrition/engine-validation.ts",
+      "sha256": "ffc465b23116736cb2afddfcc1f97df68a1c2a65ecf3398e719109798a50640d"
+    },
+    {
+      "path": "src/lib/nutrition/engine.test.ts",
+      "sha256": "e6506680da34027ab18d1d6967a7e8125bf546018f955e50d55fffb2281c7aa9"
+    },
+    {
+      "path": "src/lib/nutrition/engine.ts",
+      "sha256": "64dbe54074e4c1e50f3411d5255dcc8189209b796b2195cc7aff8f859427ee5b"
+    },
+    {
+      "path": "src/lib/nutrition/food-database.test.ts",
+      "sha256": "2f71c4f6eda19ef0b96462a8d8a89c4453dacbb3202e0d136c430587dccb0364"
+    },
+    {
+      "path": "src/lib/nutrition/food-database.ts",
+      "sha256": "84843c6fd2ff0b39c4f640ef3fc21bf5fdb0fde533e813b0d7ad5a822deb2615"
+    },
+    {
+      "path": "src/lib/nutrition/food-preferences.test.ts",
+      "sha256": "3cdba2cb59be186aee592e095673c1a3bc733ae8a1c5cf785e0ab9e2e479fffa"
+    },
+    {
+      "path": "src/lib/nutrition/food-preferences.ts",
+      "sha256": "23488499fa835b2b16e08699598e7a0181f28994f9a1441ed48bd7903f79425f"
+    },
+    {
+      "path": "src/lib/nutrition/food-types.ts",
+      "sha256": "e632c84acea0a4473969cd6c2a8a3e18a811727f7fa3cb2eed0916000a71dab2"
+    },
+    {
+      "path": "src/lib/nutrition/gate-snapshot.ts",
+      "sha256": "af032a8b0012743f436928810e8a7e9a3b35fdbccaf9b0df0b325b9c77e8a125"
+    },
+    {
+      "path": "src/lib/nutrition/index.ts",
+      "sha256": "9205eb6762c268dadb527ec737cb0d4d613f2398c2a3915cc8823168ed612fa2"
+    },
+    {
+      "path": "src/lib/nutrition/ledger-types.ts",
+      "sha256": "7132abe69fbc32fc954c2784106e614a3bfd961e1a760b48885f7afb6df18179"
+    },
+    {
+      "path": "src/lib/nutrition/ledger.test.ts",
+      "sha256": "cc4ffac6f51780cb1dcce477ef73ccfc1a5bb617fb4627e150f7590e924bc42a"
+    },
+    {
+      "path": "src/lib/nutrition/ledger.ts",
+      "sha256": "7c21934ffdec32e1251acd53165d5c26de127b1eafe28dd1d47e9e9ee0a734d8"
+    },
+    {
+      "path": "src/lib/nutrition/lifecycle.test.ts",
+      "sha256": "70dab4580a668ba08e8aa0cd4aa089ab823203ba9e6f80d1aadaf5f83b3bf1c2"
+    },
+    {
+      "path": "src/lib/nutrition/lifecycle.ts",
+      "sha256": "71eb104d3698a01b42c3079f345ea7c717f9cc419fb55737d701afc872459899"
+    },
+    {
+      "path": "src/lib/nutrition/migration.test.ts",
+      "sha256": "07031d35cb8acc2f5d779a2c39a2b9640e45af113b3d2281366e6b84030f98d1"
+    },
+    {
+      "path": "src/lib/nutrition/migration.ts",
+      "sha256": "c3a64fc311843c987b7277c9c3f47321577994285e3ae76797231dbe0448413b"
+    },
+    {
+      "path": "src/lib/nutrition/nut004b-bridge.test.ts",
+      "sha256": "a8b8e55b102744fcb79faf9356c381c3e60a1d28b3f93d8f0c9ef504af474fb1"
+    },
+    {
+      "path": "src/lib/nutrition/nut004b-integrity-corrections.test.ts",
+      "sha256": "ad79d02f90d3ae6c277a73a26443b35cd241b42214feab7dd9177ac31ecbe625"
+    },
+    {
+      "path": "src/lib/nutrition/nut008-d-nut-matrix.test.ts",
+      "sha256": "d9aae98f332b9729b4e67c6570b1d07da2fc59318b44bed234d4c5d75033ace6"
+    },
+    {
+      "path": "src/lib/nutrition/nut008-data-matrix.test.ts",
+      "sha256": "0df0f7f645952120dbf5c2c15b894a7d12f48de9308c4d9a16d38d8b53fefa27"
+    },
+    {
+      "path": "src/lib/nutrition/nut008-fixtures.ts",
+      "sha256": "187caba8929336b917284f08102076d48519251afaf87ce2497f0fade04ec731"
+    },
+    {
+      "path": "src/lib/nutrition/nut008-integrated-flow.test.ts",
+      "sha256": "3b253f7622900497ee6259f9b58601470addf82c7b9dc7e4861aef49ca5737aa"
+    },
+    {
+      "path": "src/lib/nutrition/nut008-secrets.test.ts",
+      "sha256": "337f061b8b54af137515b1bf092fb93eb535c111bf4c0d5c6b4e92eefc127330"
+    },
+    {
+      "path": "src/lib/nutrition/nut008-storage-invariants.test.ts",
+      "sha256": "34187b61cbcc9b46907048f5bfda9f9d658d80ae1f4ac26ed94d04b329d9a05f"
+    },
+    {
+      "path": "src/lib/nutrition/nut008-stress-performance.test.ts",
+      "sha256": "b85450b9d29b5864ddeea64dbe493119ae2c15e8a3f4386ca8aed10ec44a2b12"
+    },
+    {
+      "path": "src/lib/nutrition/nut008-ux-a11y.test.ts",
+      "sha256": "59e2eb78de8b18d66c7a8eeecc53a45a0ec06398a9dbafee4a9b2457d805e50f"
+    },
+    {
+      "path": "src/lib/nutrition/profile-gates.test.ts",
+      "sha256": "9396b9909ccf49385b068b3fbe2e2fbffbdb1429debb1895f605f3665c3ed8e3"
+    },
+    {
+      "path": "src/lib/nutrition/profile-gates.ts",
+      "sha256": "2e9d6023969153aa65d6a5e5b10dcd64fbff137e56e14352730b91295897445c"
+    },
+    {
+      "path": "src/lib/nutrition/profile-validation.ts",
+      "sha256": "09ded4d1532ffb1caea8fe3b288a5ec5502a4370f65b941f1a459b34e66c7854"
+    },
+    {
+      "path": "src/lib/nutrition/provider-bridge.ts",
+      "sha256": "d2062766f20a85738bc5db8a6c364e303448f59cd74b2134f35919bca78d44ec"
+    },
+    {
+      "path": "src/lib/nutrition/rollover.test.ts",
+      "sha256": "41b56093aa6c235188d970203662f5aba0849b22153fc397dadd08c57721abd2"
+    },
+    {
+      "path": "src/lib/nutrition/rollover.ts",
+      "sha256": "629c90854d11e8c215314b3e705961b37a66138f16c9a07a236860f1a8a874d0"
+    },
+    {
+      "path": "src/lib/nutrition/suggestions.test.ts",
+      "sha256": "6162545e37223320adf4af85e23ec58dfac26f8b7f7e87900132c1ac6556d422"
+    },
+    {
+      "path": "src/lib/nutrition/suggestions.ts",
+      "sha256": "80212e4928afd5efc19992cafcc1b933c8b2e0104ec3a2b38c63c2845501f32d"
+    },
+    {
+      "path": "src/lib/nutrition/target-resolution.ts",
+      "sha256": "a41eadee4fe4204c782fcb3022abe8e1a7310b6b1c9ad4865ba33da2c249059a"
+    },
+    {
+      "path": "src/lib/nutrition/trend.test.ts",
+      "sha256": "6140dadb7828cc3226aea5f2d0ea61f7853028dd3b8582b7ed0bf1a97264cd91"
+    },
+    {
+      "path": "src/lib/nutrition/trend.ts",
+      "sha256": "0e4ab49e42a235587f6ddd74ad800da654f7ba84f0920ed5d46ca9c1f0fa35a3"
+    },
+    {
+      "path": "src/lib/personal-sync-readiness.test.ts",
+      "sha256": "2ff363e9985567cc0941a68515113bfc77201493d68174324a927395df28557c"
+    },
+    {
+      "path": "src/lib/platform.test.ts",
+      "sha256": "f7788679825bd54144fe4a3c93ff26bee895ab9b311581428c4385c6cd2e53cd"
+    },
+    {
+      "path": "src/lib/platform.ts",
+      "sha256": "e7246e8369959657f66beca055522761eb308de803831ac8b5b61a2a2333f872"
+    },
+    {
+      "path": "src/lib/progression.test.ts",
+      "sha256": "111023f5f8f28e7cb87d9d2ab08bf91e869f85a01c3e0110e6ba9490a6b67c06"
+    },
+    {
+      "path": "src/lib/progression.ts",
+      "sha256": "2680bbbcb3825ed3108b3d043297aaf2eed739d97e38359e41ac4916ec76e559"
+    },
+    {
+      "path": "src/lib/storage-adapter.ts",
+      "sha256": "e6d2a0d1ba3842aca7c0cd6e74ee71c1309650a81990a41bd52627930c2fc561"
+    },
+    {
+      "path": "src/lib/storage-admin-owner-token.test.ts",
+      "sha256": "28b6c6577de097396528f714c5cda77ec63a31b01928743df4f7ad6361b17740"
+    },
+    {
+      "path": "src/lib/storage-admin-owner-token.ts",
+      "sha256": "cff494096cb4b19f9452be698570e9894cdf79476f208454def25f32e6fa332e"
+    },
+    {
+      "path": "src/lib/storage-admin-runtime.test.ts",
+      "sha256": "6b08d5e8650351b735a619477e4bfe48c8037cc06593b62a70611e14adf66844"
+    },
+    {
+      "path": "src/lib/storage-admin-runtime.ts",
+      "sha256": "5f1c1568425e79c2f2dae6149298d1d1951400baed0c9e685d2b2a31348abfab"
+    },
+    {
+      "path": "src/lib/storage-admin-status.test.ts",
+      "sha256": "d1fc411bbab7e5cf2eed8e6b7a468ec206bec7f2acb3fb580321853ac80bbd01"
+    },
+    {
+      "path": "src/lib/storage-admin-status.ts",
+      "sha256": "5331649dc4070f0946cee880a625a3a90873ffc64b06160b2ba499f7528057a0"
+    },
+    {
+      "path": "src/lib/storage-administrative-recovery.ts",
+      "sha256": "a37c89cb82d908f306cf91c77e8816b77d3e4bd84435b8feb1150cf1d16cce0a"
+    },
+    {
+      "path": "src/lib/storage-android-recovery.test.ts",
+      "sha256": "51dc57e56c65a014f91d27fbc33a30178c29557e979880dc073a0dfc7ed6bfd6"
+    },
+    {
+      "path": "src/lib/storage-benchmark.test.ts",
+      "sha256": "f7b93f4a6dd13f395da63ece5b4c4022ea17f220c5564c1d983734744085c09f"
+    },
+    {
+      "path": "src/lib/storage-boot-recovery.test.ts",
+      "sha256": "20d039e7c09b96a98cd335cd8bd1e87fb05b6ba330953fa5a5c262862e146096"
+    },
+    {
+      "path": "src/lib/storage-boot-recovery.ts",
+      "sha256": "c41af9b8edb9afd78fe18ff519d59b81c335d4b3f88b830f2901f744bf888257"
+    },
+    {
+      "path": "src/lib/storage-completion-receipt.test.ts",
+      "sha256": "d6780af46b6fdd70a621ea819a8d99ace08962d893b4ac6793af3dd0612d6e08"
+    },
+    {
+      "path": "src/lib/storage-completion-receipt.ts",
+      "sha256": "8005f6f31d697551129fa6f8f18b26e7d4e33fe69c80e4ea43c48ed92f3d5733"
+    },
+    {
+      "path": "src/lib/storage-export.crossplatform.test.ts",
+      "sha256": "1567f942e2110f72fb0cd2c39cd7ac2e85b87be4edd972991eb121bc09a1df00"
+    },
+    {
+      "path": "src/lib/storage-export.test.ts",
+      "sha256": "5cc4564b5220fce4494b07a2eb3ef5b100f42d39db3a03e87b355250ef063d39"
+    },
+    {
+      "path": "src/lib/storage-export.ts",
+      "sha256": "6efde24094f15f5b2e5ae518f4153a3473c3af62631c6ca62131feba2c0a6479"
+    },
+    {
+      "path": "src/lib/storage-history-integrity.test.ts",
+      "sha256": "7353606724d90e9949730f338ad3df071dfcc7b27c83b4a2a5cc474e737c8df9"
+    },
+    {
+      "path": "src/lib/storage-history-integrity.ts",
+      "sha256": "a8b421693c49027098d76278247a759ffac4b36600d4fe2871064f38d373d701"
+    },
+    {
+      "path": "src/lib/storage-history-migration.test.ts",
+      "sha256": "e6432bd88e970e534762543b75b2144030259ee9db32ee92ff281019c99035bd"
+    },
+    {
+      "path": "src/lib/storage-history-migration.ts",
+      "sha256": "2650e965e3e9ed94492222c84afbc64957aa4318c1c9bbda6fc19324d0e91b3e"
+    },
+    {
+      "path": "src/lib/storage-hybrid-enriched-roundtrip.test.ts",
+      "sha256": "78f568c098064cd9e6b0c76f54f8d241631b46ef2a8205b9a09a890f83c5be41"
+    },
+    {
+      "path": "src/lib/storage-hybrid.test.ts",
+      "sha256": "5e1ed6c7451841d7f5578f3641c1c4c65edd1f73a156653fe615bf9b25840f33"
+    },
+    {
+      "path": "src/lib/storage-hybrid.ts",
+      "sha256": "365016442e4577c6d14cb2687453fe888b13dc1fc2387e4cae33e243cf351daf"
+    },
+    {
+      "path": "src/lib/storage-indexeddb-nutrition-bridge.test.ts",
+      "sha256": "9e61f09da137493c1a52ff24dd25c80b836c4ba92017b61fc7bca41f7579158b"
+    },
+    {
+      "path": "src/lib/storage-indexeddb-nutrition-cross-tab-lock.test.ts",
+      "sha256": "22d20f24bd46ac01d856cddb55c007076e3521aee43bbd034b3a75862e0424a9"
+    },
+    {
+      "path": "src/lib/storage-indexeddb-nutrition-fence.test.ts",
+      "sha256": "f0fcbade9bc2ffdde897dfc12cf29982722f4f933de5a242d04532623d6dc937"
+    },
+    {
+      "path": "src/lib/storage-indexeddb-nutrition.test.ts",
+      "sha256": "b0fa5a26cc266eb956f9f71b009b95f42135ed7a2a42d0c983afa7f9886e3887"
+    },
+    {
+      "path": "src/lib/storage-indexeddb.test.ts",
+      "sha256": "d4db3cd506df80319cfedfee53857b8933327f2b5a6ff29f4f8bd5c3416b11a9"
+    },
+    {
+      "path": "src/lib/storage-indexeddb.ts",
+      "sha256": "fcfc43fb6f4be8049b580e2007a8b992b67433ac5a5038850f922144f7ed3a60"
+    },
+    {
+      "path": "src/lib/storage-logical-backup.test.ts",
+      "sha256": "1d6f1858ed4d1239754cbf34c5441d00410f74120091aff5c201d58e69f98e58"
+    },
+    {
+      "path": "src/lib/storage-logical-backup.ts",
+      "sha256": "3521131db2ad80cde9d86abacd2c1e3b2047ba4ff5d72a25b26be27e87214f91"
+    },
+    {
+      "path": "src/lib/storage-logical-import.test.ts",
+      "sha256": "fd7d82de9245f96635175e774b59725764c9fd20152dd4fb4a69e97eb24b4577"
+    },
+    {
+      "path": "src/lib/storage-logical-import.ts",
+      "sha256": "3da4b580e3c04536f9d221dff6861177529a2d79c0c079c25ac36f4fd5f80453"
+    },
+    {
+      "path": "src/lib/storage-logical-reset.test.ts",
+      "sha256": "8b44f3c6ad6a2105ff0a3be195771a29969de905da11aa012d51f3be6165979f"
+    },
+    {
+      "path": "src/lib/storage-logical-reset.ts",
+      "sha256": "3b1a7b46cfe54ceafed2bfc4049dac4b330365c87a3f8dd1d031b3983b417527"
+    },
+    {
+      "path": "src/lib/storage-logical-restore-resolve.test.ts",
+      "sha256": "136078fe72198487a54c29aa075d8b363fd4b7c61870c76304de86a1ea06d769"
+    },
+    {
+      "path": "src/lib/storage-logical-restore-resolve.ts",
+      "sha256": "efee9e54c18c4cc72dd6d6368bbd7968351f0e6fc7c1bfbc9ff70dc73395cd7d"
+    },
+    {
+      "path": "src/lib/storage-logical-restore.test.ts",
+      "sha256": "3cbe46f4110a4e92c0727e95cb169e642639f7ca630b67a295330dbc4905c09c"
+    },
+    {
+      "path": "src/lib/storage-logical-restore.ts",
+      "sha256": "0d2a3aeb804707d70ce0f6f2c438e0ab1c47eac1e484d975f108e920dc5b8d78"
+    },
+    {
+      "path": "src/lib/storage-migrations.test.ts",
+      "sha256": "ebf65781d147f2f6a7d3c3732496449f2836fe462a0894e0c6424d4ee555b7ba"
+    },
+    {
+      "path": "src/lib/storage-migrations.ts",
+      "sha256": "1d520cff516cb51bc863adb85e2144aade077fd6baacd308d676aeea0a8620fb"
+    },
+    {
+      "path": "src/lib/storage-native-export.ts",
+      "sha256": "565aa8903f540ccd225e4661c96716aebcded7a3415a2176c14017504c83d8b6"
+    },
+    {
+      "path": "src/lib/storage-nutrition-ledger-admin.test.ts",
+      "sha256": "f2615e72340e82b2f4ac128005ecad2f86ffe005c4adcb0ffba594f8b9ea4f32"
+    },
+    {
+      "path": "src/lib/storage-nutrition-ledger-backup.ts",
+      "sha256": "5ed392d5c7ac6f98f47d963ea9598b0f84bf5fdf0c79b1029ada0f85f8fa7934"
+    },
+    {
+      "path": "src/lib/storage-nutrition-ledger-recovery-nolock.test.ts",
+      "sha256": "f20f0c8a83b58d10cba36741d5fe11bb93972cab58299719d4f2aa0c04f86c18"
+    },
+    {
+      "path": "src/lib/storage-operation-receipt.test.ts",
+      "sha256": "05dc202e41318b1b516a718c340efc7d1dbfadfc835f731d574dc2d60fc298f5"
+    },
+    {
+      "path": "src/lib/storage-operation-receipt.ts",
+      "sha256": "900423d50fa813efe5ac79ccff94afb41d30c473736c1dfccb61c9381b6dfee6"
+    },
+    {
+      "path": "src/lib/storage-retention-decision.test.ts",
+      "sha256": "1efc2eb3dc0111e82effc34c3c0f0266a6418918610cbc80fb1941cfa98998f3"
+    },
+    {
+      "path": "src/lib/storage-retention-decision.ts",
+      "sha256": "fc7d9d2107ad4edae69d3d2de5dae8f2e8afcd177222eacae75a27cef7985c90"
+    },
+    {
+      "path": "src/lib/storage-retention-evidence.test.ts",
+      "sha256": "933b81ef4d02a7d7c7960412a996f9485e88c0e81b00390d0a96e20d107cd798"
+    },
+    {
+      "path": "src/lib/storage-retention-evidence.ts",
+      "sha256": "c1005af0a685b47422759d147810beeee691db17de8298605f0bac295228eeee"
+    },
+    {
+      "path": "src/lib/storage-retention-policy.test.ts",
+      "sha256": "cd02748dda5b8ed2cd7fcc1dc4c025363868b989929bed37466facf21fbbcc95"
+    },
+    {
+      "path": "src/lib/storage-retention-policy.ts",
+      "sha256": "a967ac33d1f1bb93352c8a5336d1a267ef890a8c5143d1cf7e31aa4f5bb77e84"
+    },
+    {
+      "path": "src/lib/storage-retention.test.ts",
+      "sha256": "4099ae26aaface3497fa15a75fc54d998b9c423d8f1cdcbdee2b6b7ef8521a34"
+    },
+    {
+      "path": "src/lib/storage-retention.ts",
+      "sha256": "9f36e795f0ce2216c56117442674429c8a815e8b5aff2159806ff17326ded57f"
+    },
+    {
+      "path": "src/lib/storage-retirement-contract.test.ts",
+      "sha256": "950e7fb14159ffa001517ad604109f241cf4390b2424520dea35dc109ba0a284"
+    },
+    {
+      "path": "src/lib/storage-retirement-contract.ts",
+      "sha256": "f705daa068d7a003941f38eb5c293eda2606942f98b1f60e516a39b6cbe8ebe3"
+    },
+    {
+      "path": "src/lib/storage-retirement-journal.test.ts",
+      "sha256": "ab600301218c3c70941d6ff77627b43681779646baa1003b348bbfcc0ccb9263"
+    },
+    {
+      "path": "src/lib/storage-retirement-journal.ts",
+      "sha256": "cdfdd1307da2654bbb0777202c25776e5e128c2bd96238a744401cf15a80d0a7"
+    },
+    {
+      "path": "src/lib/storage-retirement-proof.ts",
+      "sha256": "2a1a888cb94f07c9e497a34567bf6eb3a0e9521e6d6a40314d5605027ab65d24"
+    },
+    {
+      "path": "src/lib/storage-retirement-readiness.test.ts",
+      "sha256": "30f5b28228d6ff351342e6ef9046ddb83640b44adef21d536650ec8d433c8097"
+    },
+    {
+      "path": "src/lib/storage-retirement-readiness.ts",
+      "sha256": "7131deef42a13d4de8c782c52b264dee96ae7f20722aa68919f96b6b940cef92"
+    },
+    {
+      "path": "src/lib/storage-types.ts",
+      "sha256": "5ed1b61c05fa9f43e3f2026521f6f7d906948402e8f547afe6fc2618cddf80a8"
+    },
+    {
+      "path": "src/lib/storage-validation.ts",
+      "sha256": "d6596708a31bae1ba662260ccff5f61a71ebdeb9e083eb8afdfb5bbb22c9e423"
+    },
+    {
+      "path": "src/lib/storage.test.ts",
+      "sha256": "c1e180dbaf4a39092cee88f86a478660a052c7ef829bfb2dd80f0ba2cd743ff3"
+    },
+    {
+      "path": "src/lib/storage.ts",
+      "sha256": "6fc15d3a8b74793e955315a4c36a60eb8ffe57d91733bceb1ddfe94024619128"
+    },
+    {
+      "path": "src/lib/techniqueFrames.test.ts",
+      "sha256": "6efb954a4af9f9087879fb7c2acaa2d88b1d6f7cadfccd177cc834a948f73223"
+    },
+    {
+      "path": "src/lib/techniqueFrames.ts",
+      "sha256": "add2b4e3319c78ec83dfe634da766ea7fcf422188e6ddedf4deae795c621d7d0"
+    },
+    {
+      "path": "src/lib/training-action-guard.test.ts",
+      "sha256": "855149978a307d8d5fd1a006b14476065141fb9b72d986e951c7b850855a8700"
+    },
+    {
+      "path": "src/lib/training-action-guard.ts",
+      "sha256": "3161c9f9c46c9c40e3e366118fa63354bb629cfe58eaeae00dc7d0de50392a81"
+    },
+    {
+      "path": "src/lib/training-plan-assessment.test.ts",
+      "sha256": "5feac843fb234e945712af3d5e350b20a8bf0ad52c23cd77ffb369126a7176e1"
+    },
+    {
+      "path": "src/lib/training-plan-assessment.ts",
+      "sha256": "307893b6e48b7eea05398366eb41255de7d2d971f373f1804d97af3a13a6bcf7"
+    },
+    {
+      "path": "src/lib/training-plan-assistant.test.ts",
+      "sha256": "d0c15c5154cee8e5f4dded26cee523bbd3cebbca330147bf15231525d5bd98fa"
+    },
+    {
+      "path": "src/lib/training-plan-assistant.ts",
+      "sha256": "b53009df9ba9648c53435f73c6d23ee8a048fbb4ea381559949a32ccce363530"
+    },
+    {
+      "path": "src/lib/training-profile.test.ts",
+      "sha256": "2b708fe9c1308f0bc2802537a4070c4d74d425d941d657524c288c3412b4ae5d"
+    },
+    {
+      "path": "src/lib/training-profile.ts",
+      "sha256": "2ea4bc10faf3e96ee49fcefb2f80f77f3c2612b7a76474e7d81ea7a524a8dcd0"
+    },
+    {
+      "path": "src/lib/training-taxonomy.test.ts",
+      "sha256": "1e76226653405da632551a0bfde5552cebce7c19f5a8f7d4c1b273a5d976fa89"
+    },
+    {
+      "path": "src/lib/training-taxonomy.ts",
+      "sha256": "a6df722156b64c81de0e3ebe6ef62d02069b9a80adfe2fb66deb0d8a1a3c5de7"
+    },
+    {
+      "path": "src/lib/training-volume-rules.ts",
+      "sha256": "8babc0ea7a7164d36081435b7b770bc0d9f43df33e177479f5a9f59c347a2a32"
+    },
+    {
+      "path": "src/lib/training-volume.test.ts",
+      "sha256": "0acea4dfed19189637f9901420230a9de99ddbe4ab247305ab27dd705365f8b5"
+    },
+    {
+      "path": "src/lib/training-volume.ts",
+      "sha256": "41eec45f6c0925ef2f0a805c8667a9daaf302362f90c4909e3b97683ee7a72ab"
+    },
+    {
+      "path": "src/lib/training-week-summary.test.ts",
+      "sha256": "c04efaa6be3f327166bd828fb1678d6f69aabbf22ae898e323609d54951a9d5b"
+    },
+    {
+      "path": "src/lib/training-week-summary.ts",
+      "sha256": "25e1ef23f58e7e25f0232bc130de0954972da5ba2c0e32a72155fc63bce4b6fe"
+    },
+    {
+      "path": "src/lib/use-training-dialog-focus.ts",
+      "sha256": "3815721407b92df6b7d47e8727162fccde68129515aae6d8e573f8c03f0158f5"
+    },
+    {
+      "path": "src/lib/utils.ts",
+      "sha256": "6646b373ff8df919a16f37afaa2a1db98046ef4daaa140dc116c0d2f61b80dcc"
+    },
+    {
+      "path": "src/lib/view-navigation-guard.test.ts",
+      "sha256": "9d64d96d78473e248e31a77ccee9eefcc4d6bbcac7734bc194a27275dce1fa59"
+    },
+    {
+      "path": "src/lib/view-navigation-guard.ts",
+      "sha256": "10b7b36b0f94e531ecdc17124f6c375e56f48e685627df32762e57d0109df195"
+    },
+    {
+      "path": "src/lib/volumeProfiles.ts",
+      "sha256": "dc7c040b5b5b5343c3cd13a5d75a125991b2c35056368afed71aa03514107edc"
+    },
+    {
+      "path": "src/lib/workout-builder-id.ts",
+      "sha256": "e036d2dd07a174c0729786cbb0dbbd1e5766942ed7b4fbdce46a386fa7768e23"
+    },
+    {
+      "path": "src/lib/workout-builder.test.ts",
+      "sha256": "274da630c159c80f266fc1f09369d14cdf504d4890fd093034d08ac560e796a0"
+    },
+    {
+      "path": "src/lib/workout-builder.ts",
+      "sha256": "6dc65f47e5ac011aff0e4b083f313f7396b183dc4f7ad480a95750ae560964d2"
+    },
+    {
+      "path": "src/lib/workout-day-naming.test.ts",
+      "sha256": "d81d9fbcef3b375c428a4847643e82841e33c8d79bc75da111b7775ba9b1ae15"
+    },
+    {
+      "path": "src/lib/workout-day-naming.ts",
+      "sha256": "1637275b1996aaecbda5f45ca1bb405ff5e65b10f9d4cc54addbb18e493108d1"
+    },
+    {
+      "path": "src/lib/workout-guided-creation.test.ts",
+      "sha256": "5d066deb5900243a634cd1e7ad0d8d23abbae365163beed131677362fe6ae281"
+    },
+    {
+      "path": "src/lib/workout-guided-creation.ts",
+      "sha256": "55cab4305cac08a5b40625dc77811e92753fa0b04d502a98eb26e49e6aab07ea"
+    },
+    {
+      "path": "src/lib/workout-picker.test.ts",
+      "sha256": "48fe0b1738442947b3b441e024bd918d3ed1b64f8d7b66a20fa035d2508db68f"
+    },
+    {
+      "path": "src/lib/workout-picker.ts",
+      "sha256": "4863b81726b7ed344adb349c884e159e87668bf157fd6ecebfe0f0fe81ad59d1"
+    },
+    {
+      "path": "src/lib/workout-plan-sync.test.ts",
+      "sha256": "84dbe2d6edc49adc23e57e62a230f151e2c96f5c0e276d0a01510fd7332fc8dc"
+    },
+    {
+      "path": "src/lib/workout-plan-sync.ts",
+      "sha256": "d09b6023ce7e06eb3f810fcac3b5dbf3049036e989ffeb03c3bc1c5f22c52083"
+    },
+    {
+      "path": "src/lib/workout-program-actions.test.ts",
+      "sha256": "420859a8b81a3b341d918b3a36b3af221859f59493337ef5e4a01e179ca94951"
+    },
+    {
+      "path": "src/lib/workout-program-actions.ts",
+      "sha256": "5d15f53bc28e8453df086a6042ae29d3f48f820a0811ca00a0bfab07bdf51eb0"
+    },
+    {
+      "path": "src/lib/workout-program-days.test.ts",
+      "sha256": "2c031380fdd405d67f8b5c3562ea3277827871e4b1f5a8992a9e0dfd36759959"
+    },
+    {
+      "path": "src/lib/workout-program-days.ts",
+      "sha256": "ad92a42678ba763d414489d59e29934142b45d309665eac1888feac8537627b1"
+    },
+    {
+      "path": "src/lib/workout-program-normalization.test.ts",
+      "sha256": "253815c0d22d8cd91e85138ab8c9371dd4f551364a9fa51356f64cf529cafc81"
+    },
+    {
+      "path": "src/lib/workout-program-normalization.ts",
+      "sha256": "d6fde4b0936d1b86080ff6e81e2fb827c27ff624f872d62c10e1f0f94cccdfcc"
+    },
+    {
+      "path": "src/lib/workout-session-domain.test.ts",
+      "sha256": "2a8e237dff9b7739358a83a6741ea959aede38ce4c5f765cd99aee80ecb2c6d0"
+    },
+    {
+      "path": "src/lib/workout-session-domain.ts",
+      "sha256": "003be5b4845b60ee9b61cebb9e57ff2945b9395ab318390230976107842794c9"
+    },
+    {
+      "path": "src/lib/workout-session-migration.rir.test.ts",
+      "sha256": "29828e162b64a5262982f5c3affcac92c8353a9b47b6db7c92d45e8f0a2223f8"
+    },
+    {
+      "path": "src/lib/workout-session-migration.test.ts",
+      "sha256": "6a4414439fdede9c72cc2058e346893105a5ac04183ef5fbe4ac8903b11b7649"
+    },
+    {
+      "path": "src/lib/workout-session-migration.ts",
+      "sha256": "6a0facb102813672ef4561aa3779515f1c4a5d1edf71bd18f140818ea9140ee4"
+    },
+    {
+      "path": "src/lib/workout-session-mutations.test.ts",
+      "sha256": "379094f31c6f07a4b3703f52e16140e7f1ab7bd90f4e12d3fbbddf21d341279f"
+    },
+    {
+      "path": "src/lib/workout-session-mutations.ts",
+      "sha256": "76ca327abaf2e905f5a5e85a57ed9104f93bb6900089664dc21866492363a036"
+    },
+    {
+      "path": "src/lib/workout-session-origin.test.ts",
+      "sha256": "970dde8623f8fd8b89a5d6c3e8d345fbfd834d87ba5de9455360707c26a1fbb7"
+    },
+    {
+      "path": "src/lib/workout-session-origin.ts",
+      "sha256": "56a3f6fe40e89624a499782119d7804e6dbabdc85bf497cb867533f8672045db"
+    },
+    {
+      "path": "src/lib/workout-session-runtime.test.ts",
+      "sha256": "d1414b9446c113a6b1f7dfcff2cf87825ea8b32b7abd5314516b5f09a6a15e5a"
+    },
+    {
+      "path": "src/lib/workout-session-view.test.ts",
+      "sha256": "06b75a6c96e5ae2b787aa8faffed197222c401d3ddec41cb1b71a083a7b64768"
+    },
+    {
+      "path": "src/lib/workout-session-view.ts",
+      "sha256": "911d478055f6cbcdb68488c18935b4dc60d687cc0dcd5093d378453c4f75c6f8"
+    },
+    {
+      "path": "src/lib/workout-suggestion.gym-profile.test.ts",
+      "sha256": "73bb0e77883dda257efec8f8092b73d988e20bbf129cd01b9eedf69ddb6ff6b8"
+    },
+    {
+      "path": "src/lib/workout-suggestion.test.ts",
+      "sha256": "24b46f5a2b018fa5625ea4666a4f488129cd521814dae6c1d0ad9e14fea306aa"
+    },
+    {
+      "path": "src/lib/workout-suggestion.ts",
+      "sha256": "d8f765414b606ce2a81c053c3160fd9abf1c6abcb17d3d4ee95381d78c55bba8"
+    },
+    {
+      "path": "src/lib/workout-templates.test.ts",
+      "sha256": "05afc352b1a903f9891ead91226dd4e882b05e8c950a12295dcf1cc778ce0540"
+    },
+    {
+      "path": "src/lib/workout-templates.ts",
+      "sha256": "018c1421bbbabc69552ac58a849b66dbef7ab8c149c95a2dc8c7bd45d20266db"
+    },
+    {
+      "path": "src/lib/workout-time-fit.test.ts",
+      "sha256": "ae27a358f646cac0044be5898f8d97ef864c3ef74dc985533d18baa246943502"
+    },
+    {
+      "path": "src/lib/workout-time-fit.ts",
+      "sha256": "8ebf76a2e7fd8331651e4b600206cd175f103c529c35d8ff9aedadc89472a532"
+    },
+    {
+      "path": "src/lib/workoutDuration.test.ts",
+      "sha256": "bb46cc79ce140d3b379c76136c9e5c1fb6d29cd909d02ce825750f19e133ba54"
+    },
+    {
+      "path": "src/lib/workoutDuration.ts",
+      "sha256": "b008052121d54b84b3d6c7fca90450563b7b444eb3ebce57601be31a726cf9b5"
+    },
+    {
+      "path": "src/mock/community.ts",
+      "sha256": "b5d7e0d9528d1517f7ab0a6993fec0a2494166b50e626d3c2dd035cb102765c6"
+    },
+    {
+      "path": "src/mock/data.ts",
+      "sha256": "5325bad913adadd9636e5406eb4462e216aff3623544fcb9aa01c53bb7d9893d"
+    },
+    {
+      "path": "src/mock/exercises.test.ts",
+      "sha256": "24e30714cc263a2b891a27f6c73fdac70a53bebdca1348b3e483beda1d56b430"
+    },
+    {
+      "path": "src/mock/exercises.ts",
+      "sha256": "607448d0b7cfbf62f1f9442cbf7a9a40b8effe938ea0feef86a55837e38d8c91"
+    },
+    {
+      "path": "src/mock/gamification.ts",
+      "sha256": "fbf7c90676a3ba783714ec7455672824cb3aae311186e6c50fc47753de8d8edd"
+    },
+    {
+      "path": "src/mock/programs.ts",
+      "sha256": "75d072d3b5a13f317f09dc540a08ef3e21ed225f4dfc336940362f8071fe3269"
+    },
+    {
+      "path": "src/mock/videos.ts",
+      "sha256": "9fcb9e60c2b3dab4ed8d18495eaa53a957a520235f9d7a91d53b67ff2617e246"
+    },
+    {
+      "path": "src/modules/ActiveWorkoutPage.tsx",
+      "sha256": "54577a9a2d55af54858782cb65ef40a22375ab0315a58f54778cdc540b69ee65"
+    },
+    {
+      "path": "src/modules/AdminPanel.tsx",
+      "sha256": "164102dda05ca9ddd330ff7948eeff1c63531c831bb0c3c5f6ea3f23d52d8be4"
+    },
+    {
+      "path": "src/modules/AiCoachChat.tsx",
+      "sha256": "f18f8e6a8ea07432df2fe33d6eee02b23ebe6ed2f27498a45217b7cd42082abb"
+    },
+    {
+      "path": "src/modules/AuthPages.tsx",
+      "sha256": "6c1f3345b32d20479f5d17807082b8e836315d3ef83942b167f90311585c290f"
+    },
+    {
+      "path": "src/modules/CommunityFeed.tsx",
+      "sha256": "1808d9e489fa2787c512725b2572cac0c120d8593bb3847a4ada9e8f383f7d47"
+    },
+    {
+      "path": "src/modules/Dashboard.tsx",
+      "sha256": "6fa9eb0d84b55193207153ddc62f4ae0ed24cd8c9bf4e60a5988dd97045b85a0"
+    },
+    {
+      "path": "src/modules/EducationalVideos.tsx",
+      "sha256": "0d88a6070a10954c01a598d5f6d19204d1f066bd7c799700020bd56b8e9b683c"
+    },
+    {
+      "path": "src/modules/EvolutionDashboard.test.tsx",
+      "sha256": "2ce4405465950827476eba37dd496d330c479d42c495741fbaac59a503353b0d"
+    },
+    {
+      "path": "src/modules/EvolutionDashboard.tsx",
+      "sha256": "2eca697bf2c3aad03e63c046468f6c3a704cfb7f2f5cafd97de4fb82a86ac269"
+    },
+    {
+      "path": "src/modules/ExerciseLibrary.tsx",
+      "sha256": "0abf9a40e3c3aee1eb4d2dc343b19471e1ea57e50e330dd2989681727120d0c2"
+    },
+    {
+      "path": "src/modules/LandingPage.tsx",
+      "sha256": "9cd77772cb4b8222ce4d8fcdb7d01544c567aefe47dddc459fe63f930c145bbd"
+    },
+    {
+      "path": "src/modules/NutritionPage.test.tsx",
+      "sha256": "c726dce0d7f66a56d5f0dcce045f74c88dea2a67452f24114dd853e69c08deef"
+    },
+    {
+      "path": "src/modules/NutritionPage.tsx",
+      "sha256": "462baab6b7ad62afe4d1cf18aed53c0ded209a7b73ed8ff649487a48c96910c3"
+    },
+    {
+      "path": "src/modules/OnboardingFlow.tsx",
+      "sha256": "95de0e05b5f2b0490b1db4aa642e7c1e7c358ea1b5a6e682c9e7081b2e9907c8"
+    },
+    {
+      "path": "src/modules/PlannerView.test.tsx",
+      "sha256": "677de9e61e9d9e7813e52d8d8a0d9c0e14f08ffc5bf63af5fecaeefe4ebb242f"
+    },
+    {
+      "path": "src/modules/PlannerView.tsx",
+      "sha256": "7e9acf883e3ef248c12206082b29190edfd327040a077a0605354719bffa503f"
+    },
+    {
+      "path": "src/modules/PremiumUpgrade.tsx",
+      "sha256": "d207c3cbbc9f73b0a4727d6d2cbca2dca4849ef73f7163e8d118a63fe096b558"
+    },
+    {
+      "path": "src/modules/WorkoutBuilder.tsx",
+      "sha256": "f0fd6728a16fc6dd73db63c59025a368b98db6f121884a0fcac005ee66d9f232"
+    },
+    {
+      "path": "src/modules/WorkoutsTab.test.tsx",
+      "sha256": "b1ae69fa6c2151e85e191c9bc931e03386411c3e3ef750ac2f25585d177be78a"
+    },
+    {
+      "path": "src/modules/WorkoutsTab.tsx",
+      "sha256": "adecce3be4fe25ec22bfe13d039dd4825db5ef2e1412a4b5126a6b74b87855b9"
+    },
+    {
+      "path": "src/providers/GymFlowContext.logical-import.real.test.tsx",
+      "sha256": "77324161fab72db263b29759b760d0b5bc44c7192382f528f4f1775a94454041"
+    },
+    {
+      "path": "src/providers/GymFlowContext.logical-import.test.tsx",
+      "sha256": "292dc51a9d1d042753e77d11d4e9ad95151c19909c18f3ed054320d9fc069fa1"
+    },
+    {
+      "path": "src/providers/GymFlowContext.logical-reset.real.test.tsx",
+      "sha256": "ba39cf5e37ce4b82eb302c9ab47d0f1f9d0616052fd9b05043bc335019766a8d"
+    },
+    {
+      "path": "src/providers/GymFlowContext.logical-reset.test.tsx",
+      "sha256": "ba8ad83822030a743b00c28f3abb07727a001588937d9959801e503163d868f2"
+    },
+    {
+      "path": "src/providers/GymFlowContext.logical-restore.real.test.tsx",
+      "sha256": "ad3dd8b19ffcef83d3711b0e6cf2701deb4c5cd90eab19ba2652720afe6b1c0a"
+    },
+    {
+      "path": "src/providers/GymFlowContext.logical-restore.test.tsx",
+      "sha256": "60bcfed5915d12bb41e058068cec3617c61a56c3f0c5d963bda747fa28236ed5"
+    },
+    {
+      "path": "src/providers/GymFlowContext.nutrition-admin-fence.test.tsx",
+      "sha256": "9d41e82b570ee6cb7e044fe772d3072fb684968584e9c0acd55a57d314441f70"
+    },
+    {
+      "path": "src/providers/GymFlowContext.nutrition-admin-gate.test.tsx",
+      "sha256": "cfbaedfbdb6c98880a08b48aacdae9eb99ab5d999cf33f0a6708afbd60a9b7a1"
+    },
+    {
+      "path": "src/providers/GymFlowContext.nutrition-bridge.test.tsx",
+      "sha256": "2a4145e322e78a2944aa43bec5066a09db0af85ec339fe24fd961bf489d2782f"
+    },
+    {
+      "path": "src/providers/GymFlowContext.nutrition-cross-tab-lock.test.tsx",
+      "sha256": "96a226d3cc42ed54d584357d172f9ee936de6716ea95ebd08f2a9d7daff226c4"
+    },
+    {
+      "path": "src/providers/GymFlowContext.nutrition-inflight-race.test.tsx",
+      "sha256": "e5eeb66ed53406b3ac802e9e0346e9a4d1269eb7f80b2cd9d74b76a171a45b51"
+    },
+    {
+      "path": "src/providers/GymFlowContext.nutrition-lifecycle.test.tsx",
+      "sha256": "6a824ef08b54096ff90bcc7203619808704f8b7fe60b5fd6a9cfb40b648cfb67"
+    },
+    {
+      "path": "src/providers/GymFlowContext.nutrition-nut006.test.tsx",
+      "sha256": "43ed1ce2654cf74f48b500340459abe12d4150f616c04ad78f3bed08df70ced9"
+    },
+    {
+      "path": "src/providers/GymFlowContext.nutrition.test.tsx",
+      "sha256": "ec71e89475ce22c12c191f781a602aa965b5ff0a9a45ccec7959b550cd0cbbad"
+    },
+    {
+      "path": "src/providers/GymFlowContext.storage-recovery.test.tsx",
+      "sha256": "f47e5e749fe3f0822cfd21f20a64db412a3379bddace82950ef54b7035e867b0"
+    },
+    {
+      "path": "src/providers/GymFlowContext.storage.test.tsx",
+      "sha256": "90c69b5d42c0ec41375664f9aefd22be36cc57b6edb654ffd21902f3d6fba144"
+    },
+    {
+      "path": "src/providers/GymFlowContext.tsx",
+      "sha256": "5fc97972aa15ae225e8383543a1076d284437576ef3cd20762d7dd50d7c86814"
+    },
+    {
+      "path": "src/providers/nutrition-provider-test-readiness.ts",
+      "sha256": "fd97502bdf52e34fa38e92596f5e7115bd641ea1f72bdce6a6039cbfa387db8c"
+    },
+    {
+      "path": "src/providers/probe-real-roundtrip.test.ts",
+      "sha256": "616fa3857c40531c9497eb9d0cf7aee9ea153915bb454a9fe455054fa9e58ee7"
+    },
+    {
+      "path": "src/types/index.ts",
+      "sha256": "21b95a9ea242d93b57873432dbfbdcddb14cca8f4c02cb4b50afb3f7bdacf615"
+    },
+    {
+      "path": "src/types/nutrition.ts",
+      "sha256": "1e62a70cf3aab9edf70a49ada6a0e52576a0e5aed2b8e0ab2e7bdb4107c6d90b"
+    },
+    {
+      "path": "src/types/training-profile.ts",
+      "sha256": "497ab154602b09cce876c0f141665a157cc920852f608ecf94385196dc623093"
+    },
+    {
+      "path": "src/types/training-taxonomy.ts",
+      "sha256": "d03c93397f1d6f8ec3a4d99cc6943de606dbce8ef90a5084f7cc80feb64d060e"
+    },
+    {
+      "path": "src/types/training-volume.ts",
+      "sha256": "61ca3d3281bb6b38cb44aeeb47254218b4454c00226d52cb6dfdef7778738539"
+    },
+    {
+      "path": "src/types/workout-builder.ts",
+      "sha256": "abd4f712fad81202e32e66a3cde5e2a50784ba76d08a4420c6b6216bb1810e86"
+    },
+    {
+      "path": "src/types/workout-session.ts",
+      "sha256": "463293238f3f3af2565081f325c8c1c34b5b5c7a90995d432edd253d68e5e220"
+    },
+    {
+      "path": "src/types/workout-templates.ts",
+      "sha256": "d4b19c2be80c677d7e6f5092340dfec83001e21b7755ea8b76949e3d04715cb9"
+    }
+  ]
+}

@@ -4979,3 +4979,11 @@ S22-122-02 — correção e reteste do candidato (2026-10-01)
 **Publicação:** worktree/branch limpos sobre origin/master 98003d9bf0547d8c750b0e66f590a7aa4f6a382e; sem amend/rebase ou push dos três commits locais. 242.538.700 bytes de binários no arquivo local; os 29 PNGs somam 64.491.019 bytes e não vão ao Git neste GOAL. Publicados somente duas referências originais, folha final derivada e documentação/contrato/metadados essenciais. Nenhuma geração nova, public asset, manifest ativo, mídia approved ou CDN alterados.
 
 **Validação/revisão:** evidências em docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/validation-final.json e GOAL_125_CHECKS.json; revisão independente somente do fechamento/skill em INDEPENDENT_REVIEW.md. PR/CI e merge commit dependem de checks verdes e revisão sem P0/P1/P2. Próximo lote exige GOAL próprio; sem integração dos 29 PNGs no app.
+
+## GOAL-127 — Fechamento humano do lote de pernas (2026-10-03)
+
+**Antes/depois:** lote GOAL-126/R1 com 10 exercícios, 30 candidatas, 71 tentativas e revisão do agente 1 CANDIDATE_OK/9 NEEDS_HUMAN_REVIEW → decisão humana PASS_9_SEQUENCES_ONE_DEFERRED: 6 aceitos, 3 com ressalva, 9 sequências de três = 27 frames finais. Sissy técnica DEFERRED por endpoint/biomecânica sem confiabilidade; 01 somente GALLERY_COVER_CANDIDATE_ONLY, 02/03 fora de FINAL_SELECTED, sem TWO_FRAME_EXCEPTION.
+
+**Preservação/publicação:** agentReview inalterado, humanDecision separado; 847 protegidos/referências/public assets/manifests/aprovações existentes intactos. 71 tentativas e 30 candidatas locais em 043e8e8/dce5b1d, sem envio. Entrega compacta em codex/goal-127-media-legs-close sobre d8887ef, sem os dois commits na ancestry; único novo binário folha FINAL 1431730 bytes. 27 selecionados=57079437 bytes; attempts=148326199 bytes. Nenhuma geração, integração ou CDN.
+
+**Contrato/entrega:** apenas DEFERRED_SEQUENCE_POLICY adicionada à skill: falha de 01/03 após bounded attempts exige deferred, frame correto cover-only e GOAL futuro. Fechamento/manifest/decisão/proveniência/medições/validação/checks e revisão independente no staging. Push/PR/merge commit somente com CI verde e P0=P1=P2=0; evidência Git/CI final no recibo local após merge. Nenhum próximo grupo iniciado.

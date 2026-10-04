@@ -1,0 +1,3253 @@
+{
+  "goal": "GYMFLOW-MEDIA-LEGS-BATCH-CLOSE-127",
+  "batchId": "GYMFLOW-MEDIA-LEGS-BATCH-001-126",
+  "sourceLocalCommits": [
+    "043e8e811d6cf6d301ff7aa94869b085928823e4",
+    "dce5b1dc0a2e010fdd0d9f4c4330254fd51ad48f"
+  ],
+  "historyDisposition": "PRESERVED_LOCALLY_UNMODIFIED",
+  "sourceFullProvenance": {
+    "localPath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\provenance.json",
+    "sha256": "ec699808806d18a8f881d41a4cc1726eaf5cff90d9ca470d47ce3a854d382c85",
+    "promptsAndInvocationReferences": "Preserved in full local source; compact index retains hashes/paths, not raw PNGs"
+  },
+  "attemptCount": 71,
+  "finalSelectedSequenceCount": 27,
+  "galleryOnlyCandidateCount": 1,
+  "excludedCandidateCount": 2,
+  "MODEL_GENERATOR_EFFECTIVE": "NOT_DISCLOSED_BY_TOOL",
+  "attempts": [
+    {
+      "id": "legs_agachamento_pendulo__01_inicial__1",
+      "exerciseId": "legs_agachamento_pendulo",
+      "phase": "01_inicial",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "78946eacaa27a195a34ec4e4d74b43e0841e8a78aa9ce68181a8cd1b11962b23",
+      "bytes": 2235378,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_pendulo\\01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-5115dd50-43a0-487a-9356-aa26cbffb82d.png",
+      "promptSha256": "c3f37e3ef0757a035e16ca7417132d4719b6d854f08b31e11f44017fcc52e7b8",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "01 inspecionada em resolução integral: identidade/roupa coerentes, pés inteiros na plataforma, chassi ancorado, eixo e braços conectados ao apoio. Aceita como lock inicial; geometria de alavanca será comparada nas próximas fases.",
+      "preparedAt": "2026-10-03T14:45:56.332Z",
+      "producedAt": "2026-10-03T14:47:12.543Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_pendulo__03_final__1",
+      "exerciseId": "legs_agachamento_pendulo",
+      "phase": "03_final",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "c799a528222b0ef42681323ae7a63794e86f858b8885c40fc8d39a18d689e9b4",
+      "bytes": 2136056,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_pendulo\\03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-a7922eec-c949-42ae-a6c9-984aac85e760.png",
+      "promptSha256": "710c48ce1e68e08474449d09149450fcbc2b1046b8c9ddb78fc4f5d739312b57",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-5115dd50-43a0-487a-9356-aa26cbffb82d.png",
+          "sha256": "78946eacaa27a195a34ec4e4d74b43e0841e8a78aa9ce68181a8cd1b11962b23",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Rejeitada: braços superiores/inferiores alongados em relação à 01 e apoio deslocado para frente; movimento não preserva o raio de rotação do aparelho.",
+      "preparedAt": "2026-10-03T14:48:11.742Z",
+      "producedAt": "2026-10-03T14:49:48.706Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_pendulo__03_final__2",
+      "exerciseId": "legs_agachamento_pendulo",
+      "phase": "03_final",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "SUPERSEDED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "c1d85268f08c818b7b445b3b65b2aee2f41dd2c5f489049411e50101e03328c2",
+      "bytes": 2147897,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_pendulo\\03_final-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-b7b2ebd1-cc54-4ac3-917f-15195b56b465.png",
+      "promptSha256": "1ce05b91f82a8e4b50d3c8a6b6fe7faf146e5f012970bef0bdfedce9d264fb8f",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-5115dd50-43a0-487a-9356-aa26cbffb82d.png",
+          "sha256": "78946eacaa27a195a34ec4e4d74b43e0841e8a78aa9ce68181a8cd1b11962b23",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor que a primeira, preservada provisoriamente. Ainda altera comprimento do link inferior e contorno da plataforma; não elegível como lock.",
+      "preparedAt": "2026-10-03T14:49:56.628Z",
+      "producedAt": "2026-10-03T14:51:21.678Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_pendulo__03_final__3",
+      "exerciseId": "legs_agachamento_pendulo",
+      "phase": "03_final",
+      "attemptCumulative": 3,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "BEST_EXISTING_NEEDS_HUMAN_REVIEW",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "0e108f9dae1be288063346856ef8a19c9b1d500466b0d8a5e1e2aa36e1af7d3a",
+      "bytes": 2134381,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_pendulo\\03_final-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-ea2e7b6a-b4cd-49d4-adb9-04bee815f54e.png",
+      "promptSha256": "c67af201d028d4692832c4b822af841ffe623b74c8f75c4c231595f7642cd948",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-5115dd50-43a0-487a-9356-aa26cbffb82d.png",
+          "sha256": "78946eacaa27a195a34ec4e4d74b43e0841e8a78aa9ce68181a8cd1b11962b23",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor geometria de links que a tentativa 2, mas plataforma/pés deslocam entre fases. Limite 3/3 atingido: NEEDS_HUMAN_REVIEW; usada apenas como referência de pose, nunca como lock de equipamento.",
+      "preparedAt": "2026-10-03T14:51:29.329Z",
+      "producedAt": "2026-10-03T14:52:49.120Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_pendulo__02_intermediaria__1",
+      "exerciseId": "legs_agachamento_pendulo",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "a871c77f8874336da5bcfb4136232fe1c8b7c760f3055f3fa62f8bc59883e863",
+      "bytes": 2085044,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_pendulo\\02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-fa8b069d-c4da-41d3-9db7-7ae9b04e3930.png",
+      "promptSha256": "96cfa1db687f4061b888c0896a4ad78a181ac4deaa5870846f2ef98f8bd6155d",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-5115dd50-43a0-487a-9356-aa26cbffb82d.png",
+          "sha256": "78946eacaa27a195a34ec4e4d74b43e0841e8a78aa9ce68181a8cd1b11962b23",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-ea2e7b6a-b4cd-49d4-adb9-04bee815f54e.png",
+          "sha256": "0e108f9dae1be288063346856ef8a19c9b1d500466b0d8a5e1e2aa36e1af7d3a",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "ENDPOINT_POSE_REFERENCE_WITH_HUMAN_REVIEW_CAVEAT"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Intermediária praticamente no extremo de flexão; altura e joelhos próximos da 03, além de plataforma deslocada.",
+      "preparedAt": "2026-10-03T14:52:56.287Z",
+      "producedAt": "2026-10-03T14:54:16.407Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_pendulo__02_intermediaria__2",
+      "exerciseId": "legs_agachamento_pendulo",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "BEST_EXISTING_NEEDS_HUMAN_REVIEW",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "0df2166db0ceb62ca7ccf7980192c38a0083ceefc51650aeb40ca65d40616ac1",
+      "bytes": 2081955,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_pendulo\\02_intermediaria-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-ce916471-dd8e-4ee3-8f02-0b989e62610d.png",
+      "promptSha256": "9c872363f64935e31e57a1c33d8e7da3a9b912f17196be102770c3e4012ce456",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-5115dd50-43a0-487a-9356-aa26cbffb82d.png",
+          "sha256": "78946eacaa27a195a34ec4e4d74b43e0841e8a78aa9ce68181a8cd1b11962b23",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-ea2e7b6a-b4cd-49d4-adb9-04bee815f54e.png",
+          "sha256": "0e108f9dae1be288063346856ef8a19c9b1d500466b0d8a5e1e2aa36e1af7d3a",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "ENDPOINT_POSE_REFERENCE_WITH_HUMAN_REVIEW_CAVEAT"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Fase média claramente distinta, aproximadamente metade visual da descida. Ressalva persistente de plataforma/link entre fases; melhor intermediária existente preservada.",
+      "preparedAt": "2026-10-03T14:54:22.304Z",
+      "producedAt": "2026-10-03T14:56:22.402Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sissy__01_inicial__1",
+      "exerciseId": "legs_agachamento_sissy",
+      "phase": "01_inicial",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "GALLERY_COVER_CANDIDATE_ONLY",
+      "outputSha256": "a135d90f23833ec378ddd11387ff3e61ad7776ed38b8c1bec2aefe1985681430",
+      "bytes": 2069030,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sissy\\01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-3b8e95e8-c312-4c46-a3fd-b46cef1e9579.png",
+      "promptSha256": "b324e071ea84623d4f47a11f42fe85d91be589ec84095e926817fab65fba973f",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "01 inspecionada ampliada: apoios posteriores de panturrilha e rolos anteriores de tornozelo ligados à base, anatomia e identidade coerentes. Lock inicial elegível.",
+      "preparedAt": "2026-10-03T14:56:33.030Z",
+      "producedAt": "2026-10-03T14:57:28.486Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sissy__03_final__1",
+      "exerciseId": "legs_agachamento_sissy",
+      "phase": "03_final",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "BEST_EXISTING_NEEDS_HUMAN_REVIEW",
+      "historicalAgentSelected": true,
+      "finalDisposition": "EXCLUDED_FROM_FINAL_SEQUENCE",
+      "outputSha256": "61671574d61c355cc99ec4dfbd6fd86ec36ceb697a771e4b016497e0095822f9",
+      "bytes": 1951759,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sissy\\03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-a5323c7f-0931-4f9d-9ffa-777489ee3a48.png",
+      "promptSha256": "8d8e85fa3f8548ec1ef3330632c110a0dd4b6dfa323db9a783c90254e6dde31a",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-3b8e95e8-c312-4c46-a3fd-b46cef1e9579.png",
+          "sha256": "a135d90f23833ec378ddd11387ff3e61ad7776ed38b8c1bec2aefe1985681430",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor execução Sissy entre as três, preservada para revisão; perda de contato da panturrilha com o apoio posterior. NEEDS_HUMAN_REVIEW, sem usar como lock de equipamento.",
+      "preparedAt": "2026-10-03T14:58:59.325Z",
+      "producedAt": "2026-10-03T15:00:18.479Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sissy__03_final__2",
+      "exerciseId": "legs_agachamento_sissy",
+      "phase": "03_final",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "c9869b8987ec51410f424e44ef44d8cd394a5abbcee656d8cd22a5b7f7f40a22",
+      "bytes": 1935222,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sissy\\03_final-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-d699f338-4ece-4487-b5dc-3c702e6b7685.png",
+      "promptSha256": "c5a35b92367d1a9d88a0fb7840a5e365900e2900cd9b8af0bcb33b2fa7b5bab5",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-3b8e95e8-c312-4c46-a3fd-b46cef1e9579.png",
+          "sha256": "a135d90f23833ec378ddd11387ff3e61ad7776ed38b8c1bec2aefe1985681430",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Rejeitada: suporte traseiro e tornozeleira deslocados para acompanhar as canelas inclinadas; frame não preserva chassi/coordenadas da 01.",
+      "preparedAt": "2026-10-03T15:00:30.023Z",
+      "producedAt": "2026-10-03T15:01:53.298Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sissy__03_final__3",
+      "exerciseId": "legs_agachamento_sissy",
+      "phase": "03_final",
+      "attemptCumulative": 3,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "f765753fe045027d42dd81206fb20fd82f2cf0a45db8217f6a33df1f3d9624ab",
+      "bytes": 1985818,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sissy\\03_final-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-c7358f36-dcc8-4709-9688-bb1de3c8e6a4.png",
+      "promptSha256": "3cb181b8f253bed5ddaf5cb746b5e48c4fa306c689be474d6113d9d5f67a5b25",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-3b8e95e8-c312-4c46-a3fd-b46cef1e9579.png",
+          "sha256": "a135d90f23833ec378ddd11387ff3e61ad7776ed38b8c1bec2aefe1985681430",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Pior que a tentativa 1: mantém canelas, porém dobra quadril e quase não flexiona joelhos; não representa final Sissy conforme catálogo. Limite 3/3 encerrado.",
+      "preparedAt": "2026-10-03T15:02:00.630Z",
+      "producedAt": "2026-10-03T15:03:01.993Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sissy__02_intermediaria__1",
+      "exerciseId": "legs_agachamento_sissy",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "09fe874ac4a2788f7bcfa4dbe00ab564a576c1047dc660cdf12c0ab56a260ab0",
+      "bytes": 1988197,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sissy\\02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-658d6b0d-d271-44a6-b5cc-869eba1d6cb5.png",
+      "promptSha256": "0c5bf52bcfe7eef21dc18091f13a50dfb8fb2861ef0b1251ef5c05e0da0d4dae",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-3b8e95e8-c312-4c46-a3fd-b46cef1e9579.png",
+          "sha256": "a135d90f23833ec378ddd11387ff3e61ad7776ed38b8c1bec2aefe1985681430",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-a5323c7f-0931-4f9d-9ffa-777489ee3a48.png",
+          "sha256": "61671574d61c355cc99ec4dfbd6fd86ec36ceb697a771e4b016497e0095822f9",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "ENDPOINT_POSE_REFERENCE_WITH_HUMAN_REVIEW_CAVEAT"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Intermediária flexiona os joelhos perto da final e repete afastamento da panturrilha do apoio; distinção insuficiente.",
+      "preparedAt": "2026-10-03T15:03:14.925Z",
+      "producedAt": "2026-10-03T15:04:15.625Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sissy__02_intermediaria__2",
+      "exerciseId": "legs_agachamento_sissy",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "BEST_EXISTING_NEEDS_HUMAN_REVIEW",
+      "historicalAgentSelected": true,
+      "finalDisposition": "EXCLUDED_FROM_FINAL_SEQUENCE",
+      "outputSha256": "8b34f6fdf088ee7fca9bf11dc4e6e163f3f0fd03db60e20874fd8bdefdff6eeb",
+      "bytes": 1954556,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sissy\\02_intermediaria-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-d7d471ee-2dfe-4979-8715-a382c9bdbf43.png",
+      "promptSha256": "2701f4712b2e08327e8d94b0b108ee9eafbf6d1c1fa67a5386f44351aefdfc49",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-3b8e95e8-c312-4c46-a3fd-b46cef1e9579.png",
+          "sha256": "a135d90f23833ec378ddd11387ff3e61ad7776ed38b8c1bec2aefe1985681430",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1: reter byte-for-byte a melhor 02 anterior após seis novas tentativas Sissy (3 por alvo) não produzirem conjunto superior com apoios/pés fixos e midpoint coerente. 03 anterior retida, NEEDS_HUMAN_REVIEW. Registro de revisão R0 preservado em rounds/R1/before-provenance.json.",
+      "preparedAt": "2026-10-03T15:04:24.251Z",
+      "producedAt": "2026-10-03T15:05:53.286Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_afundo_smith__01_inicial__1",
+      "exerciseId": "legs_afundo_smith",
+      "phase": "01_inicial",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "865ffe72a830bc1b00c7b50e7e6000b9c3b1e36145f929280158981e7e007926",
+      "bytes": 2263267,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_afundo_smith\\01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-840aa9b1-bf51-4165-8f8c-315ebd658798.png",
+      "promptSha256": "b052999656638abcd86738d53a92058e414585408b42c56a8406dc421982e068",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "01 ampliada em inspection/legs_afundo_smith-01-machine.jpg: barra presa a mangas nos dois trilhos, mãos/ombros coerentes, pés em base de afundo. Lock elegível.",
+      "preparedAt": "2026-10-03T15:06:06.253Z",
+      "producedAt": "2026-10-03T15:07:21.834Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_afundo_smith__03_final__1",
+      "exerciseId": "legs_afundo_smith",
+      "phase": "03_final",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "ece2d908b95ddb5d309011a0486277306c0d3fb596270662eeed482a2986b2ea",
+      "bytes": 2083050,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_afundo_smith\\03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-9cfb95be-627e-4358-b0bb-d9fe9f57adab.png",
+      "promptSha256": "ed43b9bc2f12d1249569a357d3ba79a90a68ed33c393a980a77e1143a1e7649d",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-840aa9b1-bf51-4165-8f8c-315ebd658798.png",
+          "sha256": "865ffe72a830bc1b00c7b50e7e6000b9c3b1e36145f929280158981e7e007926",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Fase final com ambos os joelhos flexionados, pé dianteiro e ponta traseira estáveis, joelho traseiro sem contato no chão; barra/mangas nos mesmos trilhos.",
+      "preparedAt": "2026-10-03T15:08:59.106Z",
+      "producedAt": "2026-10-03T15:10:09.722Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_afundo_smith__02_intermediaria__1",
+      "exerciseId": "legs_afundo_smith",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "482944af872fbf5afe2cdca5accdacd27589f36d00bbabf52eac66de2cc5fea5",
+      "bytes": 2089249,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_afundo_smith\\02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-f9be3a50-705b-4fdc-8bb1-f1dc16f91bf3.png",
+      "promptSha256": "de6dd271b42d333f71c3c2ed08aa80de0a338abe1f32116eaae8da91725772c9",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-840aa9b1-bf51-4165-8f8c-315ebd658798.png",
+          "sha256": "865ffe72a830bc1b00c7b50e7e6000b9c3b1e36145f929280158981e7e007926",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-9cfb95be-627e-4358-b0bb-d9fe9f57adab.png",
+          "sha256": "ece2d908b95ddb5d309011a0486277306c0d3fb596270662eeed482a2986b2ea",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "ACCEPTABLE_ENDPOINT_POSE_REFERENCE"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Intermediária claramente entre as alturas da barra/joelhos dos extremos; pés e trilhos estáveis. Seleção provisória para comparação lado a lado.",
+      "preparedAt": "2026-10-03T15:10:18.374Z",
+      "producedAt": "2026-10-03T15:11:49.731Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_bulgaro_smith__01_inicial__1",
+      "exerciseId": "legs_agachamento_bulgaro_smith",
+      "phase": "01_inicial",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "2f1e82f85b15ff51edb12a5468c29ceefe5a35632e68ead4d579c3f50d2666c2",
+      "bytes": 2254063,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_bulgaro_smith\\01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-b377e209-b96f-407d-9185-f2b6e73d8a2b.png",
+      "promptSha256": "92704ae735ea2fdd90b9dd9b504e10483b298d6fd7fff3bd812454a80b01fd58",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Contato do pé traseiro pouco claro, shoe vertical na ponta; corrigir para peito/dorso apoiado no banco conforme executionSteps antes de lock.",
+      "preparedAt": "2026-10-03T15:12:01.069Z",
+      "producedAt": "2026-10-03T15:13:15.509Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_bulgaro_smith__01_inicial__2",
+      "exerciseId": "legs_agachamento_bulgaro_smith",
+      "phase": "01_inicial",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "5e4cfc1a4b0263ad90b02618caa9373085f9b114d82d79055dd0f1f61e488488",
+      "bytes": 2047286,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_bulgaro_smith\\01_inicial-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-48a4da78-3761-47da-ab13-5d9c498a966f.png",
+      "promptSha256": "cbe44ad0372e8e0810a53696fc4c6a4f252e6421dd8d09b21f8a91052a051788",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-b377e209-b96f-407d-9185-f2b6e73d8a2b.png",
+          "sha256": "2f1e82f85b15ff51edb12a5468c29ceefe5a35632e68ead4d579c3f50d2666c2",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "GENERATED_FRAME_REPAIR_TARGET"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Dorso do pé apoiado no banco confirmado na ampliação; trilhos/barra e chassi conectados, postura inicial coerente. Lock elegível.",
+      "preparedAt": "2026-10-03T15:14:02.852Z",
+      "producedAt": "2026-10-03T15:15:04.703Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_bulgaro_smith__03_final__1",
+      "exerciseId": "legs_agachamento_bulgaro_smith",
+      "phase": "03_final",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "abed64d13c0116fd11bea723c7507a4287fdcb88d375c79a39947862455a6525",
+      "bytes": 1999838,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_bulgaro_smith\\03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-1bbcbdb6-ad77-4416-8573-8bd477cc3d2a.png",
+      "promptSha256": "520543d89165f376c656ee2871550a7c3c78e1b10d73044572c006ce1e2084d1",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-48a4da78-3761-47da-ab13-5d9c498a966f.png",
+          "sha256": "5e4cfc1a4b0263ad90b02618caa9373085f9b114d82d79055dd0f1f61e488488",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Fase final biomecanicamente reconhecível, pé traseiro no banco, porém pé dianteiro translada cerca de 40px para direita versus 01. Corrigir antes de selecionar.",
+      "preparedAt": "2026-10-03T15:15:37.367Z",
+      "producedAt": "2026-10-03T15:16:54.052Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_bulgaro_smith__03_final__2",
+      "exerciseId": "legs_agachamento_bulgaro_smith",
+      "phase": "03_final",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "SUPERSEDED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "20e18e54c4c0c9a91627fa1ee8b3755facc1b3254df89b408651b689c6cf1ce0",
+      "bytes": 1934691,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_bulgaro_smith\\03_final-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-1bbf5c4c-b320-4aea-a9f2-2b8bb4012e77.png",
+      "promptSha256": "03359f0b2053cca1adddc055b4044db30627a95aa9c54721b7da58764dd1302b",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-1bbcbdb6-ad77-4416-8573-8bd477cc3d2a.png",
+          "sha256": "abed64d13c0116fd11bea723c7507a4287fdcb88d375c79a39947862455a6525",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "GENERATED_FRAME_REPAIR_TARGET"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-48a4da78-3761-47da-ab13-5d9c498a966f.png",
+          "sha256": "5e4cfc1a4b0263ad90b02618caa9373085f9b114d82d79055dd0f1f61e488488",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor que 1, mas pé dianteiro ainda deslocado; preservado provisoriamente para revisão se a tentativa 3 não superar.",
+      "preparedAt": "2026-10-03T15:17:01.388Z",
+      "producedAt": "2026-10-03T15:18:20.092Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_bulgaro_smith__03_final__3",
+      "exerciseId": "legs_agachamento_bulgaro_smith",
+      "phase": "03_final",
+      "attemptCumulative": 3,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "BEST_EXISTING_NEEDS_HUMAN_REVIEW",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "8f1a4cc5a234fc4fe494789a339918e1c956361ab2b589c83770206dd3788cac",
+      "bytes": 1958338,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_bulgaro_smith\\03_final-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-6243762b-1dca-4cab-9914-1feeb473d5ac.png",
+      "promptSha256": "76a0ab1e1176806e92cd761a26d00edbdfc985ee9bf8375530647dddad750108",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-48a4da78-3761-47da-ab13-5d9c498a966f.png",
+          "sha256": "5e4cfc1a4b0263ad90b02618caa9373085f9b114d82d79055dd0f1f61e488488",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-1bbf5c4c-b320-4aea-a9f2-2b8bb4012e77.png",
+          "sha256": "20e18e54c4c0c9a91627fa1ee8b3755facc1b3254df89b408651b689c6cf1ce0",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "GENERATED_FRAME_REPAIR_TARGET"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor amplitude/altura de contato, porém pé dianteiro ainda deriva lateralmente versus 01. Limite 3/3 encerrado; NEEDS_HUMAN_REVIEW, pose apenas, não lock.",
+      "preparedAt": "2026-10-03T15:18:29.718Z",
+      "producedAt": "2026-10-03T15:19:45.442Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_bulgaro_smith__02_intermediaria__1",
+      "exerciseId": "legs_agachamento_bulgaro_smith",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "d72075c5f13d1c3224bb6b2f1c27cea3eee32e7dcf7530fe6b4b9e4eb830974b",
+      "bytes": 1945473,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_bulgaro_smith\\02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-1ba61c8e-bb3b-476c-8e9e-eff6fa2c8966.png",
+      "promptSha256": "09a9c664e264af385ce8aec3fc0c6371a0be084e074cba1b7b4b3cd162cdb692",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-48a4da78-3761-47da-ab13-5d9c498a966f.png",
+          "sha256": "5e4cfc1a4b0263ad90b02618caa9373085f9b114d82d79055dd0f1f61e488488",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-6243762b-1dca-4cab-9914-1feeb473d5ac.png",
+          "sha256": "8f1a4cc5a234fc4fe494789a339918e1c956361ab2b589c83770206dd3788cac",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "ENDPOINT_POSE_REFERENCE_WITH_HUMAN_REVIEW_CAVEAT"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Meio fica próximo demais da flexão final e repete deriva do pé dianteiro. Rejeitado por PHASE_DISTINCTION.",
+      "preparedAt": "2026-10-03T15:19:52.383Z",
+      "producedAt": "2026-10-03T15:21:01.845Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_bulgaro_smith__02_intermediaria__2",
+      "exerciseId": "legs_agachamento_bulgaro_smith",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "SUPERSEDED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "183af79dca7e23def64841a70774346be329b6424ad33463059a42e083c2b8e5",
+      "bytes": 2010047,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_bulgaro_smith\\02_intermediaria-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-7bbb0cdf-a856-423e-9924-96ac9bea3a0b.png",
+      "promptSha256": "738b0576a2ec0c6b2d505d473b1098e9a6154d21a4d8fe913d9fe5f1f78da156",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-48a4da78-3761-47da-ab13-5d9c498a966f.png",
+          "sha256": "5e4cfc1a4b0263ad90b02618caa9373085f9b114d82d79055dd0f1f61e488488",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor que a primeira, mas ainda próxima ao final e com pé dianteiro deslocado. Preservada enquanto se avalia a tentativa 3.",
+      "preparedAt": "2026-10-03T15:21:09.016Z",
+      "producedAt": "2026-10-03T15:22:30.505Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_bulgaro_smith__02_intermediaria__3",
+      "exerciseId": "legs_agachamento_bulgaro_smith",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 3,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "4dae6f44462b5a8ade0aa6319c34445b34814750df3c5df68b3ca56b8381a7e4",
+      "bytes": 2025313,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_bulgaro_smith\\02_intermediaria-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-ffedec1b-5f5d-4389-8292-904af1b834ce.png",
+      "promptSha256": "71b05815d3d06b641401fca683ebe1fe33d6399e6588a58618f5f7153a6adfb0",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-48a4da78-3761-47da-ab13-5d9c498a966f.png",
+          "sha256": "5e4cfc1a4b0263ad90b02618caa9373085f9b114d82d79055dd0f1f61e488488",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor meio: flexão claramente entre extremos, pé dianteiro na posição inicial e traseiro no banco. Selecionada ao limite 3/3; ressalva geral permanece na 03.",
+      "preparedAt": "2026-10-03T15:22:37.802Z",
+      "producedAt": "2026-10-03T15:24:11.339Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_em_pe_maquina__01_inicial__1",
+      "exerciseId": "legs_flexora_em_pe_maquina",
+      "phase": "01_inicial",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "2960331220667e75787a232f06bdd0d28d432a557c841557525e590a4e7b6af5",
+      "bytes": 2184473,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_em_pe_maquina\\01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-2d66598c-3a2a-4a34-b441-6bd53be1406e.png",
+      "promptSha256": "3add662727eb43aedda5afc8fe9858d24bf1895244731fe143053734caad53f7",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "01 ampliada: rolo ligado ao braço inferior, eixo lateral junto ao joelho com suporte contínuo ao chassi; pad frontal estabiliza quadril e tronco, pé contralateral no apoio. Elegível como lock, reavaliar alinhamento na sequência.",
+      "preparedAt": "2026-10-03T15:24:23.235Z",
+      "producedAt": "2026-10-03T15:25:53.720Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_em_pe_maquina__03_final__1",
+      "exerciseId": "legs_flexora_em_pe_maquina",
+      "phase": "03_final",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "03d58a8b840a06ef97b14138052b72477d0c28ab49b0b0bf0a3594842564c9f0",
+      "bytes": 2076076,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_em_pe_maquina\\03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-dd0ac5ad-3222-45a0-8470-ea63cab3993a.png",
+      "promptSha256": "54d8f5a83d290b630209bddddf7151d56f349ea5f4d1c7fdec6a657f0fb3f477",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-2d66598c-3a2a-4a34-b441-6bd53be1406e.png",
+          "sha256": "2960331220667e75787a232f06bdd0d28d432a557c841557525e590a4e7b6af5",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Rolo desconectado/sem alavanca visível até eixo; eixo lateral sobe ~40px e braço de suporte gira embora devesse ficar fixo. EQUIPMENT falha.",
+      "preparedAt": "2026-10-03T15:27:16.134Z",
+      "producedAt": "2026-10-03T15:28:47.538Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_em_pe_maquina__03_final__2",
+      "exerciseId": "legs_flexora_em_pe_maquina",
+      "phase": "03_final",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "SUPERSEDED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "dffe5ae68feec9d0a95dac4952c19e8e3183ce1c0699daef93abd7cba00602c8",
+      "bytes": 2032256,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_em_pe_maquina\\03_final-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-b4bd43c3-6107-4cd0-a502-d8b6f4e6231f.png",
+      "promptSha256": "ef6cf1ea7a09b74680a96c2584347b7850cfdfa47244e5ff48f9d189d6f48e4f",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-2d66598c-3a2a-4a34-b441-6bd53be1406e.png",
+          "sha256": "2960331220667e75787a232f06bdd0d28d432a557c841557525e590a4e7b6af5",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Conexão do rolo e eixo corrigidos; alavanca inferior aparenta alongar versus 01. Melhor existente, preservada provisoriamente com ressalva EQUIPMENT.",
+      "preparedAt": "2026-10-03T15:28:55.459Z",
+      "producedAt": "2026-10-03T15:31:16.437Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_em_pe_maquina__03_final__3",
+      "exerciseId": "legs_flexora_em_pe_maquina",
+      "phase": "03_final",
+      "attemptCumulative": 3,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "BEST_EXISTING_NEEDS_HUMAN_REVIEW",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "9aae56be278ce021b49f3ff5dbe05366524187d3bd31726153b5c0ee56b57d70",
+      "bytes": 1947067,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_em_pe_maquina\\03_final-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-c8e0f096-8bc8-413f-a4bd-bc9ad6691ef9.png",
+      "promptSha256": "7bdddfb9ad2f685692a659e27354d9b8f811e0c1131ab3987065934b8db4bfc9",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-b4bd43c3-6107-4cd0-a502-d8b6f4e6231f.png",
+          "sha256": "dffe5ae68feec9d0a95dac4952c19e8e3183ce1c0699daef93abd7cba00602c8",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "GENERATED_FRAME_REPAIR_TARGET"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-2d66598c-3a2a-4a34-b441-6bd53be1406e.png",
+          "sha256": "2960331220667e75787a232f06bdd0d28d432a557c841557525e590a4e7b6af5",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor: braço conectado, raio aparente mais próximo do início e eixo estável. Ao limite 3/3, manter ressalva da geometria/alinhamento mecânico para avaliação lado a lado e humana.",
+      "preparedAt": "2026-10-03T15:31:24.118Z",
+      "producedAt": "2026-10-03T15:33:51.221Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_em_pe_maquina__02_intermediaria__1",
+      "exerciseId": "legs_flexora_em_pe_maquina",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "SUPERSEDED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "3ea3be98b6e967f323cdaea1df48c7478d7dd4627802e54be58f34a9b5ca3103",
+      "bytes": 2003028,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_em_pe_maquina\\02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-c44f35e5-5751-4591-a3bb-6996aac6c7da.png",
+      "promptSha256": "31f61ad4f414f9df13334d30436faf3eccde0b82638790c2c5ddf35cac6e3e19",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-2d66598c-3a2a-4a34-b441-6bd53be1406e.png",
+          "sha256": "2960331220667e75787a232f06bdd0d28d432a557c841557525e590a4e7b6af5",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-c8e0f096-8bc8-413f-a4bd-bc9ad6691ef9.png",
+          "sha256": "9aae56be278ce021b49f3ff5dbe05366524187d3bd31726153b5c0ee56b57d70",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "ENDPOINT_POSE_REFERENCE_WITH_HUMAN_REVIEW_CAVEAT"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Flexão visual entre extremos, distinta de início/final, quadril/tronco estáveis. Eixo e dimensões aparentes de suporte variam; preservar para revisão humana de EQUIPMENT.",
+      "preparedAt": "2026-10-03T15:33:59.109Z",
+      "producedAt": "2026-10-03T15:36:32.502Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_articulada__01_inicial__1",
+      "exerciseId": "legs_flexora_articulada",
+      "phase": "01_inicial",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "d8e71dc0d66a7266ce0edbdc97f3412a6fb7bea44e0323ee339cdfa3efb29be6",
+      "bytes": 2354814,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_articulada\\01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-18f02994-9a47-4693-8e78-284a75bed1a6.png",
+      "promptSha256": "edb896eb0c6a5a3ea5a6fd2b0c99b160f1e7b7b9a40d6e7b1af85c106baddf61",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Eixo principal no suporte baixo perto do chão e atrás dos joelhos; rolo articula ao redor de centro incompatível com o joelho. Não usar esta 01 como lock.",
+      "preparedAt": "2026-10-03T15:36:45.023Z",
+      "producedAt": "2026-10-03T15:39:31.127Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_articulada__01_inicial__2",
+      "exerciseId": "legs_flexora_articulada",
+      "phase": "01_inicial",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "640ab4ed1165a6de595dbfce8742344be097134df9f14b9d6ec6259b59c6ac11",
+      "bytes": 2277027,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_articulada\\01_inicial-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-ecbd5fbf-7a74-43c6-87d9-f29211f4d2e0.png",
+      "promptSha256": "216226d28c2a1fcbf15822e7626b05428cd74c3791fff47d2a7c6bedb1bb328c",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-18f02994-9a47-4693-8e78-284a75bed1a6.png",
+          "sha256": "d8e71dc0d66a7266ce0edbdc97f3412a6fb7bea44e0323ee339cdfa3efb29be6",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "GENERATED_FRAME_REPAIR_TARGET"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Ampliação confirma eixo ao lado do joelho, braço contínuo até rolo, carga no ramo da mesma alavanca, chassi apoiado no piso. 01 corrigida elegível como lock.",
+      "preparedAt": "2026-10-03T15:40:53.371Z",
+      "producedAt": "2026-10-03T15:42:20.595Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_articulada__03_final__1",
+      "exerciseId": "legs_flexora_articulada",
+      "phase": "03_final",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "e83b56856bd61eb0b3a5217ffd482f11b2ffcd12b8327e10a465a1ecf027306b",
+      "bytes": 2256690,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_articulada\\03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-7866a1fd-0191-4a81-b8b7-d754253c3a04.png",
+      "promptSha256": "7605ea74a3e8ad1ab310fa8f08db5651e99f1687b681fd213100260c82d6c20a",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-ecbd5fbf-7a74-43c6-87d9-f29211f4d2e0.png",
+          "sha256": "640ab4ed1165a6de595dbfce8742344be097134df9f14b9d6ec6259b59c6ac11",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Poste/eixo deslocam para direita, poste deixa de ser vertical, braço encurta e ramo das anilhas muda distância relativa. Geometria não trava com 01.",
+      "preparedAt": "2026-10-03T15:43:34.242Z",
+      "producedAt": "2026-10-03T15:45:39.355Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_articulada__03_final__2",
+      "exerciseId": "legs_flexora_articulada",
+      "phase": "03_final",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "SUPERSEDED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "972d71abdd4d0b3f1868d642f6bbf204fba7e77b7b8344576b304662b7b1acc2",
+      "bytes": 2258373,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_articulada\\03_final-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-3344527f-d9a1-474f-8266-4daee400d23a.png",
+      "promptSha256": "44f0185cef7118e879caf9bf073994583307943a14e98f071505daa9a66cd3c1",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-ecbd5fbf-7a74-43c6-87d9-f29211f4d2e0.png",
+          "sha256": "640ab4ed1165a6de595dbfce8742344be097134df9f14b9d6ec6259b59c6ac11",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Poste/eixo e raio principal melhoram; horn/eixo lateral da carga aponta para cima versus 01, orientação axial e ramo rígido ainda precisam revisão.",
+      "preparedAt": "2026-10-03T15:45:46.572Z",
+      "producedAt": "2026-10-03T15:47:56.936Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_articulada__03_final__3",
+      "exerciseId": "legs_flexora_articulada",
+      "phase": "03_final",
+      "attemptCumulative": 3,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "BEST_EXISTING_NEEDS_HUMAN_REVIEW",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "eafc49e9e720720371426d84ad7d692dfcfb127ba80c64d456ef8f00e1506405",
+      "bytes": 2170240,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_articulada\\03_final-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-56bab868-c8f6-4b26-a6b0-8740c375e0c7.png",
+      "promptSha256": "41ba09f69aae622e00f2621446aa59809a085a2a027493557d94edb670a57c66",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-3344527f-d9a1-474f-8266-4daee400d23a.png",
+          "sha256": "972d71abdd4d0b3f1868d642f6bbf204fba7e77b7b8344576b304662b7b1acc2",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "GENERATED_FRAME_REPAIR_TARGET"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-ecbd5fbf-7a74-43c6-87d9-f29211f4d2e0.png",
+          "sha256": "640ab4ed1165a6de595dbfce8742344be097134df9f14b9d6ec6259b59c6ac11",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor fase final, poste/eixo e braço coerentes, orientação do horn melhorada. Limite 3/3; ressalva na geometria relativa do ramo e eixo da carga permanece para revisão humana.",
+      "preparedAt": "2026-10-03T15:48:09.265Z",
+      "producedAt": "2026-10-03T15:49:47.581Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_articulada__02_intermediaria__1",
+      "exerciseId": "legs_flexora_articulada",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "3ffa120aecb4399d5b98a2662efef02f45ebf564d1ae33add203f5ac91df9778",
+      "bytes": 2158558,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_articulada\\02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-b1e1031a-c428-453b-b78b-f3f4fb5ab99f.png",
+      "promptSha256": "d0fb4d7aab4bd2312c912e3b1e51c0d0b738c14760b937616a7efff395cab301",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-ecbd5fbf-7a74-43c6-87d9-f29211f4d2e0.png",
+          "sha256": "640ab4ed1165a6de595dbfce8742344be097134df9f14b9d6ec6259b59c6ac11",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-56bab868-c8f6-4b26-a6b0-8740c375e0c7.png",
+          "sha256": "eafc49e9e720720371426d84ad7d692dfcfb127ba80c64d456ef8f00e1506405",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "ENDPOINT_POSE_REFERENCE_WITH_HUMAN_REVIEW_CAVEAT"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Rolo/canelas ficam próximos à posição vertical final; midpoint visual acima da metade, pouca distância 02→03. Rejeitar por PHASE_DISTINCTION.",
+      "preparedAt": "2026-10-03T15:49:55.959Z",
+      "producedAt": "2026-10-03T15:51:57.220Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_articulada__02_intermediaria__2",
+      "exerciseId": "legs_flexora_articulada",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "BEST_EXISTING_NEEDS_HUMAN_REVIEW",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "3ba8ebd5e131e92006eea3f392a1501b6718dfe3fd601b5bbfcd77bb4d5f3672",
+      "bytes": 2190809,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_articulada\\02_intermediaria-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-addc1e83-3c9a-4475-b260-7a77d70a7822.png",
+      "promptSha256": "f554f977d5aac9cca19c1d1633e8f5e721f61cd6c817c25ed56d4eebb4fca32f",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-ecbd5fbf-7a74-43c6-87d9-f29211f4d2e0.png",
+          "sha256": "640ab4ed1165a6de595dbfce8742344be097134df9f14b9d6ec6259b59c6ac11",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor meio: rotação do joelho/rolo aproximadamente equidistante dos extremos, pelve apoiada. Equipamento ainda altera eixo/ramo da carga em relação a 01; manter revisão humana.",
+      "preparedAt": "2026-10-03T15:52:06.812Z",
+      "producedAt": "2026-10-03T15:54:14.059Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_stiff_smith__01_inicial__1",
+      "exerciseId": "legs_stiff_smith",
+      "phase": "01_inicial",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "63c98c97ef143c2fe25b1c5e5c1d17a9145bd459f1f3c5c2477981781deea021",
+      "bytes": 2204312,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_stiff_smith\\01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-3a9e5e28-929e-48d7-9962-205cda0dbd69.png",
+      "promptSha256": "1c6251a7c260b4ecba94cd13bcaf28c684b15402c271924f7574ca6e005a1cac",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "01 ampliada confirma pegada pronada, mãos íntegras, barra presa às mangas em ambos os trilhos; postura alta e joelhos levemente flexionados. Lock elegível.",
+      "preparedAt": "2026-10-03T15:54:25.916Z",
+      "producedAt": "2026-10-03T15:55:57.485Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_stiff_smith__03_final__1",
+      "exerciseId": "legs_stiff_smith",
+      "phase": "03_final",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "c56553c1605d0802bbd9ab396226bc70ed4bb79a347e1d9f2e93e77672ca14f2",
+      "bytes": 2126987,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_stiff_smith\\03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-48f3132d-fd1d-4664-9ca8-97fa092ced02.png",
+      "promptSha256": "ae67703eb85f9799ff9507586d1d8af48c7e0240fb6d15592859f5a5fc4326fe",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-3a9e5e28-929e-48d7-9962-205cda0dbd69.png",
+          "sha256": "63c98c97ef143c2fe25b1c5e5c1d17a9145bd459f1f3c5c2477981781deea021",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "A dobradiça de quadril é reconhecível e a barra permanece ligada aos trilhos, mas os dois pés sobem cerca de 65–75 pixels em relação à 01; as canelas aparentam encurtar. Rejeitada como endpoint por deriva de apoio/escala.",
+      "preparedAt": "2026-10-03T15:57:18.536Z",
+      "producedAt": "2026-10-03T16:04:07.637Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_stiff_smith__03_final__2",
+      "exerciseId": "legs_stiff_smith",
+      "phase": "03_final",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "4c3fc46c3df4a29e68b59809e9374600c65c866340f66cc30208a4b8510f1102",
+      "bytes": 2070770,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_stiff_smith\\03_final-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-01936917-388c-437d-966b-556d38b49ef2.png",
+      "promptSha256": "32c35198050181447d5073d23979015d91497da0a7edfc520fd153558a9a1404",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-3a9e5e28-929e-48d7-9962-205cda0dbd69.png",
+          "sha256": "63c98c97ef143c2fe25b1c5e5c1d17a9145bd459f1f3c5c2477981781deea021",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-48f3132d-fd1d-4664-9ca8-97fa092ced02.png",
+          "sha256": "c56553c1605d0802bbd9ab396226bc70ed4bb79a347e1d9f2e93e77672ca14f2",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "GENERATED_FRAME_REPAIR_TARGET"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "A correção mantém a dobra de quadril, mas ainda copia o deslocamento superior dos pés e encurta a perna abaixo do joelho; o apoio não corresponde à 01.",
+      "preparedAt": "2026-10-03T16:04:54.734Z",
+      "producedAt": "2026-10-03T16:06:17.645Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_stiff_smith__03_final__3",
+      "exerciseId": "legs_stiff_smith",
+      "phase": "03_final",
+      "attemptCumulative": 3,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "SUPERSEDED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "fdbf1595dc61161d8cfeeb92f6a9c1c327c7720baf696e6d3343b111a410f38c",
+      "bytes": 2055895,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_stiff_smith\\03_final-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-559e2a6d-7a56-4daa-ae05-a47674d807c0.png",
+      "promptSha256": "38be02699fa1933f7d31b990b90d2ffe8552776d1f060a94486401a6924b0e50",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-3a9e5e28-929e-48d7-9962-205cda0dbd69.png",
+          "sha256": "63c98c97ef143c2fe25b1c5e5c1d17a9145bd459f1f3c5c2477981781deea021",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor preservação da altura dos pés dentre os endpoints, mas ainda há deriva residual (~30 px) e cabeça em extensão. A barra permanece nos trilhos e a dobradiça é reconhecível. Limite 3/3 atingido; selecionar apenas como melhor existente para revisão humana.",
+      "preparedAt": "2026-10-03T16:06:25.042Z",
+      "producedAt": "2026-10-03T16:07:43.125Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_stiff_smith__02_intermediaria__1",
+      "exerciseId": "legs_stiff_smith",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "SUPERSEDED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "d3192e60a3e345fc2ad82f74dbb35edb7914a337a72616b32f6fbe18b7e0601e",
+      "bytes": 2046249,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_stiff_smith\\02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-a4f2459c-6628-415c-9e9f-c57e8fb53fa3.png",
+      "promptSha256": "ea02638f2bf70b2129b1849d89bdf4b17ed74e1cafd9e25f6a01176b16f7e378",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-3a9e5e28-929e-48d7-9962-205cda0dbd69.png",
+          "sha256": "63c98c97ef143c2fe25b1c5e5c1d17a9145bd459f1f3c5c2477981781deea021",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-559e2a6d-7a56-4daa-ae05-a47674d807c0.png",
+          "sha256": "fdbf1595dc61161d8cfeeb92f6a9c1c327c7720baf696e6d3343b111a410f38c",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "ENDPOINT_POSE_REFERENCE_WITH_HUMAN_REVIEW_CAVEAT"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Intermediária reconhecível com inclinação do tronco e altura da barra entre os extremos; repete a deriva de apoio da 03, exigindo revisão humana da sequência.",
+      "preparedAt": "2026-10-03T16:07:53.375Z",
+      "producedAt": "2026-10-03T16:09:01.259Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_aducao_cabo__01_inicial__1",
+      "exerciseId": "legs_aducao_cabo",
+      "phase": "01_inicial",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "38e6fdec01d50c7c0291d5e90d9c1f3813a24131e10d676fe9b5addb751548c4",
+      "bytes": 2220475,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_aducao_cabo\\01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-f25cd9df-d274-4251-aac0-13a1bf0b540c.png",
+      "promptSha256": "c985b35b83b14c9b8fe7872e2caa5dc6450b930bac7df19175ac0808c971c893",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Inspeção ampliada confirma tornozeleira ajustada com argola/conector, cabo tensionado contínuo e polia baixa presa à torre; mão apoiada, pé de suporte plantado, perna ativa aberta. 01 utilizável como lock.",
+      "preparedAt": "2026-10-03T16:09:56.517Z",
+      "producedAt": "2026-10-03T16:11:09.137Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_aducao_cabo__03_final__1",
+      "exerciseId": "legs_aducao_cabo",
+      "phase": "03_final",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "c7aee3e96d72f182fb5fedfb40fdae9750a80ab7f46b0f40e463f7dc0db201b2",
+      "bytes": 2057093,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_aducao_cabo\\03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-15b9d4a8-99f5-43b1-8812-28f5cd31fa8f.png",
+      "promptSha256": "795baba166be0acf4fa90af989c0a9d2eb7fefc3d01fb7d7b3e31d9a53e791fd",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-f25cd9df-d274-4251-aac0-13a1bf0b540c.png",
+          "sha256": "38e6fdec01d50c7c0291d5e90d9c1f3813a24131e10d676fe9b5addb751548c4",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Revisão ampliada posterior: cabo contínuo e pose adequados, mas pilha permanece estática apesar da maior extensão do cabo. Retirar seleção para corrigir transmissão da carga sem alterar torre/câmera/pose.",
+      "preparedAt": "2026-10-03T16:12:00.274Z",
+      "producedAt": "2026-10-03T16:13:20.937Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_aducao_cabo__02_intermediaria__1",
+      "exerciseId": "legs_aducao_cabo",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "2dfab3776cf3e04306e08f8403193876a98fc57eaef33b88a6f5afc41560515c",
+      "bytes": 2032552,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_aducao_cabo\\02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-978dc4e1-2654-4990-b558-8a2cc46c6eac.png",
+      "promptSha256": "ffefe7ab5a022cfc80bd2e0b1a6325931bb29cc990c6fae1b8d6e99d0786ea5a",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-f25cd9df-d274-4251-aac0-13a1bf0b540c.png",
+          "sha256": "38e6fdec01d50c7c0291d5e90d9c1f3813a24131e10d676fe9b5addb751548c4",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-15b9d4a8-99f5-43b1-8812-28f5cd31fa8f.png",
+          "sha256": "c7aee3e96d72f182fb5fedfb40fdae9750a80ab7f46b0f40e463f7dc0db201b2",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "ENDPOINT_POSE_REFERENCE_WITH_HUMAN_REVIEW_CAVEAT"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Comparação ampliada posterior detectou pilha estática no ponto médio, apesar de extensão maior do cabo. Pose permanece boa, mas carga não acompanha o movimento.",
+      "preparedAt": "2026-10-03T16:13:27.655Z",
+      "producedAt": "2026-10-03T16:15:03.599Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sumo_smith__01_inicial__1",
+      "exerciseId": "legs_agachamento_sumo_smith",
+      "phase": "01_inicial",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "6620016107f66010b1ba74e29c70cdfc48d5185a6592809d62ee29f0435d3f85",
+      "bytes": 2174027,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sumo_smith\\01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-740ead4e-b4d4-47ce-8eb1-18e983918e75.png",
+      "promptSha256": "bce7abfa6137d8201a1cfe573fef9af5719c4b39aa5c69b86414d2157baf7a2d",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Ampliação confirma barra atrás dos ombros, mãos segurando, duas mangas ligadas aos trilhos verticais e bases coerentes. Base ampla e pés voltados para fora; 01 apta como lock.",
+      "preparedAt": "2026-10-03T16:15:16.663Z",
+      "producedAt": "2026-10-03T16:16:32.021Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sumo_smith__03_final__1",
+      "exerciseId": "legs_agachamento_sumo_smith",
+      "phase": "03_final",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "a63a36141bffc8ca3f9e344e983a49b7fe4308c89d068c7df00e79f1d6cd8db8",
+      "bytes": 2101006,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sumo_smith\\03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-1f7f662a-d747-4321-8419-102fe409ee94.png",
+      "promptSha256": "8f0c5a597f696e1b02063bbe9ad09175d50a13165978d50424b228453a394201",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-740ead4e-b4d4-47ce-8eb1-18e983918e75.png",
+          "sha256": "6620016107f66010b1ba74e29c70cdfc48d5185a6592809d62ee29f0435d3f85",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Agachamento profundo reconhecível, joelhos abertos e barra guiada; porém os pés e bases aparentam subir cerca de 25–30 px comparados à 01. Rejeitada para correção do apoio/estrutura fixa.",
+      "preparedAt": "2026-10-03T16:17:22.774Z",
+      "producedAt": "2026-10-03T16:18:59.795Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sumo_smith__03_final__2",
+      "exerciseId": "legs_agachamento_sumo_smith",
+      "phase": "03_final",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "96b881ff0fdede5aadad9b2d864114581c151281e7bbb91877a82e15e8829619",
+      "bytes": 2036160,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sumo_smith\\03_final-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-84215b14-5d38-4b54-8b89-14f1a9da27fd.png",
+      "promptSha256": "30244810f3c54c8e3429cbd9f61afa5618aa6296269b286762ddf1ce4feca605",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-740ead4e-b4d4-47ce-8eb1-18e983918e75.png",
+          "sha256": "6620016107f66010b1ba74e29c70cdfc48d5185a6592809d62ee29f0435d3f85",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-1f7f662a-d747-4321-8419-102fe409ee94.png",
+          "sha256": "a63a36141bffc8ca3f9e344e983a49b7fe4308c89d068c7df00e79f1d6cd8db8",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "GENERATED_FRAME_REPAIR_TARGET"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Mantém postura profunda, mas não corrigiu a deriva dos pés e da base observada na tentativa 1. Preservar; terceira tentativa fará edição somente a partir da 01.",
+      "preparedAt": "2026-10-03T16:19:06.518Z",
+      "producedAt": "2026-10-03T16:20:35.811Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sumo_smith__03_final__3",
+      "exerciseId": "legs_agachamento_sumo_smith",
+      "phase": "03_final",
+      "attemptCumulative": 3,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "BEST_EXISTING_NEEDS_HUMAN_REVIEW",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "44299fc38785dc1ef5b1583ed4ed4957c42ae90a6ec54915e9b89f637ffec783",
+      "bytes": 2065512,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sumo_smith\\03_final-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-f015b46b-2500-48ef-be86-5f2f117aae6a.png",
+      "promptSha256": "a3f28ea280784ef463bea27500d12ad07607a5029dbd56f606f27ba49056a73e",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-740ead4e-b4d4-47ce-8eb1-18e983918e75.png",
+          "sha256": "6620016107f66010b1ba74e29c70cdfc48d5185a6592809d62ee29f0435d3f85",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor endpoint: bases/trilhos mais próximos da 01, joelhos ~90° e coxas quase horizontais, barra conectada. Persiste pequeno deslocamento de pés (~15–25 px); limite 3/3, manter melhor existente como NEEDS_HUMAN_REVIEW.",
+      "preparedAt": "2026-10-03T16:20:42.622Z",
+      "producedAt": "2026-10-03T16:22:00.412Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sumo_smith__02_intermediaria__1",
+      "exerciseId": "legs_agachamento_sumo_smith",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "1946b1b1a277f3ce1e392e5a1d4887b4f67602b03f3cea9289b10bf28db080d7",
+      "bytes": 2029055,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sumo_smith\\02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-8aba9964-fe1c-4f4b-9444-5fcb02d580dd.png",
+      "promptSha256": "a1c389cd200ea41f49f39171df89a8be2763a05e0707d74b60b34d5b8f266d3d",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-740ead4e-b4d4-47ce-8eb1-18e983918e75.png",
+          "sha256": "6620016107f66010b1ba74e29c70cdfc48d5185a6592809d62ee29f0435d3f85",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-f015b46b-2500-48ef-be86-5f2f117aae6a.png",
+          "sha256": "44299fc38785dc1ef5b1583ed4ed4957c42ae90a6ec54915e9b89f637ffec783",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "ENDPOINT_POSE_REFERENCE_WITH_HUMAN_REVIEW_CAVEAT"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Barra/cabeça em alturas entre 01 e 03, joelhos parcialmente flexionados e pés mantidos. Intermediária distinta, estrutura Smith conectada aos dois trilhos.",
+      "preparedAt": "2026-10-03T16:22:07.878Z",
+      "producedAt": "2026-10-03T16:23:57.062Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_leg_press_90__01_inicial__1",
+      "exerciseId": "legs_leg_press_90",
+      "phase": "01_inicial",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "ac59574136e63398951613e1e896c37383d7355a8e3a9e0c665c9e55b7d08b20",
+      "bytes": 2340939,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_leg_press_90\\01_inicial-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-4ac2ee67-f7df-4bf8-8aed-d07daf7f89fb.png",
+      "promptSha256": "6eeed0a86a7f02c0b28c9175a39e1983b7629670491f0558ce7b2d16c5c55ff2",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Na ampliação, a plataforma parece ligada aos blocos de fim de trilho/estrutura fixa e o assento também apresenta mangas nas guias; não é possível distinguir carrinho móvel da base fixa conforme montagem configurada. Não usar esta 01 defeituosa como lock.",
+      "preparedAt": "2026-10-03T16:25:59.197Z",
+      "producedAt": "2026-10-03T16:27:52.108Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_leg_press_90__01_inicial__2",
+      "exerciseId": "legs_leg_press_90",
+      "phase": "01_inicial",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "84b0518499893243df9a01148ca99386e24f06f1e1f4253ac6ecbaf0e13c35e8",
+      "bytes": 2336542,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_leg_press_90\\01_inicial-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-b27f5934-3311-4c54-9062-65c79425270a.png",
+      "promptSha256": "98a1a4bc98b90b3d36d5ee86a0e0ca9cdbfffd6ec12deb056485cf0b1d219fb2",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-4ac2ee67-f7df-4bf8-8aed-d07daf7f89fb.png",
+          "sha256": "ac59574136e63398951613e1e896c37383d7355a8e3a9e0c665c9e55b7d08b20",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "GENERATED_FRAME_REPAIR_TARGET"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Ampliação mostra carrinho separado nas guias, sem ligação rígida visível à plataforma, que permanece apoiada na coluna terminal fixa. Montagem não apta a deslizar como proposta. Rejeitada; não usar como lock de 02/03.",
+      "preparedAt": "2026-10-03T16:29:17.387Z",
+      "producedAt": "2026-10-03T16:31:10.258Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_leg_press_90__01_inicial__3",
+      "exerciseId": "legs_leg_press_90",
+      "phase": "01_inicial",
+      "attemptCumulative": 3,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "SUPERSEDED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "3a2d9dbca5bcabe024a3b7b6f941eb3a68c7947ad8b7719fcba744db4fc4d91f",
+      "bytes": 2282205,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_leg_press_90\\01_inicial-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-0598da16-423a-442d-a1f2-74c062e83d84.png",
+      "promptSha256": "576c32a478a15dc36dd169cb5a3de92b9bd161f62947cee76186900c750ecffb",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-b27f5934-3311-4c54-9062-65c79425270a.png",
+          "sha256": "84b0518499893243df9a01148ca99386e24f06f1e1f4253ac6ecbaf0e13c35e8",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "GENERATED_FRAME_REPAIR_TARGET"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Ampliação confirma stalk rígido soldado ao carrinho transversal, mangas nas duas guias e separação da coluna terminal fixa; plataforma não flutua nem está presa ao endpost. Ligação de carga parcialmente ocluída e ambiguidade Horizontal/vertical exigem revisão humana. Estrutura local utilizável como referência geométrica; sem aprovação.",
+      "preparedAt": "2026-10-03T16:32:41.045Z",
+      "producedAt": "2026-10-03T16:34:39.038Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_leg_press_90__03_final__1",
+      "exerciseId": "legs_leg_press_90",
+      "phase": "03_final",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "70c64c30cfb07d3b06695cd69512e729bbeb969f090cefdaa279516b74f0980d",
+      "bytes": 2221255,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_leg_press_90\\03_final-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-6a50f721-3416-4a15-92d8-61bf9c8955ae.png",
+      "promptSha256": "a969f2084b7185b90eaed6e75ac40c59cda2215b6da1ea37d29de0908b7ad74b",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-0598da16-423a-442d-a1f2-74c062e83d84.png",
+          "sha256": "3a2d9dbca5bcabe024a3b7b6f941eb3a68c7947ad8b7719fcba744db4fc4d91f",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Plataforma/carrinho deslocados horizontalmente nos trilhos, estrutura terminal fixa preservada, corpo/encosto estáveis, joelhos flexionados com lombar apoiada. Ligação completa da carga continua parcialmente ocluída; conflito canônico permanece.",
+      "preparedAt": "2026-10-03T16:36:08.332Z",
+      "producedAt": "2026-10-03T16:38:02.061Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_leg_press_90__02_intermediaria__1",
+      "exerciseId": "legs_leg_press_90",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 1,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "0c25bff1664e0f6e0b9205f6d693b82a5af63b21c4fddaacc95cdc385b93f3f0",
+      "bytes": 2190095,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_leg_press_90\\02_intermediaria-attempt-01.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-4b2fe39d-1288-4d78-91e9-9e83aeab3a30.png",
+      "promptSha256": "047f3ff0ee01f4cbf289bec20c918ad7952023e24c547ad7078871284077021f",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-0598da16-423a-442d-a1f2-74c062e83d84.png",
+          "sha256": "3a2d9dbca5bcabe024a3b7b6f941eb3a68c7947ad8b7719fcba744db4fc4d91f",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-6a50f721-3416-4a15-92d8-61bf9c8955ae.png",
+          "sha256": "70c64c30cfb07d3b06695cd69512e729bbeb969f090cefdaa279516b74f0980d",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "ACCEPTABLE_ENDPOINT_POSE_REFERENCE"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Plataforma deslocada cerca de 2/3 do trajeto e joelhos quase na postura da 03, em vez de aproximadamente metade. Rejeitada pela MIDPOINT_50_PERCENT_RULE.",
+      "preparedAt": "2026-10-03T16:38:11.935Z",
+      "producedAt": "2026-10-03T16:40:08.953Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_leg_press_90__02_intermediaria__2",
+      "exerciseId": "legs_leg_press_90",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "b4b38ae77ea1c366d87e2c1a98b5b05d6360e464611a1df613cb49ff62275c9f",
+      "bytes": 2192472,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_leg_press_90\\02_intermediaria-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-8aa42883-6ed4-4668-9a8a-6b28567e9028.png",
+      "promptSha256": "65ca0ec18dec8d857c5689081efedaae9ab19ab512cdf51f7c79540ea997bf27",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-0598da16-423a-442d-a1f2-74c062e83d84.png",
+          "sha256": "3a2d9dbca5bcabe024a3b7b6f941eb3a68c7947ad8b7719fcba744db4fc4d91f",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-6a50f721-3416-4a15-92d8-61bf9c8955ae.png",
+          "sha256": "70c64c30cfb07d3b06695cd69512e729bbeb969f090cefdaa279516b74f0980d",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "ACCEPTABLE_ENDPOINT_POSE_REFERENCE"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Pior que a tentativa 1: plataforma muito perto da 03 (apenas ~20 px de diferença), apesar de leve diferença na flexão. MIDPOINT não atendido. Preservar a melhor existente caso a tentativa 3 não melhore.",
+      "preparedAt": "2026-10-03T16:40:20.670Z",
+      "producedAt": "2026-10-03T16:42:12.211Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_leg_press_90__02_intermediaria__3",
+      "exerciseId": "legs_leg_press_90",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 3,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "BEST_EXISTING_NEEDS_HUMAN_REVIEW",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "c0d8184ac5359599822dffbc3f4dfd01c092bce31c3a59f89079ef98c751573b",
+      "bytes": 2190681,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_leg_press_90\\02_intermediaria-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-4c2082fb-231b-4000-aeb3-401c97f8e959.png",
+      "promptSha256": "bf8c1720313f1e133fc2ddb24d95bbd961488622ba44fc254e8db4629252cfe5",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-0598da16-423a-442d-a1f2-74c062e83d84.png",
+          "sha256": "3a2d9dbca5bcabe024a3b7b6f941eb3a68c7947ad8b7719fcba744db4fc4d91f",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor intermediária: flexão mais rasa e distinta da final, porém deslocamento da plataforma aparenta ~60–65% em vez de ~50%. Limite 3/3; preservar melhor existente, PHASE_DISTINCTION para revisão humana, nenhuma rodada extra.",
+      "preparedAt": "2026-10-03T16:42:22.832Z",
+      "producedAt": "2026-10-03T16:44:08.400Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_aducao_cabo__03_final__2",
+      "exerciseId": "legs_aducao_cabo",
+      "phase": "03_final",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "6d22f4287b88e9d790b6fcd2002402ec1a37c17a915df4b0a71d2af6b160af3d",
+      "bytes": 1983788,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_aducao_cabo\\03_final-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-4ee55e96-c474-4034-8158-ab6a60e5cd27.png",
+      "promptSha256": "9776a9f50f6ee172756b26c19c3ec6f6d9ec8411d20204d0915b7bd506aa2ae0",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-15b9d4a8-99f5-43b1-8812-28f5cd31fa8f.png",
+          "sha256": "c7aee3e96d72f182fb5fedfb40fdae9750a80ab7f46b0f40e463f7dc0db201b2",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "GENERATED_FRAME_REPAIR_TARGET"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-f25cd9df-d274-4251-aac0-13a1bf0b540c.png",
+          "sha256": "38e6fdec01d50c7c0291d5e90d9c1f3813a24131e10d676fe9b5addb751548c4",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Carga elevada reconhecível, mas a ampliação mostra placas extras abaixo do seletor no grupo elevado (11 em vez de 8) e alteração de componente superior fixo da torre. Rejeitar como lock; preservar a geometria/contagem original na última tentativa.",
+      "preparedAt": "2026-10-03T16:59:45.330Z",
+      "producedAt": "2026-10-03T17:01:52.451Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_aducao_cabo__03_final__3",
+      "exerciseId": "legs_aducao_cabo",
+      "phase": "03_final",
+      "attemptCumulative": 3,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "BEST_EXISTING_NEEDS_HUMAN_REVIEW",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "3ec37d4abc0078bbc66cf635629662842b09facc643c087465fe320808764a1d",
+      "bytes": 1937549,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_aducao_cabo\\03_final-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-b21d9d6f-9173-4309-af36-7473afab8862.png",
+      "promptSha256": "1b66fadae854aa1434f604f64b76fe7dc91fb34090fa4acb5a96512b036c152d",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-4ee55e96-c474-4034-8158-ab6a60e5cd27.png",
+          "sha256": "6d22f4287b88e9d790b6fcd2002402ec1a37c17a915df4b0a71d2af6b160af3d",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "GENERATED_FRAME_REPAIR_TARGET"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-f25cd9df-d274-4251-aac0-13a1bf0b540c.png",
+          "sha256": "38e6fdec01d50c7c0291d5e90d9c1f3813a24131e10d676fe9b5addb751548c4",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Melhor existente com grupo elevado mais próximo de 8 placas e cabo/pose preservados, mas contagem da pilha inferior e geometria superior da torre ainda não reproduzem a 01. 3/3 atingido; equipamento/transmissão da carga exigem revisão humana, sem uso como lock geométrico.",
+      "preparedAt": "2026-10-03T17:04:09.023Z",
+      "producedAt": "2026-10-03T17:06:51.694Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_aducao_cabo__02_intermediaria__2",
+      "exerciseId": "legs_aducao_cabo",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 2,
+      "roundId": "ORIGINAL_AUTOMATIC",
+      "roundAttempt": null,
+      "historicalAgentDisposition": "BEST_EXISTING_NEEDS_HUMAN_REVIEW",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "728abd4ed7b296a66d14740a28e02d1ce3d55389256149e1b609bf5ac55142dc",
+      "bytes": 2009958,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_aducao_cabo\\02_intermediaria-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-43e3cdf0-6e99-455c-91cf-a779dc1a544b.png",
+      "promptSha256": "7de2d672f4b87c396cf5e26e0510a7b9f0e6c357dacee083a42727a90acd2eef",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-978dc4e1-2654-4990-b558-8a2cc46c6eac.png",
+          "sha256": "2dfab3776cf3e04306e08f8403193876a98fc57eaef33b88a6f5afc41560515c",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "GENERATED_FRAME_REPAIR_TARGET"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-f25cd9df-d274-4251-aac0-13a1bf0b540c.png",
+          "sha256": "38e6fdec01d50c7c0291d5e90d9c1f3813a24131e10d676fe9b5addb751548c4",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "Pose/cabo do midpoint preservados, carga parcialmente elevada com gap; diferenças de contagem/geométrica da pilha em relação aos endpoints permanecem. Selecionar como melhor intermediária para revisão humana; endpoint já atingiu 3/3 e exige decisão antes de nova rodada.",
+      "preparedAt": "2026-10-03T17:07:07.564Z",
+      "producedAt": "2026-10-03T17:11:12.553Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_leg_press_90__01_inicial__4",
+      "exerciseId": "legs_leg_press_90",
+      "phase": "01_inicial",
+      "attemptCumulative": 4,
+      "roundId": "HUMAN_CORRECTION_R1",
+      "roundAttempt": 1,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "077129a2702d0a113a3a0b729aa4566c5f4a8d58e08fa6f4750cfe2b8595286f",
+      "bytes": 2208559,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_leg_press_90\\01_inicial-attempt-04.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-567e922f-7360-487f-835e-02a5860b4a3a.png",
+      "promptSha256": "6f334ff570a7388cb5b6980460e216f252bec56ad98c40d10f14bf8ea996fafa",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_leg_press_90/01_inicial-attempt-03.png",
+          "sha256": "3a2d9dbca5bcabe024a3b7b6f941eb3a68c7947ad8b7719fcba744db4fc4d91f",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1: comparação ampliada com a anterior mostra flexão discreta adicional dos dois joelhos e elimina a aparência de lockout; pés/plataforma, assento, encosto, trilhos e câmera visualmente preservados. Melhoria selecionada. Ângulo aproximado visual, sem alegar medição clínica de 10–15°; fases 02/03 congeladas.",
+      "preparedAt": "2026-10-03T21:51:34.448Z",
+      "producedAt": "2026-10-03T22:22:44.751Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sissy__02_intermediaria__3",
+      "exerciseId": "legs_agachamento_sissy",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 3,
+      "roundId": "HUMAN_CORRECTION_R1",
+      "roundAttempt": 1,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "e456301b1f39eb40f638749382dcf599be5fbfe78bc16d8ae961bffe8dabc4e0",
+      "bytes": 1961041,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sissy\\02_intermediaria-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-2512814f-f6a7-4dde-adb3-a0b5be2138c5.png",
+      "promptSha256": "194fcd2de1554d192786572d8a5e66713fa6f04819e0b17c3cc682e214c0f9b8",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_agachamento_sissy/01_inicial-attempt-01.png",
+          "sha256": "a135d90f23833ec378ddd11387ff3e61ad7776ed38b8c1bec2aefe1985681430",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1 tentativa 1: maior avanço/flexão de joelhos, mas a pose ficou profunda para 02, leve dobra quadril/tronco e deslocamento do topo do apoio/floorline (~30 px). Preservada rejeitada; nova tentativa com amplitude menor e geometria da 01.",
+      "preparedAt": "2026-10-03T22:23:34.779Z",
+      "producedAt": "2026-10-03T22:25:24.508Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sissy__02_intermediaria__4",
+      "exerciseId": "legs_agachamento_sissy",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 4,
+      "roundId": "HUMAN_CORRECTION_R1",
+      "roundAttempt": 2,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "4ae50b24c5e76201952258ecf1c4cc49a22b2af4287b1850f52722c2bf817213",
+      "bytes": 1997483,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sissy\\02_intermediaria-attempt-04.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-2cc2a350-d28d-46fe-99cd-152d7ee66afb.png",
+      "promptSha256": "e00523436178cef065075e00aa27a94f68be56529e9b7ed499a8a3b03358825d",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_agachamento_sissy/01_inicial-attempt-01.png",
+          "sha256": "a135d90f23833ec378ddd11387ff3e61ad7776ed38b8c1bec2aefe1985681430",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1 tentativa 2: joelhos mais flexionados, porém pad/poste lateralmente deslocados e floorline elevada em comparação à 01. Superada pela tentativa 3, preservada.",
+      "preparedAt": "2026-10-03T22:25:34.035Z",
+      "producedAt": "2026-10-03T22:26:53.243Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sissy__02_intermediaria__5",
+      "exerciseId": "legs_agachamento_sissy",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 5,
+      "roundId": "HUMAN_CORRECTION_R1",
+      "roundAttempt": 3,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "529d9dbf00e967f6612399ab38435acf314096ecb7cf498f3c8523f08c1e8d0f",
+      "bytes": 1911608,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sissy\\02_intermediaria-attempt-05.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-895d5bbc-1570-461e-b542-4ba95963ac33.png",
+      "promptSha256": "23bbf9d5b2b1cfb294062257fcfd608920f07b487109d632ab4a70d507cd0737",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_agachamento_sissy/01_inicial-attempt-01.png",
+          "sha256": "a135d90f23833ec378ddd11387ff3e61ad7776ed38b8c1bec2aefe1985681430",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1 intermediária tentativa 3 descartada após comparação 01|02|03: avanço dos joelhos melhor isoladamente, mas contato de calcanhar mudou e, sem final R1 válida, não constitui midpoint coerente com 03 congelada retida. Conservar sequência anterior; 3/3 novas tentativas intermediárias esgotadas.",
+      "preparedAt": "2026-10-03T22:26:56.483Z",
+      "producedAt": "2026-10-03T22:28:21.250Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sissy__03_final__4",
+      "exerciseId": "legs_agachamento_sissy",
+      "phase": "03_final",
+      "attemptCumulative": 4,
+      "roundId": "HUMAN_CORRECTION_R1",
+      "roundAttempt": 1,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "c4debaae23d53d2d44ddfaa556841c4cf07d57ec4ac111ca1e83c8de6cc2bfd6",
+      "bytes": 1941647,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sissy\\03_final-attempt-04.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-a3a1c3a8-dcc5-4400-960a-74ea54a99b0f.png",
+      "promptSha256": "a0b06325a0d7a3ea6eace62aa9b2df17d0286b76f5eb2f155665c07ca31016be",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_agachamento_sissy/01_inicial-attempt-01.png",
+          "sha256": "a135d90f23833ec378ddd11387ff3e61ad7776ed38b8c1bec2aefe1985681430",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-895d5bbc-1570-461e-b542-4ba95963ac33.png",
+          "sha256": "529d9dbf00e967f6612399ab38435acf314096ecb7cf498f3c8523f08c1e8d0f",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_SAME_EXERCISE_PHASE_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1 final tentativa 1 rejeitada: flexão maior, porém floorline/apoio/roller/pés sobem ~30 px e calcanhar eleva.",
+      "preparedAt": "2026-10-03T22:28:34.087Z",
+      "producedAt": "2026-10-03T22:29:42.867Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sissy__03_final__5",
+      "exerciseId": "legs_agachamento_sissy",
+      "phase": "03_final",
+      "attemptCumulative": 5,
+      "roundId": "HUMAN_CORRECTION_R1",
+      "roundAttempt": 2,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "761a5d105b61bd17e3782351af9ca4d0ac2d5e08c5d1a3d76c54a8f92da7e660",
+      "bytes": 1934895,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sissy\\03_final-attempt-05.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-4151d037-f0a9-4345-933c-ad97731768bc.png",
+      "promptSha256": "b93ac1b41016d0f877ae154c4b32c7a7ab402cd6d648536443dc7f76728de926",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_agachamento_sissy/01_inicial-attempt-01.png",
+          "sha256": "a135d90f23833ec378ddd11387ff3e61ad7776ed38b8c1bec2aefe1985681430",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-895d5bbc-1570-461e-b542-4ba95963ac33.png",
+          "sha256": "529d9dbf00e967f6612399ab38435acf314096ecb7cf498f3c8523f08c1e8d0f",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_SAME_EXERCISE_PHASE_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1 final tentativa 2 rejeitada: equipamento mais próximo da 01, mas calcanhar eleva e pés não mantêm orientação exata.",
+      "preparedAt": "2026-10-03T22:29:47.265Z",
+      "producedAt": "2026-10-03T22:31:05.725Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_agachamento_sissy__03_final__6",
+      "exerciseId": "legs_agachamento_sissy",
+      "phase": "03_final",
+      "attemptCumulative": 6,
+      "roundId": "HUMAN_CORRECTION_R1",
+      "roundAttempt": 3,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "46ebd08f97eedeb8f74f330571aa84daccb1952196ae4e2eb6ca150439cc2139",
+      "bytes": 1986375,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_agachamento_sissy\\03_final-attempt-06.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-a91e8ae6-be19-4a70-94b2-0b26e8adcd47.png",
+      "promptSha256": "b10cfd3407abc6c8dd8621cff444dc588711863740bad9a2e1e462a18a7379d5",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_agachamento_sissy/01_inicial-attempt-01.png",
+          "sha256": "a135d90f23833ec378ddd11387ff3e61ad7776ed38b8c1bec2aefe1985681430",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-895d5bbc-1570-461e-b542-4ba95963ac33.png",
+          "sha256": "529d9dbf00e967f6612399ab38435acf314096ecb7cf498f3c8523f08c1e8d0f",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_SAME_EXERCISE_PHASE_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1 final tentativa 3 rejeitada: persistem elevação de calcanhar e deslocamento/escala de apoio, piso e pés. Limite R1 final atingido 3/3; conservar 03 anterior.",
+      "preparedAt": "2026-10-03T22:31:08.818Z",
+      "producedAt": "2026-10-03T22:32:46.121Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_em_pe_maquina__02_intermediaria__2",
+      "exerciseId": "legs_flexora_em_pe_maquina",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 2,
+      "roundId": "HUMAN_CORRECTION_R1",
+      "roundAttempt": 1,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "a8457235eb9ab0ef01de5d5ab6472199f883200aadcc4352645707dc2ed0ac60",
+      "bytes": 2005451,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_em_pe_maquina\\02_intermediaria-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-85701e25-7925-402c-a1d6-c8ad4e75f0b7.png",
+      "promptSha256": "9d47218ea4ee8958fc2d08612b57ce0beae2d56d27f60658ef3b41e5222e5a4c",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_flexora_em_pe_maquina/01_inicial-attempt-01.png",
+          "sha256": "2960331220667e75787a232f06bdd0d28d432a557c841557525e590a4e7b6af5",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_flexora_em_pe_maquina/03_final-attempt-03.png",
+          "sha256": "9aae56be278ce021b49f3ff5dbe05366524187d3bd31726153b5c0ee56b57d70",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_SAME_EXERCISE_PHASE_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1 Flexora em Pé tentativa 1: pivô sobe ~20 px e alavanca inferior desaparece atrás da panturrilha, rolo parece desconectado. Rejeitada por equipamento; manter os extremos e refazer mecanismo.",
+      "preparedAt": "2026-10-03T22:33:09.718Z",
+      "producedAt": "2026-10-03T22:35:15.058Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_flexora_em_pe_maquina__02_intermediaria__3",
+      "exerciseId": "legs_flexora_em_pe_maquina",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 3,
+      "roundId": "HUMAN_CORRECTION_R1",
+      "roundAttempt": 2,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "eedd9b01930eb2c06a4ff6516ca03e50dced91015208b9c611ed0b3a7fd66555",
+      "bytes": 2019955,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_flexora_em_pe_maquina\\02_intermediaria-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-75dc8281-357f-438d-99ba-df4b7988512d.png",
+      "promptSha256": "9c35c1ff9a970425cd470dbc77df262d61ef81f78b04aeeafe98f2302d04390f",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_flexora_em_pe_maquina/01_inicial-attempt-01.png",
+          "sha256": "2960331220667e75787a232f06bdd0d28d432a557c841557525e590a4e7b6af5",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_flexora_em_pe_maquina/03_final-attempt-03.png",
+          "sha256": "9aae56be278ce021b49f3ff5dbe05366524187d3bd31726153b5c0ee56b57d70",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_SAME_EXERCISE_PHASE_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1 tentativa 2: pivô retorna à posição dos extremos, alavanca visível contínua e rolo conectado. Flexão reduzida em relação à 02 anterior, pé abaixo do joelho e claramente distante da 03; quadril/perna de apoio/câmera visualmente estáveis. Selecionada como melhoria; raio/projeção do rolo e posição relativa joelho-eixo ainda submetidos à revisão humana, sem ângulo clínico exato.",
+      "preparedAt": "2026-10-03T22:35:21.716Z",
+      "producedAt": "2026-10-03T22:36:54.830Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_stiff_smith__02_intermediaria__2",
+      "exerciseId": "legs_stiff_smith",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 2,
+      "roundId": "HUMAN_CORRECTION_R1",
+      "roundAttempt": 1,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "50d616c4384731606b0599f433e567a981d17c60bb1497150260c3c696d84c68",
+      "bytes": 2071576,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_stiff_smith\\02_intermediaria-attempt-02.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-3bef7631-7920-455b-9f6f-7a37020e94f1.png",
+      "promptSha256": "4b5007c1f5050d9780a63581e095d5715a73a45186d8db5eb26d2e273fbbbcc9",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_stiff_smith/01_inicial-attempt-01.png",
+          "sha256": "63c98c97ef143c2fe25b1c5e5c1d17a9145bd459f1f3c5c2477981781deea021",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1 tentativa 1 não selecionada: hinge mais profundo que midpoint e pés/base deslocados em relação à 01. Tentativa 3 mantém distinção mais adequada.",
+      "preparedAt": "2026-10-03T22:37:04.426Z",
+      "producedAt": "2026-10-03T22:38:49.761Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_stiff_smith__02_intermediaria__3",
+      "exerciseId": "legs_stiff_smith",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 3,
+      "roundId": "HUMAN_CORRECTION_R1",
+      "roundAttempt": 2,
+      "historicalAgentDisposition": "REJECTED_PRESERVED",
+      "historicalAgentSelected": false,
+      "finalDisposition": "ATTEMPT_PRESERVED_NOT_FINAL",
+      "outputSha256": "e384b09e14d4146dc92b1ee39eb1072684cb6772b1f00ba10a2f1c57d06ac57d",
+      "bytes": 2046447,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_stiff_smith\\02_intermediaria-attempt-03.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-a241c2a7-8b95-4b5e-a295-11dbb6d639a2.png",
+      "promptSha256": "079254ebc4abf73f2439da1751e8914d35ea9d951e6a4d462aacac0c2112012f",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_stiff_smith/01_inicial-attempt-01.png",
+          "sha256": "63c98c97ef143c2fe25b1c5e5c1d17a9145bd459f1f3c5c2477981781deea021",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-3bef7631-7920-455b-9f6f-7a37020e94f1.png",
+          "sha256": "50d616c4384731606b0599f433e567a981d17c60bb1497150260c3c696d84c68",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "R1_REJECTED_POSE_EXAMPLE_ONLY_NOT_STATIC_GEOMETRY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1 tentativa 2 não selecionada: base/pés ainda derivam e barra menos baixa que na tentativa 3; preservada.",
+      "preparedAt": "2026-10-03T22:38:53.233Z",
+      "producedAt": "2026-10-03T22:40:31.748Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_stiff_smith__02_intermediaria__4",
+      "exerciseId": "legs_stiff_smith",
+      "phase": "02_intermediaria",
+      "attemptCumulative": 4,
+      "roundId": "HUMAN_CORRECTION_R1",
+      "roundAttempt": 3,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "e61f2b2feb3d848dbbcc63c07f1d0c5ce5569e93d9dc52987405b1ad9bc6988d",
+      "bytes": 2078306,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_stiff_smith\\02_intermediaria-attempt-04.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-1a729461-b3e6-46d2-b71a-b11b0bb280e7.png",
+      "promptSha256": "efa6386e2acd995e6c93ff6df453f13257f3775f96bc79135e5b60b68c9d47d2",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_stiff_smith/01_inicial-attempt-01.png",
+          "sha256": "63c98c97ef143c2fe25b1c5e5c1d17a9145bd459f1f3c5c2477981781deea021",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1 tentativa 3: comparação inicial|02 anterior|02 nova mostra maior recuo do quadril e barra ligeiramente mais baixa/rente, joelhos semiflexionados e pescoço neutro. Melhoria moderada selecionada. Deslocamento de pés/base relativo à 01 permanece visualmente similar ao já existente na 02 anterior (~30 px); CAMERA/EQUIPMENT continuam NEEDS_HUMAN_REVIEW, sem declarar lock perfeito.",
+      "preparedAt": "2026-10-03T22:40:37.254Z",
+      "producedAt": "2026-10-03T22:42:10.327Z",
+      "runtimeApproval": "NOT_GRANTED"
+    },
+    {
+      "id": "legs_stiff_smith__03_final__4",
+      "exerciseId": "legs_stiff_smith",
+      "phase": "03_final",
+      "attemptCumulative": 4,
+      "roundId": "HUMAN_CORRECTION_R1",
+      "roundAttempt": 1,
+      "historicalAgentDisposition": "CANDIDATE_SELECTED",
+      "historicalAgentSelected": true,
+      "finalDisposition": "FINAL_SELECTED",
+      "outputSha256": "2030c2ed8d09eeed87552f83a77bcf242b9c46a648e8a81f542da62c76516283",
+      "bytes": 2031960,
+      "format": "png",
+      "width": 1024,
+      "height": 1536,
+      "localArchivePath": "C:\\Users\\rafae\\.codex\\worktrees\\goal-126-media-legs\\gymflow-ai\\docs\\media\\staging\\GYMFLOW-MEDIA-LEGS-BATCH-001-126\\attempts\\legs_stiff_smith\\03_final-attempt-04.png",
+      "sourceOutputPath": "C:\\Users\\rafae\\.codex\\generated_images\\01a10231-c835-7733-b519-86d589e1c0a2\\exec-5e98942f-e851-462d-84af-ecbb993b3dda.png",
+      "promptSha256": "e4bb31f08a8a5d7ec513efa7b841e4f381c38e3b1963dd4983486529afda32b5",
+      "fullPromptAvailability": "LOCAL_SOURCE_PROVENANCE_ONLY",
+      "referenceSnapshots": [
+        {
+          "path": "docs/media/staging/GYMFLOW-MEDIA-LEGS-BATCH-001-126/attempts/legs_stiff_smith/01_inicial-attempt-01.png",
+          "sha256": "63c98c97ef143c2fe25b1c5e5c1d17a9145bd459f1f3c5c2477981781deea021",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_INITIAL_CAMERA_EQUIPMENT_LOCK"
+        },
+        {
+          "path": "../../../generated_images/01a10231-c835-7733-b519-86d589e1c0a2/exec-1a729461-b3e6-46d2-b71a-b11b0bb280e7.png",
+          "sha256": "e61f2b2feb3d848dbbcc63c07f1d0c5ce5569e93d9dc52987405b1ad9bc6988d",
+          "role": "GENERATED_SEQUENCE_LOCK",
+          "usageClassification": "INSPECTED_SAME_EXERCISE_PHASE_LOCK"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/personal-oficial-original.png",
+          "sha256": "e5f3578091c3277d7bb363d3a31e80051675b6b3fba3fdeaa345b7d48977ce12",
+          "role": "OFFICIAL_PERSONAL_IDENTITY",
+          "usageClassification": "OFFICIAL_PERSONAL_IDENTITY"
+        },
+        {
+          "path": "docs/media/pilots/GYMFLOW-MEDIA-PILOT-TRICEPS-001/references/ambiente-original.png",
+          "sha256": "56b101e9e9b7dc840e75c67a81755359fbaa2f3cc818ad456b72c277bca19a6c",
+          "role": "OFFICIAL_ENVIRONMENT_STYLE",
+          "usageClassification": "OFFICIAL_ENVIRONMENT_STYLE"
+        }
+      ],
+      "agentNotes": "R1 final tentativa 1: hinge mais profundo que nova 02, quadril alto/recuado, joelhos apenas semiflexionados; barra abaixo dos joelhos junto à canela alta e conectada aos trilhos. Pescoço alinhado olhando ao piso melhora a 03 anterior com extensão cervical. Melhoria selecionada. Mesma ressalva residual de pés/base deslocados em relação à 01 (~30 px) permanece; não declarar câmera/equipamento perfeitos.",
+      "preparedAt": "2026-10-03T22:43:12.105Z",
+      "producedAt": "2026-10-03T22:44:34.824Z",
+      "runtimeApproval": "NOT_GRANTED"
+    }
+  ]
+}
