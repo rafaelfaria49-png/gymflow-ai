@@ -13,7 +13,14 @@ function run(tool, args, options = {}) {
   requireCondition(result.status === 0, `${path.basename(tool)} ${args[0] ?? ''} failed (exit ${result.status ?? 'spawn'}); packaging stopped.`);
   return result.stdout.trim();
 }
-function plist(file) { return JSON.parse(run('/usr/bin/plutil', ['-convert', 'json', '-o', '-', '--', file])); }
+function plist(file) {
+  // xcarchive's CreationDate is an NSDate, which plutil cannot serialize to JSON.
+  // Extract the audited application dictionary without converting/mutating the archive.
+  if (path.basename(file) === 'Info.plist' && path.dirname(file).endsWith('.xcarchive')) {
+    return { ApplicationProperties: JSON.parse(run('/usr/bin/plutil', ['-extract', 'ApplicationProperties', 'json', '-o', '-', '--', file])) };
+  }
+  return JSON.parse(run('/usr/bin/plutil', ['-convert', 'json', '-o', '-', '--', file]));
+}
 function capabilities(bundle) {
   const sourceFiles = run('git', ['ls-files', '-z', 'ios']).split('\0').filter(file => file.endsWith('.entitlements'));
   const declared = sourceFiles.map(file => ({ path: file, keys: Object.keys(plist(path.join(ROOT, file))).sort() }));

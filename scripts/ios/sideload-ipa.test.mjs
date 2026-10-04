@@ -108,6 +108,9 @@ describe('GOAL-129 Payload, checksums and exact-run download', () => {
   it('names artifacts with full source, exact run and attempt', () => expect(artifactName(sourceSha, 129, 2)).toContain(`${sourceSha}-UNSIGNED_FOR_LOCAL_RESIGN-run-129-2`));
   it.skipIf(process.platform !== 'darwin')('packages, CRC-tests, extracts and checks real ZIP modes/links on macOS (synthetic archive fixture)', () => {
     const f = fixture(); symlinkSync('App', path.join(f.app, 'AppLink'));
+    // Real archives contain a typed NSDate; converting the entire plist to JSON fails.
+    const properties = ['CFBundleIdentifier', 'CFBundleShortVersionString', 'CFBundleVersion'].map(key => `<key>${key}</key><string>${f.info[key]}</string>`).join('');
+    put(path.join(f.archive, 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CreationDate</key><date>2026-10-04T12:00:00Z</date><key>ApplicationProperties</key><dict>${properties}</dict></dict></plist>`);
     vi.stubEnv('SOURCE_SHA', execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()); vi.stubEnv('GITHUB_REPOSITORY', REPOSITORY); vi.stubEnv('GITHUB_RUN_ID', '129'); vi.stubEnv('GITHUB_RUN_ATTEMPT', '1'); vi.stubEnv('GITHUB_OUTPUT', ''); vi.stubEnv('GITHUB_STEP_SUMMARY', '');
     const metadata = packageSideloadIpa({ archive: f.archive, out: f.out, output: path.join(f.root, 'publish') });
     expect(metadata.gates.EXTRACTED_BUNDLE_INTEGRITY).toBe('PASS'); expect(existsSync(path.join(f.root, 'publish', metadata.ipa.name))).toBe(true);
