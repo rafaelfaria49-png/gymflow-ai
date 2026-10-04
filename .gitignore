@@ -54,3 +54,7 @@ next-env.d.ts
 *.provisionprofile
 *.p8
 *.ipa
+
+# GOAL-129: native archives, temporary packaging and downloaded deliverables
+/artifacts/
+*.xcarchive/

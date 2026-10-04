@@ -1,10 +1,24 @@
 name: iOS Distribution Readiness Validation
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('UNSIGNED_FOR_LOCAL_RESIGN {0} {1}', inputs.expected_source_sha, inputs.request_id) || format('iOS unsigned IPA PR {0}', github.event.pull_request.number) }}
 
 on:
   pull_request:
     branches:
       - master
   workflow_dispatch:
+    inputs:
+      expected_source_sha:
+        description: Full expected checkout SHA (optional for manual dispatch)
+        type: string
+        required: false
+      request_id:
+        description: UUID used to correlate a cloud download command
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,6 +33,32 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Record and validate actual checkout provenance
+        id: source
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          IPA_REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { appendFileSync } from 'node:fs';
+          const source = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+          if (!/^[a-f0-9]{40}$/.test(source)) throw new Error('Invalid actual checkout SHA');
+          const expected = process.env.EXPECTED_SOURCE_SHA;
+          if (expected && (!/^[a-f0-9]{40}$/.test(expected) || expected !== source)) throw new Error('Dispatch SOURCE_SHA mismatch');
+          if (process.env.PR_HEAD_SHA && process.env.PR_HEAD_SHA !== source) throw new Error('PR head differs from actual checkout');
+          const request = process.env.IPA_REQUEST_ID;
+          if (request && !/^[a-f0-9-]{36}$/.test(request)) throw new Error('Invalid dispatch correlation UUID');
+          appendFileSync(process.env.GITHUB_ENV, `SOURCE_SHA=${source}\nPR_HEAD_SHA=${process.env.PR_HEAD_SHA || ''}\nIPA_REQUEST_ID=${request || ''}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `source_sha=${source}\n`);
+          console.log(JSON.stringify({ SOURCE_SHA: source, PR_HEAD_SHA: process.env.PR_HEAD_SHA || null, GITHUB_SHA: process.env.GITHUB_SHA }));
+          NODE
+
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -93,11 +133,12 @@ jobs:
       - name: 3. Static Verification (TypeScript & iOS Readiness)
         run: |
           npm run ios:validate
+          npm run ios:ipa:test
           npx tsc --noEmit
 
       - name: 4. Build Mobile Frontend & Capacitor Sync
         run: |
-          npm run build:mobile
+          npm run build:mobile -- --ai-backend production
           npx cap sync ios
           cd ios/App
           pod install
@@ -243,7 +284,7 @@ jobs:
       - name: 9. Verify Embedded Privacy Manifest
         run: |
           APP_PATH="artifacts/GymFlow.xcarchive/Products/Applications/App.app"
-          PRIVACY_PATH=$(find "$APP_PATH" -name "PrivacyInfo.xcprivacy" | head -n 1)
+          PRIVACY_PATH="$APP_PATH/PrivacyInfo.xcprivacy"
 
           echo "Buscando PrivacyInfo.xcprivacy embutido no bundle..."
           echo "Caminho encontrado: $PRIVACY_PATH"
@@ -295,6 +336,8 @@ jobs:
             echo "AVISO: Arquivos scratch detectados no App.app: $SCRATCH_FILES"
           fi
 
+          PRIVACY_PATH="$APP_PATH/PrivacyInfo.xcprivacy"
+
           # 4. Cálculo de tamanhos
           ARCHIVE_SIZE=$(du -sh "$ARCHIVE_PATH" | awk '{print $1}')
           APP_SIZE=$(du -sh "$APP_PATH" | awk '{print $1}')
@@ -345,10 +388,19 @@ jobs:
           EOF
           cat artifacts/distribution-readiness-summary.md
 
-      - name: 12. Upload Artifacts
-        if: always()
+      - name: 12. Package and verify unsigned IPA for local resign
+        id: ipa
+        run: npm run ios:ipa:package
+
+      - name: 13. Upload only sanitized local-resign deliverables
         uses: actions/upload-artifact@v4
         with:
-          name: ios-distribution-readiness-artifacts
-          path: artifacts/
+          name: ${{ steps.ipa.outputs.artifact_name }}
+          path: |
+            artifacts/sideload/*.ipa
+            artifacts/sideload/SHA256SUMS.txt
+            artifacts/sideload/metadata.json
+            artifacts/sideload/SIDELOAD_GUIDE.md
+          if-no-files-found: error
           retention-days: 14
+          compression-level: 0
